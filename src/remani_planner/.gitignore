@@ -1,0 +1,7 @@
+build/
+install/
+log/
+/CMakeFiles/
+/symlink_install_manifest.txt
+__pycache__/
+*.pyc

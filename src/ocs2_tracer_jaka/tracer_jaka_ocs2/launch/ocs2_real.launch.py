@@ -307,6 +307,7 @@ def generate_launch_description():
         spawn_delayed,
         spawn_jtc_after_jsb,
         ocs2_delayed,
+
         rviz_delayed,
     ])
 

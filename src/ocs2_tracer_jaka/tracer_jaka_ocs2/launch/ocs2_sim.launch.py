@@ -413,9 +413,9 @@ def generate_launch_description():
             mpc_node,
             mrt_node,
             #target_node,
-            joy_driver,
+            #joy_driver,
             #joy_target_node,
-            joy_whole_body_node,
+            #joy_whole_body_node,
         ],
     )
 
@@ -427,6 +427,6 @@ def generate_launch_description():
             ocs2_delayed,
             map_to_odom_tf,
             rviz_delayed,
-            #whole_body_trajectory_node,
+            whole_body_trajectory_node,
         ]
     )

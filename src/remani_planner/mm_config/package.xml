@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>mm_config</name>
+  <version>0.0.0</version>
+  <description>The mm_config package (ROS2 port)</description>
+  <maintainer email="ckwu1201@163.com">Chengkai Wu</maintainer>
+  <license>TODO</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>ament_index_cpp</depend>
+  <depend>plan_env</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
