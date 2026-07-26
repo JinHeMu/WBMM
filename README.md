@@ -14,6 +14,12 @@ colcon build   --packages-up-to tracer_jaka_ocs2  tracer_jaka_mujoco tracer_base
 ros2 launch tracer_jaka_ocs2 ocs2_sim.launch.py
 ```
 
+```bash
+ros2 launch remani_planner exp0.launch.py
+```
+
+
+
 ## run real robot
 
 ```bash

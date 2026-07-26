@@ -399,6 +399,94 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /tracer_jaka/referenceTrajectory
       Value: true
+    - Class: rviz_common/Group
+      Displays:
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: true
+          Name: Start and Goal
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /kinoastar/local_start_goal
+          Value: true
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: true
+          Name: Front-end Whole-body Trajectory
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /front_end_mm_mesh_vis
+          Value: true
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: true
+          Name: Optimized Whole-body Trajectory
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /back_end_mm_mesh_vis
+          Value: true
+        - Class: rviz_default_plugins/Marker
+          Enabled: true
+          Name: Global Trajectory
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /global_traj
+          Value: true
+        - Class: rviz_default_plugins/Marker
+          Enabled: true
+          Name: Kinodynamic AStar Path
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /kinoastar/path
+          Value: true
+        - Class: rviz_default_plugins/Marker
+          Enabled: true
+          Name: Optimized Control Points
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /optimal_ctrl_pts
+          Value: true
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: true
+          Name: Current REMANI Robot Model
+          Namespaces:
+            {}
+          Topic:
+            Depth: 1
+            Durability Policy: Transient Local
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /model_vis/vis_mm
+          Value: true
+      Enabled: true
+      Name: REMANI Planning
   Enabled: true
   Global Options:
     Background Color: 154; 153; 150

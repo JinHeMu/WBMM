@@ -87,6 +87,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
     use_rviz = LaunchConfiguration("use_rviz")
     use_joy = LaunchConfiguration("use_joy")
+    use_csv_target = LaunchConfiguration("use_csv_target")
 
     task_file = LaunchConfiguration("task_file")
     xacro_file = LaunchConfiguration("xacro_file")
@@ -105,6 +106,14 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "use_joy",
             default_value="true",
+        ),
+        DeclareLaunchArgument(
+            "use_csv_target",
+            default_value="false",
+            description=(
+                "Start the legacy CSV target publisher. Keep false when "
+                "using the REMANI-to-OCS2 bridge."
+            ),
         ),
         DeclareLaunchArgument(
             "task_file",
@@ -245,6 +254,7 @@ def generate_launch_description():
             'hold_time_at_end': 3.0,
         }
         ],
+        condition=IfCondition(use_csv_target),
     )
 
     target_node = Node(

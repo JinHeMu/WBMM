@@ -88,6 +88,9 @@ namespace remani_planner{
     getParam(node_, "search.allocate_num", allocate_num_, 100000);
     getParam(node_, "search.try_astar_times", try_astar_times_, 20);
     getParam(node_, "fsm.planning_horizon", planning_horizon_, 10.0);
+    getParam(
+        node_, "grid_map.frame_id", visualization_frame_,
+        std::string("world"));
 
     bool global_plan = false;
     getParam(node_, "fsm.global_plan", global_plan, false);
@@ -384,7 +387,8 @@ namespace remani_planner{
     pub->publish(MarkerDelete);
 
     visualization_msgs::msg::Marker sphere, line_strip;
-    sphere.header.frame_id = line_strip.header.frame_id = "world";
+    sphere.header.frame_id = line_strip.header.frame_id =
+        visualization_frame_;
     sphere.header.stamp = line_strip.header.stamp = node_->now();
     sphere.type = visualization_msgs::msg::Marker::SPHERE_LIST;
     line_strip.type = visualization_msgs::msg::Marker::LINE_STRIP;
@@ -421,7 +425,7 @@ namespace remani_planner{
     pub->publish(MarkerDelete);
 
     visualization_msgs::msg::Marker sphere;
-    sphere.header.frame_id= "world";
+    sphere.header.frame_id = visualization_frame_;
     sphere.header.stamp= node_->now();
     sphere.type = visualization_msgs::msg::Marker::MESH_RESOURCE;
     sphere.action = visualization_msgs::msg::Marker::ADD;

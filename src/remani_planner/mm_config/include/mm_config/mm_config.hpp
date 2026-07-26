@@ -7,6 +7,7 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <memory>
 #include <string>
+#include <vector>
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include "plan_env/grid_map.h"
@@ -38,6 +39,14 @@ namespace remani_planner
 
         std::vector<Eigen::Matrix4Xd> getLinkPoint(){
             return manipulator_link_pts_;
+        }
+
+        std::vector<Eigen::VectorXd> getLinkRadii() const {
+            return manipulator_link_radii_;
+        }
+
+        const std::vector<double>& getBaseCollisionRadii() const {
+            return mobile_base_collision_radii_;
         }
 
         void getAJointTran(int joint_num, double theta, Eigen::Matrix4d &T, Eigen::Matrix4d &T_grad);
@@ -95,20 +104,36 @@ namespace remani_planner
         }
         
     private:
+        struct UrdfJointKinematics
+        {
+            Eigen::Matrix4d origin = Eigen::Matrix4d::Identity();
+            Eigen::Vector3d axis = Eigen::Vector3d::UnitZ();
+        };
+
         rclcpp::Node::SharedPtr node_;
         std::vector<Eigen::Vector3d> color_set_;
         std::shared_ptr<GridMap> grid_map_;
         bool useFastArmer_;
+        bool useUrdfModel_ = false;
+        std::string urdfFile_;
+        std::string urdfBaseLink_;
+        std::string urdfMobileBaseCollisionLink_;
+        std::vector<std::string> urdfJointNames_;
+        std::vector<UrdfJointKinematics> urdfJointKinematics_;
+        std::string visualizationFrame_ = "world";
         int mobile_base_dof_;
         int manipulator_dof_;
         double mobile_base_length_, mobile_base_width_, mobile_base_height_;
         double mobile_base_check_radius_;
+        std::vector<Eigen::Vector3d> mobile_base_collision_centers_;
+        std::vector<double> mobile_base_collision_radii_;
         double mobile_base_wheel_base_, mobile_base_wheel_radius_, mobile_base_max_wheel_omega_, mobile_base_max_wheel_alpha_;
         
         Eigen::VectorXd manipulator_config_;
         double manipulator_thickness_;
         double map_resolution_;
         std::vector<Eigen::Matrix4Xd> manipulator_link_pts_;
+        std::vector<Eigen::VectorXd> manipulator_link_radii_;
         double car_safe_margin_;
         double mani_safe_margin_;
         double self_safe_margin_;
@@ -131,6 +156,7 @@ namespace remani_planner
 
         void setColorSet();
         void setLinkPoint();
+        bool loadUrdfModel();
         void visCarCheckBall(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub, std::string ns, int idx, double alpha, const Eigen::Vector3d &state);
         void visManiCheckBall(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub, std::string ns, int idx, double alpha, const Eigen::Vector3d &car_state, const Eigen::VectorXd &joint_state);
         void visMesh(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub, int id, std::string ns, double alpha, Eigen::Vector3d color_rgb, const Eigen::Matrix4d &T, const std::string &mesh_file);

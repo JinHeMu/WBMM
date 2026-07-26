@@ -22,6 +22,9 @@ find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common)
 find_package(pcl_conversions REQUIRED)
 find_package(OpenCV REQUIRED COMPONENTS core imgproc)
+find_package(tf2_ros REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBZIP REQUIRED libzip)
 
 add_library(plan_env SHARED
   src/grid_map.cpp
@@ -34,6 +37,7 @@ target_include_directories(plan_env PUBLIC
   ${EIGEN3_INCLUDE_DIR}
   ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
+  ${LIBZIP_INCLUDE_DIRS}
 )
 
 ament_target_dependencies(plan_env PUBLIC
@@ -46,12 +50,14 @@ ament_target_dependencies(plan_env PUBLIC
   cv_bridge
   message_filters
   pcl_conversions
+  tf2_ros
 )
 
 target_link_libraries(plan_env PUBLIC
   pcl_common
   opencv_core
   opencv_imgproc
+  ${LIBZIP_LIBRARIES}
 )
 
 install(TARGETS plan_env
@@ -74,6 +80,7 @@ ament_export_dependencies(
   cv_bridge
   message_filters
   pcl_conversions
+  tf2_ros
 )
 
 ament_package()

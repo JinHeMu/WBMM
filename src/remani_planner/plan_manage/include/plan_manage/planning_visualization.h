@@ -15,11 +15,21 @@
 using std::vector;
 namespace remani_planner
 {
+  /**
+   * @brief 将规划过程中的二维/三维中间结果转换为 RViz Marker。
+   *
+   * 该类只负责“显示数据的编码和发布”，不参与路径搜索或轨迹优化。
+   * 所有 Marker 使用 grid_map.frame_id；调用方负责保证输入状态也位于
+   * 该坐标系。每个显示接口都先检查订阅者数量，未打开 RViz 对应显示时
+   * 不生成点云/Marker，从而避免调试可视化影响规划线程。
+   */
   class PlanningVisualization
   {
   private:
     rclcpp::Node::SharedPtr node_;
+    std::string frame_id_ = "world";
 
+    // 规划结果类 Marker：目标、全局/局部轨迹、控制点和失败点。
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr goal_point_pub;
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr global_traj_pub;
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr init_ctrl_pts_pub;
@@ -32,6 +42,7 @@ namespace remani_planner
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr guide_vector_pub;
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr init_list_debug_pub;
 
+    // 优化调试 Marker：中间点以及各类代价/可行性梯度箭头。
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr intermediate_pt0_pub;
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr intermediate_pt1_pub;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr intermediate_grad0_pub;

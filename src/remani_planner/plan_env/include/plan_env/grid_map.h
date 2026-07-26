@@ -12,6 +12,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <tuple>
 #include <visualization_msgs/msg/marker.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -264,6 +266,11 @@ private:
   MappingData md_;
 
   rclcpp::Node::SharedPtr node_;
+  bool use_static_esdf_ = false;
+  std::string static_esdf_file_;
+  bool use_tf_cloud_transform_ = false;
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
   // get depth image and camera pose
   void depthPoseCallback(const sensor_msgs::msg::Image::ConstSharedPtr &img,

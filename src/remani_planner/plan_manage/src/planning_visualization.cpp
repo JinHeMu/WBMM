@@ -6,7 +6,22 @@ namespace remani_planner
 {
   PlanningVisualization::PlanningVisualization(rclcpp::Node::SharedPtr nh){
     node_ = nh;
+    // PlanningVisualization is constructed before GridMap declares its
+    // parameters. Read the launch/YAML override without declaring it here,
+    // otherwise GridMap::initMap() would see a duplicate declaration.
+    if (node_->has_parameter("grid_map.frame_id")) {
+      frame_id_ = node_->get_parameter("grid_map.frame_id").as_string();
+    } else {
+      const auto &overrides =
+          node_->get_node_parameters_interface()->get_parameter_overrides();
+      const auto frame_it = overrides.find("grid_map.frame_id");
+      if (frame_it != overrides.end()) {
+        frame_id_ = frame_it->second.get<std::string>();
+      }
+    }
 
+    // 这些 topic 与 plan_manage/launch/*.rviz 中的 Display 一一对应。
+    // Marker 使用普通 Volatile QoS；RViz 启动后需要等待下一次发布才能显示。
     goal_point_pub = nh->create_publisher<visualization_msgs::msg::Marker>("goal_point", 2);
     global_traj_pub = nh->create_publisher<visualization_msgs::msg::Marker>("global_traj", 2);
     init_ctrl_pts_pub = nh->create_publisher<visualization_msgs::msg::Marker>("init_ctrl_pts", 2);
@@ -26,6 +41,7 @@ namespace remani_planner
     intermediate_grad_dist_pub = nh->create_publisher<visualization_msgs::msg::MarkerArray>("dist_grad_dur_opt", 10);
     intermediate_grad_feas_pub = nh->create_publisher<visualization_msgs::msg::MarkerArray>("feas_grad_dur_opt", 10);
     
+    // 后续若启用性能记录，可用该时间作为可视化/规划的相对时间基准。
     t_init = node_->now();
   }
 
@@ -33,8 +49,10 @@ namespace remani_planner
   void PlanningVisualization::displayMarkerList(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub, const vector<Eigen::Vector3d> &list, double scale,
                                                 Eigen::Vector4d color, int id, bool show_sphere /* = true */ )
   {
+    // 一个点列表可编码为 SPHERE_LIST（离散点）或 LINE_STRIP（连续路径）。
+    // id+1000 给同一 topic 下的线条预留独立 ID，避免覆盖其它 Marker。
     visualization_msgs::msg::Marker sphere, line_strip;
-    sphere.header.frame_id = line_strip.header.frame_id = "world";
+    sphere.header.frame_id = line_strip.header.frame_id = frame_id_;
     sphere.header.stamp = line_strip.header.stamp = node_->now();
     sphere.type = visualization_msgs::msg::Marker::SPHERE_LIST;
     line_strip.type = visualization_msgs::msg::Marker::LINE_STRIP;
@@ -68,8 +86,9 @@ namespace remani_planner
   void PlanningVisualization::generatePathDisplayArray(visualization_msgs::msg::MarkerArray &array,
                                                        const vector<Eigen::Vector3d> &list, double scale, Eigen::Vector4d color, int id)
   {
+    // MarkerArray 版本使用相邻 ID（id/id+1），适合一次性发布点和连线。
     visualization_msgs::msg::Marker sphere, line_strip;
-    sphere.header.frame_id = line_strip.header.frame_id = "world";
+    sphere.header.frame_id = line_strip.header.frame_id = frame_id_;
     sphere.header.stamp = line_strip.header.stamp = node_->now();
     sphere.type = visualization_msgs::msg::Marker::SPHERE_LIST;
     line_strip.type = visualization_msgs::msg::Marker::LINE_STRIP;
@@ -103,8 +122,10 @@ namespace remani_planner
   void PlanningVisualization::generateArrowDisplayArray(visualization_msgs::msg::MarkerArray &array,
                                                         const vector<Eigen::Vector3d> &list, double scale, Eigen::Vector4d color, int id)
   {
+    // list 按 [start0,end0,start1,end1,...] 组织，每两点生成一个箭头。
+    // 调用方应保证 list.size() 为偶数；多余的最后一个点会被忽略。
     visualization_msgs::msg::Marker arrow;
-    arrow.header.frame_id = "world";
+    arrow.header.frame_id = frame_id_;
     arrow.header.stamp = node_->now();
     arrow.type = visualization_msgs::msg::Marker::ARROW;
     arrow.action = visualization_msgs::msg::Marker::ADD;
@@ -145,7 +166,7 @@ namespace remani_planner
   void PlanningVisualization::displayGoalPoint(Eigen::Vector2d goal_point, Eigen::Vector4d color, const double scale, int id)
   {
     visualization_msgs::msg::Marker sphere;
-    sphere.header.frame_id = "world";
+    sphere.header.frame_id = frame_id_;
     sphere.header.stamp = node_->now();
     sphere.type = visualization_msgs::msg::Marker::SPHERE;
     sphere.action = visualization_msgs::msg::Marker::ADD;
@@ -191,6 +212,8 @@ namespace remani_planner
       return;
     }
 
+    // 优化过程中轨迹段数量会变化。先用透明 LINE_STRIP 覆盖旧 ID，
+    // 再发布当前结果，避免 RViz 保留上一轮多出来的轨迹段。
     static int last_nums = 0;
 
     for ( int id=0; id<last_nums; id++ )
@@ -301,6 +324,7 @@ namespace remani_planner
       optimal_ctrl_pts_pub->publish(MarkerDelete);
     }
 
+    // 每个矩阵的一列是一个控制点；多个 singul 段被展平成一个 Marker。
     vector<Eigen::Vector3d> list;
     for(unsigned int j = 0; j < optimal_pts_list.size(); ++j){
       Eigen::MatrixXd optimal_pts = optimal_pts_list[j];
@@ -374,7 +398,8 @@ namespace remani_planner
   void PlanningVisualization::displayArrowList(const rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr &pub, const vector<Eigen::Vector3d> &list, double scale, Eigen::Vector4d color, int id)
   {
     visualization_msgs::msg::MarkerArray array;
-    // clear
+    // 发布空数组不能删除 RViz 中已有 Marker，因此真正的清理依赖稳定的
+    // namespace/id；这里先发布空数组，再发布当前箭头集合。
     pub->publish(array);
 
     generateArrowDisplayArray(array, list, scale, color, id);

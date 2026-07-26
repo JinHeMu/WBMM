@@ -6,7 +6,6 @@ if(NOT CMAKE_CXX_STANDARD)
 endif()
 
 find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -52,18 +51,11 @@ target_include_directories(encode_msgs PUBLIC
   $<INSTALL_INTERFACE:include>
   ${EIGEN3_INCLUDE_DIR})
 
-target_link_libraries(decode_msgs
-  rclcpp::rclcpp
-  ${geometry_msgs_LIBRARIES}
-  ${nav_msgs_LIBRARIES})
+rosidl_get_typesupport_target(cpp_typesupport_target
+  ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
-target_link_libraries(encode_msgs
-  rclcpp::rclcpp
-  ${geometry_msgs_LIBRARIES}
-  ${nav_msgs_LIBRARIES})
-
-rosidl_target_interfaces(decode_msgs ${PROJECT_NAME} "rosidl_typesupport_cpp")
-rosidl_target_interfaces(encode_msgs ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(decode_msgs PUBLIC "${cpp_typesupport_target}")
+target_link_libraries(encode_msgs PUBLIC "${cpp_typesupport_target}")
 
 ament_export_dependencies(
   rosidl_default_runtime

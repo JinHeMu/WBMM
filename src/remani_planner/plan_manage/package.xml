@@ -30,6 +30,7 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs_py</exec_depend>
   <exec_depend>rviz2</exec_depend>
+  <exec_depend>grid_map</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

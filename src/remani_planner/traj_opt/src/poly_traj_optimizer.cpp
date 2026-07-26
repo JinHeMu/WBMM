@@ -46,6 +46,9 @@ namespace remani_planner
     manipulator_config_ = mm_config_->getManiConfig();  // 机械臂配置
     T_q_0_ = mm_config_->getTq0();                      // 基底到机械臂基座的变换矩阵
     manipulator_link_pts_ = mm_config_->getLinkPoint();  // 各连杆上的碰撞球体位置
+    manipulator_link_radii_ = mm_config_->getLinkRadii();
+    mobile_base_collision_radii_ =
+        mm_config_->getBaseCollisionRadii();
 
     /* ---------- 优化参数 ---------- */
     getOptParam(node_, "optimization.constrain_points_perPiece", cps_num_prePiece_, -1);
@@ -112,7 +115,10 @@ namespace remani_planner
 
     traj_dim_ = mobile_base_dof_ + manipulator_dof_;
 
-    /* ---------- 可视化发布者 ---------- */
+    /* ---------- 可视化发布者 ----------
+     * 前端发布 A* + 机械臂采样结果，后端发布优化轨迹采样结果。
+     * 两者都用 MarkerArray，RViz 可分别开关以比较优化前后状态。
+     */
     traj_pt_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("traj_pt_vis", 10);
     traj_init_pt_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("traj_init_pt_vis", 10);
     front_end_mm_mesh_vis_pub_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>("front_end_mm_mesh_vis", 50);
@@ -1110,7 +1116,11 @@ namespace remani_planner
     for(unsigned int i = 0; i < car_pts.size(); ++i){
       Eigen::Vector3d dist_grad;
       grid_map_->evaluateEDTWithGrad(car_pts[i], dist, dist_grad);  // ESDF 查询
-      dist_err = mobile_base_check_radius_ + safe_margin_ - dist;
+      const double base_radius =
+          mobile_base_collision_radii_.empty()
+              ? mobile_base_check_radius_
+              : mobile_base_collision_radii_[i];
+      dist_err = base_radius + safe_margin_ - dist;
       if (dist_err > 0){
         dist_err_2 = dist_err * dist_err;
         dist_err_3 = dist_err_2 * dist_err;
@@ -1179,7 +1189,8 @@ namespace remani_planner
         // --- [2a] 机械臂-障碍物 ---
         Eigen::Vector3d dist_grad;
         grid_map_->evaluateEDTWithGrad(pt_on_link, dist, dist_grad);
-        dist_err = manipulator_thickness_ + safe_margin_mani_ - dist;
+        const double sphere_radius = manipulator_link_radii_[i](j);
+        dist_err = sphere_radius + safe_margin_mani_ - dist;
         if(dist_err > 0){
           ret = true;
           dist_grad4.segment(0, 3) = dist_grad;
@@ -1205,10 +1216,10 @@ namespace remani_planner
         // --- [2b] 地面碰撞 ---
         Eigen::VectorXd dzdP = Eigen::VectorXd::Zero(4);
         dzdP(2) = 1;
-        ground_err = manipulator_thickness_ + ground_safe_dis_ + ground_safe_margin_
+        ground_err = sphere_radius + ground_safe_dis_ + ground_safe_margin_
                    + map_resolution_ - pt_on_link(2);
         if(ground_err > 0){
-          ground_err = manipulator_thickness_ + ground_safe_dis_ + ground_safe_margin_
+          ground_err = sphere_radius + ground_safe_dis_ + ground_safe_margin_
                      - pt_on_link(2);
           double f_temp = 0, df_ground = 0;
           if(smoothedL1(ground_err, 0.0005, f_temp, df_ground)){
@@ -1249,7 +1260,12 @@ namespace remani_planner
         // --- [3] 底盘-机械臂 ---
         for(unsigned int m = 0; m < car_pts.size(); ++m){
           dist = (car_pts[m] - pt_on_link).norm();
-          dist_err = manipulator_thickness_ + mobile_base_check_radius_ + self_safe_margin_ - dist;
+          const double base_radius =
+              mobile_base_collision_radii_.empty()
+                  ? mobile_base_check_radius_
+                  : mobile_base_collision_radii_[m];
+          dist_err = manipulator_link_radii_[i](j) +
+                     base_radius + self_safe_margin_ - dist;
           if(dist_err > 0){
             dist_err_2 = dist_err * dist_err;
             dist_err_3 = dist_err_2 * dist_err;
@@ -1287,7 +1303,9 @@ namespace remani_planner
           for(int n = 0; n < pts_size_temp; ++n){
             pt_on_link_to_check_m = (manipulator_link_pts_[m].col(n)).head(3);
             dist = (pt_on_link_m - pt_on_link_to_check_m).norm();
-            dist_err = 2 * manipulator_thickness_ + self_safe_margin_ - dist;
+            dist_err = manipulator_link_radii_[i](j) +
+                       manipulator_link_radii_[m](n) +
+                       self_safe_margin_ - dist;
             if(dist_err > 0){
               dist_err_2 = dist_err * dist_err;
               dist_err_3 = dist_err_2 * dist_err;

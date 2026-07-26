@@ -1,11 +1,364 @@
 #include "plan_env/grid_map.h"
 
+#include <cctype>
+#include <cstdint>
+#include <cstring>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+#include <zip.h>
+
+namespace
+{
+struct NpyArray
+{
+  std::string descriptor;
+  std::vector<size_t> shape;
+  std::vector<uint8_t> data;
+};
+
+struct StaticEsdfArchive
+{
+  Eigen::Vector3i shape = Eigen::Vector3i::Zero();
+  Eigen::Vector3d origin = Eigen::Vector3d::Zero();
+  Eigen::Vector3d bounds_max = Eigen::Vector3d::Zero();
+  double voxel_size = 0.0;
+  std::vector<float> esdf;
+  std::vector<uint8_t> occupancy;
+};
+
+uint32_t readLittleEndian(
+    const std::vector<uint8_t> &buffer, size_t offset, size_t byte_count)
+{
+  if (offset + byte_count > buffer.size() || byte_count > 4U)
+  {
+    throw std::runtime_error("Invalid little-endian field in NPY header.");
+  }
+  uint32_t result = 0U;
+  for (size_t i = 0; i < byte_count; ++i)
+  {
+    result |= static_cast<uint32_t>(buffer[offset + i]) << (8U * i);
+  }
+  return result;
+}
+
+bool readNpyMember(
+    zip_t *archive, const std::string &member_name,
+    NpyArray &array, std::string &error)
+{
+  zip_stat_t stat;
+  zip_stat_init(&stat);
+  if (zip_stat(archive, member_name.c_str(), ZIP_FL_ENC_GUESS, &stat) != 0)
+  {
+    error = "NPZ member is missing: " + member_name;
+    return false;
+  }
+
+  zip_file_t *member =
+      zip_fopen(archive, member_name.c_str(), ZIP_FL_ENC_GUESS);
+  if (member == nullptr)
+  {
+    error = "Cannot open NPZ member: " + member_name;
+    return false;
+  }
+
+  std::vector<uint8_t> buffer(static_cast<size_t>(stat.size));
+  size_t received = 0U;
+  while (received < buffer.size())
+  {
+    const zip_int64_t count = zip_fread(
+        member, buffer.data() + received, buffer.size() - received);
+    if (count <= 0)
+    {
+      zip_fclose(member);
+      error = "Cannot read complete NPZ member: " + member_name;
+      return false;
+    }
+    received += static_cast<size_t>(count);
+  }
+  zip_fclose(member);
+
+  static constexpr uint8_t kMagic[] = {
+      0x93U, 'N', 'U', 'M', 'P', 'Y'};
+  if (buffer.size() < 10U ||
+      std::memcmp(buffer.data(), kMagic, sizeof(kMagic)) != 0)
+  {
+    error = "Invalid NPY magic in member: " + member_name;
+    return false;
+  }
+
+  const uint8_t major_version = buffer[6];
+  size_t header_size_offset = 8U;
+  size_t header_size_bytes = 0U;
+  if (major_version == 1U)
+  {
+    header_size_bytes = 2U;
+  }
+  else if (major_version == 2U || major_version == 3U)
+  {
+    header_size_bytes = 4U;
+  }
+  else
+  {
+    error = "Unsupported NPY version in member: " + member_name;
+    return false;
+  }
+
+  uint32_t header_size = 0U;
+  try
+  {
+    header_size = readLittleEndian(
+        buffer, header_size_offset, header_size_bytes);
+  }
+  catch (const std::exception &exception)
+  {
+    error = exception.what();
+    return false;
+  }
+  const size_t header_offset = header_size_offset + header_size_bytes;
+  const size_t data_offset = header_offset + header_size;
+  if (data_offset > buffer.size())
+  {
+    error = "Truncated NPY header in member: " + member_name;
+    return false;
+  }
+  const std::string header(
+      reinterpret_cast<const char *>(buffer.data() + header_offset),
+      header_size);
+
+  const size_t descriptor_key = header.find("descr");
+  const size_t descriptor_colon =
+      descriptor_key == std::string::npos
+          ? std::string::npos
+          : header.find(':', descriptor_key);
+  const size_t descriptor_quote =
+      descriptor_colon == std::string::npos
+          ? std::string::npos
+          : header.find_first_of("'\"", descriptor_colon);
+  const size_t descriptor_end =
+      descriptor_quote == std::string::npos
+          ? std::string::npos
+          : header.find(header[descriptor_quote], descriptor_quote + 1U);
+  if (descriptor_end == std::string::npos)
+  {
+    error = "Cannot parse NPY descriptor in member: " + member_name;
+    return false;
+  }
+  array.descriptor = header.substr(
+      descriptor_quote + 1U,
+      descriptor_end - descriptor_quote - 1U);
+
+  const size_t fortran_key = header.find("fortran_order");
+  const size_t fortran_colon =
+      fortran_key == std::string::npos
+          ? std::string::npos
+          : header.find(':', fortran_key);
+  if (fortran_colon == std::string::npos ||
+      header.find("True", fortran_colon) <
+          header.find_first_of(",}", fortran_colon))
+  {
+    error = "Fortran-order or malformed NPY arrays are unsupported: " +
+            member_name;
+    return false;
+  }
+
+  const size_t shape_key = header.find("shape");
+  const size_t shape_begin =
+      shape_key == std::string::npos
+          ? std::string::npos
+          : header.find('(', shape_key);
+  const size_t shape_end =
+      shape_begin == std::string::npos
+          ? std::string::npos
+          : header.find(')', shape_begin);
+  if (shape_end == std::string::npos)
+  {
+    error = "Cannot parse NPY shape in member: " + member_name;
+    return false;
+  }
+  array.shape.clear();
+  size_t cursor = shape_begin + 1U;
+  while (cursor < shape_end)
+  {
+    while (cursor < shape_end &&
+           !std::isdigit(static_cast<unsigned char>(header[cursor])))
+    {
+      ++cursor;
+    }
+    if (cursor >= shape_end)
+    {
+      break;
+    }
+    size_t number_end = cursor;
+    while (number_end < shape_end &&
+           std::isdigit(static_cast<unsigned char>(header[number_end])))
+    {
+      ++number_end;
+    }
+    array.shape.push_back(
+        static_cast<size_t>(
+            std::stoull(header.substr(cursor, number_end - cursor))));
+    cursor = number_end;
+  }
+
+  array.data.assign(buffer.begin() + data_offset, buffer.end());
+  return true;
+}
+
+bool copyFloatArray(
+    const NpyArray &source, std::vector<float> &destination,
+    std::string &error)
+{
+  if (source.descriptor != "<f4" && source.descriptor != "=f4")
+  {
+    error = "Expected a little-endian float32 NPY array, received '" +
+            source.descriptor + "'.";
+    return false;
+  }
+  if (source.data.size() % sizeof(float) != 0U)
+  {
+    error = "Float32 NPY payload has an invalid byte count.";
+    return false;
+  }
+  destination.resize(source.data.size() / sizeof(float));
+  std::memcpy(
+      destination.data(), source.data.data(), source.data.size());
+  return true;
+}
+
+bool loadStaticEsdfArchive(
+    const std::string &file_name, StaticEsdfArchive &result,
+    std::string &error)
+{
+  int zip_error = 0;
+  zip_t *archive = zip_open(file_name.c_str(), ZIP_RDONLY, &zip_error);
+  if (archive == nullptr)
+  {
+    error = "Cannot open static ESDF NPZ file: " + file_name;
+    return false;
+  }
+
+  NpyArray esdf_array;
+  NpyArray occupancy_array;
+  NpyArray origin_array;
+  NpyArray voxel_array;
+  NpyArray bounds_array;
+  const bool members_ok =
+      readNpyMember(archive, "esdf.npy", esdf_array, error) &&
+      readNpyMember(
+          archive, "occupancy.npy", occupancy_array, error) &&
+      readNpyMember(archive, "origin.npy", origin_array, error) &&
+      readNpyMember(
+          archive, "voxel_size.npy", voxel_array, error) &&
+      readNpyMember(
+          archive, "bounds_max.npy", bounds_array, error);
+  zip_close(archive);
+  if (!members_ok)
+  {
+    return false;
+  }
+
+  if (esdf_array.shape.size() != 3U ||
+      occupancy_array.shape != esdf_array.shape)
+  {
+    error = "Static ESDF and occupancy arrays must have equal 3D shapes.";
+    return false;
+  }
+  for (size_t axis = 0; axis < 3U; ++axis)
+  {
+    if (esdf_array.shape[axis] == 0U ||
+        esdf_array.shape[axis] >
+            static_cast<size_t>(std::numeric_limits<int>::max()))
+    {
+      error = "Static ESDF has an invalid grid dimension.";
+      return false;
+    }
+    result.shape(static_cast<Eigen::Index>(axis)) =
+        static_cast<int>(esdf_array.shape[axis]);
+  }
+
+  if (!copyFloatArray(esdf_array, result.esdf, error))
+  {
+    return false;
+  }
+  const size_t voxel_count =
+      static_cast<size_t>(result.shape.x()) *
+      static_cast<size_t>(result.shape.y()) *
+      static_cast<size_t>(result.shape.z());
+  if (result.esdf.size() != voxel_count ||
+      occupancy_array.data.size() != voxel_count ||
+      (occupancy_array.descriptor != "|b1" &&
+       occupancy_array.descriptor != "|u1"))
+  {
+    error = "Static ESDF payload size or occupancy type is invalid.";
+    return false;
+  }
+  result.occupancy = occupancy_array.data;
+
+  std::vector<float> origin;
+  std::vector<float> bounds;
+  std::vector<float> voxel;
+  if (!copyFloatArray(origin_array, origin, error) ||
+      !copyFloatArray(bounds_array, bounds, error) ||
+      !copyFloatArray(voxel_array, voxel, error) ||
+      origin.size() != 3U || bounds.size() != 3U ||
+      voxel.size() != 1U || voxel.front() <= 0.0F)
+  {
+    if (error.empty())
+    {
+      error = "Invalid origin, bounds_max or voxel_size in static ESDF.";
+    }
+    return false;
+  }
+  result.origin =
+      Eigen::Vector3d(origin[0], origin[1], origin[2]);
+  result.bounds_max =
+      Eigen::Vector3d(bounds[0], bounds[1], bounds[2]);
+  result.voxel_size = static_cast<double>(voxel.front());
+
+  const Eigen::Vector3d expected_bounds =
+      result.origin +
+      result.voxel_size * result.shape.cast<double>();
+  if ((expected_bounds - result.bounds_max).cwiseAbs().maxCoeff() >
+      1.0e-4)
+  {
+    error = "Static ESDF bounds do not match its shape and voxel size.";
+    return false;
+  }
+  return true;
+}
+}  // namespace
+
 // #define current_img_ md_.depth_image_[image_cnt_ & 1]
 // #define last_img_ md_.depth_image_[!(image_cnt_ & 1)]
 
 void GridMap::initMap(rclcpp::Node::SharedPtr node)
 {
   node_ = node;
+  node_->declare_parameter("grid_map.use_static_esdf", false);
+  use_static_esdf_ =
+      node_->get_parameter("grid_map.use_static_esdf").as_bool();
+  node_->declare_parameter("grid_map.static_esdf_file", "");
+  static_esdf_file_ =
+      node_->get_parameter("grid_map.static_esdf_file").as_string();
+  node_->declare_parameter("grid_map.static_esdf_offset_x", 0.0);
+  node_->declare_parameter("grid_map.static_esdf_offset_y", 0.0);
+  node_->declare_parameter("grid_map.static_esdf_offset_z", 0.0);
+  const Eigen::Vector3d static_esdf_offset(
+      node_->get_parameter("grid_map.static_esdf_offset_x").as_double(),
+      node_->get_parameter("grid_map.static_esdf_offset_y").as_double(),
+      node_->get_parameter("grid_map.static_esdf_offset_z").as_double());
+
+  node_->declare_parameter("grid_map.use_tf_cloud_transform", false);
+  use_tf_cloud_transform_ =
+      node_->get_parameter("grid_map.use_tf_cloud_transform").as_bool();
+  if (use_tf_cloud_transform_)
+  {
+    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
+    tf_listener_ =
+        std::make_shared<tf2_ros::TransformListener>(*tf_buffer_, node_, false);
+  }
 
   /* declare and get parameters (ROS2 uses "." separators) */
   double x_size, y_size, z_size;
@@ -109,12 +462,57 @@ void GridMap::initMap(rclcpp::Node::SharedPtr node)
   node_->declare_parameter("grid_map.use_load_map", false);
   use_load_map_ = node_->get_parameter("grid_map.use_load_map").as_bool();
 
+  StaticEsdfArchive static_esdf;
+  if (use_static_esdf_)
+  {
+    if (static_esdf_file_.empty())
+    {
+      throw std::runtime_error(
+          "grid_map.static_esdf_file is empty while static ESDF mode is enabled.");
+    }
+    std::string load_error;
+    if (!loadStaticEsdfArchive(
+            static_esdf_file_, static_esdf, load_error))
+    {
+      throw std::runtime_error(load_error);
+    }
+    // The NPZ grid is expressed in the MuJoCo world frame. A fixed
+    // translation makes the same samples directly queryable in the planner
+    // frame without resampling the grid (the axes must remain aligned).
+    static_esdf.origin += static_esdf_offset;
+    static_esdf.bounds_max += static_esdf_offset;
+    if (use_load_map_ || use_tf_cloud_transform_)
+    {
+      RCLCPP_WARN(
+          node_->get_logger(),
+          "Static ESDF mode disables point-cloud map loading and TF cloud transforms.");
+    }
+    use_load_map_ = false;
+    use_tf_cloud_transform_ = false;
+  }
+
   if(mp_.local_bound_inflate_ > 1e-3) mp_.local_bound_inflate_ = max(mp_.resolution_, mp_.local_bound_inflate_);
   else mp_.local_bound_inflate_ = 0.0;
 
-  mp_.resolution_inv_ = 1 / mp_.resolution_;
-  mp_.map_origin_ = Eigen::Vector3d(-x_size / 2.0, -y_size / 2.0, mp_.ground_height_);
-  mp_.map_size_ = Eigen::Vector3d(x_size, y_size, z_size);
+  if (use_static_esdf_)
+  {
+    mp_.resolution_ = static_esdf.voxel_size;
+    mp_.resolution_inv_ = 1.0 / mp_.resolution_;
+    mp_.map_origin_ = static_esdf.origin;
+    mp_.map_size_ = static_esdf.bounds_max - static_esdf.origin;
+    mp_.map_voxel_num_ = static_esdf.shape;
+    mp_.ground_height_ = static_esdf.origin.z();
+  }
+  else
+  {
+    mp_.resolution_inv_ = 1 / mp_.resolution_;
+    mp_.map_origin_ = Eigen::Vector3d(
+        -x_size / 2.0, -y_size / 2.0, mp_.ground_height_);
+    mp_.map_size_ = Eigen::Vector3d(x_size, y_size, z_size);
+    for (int i = 0; i < 3; ++i)
+      mp_.map_voxel_num_(i) =
+          ceil(mp_.map_size_(i) / mp_.resolution_);
+  }
 
   mp_.prob_hit_log_ = logit(mp_.p_hit_);
   mp_.prob_miss_log_ = logit(mp_.p_miss_);
@@ -128,9 +526,6 @@ void GridMap::initMap(rclcpp::Node::SharedPtr node)
   // cout << "min log: " << mp_.clamp_min_log_ << endl;
   // cout << "max: " << mp_.clamp_max_log_ << endl;
   // cout << "thresh log: " << mp_.min_occupancy_log_ << endl;
-
-  for (int i = 0; i < 3; ++i)
-    mp_.map_voxel_num_(i) = ceil(mp_.map_size_(i) / mp_.resolution_);
 
   mp_.map_min_boundary_ = mp_.map_origin_;
   mp_.map_max_boundary_ = mp_.map_origin_ + mp_.map_size_;
@@ -184,50 +579,67 @@ void GridMap::initMap(rclcpp::Node::SharedPtr node)
 
   /* init callback (ROS2 message_filters uses rclcpp::Node) */
 
-  depth_sub_.reset(new message_filters::Subscriber<sensor_msgs::msg::Image>(node_, "grid_map/depth", rmw_qos_profile_sensor_data));
-  cloud_sub_.reset(new message_filters::Subscriber<sensor_msgs::msg::PointCloud2>(node_, "grid_map/cloud", rmw_qos_profile_sensor_data));
-
-  if (mp_.pose_type_ == POSE_STAMPED)
+  if (!use_static_esdf_)
   {
-    pose_sub_.reset(
-        new message_filters::Subscriber<geometry_msgs::msg::PoseStamped>(node_, "grid_map/pose", rmw_qos_profile_default));
+    depth_sub_.reset(new message_filters::Subscriber<sensor_msgs::msg::Image>(
+        node_, "grid_map/depth", rmw_qos_profile_sensor_data));
+    cloud_sub_.reset(new message_filters::Subscriber<sensor_msgs::msg::PointCloud2>(
+        node_, "grid_map/cloud", rmw_qos_profile_sensor_data));
 
-    sync_image_pose_.reset(new message_filters::Synchronizer<SyncPolicyImagePose>(
-        SyncPolicyImagePose(100), *depth_sub_, *pose_sub_));
-    sync_image_pose_->registerCallback(std::bind(&GridMap::depthPoseCallback, this, std::placeholders::_1, std::placeholders::_2));
-  }
-  else if (mp_.pose_type_ == ODOMETRY)
-  {
-    odom_sub_.reset(new message_filters::Subscriber<nav_msgs::msg::Odometry>(node_, "grid_map/odom", rmw_qos_profile_sensor_data));
+    if (mp_.pose_type_ == POSE_STAMPED)
+    {
+      pose_sub_.reset(
+          new message_filters::Subscriber<geometry_msgs::msg::PoseStamped>(
+              node_, "grid_map/pose", rmw_qos_profile_default));
 
-    sync_cloud_odom_.reset(new message_filters::Synchronizer<SyncPolicyCloudOdom>(
-        SyncPolicyCloudOdom(100), *cloud_sub_, *odom_sub_));
-    sync_cloud_odom_->registerCallback(std::bind(&GridMap::cloudOdomCallback, this, std::placeholders::_1, std::placeholders::_2));
-  }
+      sync_image_pose_.reset(
+          new message_filters::Synchronizer<SyncPolicyImagePose>(
+              SyncPolicyImagePose(100), *depth_sub_, *pose_sub_));
+      sync_image_pose_->registerCallback(
+          std::bind(
+              &GridMap::depthPoseCallback, this,
+              std::placeholders::_1, std::placeholders::_2));
+    }
+    else if (mp_.pose_type_ == ODOMETRY)
+    {
+      odom_sub_.reset(
+          new message_filters::Subscriber<nav_msgs::msg::Odometry>(
+              node_, "grid_map/odom", rmw_qos_profile_sensor_data));
 
-  // use odometry and point cloud
-  // sim
-  if(use_load_map_){
-    if(mp_.use_global_map_){
-      indep_cloud_sub_ =
-         node_->create_subscription<sensor_msgs::msg::PointCloud2>("/map_generator/global_cloud", 10,
-             std::bind(&GridMap::cloudCallback, this, std::placeholders::_1));
-    }else{
-      indep_cloud_sub_ =
-        node_->create_subscription<sensor_msgs::msg::PointCloud2>("grid_map/cloud", 10,
-            std::bind(&GridMap::cloudCallback, this, std::placeholders::_1));
+      sync_cloud_odom_.reset(
+          new message_filters::Synchronizer<SyncPolicyCloudOdom>(
+              SyncPolicyCloudOdom(100), *cloud_sub_, *odom_sub_));
+      sync_cloud_odom_->registerCallback(
+          std::bind(
+              &GridMap::cloudOdomCallback, this,
+              std::placeholders::_1, std::placeholders::_2));
     }
 
-    indep_odom_sub_ =
-        node_->create_subscription<nav_msgs::msg::Odometry>("grid_map/odom", 10,
-            std::bind(&GridMap::odomCallback, this, std::placeholders::_1));
+    // Legacy simulation-map path: build occupancy/ESDF from a point cloud.
+    if(use_load_map_){
+      if(mp_.use_global_map_){
+        indep_cloud_sub_ =
+           node_->create_subscription<sensor_msgs::msg::PointCloud2>("/map_generator/global_cloud", 10,
+               std::bind(&GridMap::cloudCallback, this, std::placeholders::_1));
+      }else{
+        indep_cloud_sub_ =
+          node_->create_subscription<sensor_msgs::msg::PointCloud2>("grid_map/cloud", 10,
+              std::bind(&GridMap::cloudCallback, this, std::placeholders::_1));
+      }
+
+      indep_odom_sub_ =
+          node_->create_subscription<nav_msgs::msg::Odometry>("grid_map/odom", 10,
+              std::bind(&GridMap::odomCallback, this, std::placeholders::_1));
+    }
   }
 
-
-  occ_timer_  = node_->create_wall_timer(std::chrono::milliseconds(50),
-      std::bind(&GridMap::updateOccupancyCallback, this));
-  esdf_timer_ = node_->create_wall_timer(std::chrono::milliseconds(50),
-      std::bind(&GridMap::updateESDFCallback, this));
+  if (!use_static_esdf_)
+  {
+    occ_timer_  = node_->create_wall_timer(std::chrono::milliseconds(50),
+        std::bind(&GridMap::updateOccupancyCallback, this));
+    esdf_timer_ = node_->create_wall_timer(std::chrono::milliseconds(50),
+        std::bind(&GridMap::updateESDFCallback, this));
+  }
   vis_timer_  = node_->create_wall_timer(std::chrono::milliseconds(50),
       std::bind(&GridMap::visCallback, this));
 
@@ -250,6 +662,40 @@ void GridMap::initMap(rclcpp::Node::SharedPtr node)
 
   md_.flag_depth_odom_timeout_ = false;
   md_.flag_use_depth_fusion = false;
+
+  if (use_static_esdf_)
+  {
+    const size_t voxel_count = static_esdf.esdf.size();
+    for (size_t index = 0; index < voxel_count; ++index)
+    {
+      const bool occupied = static_esdf.occupancy[index] != 0U;
+      md_.occupancy_buffer_[index] =
+          occupied ? mp_.clamp_max_log_ : mp_.clamp_min_log_;
+      md_.occupancy_buffer_inflate_[index] = occupied ? 1 : 0;
+      md_.occupancy_buffer_neg_[index] = occupied ? 0 : 1;
+      md_.distance_buffer_[index] =
+          static_cast<double>(static_esdf.esdf[index]);
+      md_.distance_buffer_all_[index] =
+          static_cast<double>(static_esdf.esdf[index]);
+    }
+    md_.local_bound_min_ = Eigen::Vector3i::Zero();
+    md_.local_bound_max_ =
+        mp_.map_voxel_num_ - Eigen::Vector3i::Ones();
+    md_.has_first_depth_ = true;
+    md_.has_odom_ = true;
+    md_.has_cloud_ = true;
+
+    RCLCPP_INFO(
+        node_->get_logger(),
+        "Loaded static MuJoCo ESDF '%s': shape=%d x %d x %d, "
+        "resolution=%.3f m, origin=[%.2f, %.2f, %.2f], "
+        "frame='%s'. Point-cloud mapping is disabled.",
+        static_esdf_file_.c_str(),
+        mp_.map_voxel_num_.x(), mp_.map_voxel_num_.y(),
+        mp_.map_voxel_num_.z(), mp_.resolution_,
+        mp_.map_origin_.x(), mp_.map_origin_.y(), mp_.map_origin_.z(),
+        mp_.frame_id_.c_str());
+  }
 
   // rand_noise_ = uniform_real_distribution<double>(-0.2, 0.2);
   // rand_noise2_ = normal_distribution<double>(0, 0.2);
@@ -801,6 +1247,8 @@ void GridMap::clearAndInflateLocalMap()
 
 void GridMap::visCallback()
 {
+  // 可视化与占据/ESDF 更新解耦：这里仅把当前缓存编码成 PointCloud2。
+  // 50 ms 定时器触发一次，对应约 20 Hz 的 RViz 地图刷新频率。
   publishMapInflate(true);
   publishMap();
 
@@ -1063,6 +1511,7 @@ void GridMap::cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr 
 void GridMap::publishMap()
 {
 
+  // RViz 未订阅时直接返回，避免遍历整个局部体素窗口。
   if (map_pub_->get_subscription_count() <= 0)
     return;
 
@@ -1079,6 +1528,8 @@ void GridMap::publishMap()
   boundIndex(min_cut);
   boundIndex(max_cut);
 
+  // 只发布占据概率超过阈值的体素，并按 visualization_truncate_height_
+  // 裁掉高于显示平面的点，最终转换为 world/map frame 下的点云。
   for (int x = min_cut(0); x <= max_cut(0); ++x)
     for (int y = min_cut(1); y <= max_cut(1); ++y)
       for (int z = min_cut(2); z <= max_cut(2); ++z)
@@ -1110,6 +1561,8 @@ void GridMap::publishMap()
 void GridMap::publishMapInflate(bool all_info)
 {
 
+  // inflated buffer 是规划碰撞检测使用的安全膨胀结果；all_info=true
+  // 时扩展显示窗口，使 RViz 能看到局部边界外的膨胀体素。
   if (map_inf_pub_->get_subscription_count() <= 0)
     return;
 
@@ -1231,20 +1684,48 @@ void GridMap::depthOdomCallback(const sensor_msgs::msg::Image::ConstSharedPtr &i
 
 void GridMap::cloudOdomCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &cloud,
                                 const nav_msgs::msg::Odometry::ConstSharedPtr &odom){
-  Eigen::Quaterniond body_q = Eigen::Quaterniond(odom->pose.pose.orientation.w,
-                                                 odom->pose.pose.orientation.x,
-                                                 odom->pose.pose.orientation.y,
-                                                 odom->pose.pose.orientation.z);
-  Eigen::Matrix3d body_r_m = body_q.toRotationMatrix();
-  Eigen::Matrix4d body2world;
-  body2world.block<3, 3>(0, 0) = body_r_m;
-  body2world(0, 3) = odom->pose.pose.position.x;
-  body2world(1, 3) = odom->pose.pose.position.y;
-  // body2world(2, 3) = odom->pose.pose.position.z;
-  body2world(2, 3) = 0.3;
-  body2world(3, 3) = 1.0;
-
-  Eigen::Matrix4d cam_T = body2world * md_.cam2body_;
+  Eigen::Matrix4d cam_T = Eigen::Matrix4d::Identity();
+  if (use_tf_cloud_transform_)
+  {
+    try
+    {
+      const auto transform = tf_buffer_->lookupTransform(
+          mp_.frame_id_, cloud->header.frame_id,
+          rclcpp::Time(cloud->header.stamp),
+          rclcpp::Duration::from_seconds(0.05));
+      const auto &rotation = transform.transform.rotation;
+      const auto &translation = transform.transform.translation;
+      const Eigen::Quaterniond quaternion(
+          rotation.w, rotation.x, rotation.y, rotation.z);
+      cam_T.block<3, 3>(0, 0) =
+          quaternion.normalized().toRotationMatrix();
+      cam_T.block<3, 1>(0, 3) =
+          Eigen::Vector3d(
+              translation.x, translation.y, translation.z);
+    }
+    catch (const tf2::TransformException &exception)
+    {
+      RCLCPP_WARN_THROTTLE(
+          node_->get_logger(), *node_->get_clock(), 2000,
+          "Cannot transform point cloud from '%s' to '%s': %s",
+          cloud->header.frame_id.c_str(), mp_.frame_id_.c_str(),
+          exception.what());
+      return;
+    }
+  }
+  else
+  {
+    // Legacy fixed-camera path retained for the original examples.
+    Eigen::Quaterniond body_q = Eigen::Quaterniond(
+        odom->pose.pose.orientation.w, odom->pose.pose.orientation.x,
+        odom->pose.pose.orientation.y, odom->pose.pose.orientation.z);
+    Eigen::Matrix4d body2world = Eigen::Matrix4d::Identity();
+    body2world.block<3, 3>(0, 0) = body_q.toRotationMatrix();
+    body2world(0, 3) = odom->pose.pose.position.x;
+    body2world(1, 3) = odom->pose.pose.position.y;
+    body2world(2, 3) = 0.3;
+    cam_T = body2world * md_.cam2body_;
+  }
   md_.camera_pos_(0) = cam_T(0, 3);
   md_.camera_pos_(1) = cam_T(1, 3);
   md_.camera_pos_(2) = cam_T(2, 3);
@@ -1269,7 +1750,9 @@ void GridMap::cloudOdomCallback(const sensor_msgs::msg::PointCloud2::ConstShared
     if (fabs(pt.x) < mp_.local_update_range_(0) && fabs(pt.y) < mp_.local_update_range_(1) &&
         fabs(pt.z) < mp_.local_update_range_(2)){
       p3d(0) = pt.x, p3d(1) = pt.y, p3d(2) = pt.z;
-      if(p3d.norm() > 1.0){
+      // Keep nearby obstacles as well.  The previous hard-coded 1 m cutoff
+      // could hide exactly the objects most dangerous to the arm and base.
+      if(p3d.norm() > std::max(0.0, mp_.min_ray_length_)){
         pt_world = md_.camera_r_m_ * p3d + md_.camera_pos_;
         md_.proj_points_[md_.proj_points_cnt++] = pt_world;
       }
@@ -1419,6 +1902,8 @@ void GridMap::updateESDF3d (){
 }
 
 void GridMap::publishESDF(){
+  // ESDF 用 PointCloud2 的 intensity 携带距离：[-3,3] m 被归一化到 [0,1]，
+  // RViz 的 AxisColor/Intensity transformer 据此显示安全距离梯度。
   if (esdf_pub_->get_subscription_count() <= 0)
     return;
   double dist;

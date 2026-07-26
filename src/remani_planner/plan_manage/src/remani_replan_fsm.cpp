@@ -87,6 +87,18 @@ namespace remani_planner
     manipulator_dim_ = declareAndGet<int>(node_, "mm.manipulator_dof", -1);
     mobile_base_non_singul_vel_ =
         declareAndGet<double>(node_, "mm.mobile_base_non_singul_vel", -1.0);
+    odom_twist_in_body_frame_ =
+        declareAndGet<bool>(node_, "mm.odom_twist_in_body_frame", true);
+    manipulator_joint_names_ =
+        declareAndGet<std::vector<std::string>>(
+            node_, "mm.urdf_joint_names",
+            std::vector<std::string>{"joint_1", "joint_2", "joint_3",
+                                     "joint_4", "joint_5", "joint_6"});
+    if (static_cast<int>(manipulator_joint_names_.size()) != manipulator_dim_)
+    {
+      throw std::runtime_error(
+          "mm.urdf_joint_names size must match mm.manipulator_dof");
+    }
 
     traj_dim_ = mobile_base_dim_ + manipulator_dim_;
 
@@ -200,6 +212,12 @@ namespace remani_planner
     // 2D Nav Goal 目标点订阅 (RViz 点击)
     waypoint_sub_ = node_->create_subscription<geometry_msgs::msg::PoseStamped>(
         "/move_base_simple/goal", 1,
+        std::bind(&REMANIReplanFSM::waypointCallback, this, std::placeholders::_1));
+    // RViz2's SetGoal tool defaults to /goal_pose in the OCS2 MuJoCo RViz
+    // configuration. Keep the ROS1-compatible topic above as well so both
+    // existing RViz configurations drive the same manual-goal pipeline.
+    nav2_goal_sub_ = node_->create_subscription<geometry_msgs::msg::PoseStamped>(
+        "/goal_pose", 1,
         std::bind(&REMANIReplanFSM::waypointCallback, this, std::placeholders::_1));
   }
 
@@ -629,8 +647,22 @@ namespace remani_planner
     mm_car_orient_.y() = msg->pose.pose.orientation.y;
     mm_car_orient_.z() = msg->pose.pose.orientation.z;
 
-    mm_state_vel_(0) = msg->twist.twist.linear.x;
-    mm_state_vel_(1) = msg->twist.twist.linear.y;
+    if (odom_twist_in_body_frame_)
+    {
+      const double body_vx = msg->twist.twist.linear.x;
+      const double body_vy = msg->twist.twist.linear.y;
+      mm_state_vel_(0) =
+          std::cos(mm_car_yaw_) * body_vx -
+          std::sin(mm_car_yaw_) * body_vy;
+      mm_state_vel_(1) =
+          std::sin(mm_car_yaw_) * body_vx +
+          std::cos(mm_car_yaw_) * body_vy;
+    }
+    else
+    {
+      mm_state_vel_(0) = msg->twist.twist.linear.x;
+      mm_state_vel_(1) = msg->twist.twist.linear.y;
+    }
 
     // 判断前进/后退状态 (singul = singular direction)
     if(mm_state_vel_.head(2).norm() < mobile_base_non_singul_vel_){
@@ -666,16 +698,36 @@ namespace remani_planner
       return;
     }
     for(int i = 0; i < manipulator_dim_; ++i){
-      mm_state_pos_(mobile_base_dim_ + i) = msg->position[i];
+      size_t source_index = static_cast<size_t>(i);
+      if (!msg->name.empty())
+      {
+        const auto it = std::find(
+            msg->name.begin(), msg->name.end(),
+            manipulator_joint_names_[static_cast<size_t>(i)]);
+        if (it == msg->name.end())
+        {
+          RCLCPP_WARN_THROTTLE(
+              node_->get_logger(), *node_->get_clock(), 2000,
+              "JointState is missing required joint '%s'",
+              manipulator_joint_names_[static_cast<size_t>(i)].c_str());
+          return;
+        }
+        source_index =
+            static_cast<size_t>(std::distance(msg->name.begin(), it));
+      }
+      mm_state_pos_(mobile_base_dim_ + i) = msg->position[source_index];
       mm_state_vel_(mobile_base_dim_ + i) =
-          msg->velocity.size() > static_cast<size_t>(i) ? msg->velocity[i] : 0.0;
+          msg->velocity.size() > source_index ? msg->velocity[source_index] : 0.0;
       mm_state_acc_(mobile_base_dim_ + i) =
-          msg->effort.size() > static_cast<size_t>(i) ? msg->effort[i] : 0.0;
+          msg->effort.size() > source_index ? msg->effort[source_index] : 0.0;
     }
     have_joint_state_ = true;
   }
 
   void REMANIReplanFSM::publishRobotModel(){
+    // 这是“当前实测状态”的 RViz 管线，与规划轨迹显示相互独立：
+    // 里程计/关节状态 -> MMConfig 正运动学 -> Mesh MarkerArray -> RViz。
+    // 使用 idx=0 和固定 namespace，使每一帧覆盖上一帧的模型。
     if(!have_odom_ || !have_joint_state_ || planner_manager_ == nullptr
        || planner_manager_->mm_config_ == nullptr)
       return;
@@ -691,7 +743,7 @@ namespace remani_planner
 
     RCLCPP_INFO_ONCE(
         node_->get_logger(),
-        "Publishing current robot model on /model_vis/vis_mm (%zu mesh markers)",
+        "Publishing current robot model on /model_vis/vis_mm (%zu markers)",
         marker_array.markers.size());
   }
 

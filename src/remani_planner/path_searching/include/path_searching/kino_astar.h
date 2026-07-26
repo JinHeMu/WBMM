@@ -102,6 +102,7 @@ void clear() {
 class KinoAstar{
   private:
     rclcpp::Node::SharedPtr node_;
+    std::string visualization_frame_ = "world";
 	  int manipulator_dof_;
     int try_astar_times_;
 

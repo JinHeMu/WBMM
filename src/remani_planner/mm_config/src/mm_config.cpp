@@ -15,7 +15,7 @@
  *
  *   2. 碰撞几何 (球体近似):
  *      - setLinkPoint():     为每个连杆生成采样球心点 (硬件编码的碰撞代理球)
- *      - getCarPts():        移动基底边界框 → 碰撞检测球心点集
+ *      - getCarPts():        URDF 底盘碰撞球或旧版边界框 → 球心点集
  *      - getCarPtsGrad():    同上 + 对速度的雅可比 (用于优化梯度)
  *      - getCarPtsGradNew(): 同上 + 对yaw的梯度
  *
@@ -47,8 +47,37 @@
 
 #include "mm_config/mm_config.hpp"
 
+#include <algorithm>
+#include <functional>
+#include <stdexcept>
+
+#include <urdf/model.h>
+
 namespace remani_planner
 {
+
+namespace
+{
+Eigen::Matrix4d urdfPoseToEigen(const urdf::Pose &pose)
+{
+    Eigen::Matrix4d transform = Eigen::Matrix4d::Identity();
+    Eigen::Quaterniond quaternion(
+        pose.rotation.w, pose.rotation.x, pose.rotation.y, pose.rotation.z);
+    transform.block<3, 3>(0, 0) = quaternion.normalized().toRotationMatrix();
+    transform.block<3, 1>(0, 3) =
+        Eigen::Vector3d(pose.position.x, pose.position.y, pose.position.z);
+    return transform;
+}
+
+Eigen::Matrix3d skew(const Eigen::Vector3d &axis)
+{
+    Eigen::Matrix3d matrix;
+    matrix << 0.0, -axis.z(), axis.y(),
+              axis.z(), 0.0, -axis.x(),
+              -axis.y(), axis.x(), 0.0;
+    return matrix;
+}
+}  // namespace
 
 /**
  * @brief 带地图引用的参数设置（重载版本）
@@ -106,6 +135,10 @@ void MMConfig::setParam(rclcpp::Node::SharedPtr node){
     DECLARE_GET_PARAM(double, "mm.manipulator_thickness", manipulator_thickness_, -1.0);
 
     DECLARE_GET_PARAM(double, "grid_map.resolution", map_resolution_, 0.05);
+    if (!node_->has_parameter("grid_map.frame_id"))
+      node_->declare_parameter<std::string>("grid_map.frame_id", "world");
+    visualizationFrame_ =
+        node_->get_parameter("grid_map.frame_id").as_string();
 
     DECLARE_GET_PARAM(double, "optimization.safe_margin", car_safe_margin_, -1.0);
     DECLARE_GET_PARAM(double, "optimization.safe_margin_mani", mani_safe_margin_, -1.0);
@@ -148,6 +181,27 @@ void MMConfig::setParam(rclcpp::Node::SharedPtr node){
     T_q_0_(2, 3) = base_mani_fixed_joint_xyz_ypr[2];
 
     DECLARE_GET_PARAM(bool, "mm.use_fast_armer", useFastArmer_, true);
+    DECLARE_GET_PARAM(bool, "mm.use_urdf_model", useUrdfModel_, false);
+    if (!node_->has_parameter("mm.urdf_file"))
+      node_->declare_parameter<std::string>("mm.urdf_file", "");
+    urdfFile_ = node_->get_parameter("mm.urdf_file").as_string();
+    if (!node_->has_parameter("mm.urdf_base_link"))
+      node_->declare_parameter<std::string>(
+          "mm.urdf_base_link", "base_footprint");
+    urdfBaseLink_ = node_->get_parameter("mm.urdf_base_link").as_string();
+    if (!node_->has_parameter("mm.urdf_mobile_base_collision_link"))
+      node_->declare_parameter<std::string>(
+          "mm.urdf_mobile_base_collision_link", "base_link");
+    urdfMobileBaseCollisionLink_ =
+        node_->get_parameter("mm.urdf_mobile_base_collision_link").as_string();
+
+    if (!node_->has_parameter("mm.urdf_joint_names"))
+      node_->declare_parameter<std::vector<std::string>>(
+          "mm.urdf_joint_names",
+          std::vector<std::string>{"joint_1", "joint_2", "joint_3",
+                                   "joint_4", "joint_5", "joint_6"});
+    urdfJointNames_ =
+        node_->get_parameter("mm.urdf_joint_names").as_string_array();
 
     #undef DECLARE_GET_PARAM
 
@@ -177,15 +231,30 @@ void MMConfig::setParam(rclcpp::Node::SharedPtr node){
     B_h_ << 0.0, -1.0,
             1.0,  0.0;
 
-    T_q_0_ << 1.0, 0  , 0  , 0.03,
-                0  , 1.0, 0  , -0.02,
-                0  , 0  , 1.0, mobile_base_height_,
-                0  , 0  , 0  , 1.0;
+    if (useUrdfModel_)
+    {
+        if (!loadUrdfModel())
+        {
+            throw std::runtime_error(
+                "Failed to load REMANI robot model from URDF: " + urdfFile_);
+        }
+    }
 
     vis_idx_size_ = 100;
 
     setColorSet();
-    setLinkPoint();
+    if (!useUrdfModel_)
+    {
+        setLinkPoint();
+        manipulator_link_radii_.clear();
+        manipulator_link_radii_.reserve(manipulator_link_pts_.size());
+        for (const auto &points : manipulator_link_pts_)
+        {
+            manipulator_link_radii_.push_back(
+                Eigen::VectorXd::Constant(
+                    points.cols(), manipulator_thickness_));
+        }
+    }
 }
 
 /**
@@ -238,6 +307,322 @@ void MMConfig::setColorSet(){
     color_set_.push_back(color);
 }
 
+bool MMConfig::loadUrdfModel()
+{
+    if (urdfFile_.empty())
+    {
+        RCLCPP_ERROR(node_->get_logger(), "mm.urdf_file is empty.");
+        return false;
+    }
+    if (static_cast<int>(urdfJointNames_.size()) != manipulator_dof_)
+    {
+        RCLCPP_ERROR(
+            node_->get_logger(),
+            "mm.urdf_joint_names has %zu entries, expected manipulator_dof=%d.",
+            urdfJointNames_.size(), manipulator_dof_);
+        return false;
+    }
+
+    urdf::Model model;
+    if (!model.initFile(urdfFile_))
+    {
+        RCLCPP_ERROR(
+            node_->get_logger(), "Cannot parse URDF file: %s",
+            urdfFile_.c_str());
+        return false;
+    }
+
+    auto fixedTransform = [&model](
+        const std::string &ancestor,
+        const std::string &descendant,
+        Eigen::Matrix4d &transform) -> bool
+    {
+        std::vector<urdf::JointConstSharedPtr> reverseChain;
+        auto link = model.getLink(descendant);
+        while (link && link->name != ancestor)
+        {
+            const auto joint = link->parent_joint;
+            if (!joint || joint->type != urdf::Joint::FIXED)
+            {
+                return false;
+            }
+            reverseChain.push_back(joint);
+            link = model.getLink(joint->parent_link_name);
+        }
+        if (!link || link->name != ancestor)
+        {
+            return false;
+        }
+        transform.setIdentity();
+        for (auto it = reverseChain.rbegin(); it != reverseChain.rend(); ++it)
+        {
+            transform *= urdfPoseToEigen(
+                (*it)->parent_to_joint_origin_transform);
+        }
+        return true;
+    };
+
+    urdfJointKinematics_.clear();
+    urdfJointKinematics_.reserve(urdfJointNames_.size());
+    std::vector<urdf::JointConstSharedPtr> joints;
+    joints.reserve(urdfJointNames_.size());
+    for (const auto &jointName : urdfJointNames_)
+    {
+        const auto joint = model.getJoint(jointName);
+        if (!joint ||
+            (joint->type != urdf::Joint::REVOLUTE &&
+             joint->type != urdf::Joint::CONTINUOUS))
+        {
+            RCLCPP_ERROR(
+                node_->get_logger(),
+                "URDF joint '%s' is missing or is not revolute/continuous.",
+                jointName.c_str());
+            return false;
+        }
+        UrdfJointKinematics kinematics;
+        kinematics.origin =
+            urdfPoseToEigen(joint->parent_to_joint_origin_transform);
+        kinematics.axis =
+            Eigen::Vector3d(joint->axis.x, joint->axis.y, joint->axis.z);
+        if (kinematics.axis.norm() < 1.0e-9)
+        {
+            RCLCPP_ERROR(
+                node_->get_logger(), "URDF joint '%s' has a zero axis.",
+                jointName.c_str());
+            return false;
+        }
+        kinematics.axis.normalize();
+        urdfJointKinematics_.push_back(kinematics);
+        joints.push_back(joint);
+    }
+
+    // The fixed transform is taken directly from the selected mobile-base
+    // frame to the parent link of joint_1.  For tracer_jaka_zu5_real.urdf
+    // this includes base_footprint -> base_link -> jaka_base_link -> Link_0.
+    if (!fixedTransform(
+            urdfBaseLink_, joints.front()->parent_link_name, T_q_0_))
+    {
+        RCLCPP_ERROR(
+            node_->get_logger(),
+            "No fixed URDF chain from '%s' to first joint parent '%s'.",
+            urdfBaseLink_.c_str(),
+            joints.front()->parent_link_name.c_str());
+        return false;
+    }
+
+    manipulator_link_pts_.clear();
+    manipulator_link_pts_.resize(static_cast<size_t>(manipulator_dof_));
+    manipulator_link_radii_.clear();
+    manipulator_link_radii_.resize(static_cast<size_t>(manipulator_dof_));
+    double maximumSphereRadius = 0.0;
+    size_t totalSpheres = 0U;
+
+    std::function<void(
+        const urdf::LinkConstSharedPtr &, const Eigen::Matrix4d &,
+        std::vector<Eigen::Vector4d> &, std::vector<double> &)>
+        collectFixedSubtree;
+    collectFixedSubtree =
+        [&](const urdf::LinkConstSharedPtr &link,
+            const Eigen::Matrix4d &linkTransform,
+            std::vector<Eigen::Vector4d> &points,
+            std::vector<double> &radii)
+    {
+        if (!link)
+        {
+            return;
+        }
+
+        std::vector<urdf::CollisionSharedPtr> collisions =
+            link->collision_array;
+        if (collisions.empty() && link->collision)
+        {
+            collisions.push_back(link->collision);
+        }
+        for (const auto &collision : collisions)
+        {
+            if (!collision || !collision->geometry ||
+                collision->geometry->type != urdf::Geometry::SPHERE)
+            {
+                RCLCPP_WARN(
+                    node_->get_logger(),
+                    "Ignoring non-sphere collision geometry on URDF link '%s'.",
+                    link->name.c_str());
+                continue;
+            }
+            const auto sphere =
+                std::dynamic_pointer_cast<urdf::Sphere>(collision->geometry);
+            if (!sphere)
+            {
+                continue;
+            }
+            const Eigen::Matrix4d collisionTransform =
+                linkTransform * urdfPoseToEigen(collision->origin);
+            points.emplace_back(
+                collisionTransform(0, 3), collisionTransform(1, 3),
+                collisionTransform(2, 3), 1.0);
+            radii.push_back(sphere->radius);
+            maximumSphereRadius =
+                std::max(maximumSphereRadius, sphere->radius);
+            ++totalSpheres;
+        }
+
+        for (const auto &childJoint : link->child_joints)
+        {
+            if (!childJoint || childJoint->type != urdf::Joint::FIXED)
+            {
+                continue;
+            }
+            const auto child = model.getLink(childJoint->child_link_name);
+            collectFixedSubtree(
+                child,
+                linkTransform *
+                    urdfPoseToEigen(
+                        childJoint->parent_to_joint_origin_transform),
+                points, radii);
+        }
+    };
+
+    for (int i = 0; i < manipulator_dof_; ++i)
+    {
+        std::vector<Eigen::Vector4d> points;
+        std::vector<double> radii;
+        collectFixedSubtree(
+            model.getLink(joints[static_cast<size_t>(i)]->child_link_name),
+            Eigen::Matrix4d::Identity(), points, radii);
+        if (i == 0)
+        {
+            // Link_0 is fixed to the mobile base and its collision sphere is
+            // centered on joint_1's rotation axis. Express it in Link_1 so it
+            // participates in the same point/Jacobian pipeline without adding
+            // a fictitious seventh joint.
+            const auto firstParent =
+                model.getLink(joints.front()->parent_link_name);
+            if (firstParent)
+            {
+                for (const auto &collision : firstParent->collision_array)
+                {
+                    if (!collision || !collision->geometry ||
+                        collision->geometry->type != urdf::Geometry::SPHERE)
+                    {
+                        continue;
+                    }
+                    const auto sphere = std::dynamic_pointer_cast<urdf::Sphere>(
+                        collision->geometry);
+                    const Eigen::Vector4d pointInParent =
+                        urdfPoseToEigen(collision->origin) *
+                        Eigen::Vector4d(0.0, 0.0, 0.0, 1.0);
+                    const Eigen::Vector4d pointInChild =
+                        urdfJointKinematics_.front().origin.inverse() *
+                        pointInParent;
+                    const Eigen::Vector3d radial =
+                        pointInChild.head<3>() -
+                        urdfJointKinematics_.front().axis *
+                            urdfJointKinematics_.front().axis.dot(
+                                pointInChild.head<3>());
+                    if (radial.norm() < 1.0e-5)
+                    {
+                        points.push_back(pointInChild);
+                        radii.push_back(sphere->radius);
+                        maximumSphereRadius =
+                            std::max(maximumSphereRadius, sphere->radius);
+                        ++totalSpheres;
+                    }
+                }
+            }
+        }
+        if (points.empty())
+        {
+            // Keeping one point at the child-link origin is safer than
+            // silently omitting the complete link from collision checking.
+            points.emplace_back(0.0, 0.0, 0.0, 1.0);
+            radii.push_back(manipulator_thickness_);
+            RCLCPP_WARN(
+                node_->get_logger(),
+                "No sphere collision geometry found for joint group '%s'; "
+                "using the child-link origin.",
+                urdfJointNames_[static_cast<size_t>(i)].c_str());
+        }
+        Eigen::Matrix4Xd linkPoints(4, static_cast<Eigen::Index>(points.size()));
+        for (size_t j = 0; j < points.size(); ++j)
+        {
+            linkPoints.col(static_cast<Eigen::Index>(j)) = points[j];
+        }
+        manipulator_link_pts_[static_cast<size_t>(i)] =
+            std::move(linkPoints);
+        manipulator_link_radii_[static_cast<size_t>(i)] =
+            Eigen::Map<const Eigen::VectorXd>(
+                radii.data(), static_cast<Eigen::Index>(radii.size()));
+    }
+    manipulator_thickness_ =
+        std::max(manipulator_thickness_, maximumSphereRadius);
+
+    // Keep the collision spheres exactly as described by the URDF.  They are
+    // expressed in urdfBaseLink_ so every collision and visualization path
+    // can use the same geometry without rebuilding a rectangular envelope.
+    Eigen::Matrix4d baseCollisionTransform;
+    const auto baseCollisionLink =
+        model.getLink(urdfMobileBaseCollisionLink_);
+    mobile_base_collision_centers_.clear();
+    mobile_base_collision_radii_.clear();
+    if (baseCollisionLink &&
+        fixedTransform(
+            urdfBaseLink_, urdfMobileBaseCollisionLink_,
+            baseCollisionTransform))
+    {
+        double extentX = 0.0;
+        double extentY = 0.0;
+        double maximumZ = 0.0;
+        double baseRadius = 0.0;
+        for (const auto &collision : baseCollisionLink->collision_array)
+        {
+            if (!collision || !collision->geometry ||
+                collision->geometry->type != urdf::Geometry::SPHERE)
+            {
+                continue;
+            }
+            const auto sphere =
+                std::dynamic_pointer_cast<urdf::Sphere>(collision->geometry);
+            const Eigen::Matrix4d collisionTransform =
+                baseCollisionTransform * urdfPoseToEigen(collision->origin);
+            mobile_base_collision_centers_.push_back(
+                collisionTransform.block<3, 1>(0, 3));
+            mobile_base_collision_radii_.push_back(sphere->radius);
+            extentX = std::max(
+                extentX, std::abs(collisionTransform(0, 3)) + sphere->radius);
+            extentY = std::max(
+                extentY, std::abs(collisionTransform(1, 3)) + sphere->radius);
+            maximumZ = std::max(
+                maximumZ, collisionTransform(2, 3) + sphere->radius);
+            baseRadius = std::max(baseRadius, sphere->radius);
+        }
+        if (baseRadius > 0.0)
+        {
+            mobile_base_length_ = 2.0 * extentX;
+            mobile_base_width_ = 2.0 * extentY;
+            mobile_base_height_ = maximumZ;
+            mobile_base_check_radius_ = baseRadius;
+        }
+    }
+    if (mobile_base_collision_centers_.empty())
+    {
+        RCLCPP_ERROR(
+            node_->get_logger(),
+            "No sphere collision geometry found on mobile-base link '%s'.",
+            urdfMobileBaseCollisionLink_.c_str());
+        return false;
+    }
+
+    RCLCPP_INFO(
+        node_->get_logger(),
+        "Loaded URDF robot model '%s': base='%s', %d joints, %zu "
+        "manipulator collision spheres and %zu base collision spheres; "
+        "maximum arm radius=%.3f m.",
+        urdfFile_.c_str(), urdfBaseLink_.c_str(), manipulator_dof_,
+        totalSpheres, mobile_base_collision_centers_.size(),
+        manipulator_thickness_);
+    return true;
+}
+
 /**
  * @brief 计算单个关节的正运动学变换矩阵及其对关节角的导数
  *
@@ -271,6 +656,31 @@ void MMConfig::setColorSet(){
  * @note 两种机械臂的硬编码运动学参数来自各自的 URDF/厂商参数
  */
 void MMConfig::getAJointTran(int joint_num, double theta, Eigen::Matrix4d &T, Eigen::Matrix4d &T_grad){
+    if (useUrdfModel_)
+    {
+        if (joint_num < 0 ||
+            joint_num >= static_cast<int>(urdfJointKinematics_.size()))
+        {
+            T.setIdentity();
+            T_grad.setZero();
+            RCLCPP_ERROR(
+                node_->get_logger(), "Invalid URDF joint index: %d", joint_num);
+            return;
+        }
+        const auto &joint =
+            urdfJointKinematics_[static_cast<size_t>(joint_num)];
+        Eigen::Matrix4d motion = Eigen::Matrix4d::Identity();
+        motion.block<3, 3>(0, 0) =
+            Eigen::AngleAxisd(theta, joint.axis).toRotationMatrix();
+        T = joint.origin * motion;
+
+        Eigen::Matrix4d motionGradient = Eigen::Matrix4d::Zero();
+        motionGradient.block<3, 3>(0, 0) =
+            skew(joint.axis) * motion.block<3, 3>(0, 0);
+        T_grad = joint.origin * motionGradient;
+        return;
+    }
+
     double sinTheta = sin(theta);
     double cosTheta = cos(theta);
     double linkLength = manipulator_config_(joint_num);
@@ -477,6 +887,9 @@ void MMConfig::visMMCheckBall(const rclcpp::Publisher<visualization_msgs::msg::M
 }
 
 void MMConfig::getMMMarkerArray(visualization_msgs::msg::MarkerArray &marker_array, std::string ns, int idx, double alpha, const Eigen::Vector3d &car_state, const Eigen::VectorXd &joint_state, const bool &gripper_close){
+    // 先算底盘姿态，再沿关节链累乘正运动学变换；最终数组中的每个
+    // Marker 都使用 world frame 和稳定的 (idx*100 + link_offset) ID。
+    // 这样 RViz 每一帧只需更新同一组 Marker，而不会不断增加对象。
     marker_array.markers.clear();
     visualization_msgs::msg::MarkerArray car_marker_array = getCarMarkerArray(ns, idx, alpha, car_state);
     marker_array.markers.insert(marker_array.markers.end(), car_marker_array.markers.begin(), car_marker_array.markers.end());;
@@ -559,7 +972,8 @@ void MMConfig::getCarPts(const Eigen::Vector3d &car_state, std::vector<Eigen::Ve
 /**
  * @brief 获取基底碰撞检测球心点集 (默认无膨胀)
  *
- * 采样策略 — 矩形边界框 + 球半径填充分层采样:
+ * URDF 模式直接变换 URDF 中的底盘碰撞球心，不再生成矩形包络。
+ * 非 URDF 模式继续使用以下旧版矩形边界框分层采样:
  *
  *   1. 计算 4 个圆角顶点位置 (p_i = 角点坐标 - check_radius 偏移)
  *      corner1 = R * [(L-r)/2,  (W-r)/2]ᵀ + car_pos
@@ -575,10 +989,26 @@ void MMConfig::getCarPts(const Eigen::Vector3d &car_state, std::vector<Eigen::Ve
  *
  * @param car_state 基底位姿 [x, y, yaw]
  * @param[out] car_pts 碰撞检测球心点列表 (3D 世界坐标)
- * @param inflate_size 膨胀尺寸 [ΔL, ΔW, ΔH] (用于 safety margin)
+ * @param inflate_size 旧版模型的膨胀尺寸；URDF 模式的安全裕量在距离阈值中处理
  */
 void MMConfig::getCarPts(const Eigen::Vector3d &car_state, std::vector<Eigen::Vector3d> &car_pts, const Eigen::Vector3d &inflate_size){
     car_pts.clear();
+    if (useUrdfModel_)
+    {
+        Eigen::Matrix2d R;
+        R << cos(car_state(2)), -sin(car_state(2)),
+             sin(car_state(2)),  cos(car_state(2));
+        car_pts.reserve(mobile_base_collision_centers_.size());
+        for (const auto &center : mobile_base_collision_centers_)
+        {
+            Eigen::Vector3d point = center;
+            point.head<2>() = car_state.head<2>() + R * center.head<2>();
+            car_pts.push_back(point);
+        }
+        (void)inflate_size;
+        return;
+    }
+
     Eigen::Vector3d point_3d;
     Eigen::Matrix2d R;
     R << cos(car_state(2)), -sin(car_state(2)),
@@ -655,6 +1085,23 @@ void MMConfig::getCarPtsGrad(const Eigen::Vector2d &pos_car, const Eigen::Vector
                     std::vector<Eigen::Vector3d> &car_pts, std::vector<Eigen::Matrix2d> &dPtdv){
     car_pts.clear();
     dPtdv.clear();
+    if (useUrdfModel_)
+    {
+        const Eigen::Matrix2d R = calR(vel_car, traj_dir);
+        car_pts.reserve(mobile_base_collision_centers_.size());
+        dPtdv.reserve(mobile_base_collision_centers_.size());
+        for (const auto &center : mobile_base_collision_centers_)
+        {
+            Eigen::Vector3d point = center;
+            point.head<2>() = pos_car + R * center.head<2>();
+            car_pts.push_back(point);
+            dPtdv.push_back(
+                caldRldv(vel_car, center.head<2>(), traj_dir));
+        }
+        (void)inflate_size;
+        return;
+    }
+
     Eigen::Vector3d point_3d;
     Eigen::Matrix2d R = calR(vel_car, traj_dir);
     double v_norm = vel_car.norm();
@@ -753,6 +1200,21 @@ void MMConfig::getCarPtsGradNew(const Eigen::Vector2d &pos_car, const Eigen::Vec
     dRdYaw << -sin(yaw), -cos(yaw),
                cos(yaw), -sin(yaw);
     // double v_norm = vel_car.norm();
+
+    if (useUrdfModel_)
+    {
+        car_pts.reserve(mobile_base_collision_centers_.size());
+        dPtdYaw.reserve(mobile_base_collision_centers_.size());
+        for (const auto &center : mobile_base_collision_centers_)
+        {
+            Eigen::Vector3d point = center;
+            point.head<2>() = pos_car + R * center.head<2>();
+            car_pts.push_back(point);
+            dPtdYaw.push_back(dRdYaw * center.head<2>());
+        }
+        (void)inflate_size;
+        return;
+    }
 
     Eigen::Vector2d delta_p = Eigen::Vector2d( (mobile_base_length_ + inflate_size(0)) / 2 - mobile_base_check_radius_,  (mobile_base_width_ + inflate_size(1)) / 2 - mobile_base_check_radius_);
     Eigen::Vector2d corner1 = pos_car + R * delta_p;
@@ -860,8 +1322,8 @@ void MMConfig::getJointTMat(const Eigen::VectorXd &theta, std::vector<Eigen::Mat
  *   2. 对每个球心查询 ESDF 距离 (precise=true → 三线性插值, false → 最近网格中心)
  *   3. 若 distance < safe_dist → 碰撞!
  *
- * safe_dist = mobile_base_check_radius_ + car_safe_margin_ (+ map_resolution_)
- *   其中 mobile_base_check_radius_ 是球的半径 (球的覆盖半径)
+ * safe_dist = radius_of_current_base_sphere + car_safe_margin_
+ *             + map_resolution_
  *
  * @param car_state 基底位姿 [x, y, yaw]
  * @param precise   是否使用精确距离 (三线性插值) vs 离散网格距离
@@ -874,9 +1336,15 @@ bool MMConfig::checkCarObsCollision(Eigen::Vector3d car_state, bool precise, boo
     car_pts.clear();
     getCarPts(car_state, car_pts);
     double dist;
-    double safe_dist = safe ? mobile_base_check_radius_ + car_safe_margin_ : mobile_base_check_radius_;
-    safe_dist += map_resolution_;
+    double checked_safe_dist = 0.0;
     for(unsigned int i = 0; i < car_pts.size(); ++i){
+        const double sphere_radius =
+            useUrdfModel_ ? mobile_base_collision_radii_[i]
+                          : mobile_base_check_radius_;
+        const double safe_dist =
+            sphere_radius + (safe ? car_safe_margin_ : 0.0) +
+            map_resolution_;
+        checked_safe_dist = std::max(checked_safe_dist, safe_dist);
         if(precise){
             dist = grid_map_->getPreciseDistance(car_pts[i]);
         }else{
@@ -887,7 +1355,7 @@ bool MMConfig::checkCarObsCollision(Eigen::Vector3d car_state, bool precise, boo
             return true;
         }
     }
-    min_dist = safe_dist;
+    min_dist = checked_safe_dist;
     return false;
 }
 
@@ -900,7 +1368,7 @@ bool MMConfig::checkCarObsCollision(Eigen::Vector3d car_state, bool precise, boo
  *   3. 对每个关节的每个连杆采样点: pt_world = T_now * link_pts[i].col(j)
  *   4. 查询 pt_world 的 ESDF 距离 + 检查地面碰撞 (z < ground_safe_dis_)
  *
- * safe_dist = manipulator_thickness_ + mani_safe_margin_
+ * safe_dist = radius_of_current_urdf_sphere + mani_safe_margin_
  *
  * @param car_state  基底位姿 [x, y, yaw]
  * @param mani_state 机械臂关节角 [θ₀, ..., θ₅]
@@ -916,7 +1384,6 @@ bool MMConfig::checkManiObsCollision(Eigen::Vector3d car_state, Eigen::VectorXd 
     T_q(1, 0) = sin(car_state(2));
     T_q(1, 1) = cos(car_state(2));
     T_q(1, 3) = car_state(1);
-    double safe_dist = safe ? manipulator_thickness_ + mani_safe_margin_ : manipulator_thickness_;
     // safe_dist += map_resolution_ / 2.0;
     geometry_msgs::msg::Point pt;
     Eigen::Vector3d pt_on_link;
@@ -930,6 +1397,10 @@ bool MMConfig::checkManiObsCollision(Eigen::Vector3d car_state, Eigen::VectorXd 
         // get ESDF value
         int pts_size = manipulator_link_pts_[i].cols();
         for(int j = 0; j < pts_size; ++j){
+            const double sphere_radius =
+                manipulator_link_radii_[i](j);
+            const double safe_dist =
+                sphere_radius + (safe ? mani_safe_margin_ : 0.0);
             pt_on_link = (T_now * manipulator_link_pts_[i].col(j)).head(3);
             pt.x = pt_on_link(0);
             pt.y = pt_on_link(1);
@@ -948,7 +1419,8 @@ bool MMConfig::checkManiObsCollision(Eigen::Vector3d car_state, Eigen::VectorXd 
             }
         }
     }
-    min_dist = safe_dist;
+    min_dist = manipulator_thickness_ +
+               (safe ? mani_safe_margin_ : 0.0);
     return false;
 }
 
@@ -960,13 +1432,13 @@ bool MMConfig::checkManiObsCollision(Eigen::Vector3d car_state, Eigen::VectorXd 
  *   2. 沿关节链正向传播机械臂连杆点 (相对于基底坐标系)
  *   3. 对每个 机械臂点 ↔ 底盘点 对: 检查欧几里得距离
  *
- * safe_dist = mobile_base_check_radius_ + manipulator_thickness_ + self_safe_margin_
+ * safe_dist = radius_of_current_base_sphere + current_arm_sphere_radius
+ *             + self_safe_margin_
  *
  * @note 使用局部坐标系 (基座原点), 因为自碰撞距离与全局位置无关
  * @note 复杂度 O(M·N) 但 M(底盘点数) 和 N(臂点数) 都不大 (~几十)
  */
 bool MMConfig::checkCarManiCollision(Eigen::VectorXd mani_state, bool safe, double &min_dist){
-    double safe_dist = safe ? mobile_base_check_radius_ + manipulator_thickness_ + self_safe_margin_ : mobile_base_check_radius_ + manipulator_thickness_;
     std::vector<Eigen::Vector3d> car_pts;
     getCarPts(Eigen::Vector3d::Zero(), car_pts);
     Eigen::Vector3d pt_on_link;
@@ -983,6 +1455,13 @@ bool MMConfig::checkCarManiCollision(Eigen::VectorXd mani_state, bool safe, doub
         for(int j = 0; j < pts_size; ++j){
             pt_on_link = (T_now * manipulator_link_pts_[i].col(j)).head(3);
             for(int k = 0; k < car_pts_size; ++k){
+                const double base_radius =
+                    useUrdfModel_
+                        ? mobile_base_collision_radii_[static_cast<size_t>(k)]
+                        : mobile_base_check_radius_;
+                const double safe_dist =
+                    base_radius + manipulator_link_radii_[i](j) +
+                    (safe ? self_safe_margin_ : 0.0);
                 if((pt_on_link - car_pts[k]).norm() < safe_dist){
                     min_dist = (pt_on_link - car_pts[k]).norm();
                     return true;
@@ -990,7 +1469,14 @@ bool MMConfig::checkCarManiCollision(Eigen::VectorXd mani_state, bool safe, doub
             }
         }
     }
-    min_dist = safe_dist;
+    const double maximum_base_radius =
+        mobile_base_collision_radii_.empty()
+            ? mobile_base_check_radius_
+            : *std::max_element(
+                  mobile_base_collision_radii_.begin(),
+                  mobile_base_collision_radii_.end());
+    min_dist = maximum_base_radius + manipulator_thickness_ +
+               (safe ? self_safe_margin_ : 0.0);
     return false;
 }
 
@@ -1002,15 +1488,15 @@ bool MMConfig::checkCarManiCollision(Eigen::VectorXd mani_state, bool safe, doub
  *   2. 对于关节 i 的新增连杆点, 与之前关节 j ≤ i-2 的所有点比较距离
  *      (跳过相邻关节 i-1, 因为相邻关节本身不会自碰撞)
  *
- * safe_dist = 2 × manipulator_thickness_ + self_safe_margin_
+ * safe_dist = radius_of_sphere_a + radius_of_sphere_b + self_safe_margin_
  *
  * @note 这防止了非相邻关节之间的自碰撞 (如手腕碰到肩部)
  * @note checkCarManiCollision() 已处理底盘→臂碰撞, 本函数仅处理臂→臂碰撞
  */
 bool MMConfig::checkManiManiCollision(Eigen::VectorXd mani_state, bool safe, double &min_dist){
-    double safe_dist = safe ? 2.0 * manipulator_thickness_ + self_safe_margin_ : 2.0 * manipulator_thickness_;
     Eigen::Vector3d pt_on_link;
     std::vector<Eigen::Vector3d> pt_to_check_list;
+    std::vector<double> radius_to_check_list;
     pt_to_check_list.reserve(20);
     std::vector<Eigen::Matrix4d> T_joint, T_joint_grad_nouse;
     T_joint.reserve(manipulator_dof_);
@@ -1029,7 +1515,13 @@ bool MMConfig::checkManiManiCollision(Eigen::VectorXd mani_state, bool safe, dou
         for(int j = 0; j < pts_size; ++j){
             pt_on_link = (T_now * manipulator_link_pts_[i].col(j)).head(3);
             pt_to_check_list.push_back(pt_on_link);
+            radius_to_check_list.push_back(
+                manipulator_link_radii_[i](j));
             for(int k = 0; k < num_to_check; ++k){
+                const double safe_dist =
+                    manipulator_link_radii_[i](j) +
+                    radius_to_check_list[static_cast<size_t>(k)] +
+                    (safe ? self_safe_margin_ : 0.0);
                 if((pt_on_link - pt_to_check_list[k]).norm() < safe_dist){
                     // printf("(%d, %d, %d)\n", i, j, k);
                     min_dist = (pt_on_link - pt_to_check_list[k]).norm();
@@ -1038,7 +1530,8 @@ bool MMConfig::checkManiManiCollision(Eigen::VectorXd mani_state, bool safe, dou
             }
         }
     }
-    min_dist = safe_dist;
+    min_dist = 2.0 * manipulator_thickness_ +
+               (safe ? self_safe_margin_ : 0.0);
     return false;
 }
 
@@ -1259,6 +1752,7 @@ void MMConfig::setLinkPoint()
  * @note 仅对 FastArmer 有效 (useFastArmer_=true), UR5 不处理
  */
 void MMConfig::setGripperPoint(const bool gripper_close){
+    if(useUrdfModel_) return;
     if(!useFastArmer_) return;
     if(gripper_close){
         manipulator_link_pts_[5].col(5) = Eigen::Vector4d(0, 0.02, -0.01, 1);
@@ -1282,7 +1776,7 @@ void MMConfig::visCarCheckBall(const rclcpp::Publisher<visualization_msgs::msg::
     getCarPts(state, car_pts, Eigen::Vector3d::Zero());
 
     visualization_msgs::msg::Marker sphere;
-    sphere.header.frame_id = "world";
+    sphere.header.frame_id = visualizationFrame_;
     sphere.header.stamp = node_->now();
     sphere.type = visualization_msgs::msg::Marker::SPHERE_LIST;
     sphere.action = visualization_msgs::msg::Marker::ADD;
@@ -1321,7 +1815,7 @@ void MMConfig::visCarCheckBall(const rclcpp::Publisher<visualization_msgs::msg::
  */
 void MMConfig::visManiCheckBall(const rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr &pub, std::string ns, int idx, double alpha, const Eigen::Vector3d &car_state, const Eigen::VectorXd &joint_state){
     visualization_msgs::msg::Marker sphere;
-    sphere.header.frame_id = "world";
+    sphere.header.frame_id = visualizationFrame_;
     sphere.header.stamp = node_->now();
     sphere.type = visualization_msgs::msg::Marker::SPHERE_LIST;
     sphere.action = visualization_msgs::msg::Marker::ADD;
@@ -1368,13 +1862,45 @@ void MMConfig::visManiCheckBall(const rclcpp::Publisher<visualization_msgs::msg:
 }
 
 /**
- * @brief 生成底盘的 MESH_RESOURCE Marker (仅车身网格)
+ * @brief 生成底盘 Marker
  *
- * Marker ID = idx * vis_idx_size_ + 0 (vis_idx_size_ = 100, 为其他部分预留空间)
+ * URDF 模式逐个生成 SPHERE Marker；旧版模型仍显示车身网格。
  */
 visualization_msgs::msg::MarkerArray MMConfig::getCarMarkerArray(std::string ns, int idx, double alpha, const Eigen::Vector3d &state){
     Eigen::Matrix2d R;
     visualization_msgs::msg::MarkerArray marker_array;
+
+    if (useUrdfModel_)
+    {
+        std::vector<Eigen::Vector3d> centers;
+        getCarPts(state, centers);
+        for (size_t i = 0; i < centers.size(); ++i)
+        {
+            visualization_msgs::msg::Marker marker;
+            marker.header.frame_id = visualizationFrame_;
+            marker.header.stamp = node_->now();
+            marker.ns = ns + "/urdf_base_collision_spheres";
+            marker.id =
+                idx * vis_idx_size_ + static_cast<int>(i);
+            marker.type = visualization_msgs::msg::Marker::SPHERE;
+            marker.action = visualization_msgs::msg::Marker::ADD;
+            marker.pose.position.x = centers[i].x();
+            marker.pose.position.y = centers[i].y();
+            marker.pose.position.z = centers[i].z();
+            marker.pose.orientation.w = 1.0;
+            const double diameter =
+                2.0 * mobile_base_collision_radii_[i];
+            marker.scale.x = diameter;
+            marker.scale.y = diameter;
+            marker.scale.z = diameter;
+            marker.color.r = 0.35;
+            marker.color.g = 0.35;
+            marker.color.b = 0.40;
+            marker.color.a = alpha > 1.0e-5 ? alpha : 1.0;
+            marker_array.markers.push_back(marker);
+        }
+        return marker_array;
+    }
 
     R << cos(state(2)), -sin(state(2)),
             sin(state(2)),  cos(state(2));
@@ -1418,6 +1944,53 @@ visualization_msgs::msg::MarkerArray MMConfig::getManiMarkerArray(std::string ns
             0.0              , 0.0               , 0.0, 1.0;
 
     Eigen::Matrix4d T_now = T_q * T_q_0_;
+
+    if (useUrdfModel_)
+    {
+        int markerId = idx * vis_idx_size_ + 10;
+        for (int i = 0; i < manipulator_dof_; ++i)
+        {
+            Eigen::Matrix4d jointTransform;
+            Eigen::Matrix4d unusedGradient;
+            getAJointTran(
+                i, joint_state(i), jointTransform, unusedGradient);
+            T_now *= jointTransform;
+            for (Eigen::Index j = 0;
+                 j < manipulator_link_pts_[static_cast<size_t>(i)].cols();
+                 ++j)
+            {
+                const Eigen::Vector3d point =
+                    (T_now *
+                     manipulator_link_pts_[static_cast<size_t>(i)].col(j))
+                        .head<3>();
+                visualization_msgs::msg::Marker marker;
+                marker.header.frame_id = visualizationFrame_;
+                marker.header.stamp = node_->now();
+                marker.ns = ns + "/urdf_collision_spheres";
+                marker.id = markerId++;
+                marker.type = visualization_msgs::msg::Marker::SPHERE;
+                marker.action = visualization_msgs::msg::Marker::ADD;
+                marker.pose.position.x = point.x();
+                marker.pose.position.y = point.y();
+                marker.pose.position.z = point.z();
+                marker.pose.orientation.w = 1.0;
+                const double diameter =
+                    2.0 *
+                    manipulator_link_radii_[static_cast<size_t>(i)](j);
+                marker.scale.x = diameter;
+                marker.scale.y = diameter;
+                marker.scale.z = diameter;
+                const auto &color =
+                    color_set_[static_cast<size_t>(i + 1) % color_set_.size()];
+                marker.color.r = color.x();
+                marker.color.g = color.y();
+                marker.color.b = color.z();
+                marker.color.a = alpha > 1.0e-5 ? alpha : 1.0;
+                marker_array.markers.push_back(std::move(marker));
+            }
+        }
+        return marker_array;
+    }
 
     if(useFastArmer_){
         Eigen::Matrix4d T_temp;
@@ -1612,7 +2185,7 @@ void MMConfig::visMesh(const rclcpp::Publisher<visualization_msgs::msg::Marker>:
     Eigen::Quaterniond quad;
     quad = rotation_matrix;
     visualization_msgs::msg::Marker meshMarker;
-    meshMarker.header.frame_id = "world";
+    meshMarker.header.frame_id = visualizationFrame_;
     meshMarker.header.stamp = node_->now();
     meshMarker.ns = ns;
     meshMarker.id = id;
@@ -1661,7 +2234,7 @@ visualization_msgs::msg::Marker MMConfig::getMarker(int id, std::string ns, doub
     Eigen::Quaterniond quad;
     quad = rotation_matrix;
     visualization_msgs::msg::Marker meshMarker;
-    meshMarker.header.frame_id = "world";
+    meshMarker.header.frame_id = visualizationFrame_;
     meshMarker.header.stamp = node_->now();
     meshMarker.ns = ns;
     meshMarker.id = id;

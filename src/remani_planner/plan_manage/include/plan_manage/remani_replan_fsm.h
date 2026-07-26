@@ -37,6 +37,7 @@
 #include <sstream>
 #include <fstream>
 #include <functional>
+#include <stdexcept>
 using std::vector;
 
 namespace remani_planner
@@ -88,6 +89,8 @@ namespace remani_planner
 
     int mobile_base_dim_, manipulator_dim_, traj_dim_;
     double mobile_base_non_singul_vel_;
+    bool odom_twist_in_body_frame_;
+    std::vector<std::string> manipulator_joint_names_;
 
     /* planning data */
     bool have_trigger_, have_target_, have_odom_, have_joint_state_, have_new_target_, have_recv_pre_agent_, have_local_traj_;
@@ -115,6 +118,7 @@ namespace remani_planner
     rclcpp::Node::SharedPtr node_;
     rclcpp::TimerBase::SharedPtr exec_timer_, safety_timer_, model_vis_timer_;
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr waypoint_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr nav2_goal_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr gripper_state_sub_;

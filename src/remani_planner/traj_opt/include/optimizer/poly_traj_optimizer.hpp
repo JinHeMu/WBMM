@@ -113,10 +113,12 @@ namespace remani_planner
     double mobile_base_wheel_base_;
     double mobile_base_length_, mobile_base_width_, mobile_base_height_, mobile_base_wheel_radius_;
     double mobile_base_check_radius_;
+    std::vector<double> mobile_base_collision_radii_;
     Eigen::VectorXd min_joint_pos_, max_joint_pos_;
     double max_joint_vel_, max_joint_acc_;
     double manipulator_thickness_;
     std::vector<Eigen::Matrix4Xd> manipulator_link_pts_;
+    std::vector<Eigen::VectorXd> manipulator_link_radii_;
     Eigen::VectorXd manipulator_config_;
 
     Eigen::Matrix2d B_h_;

@@ -17,6 +17,7 @@ find_package(cv_bridge REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(plan_env REQUIRED)
+find_package(urdf REQUIRED)
 
 add_library(mm_config SHARED
   src/mm_config.cpp
@@ -39,6 +40,7 @@ ament_target_dependencies(mm_config PUBLIC
   visualization_msgs
   cv_bridge
   ament_index_cpp
+  urdf
 )
 
 target_link_libraries(mm_config PUBLIC plan_env::plan_env)
@@ -66,6 +68,7 @@ ament_export_dependencies(
   Eigen3
   ament_index_cpp
   plan_env
+  urdf
 )
 
 ament_package()

@@ -28,7 +28,8 @@ namespace poly_traj
         CoefficientMat coeffMat;
         int dim = 8;
         int singul;
-        double mobile_base_wheel_base = 0.370445;
+        // tracer_jaka_zu5_real.urdf places the drive wheels at y=+/-0.17 m.
+        double mobile_base_wheel_base = 0.34;
         double mobile_base_wheel_radius = 0.07;
     public:
         Piece() = default;
