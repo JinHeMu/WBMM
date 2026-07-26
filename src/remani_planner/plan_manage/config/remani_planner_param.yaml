@@ -54,6 +54,19 @@ fsm:
   global_plan: true           # Whether to use global plan
   emergency_time: 1.5         # greater than max replan time
 
+  # Replan from the measured whole-body state when MPC tracking drifts or
+  # falls behind the time-parameterized REMANI reference.
+  tracking_error_replan_enabled: true
+  tracking_error_position_threshold: 0.30 # mobile-base xy error [m]
+  tracking_error_yaw_threshold: 0.45      # wrapped base yaw error [rad]
+  tracking_error_joint_threshold: 0.30    # maximum absolute joint error [rad]
+  tracking_error_persistence: 0.30        # error must persist this long [s]
+  tracking_error_min_interval: 2.0        # cooldown between triggers [s]
+  tracking_error_grace_period: 0.60       # ignore a newly published trajectory [s]
+  tracking_goal_position_tolerance: 0.12  # measured goal acceptance [m]
+  tracking_goal_yaw_tolerance: 0.20       # measured goal acceptance [rad]
+  tracking_goal_joint_tolerance: 0.15     # max joint goal error [rad]
+
 grid_map:
   use_load_map: true     # Whether to use simulation map
   use_global_map: false # Whether to use global map

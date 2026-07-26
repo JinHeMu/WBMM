@@ -122,6 +122,44 @@ planner_to_ocs2_y:=0.0 \
 planner_to_ocs2_yaw:=0.0
 ```
 
+## Tracking-error replanning
+
+The planner compares the measured whole-body state from odometry and
+`/joint_states` with the REMANI trajectory at the current trajectory time.
+This detects both geometric drift and an MPC controller falling behind the
+time-parameterized reference.
+
+By default, replanning is requested when any of these errors persists for
+`0.30 s`:
+
+- mobile-base position error greater than `0.30 m`;
+- wrapped base yaw error greater than `0.45 rad`; or
+- maximum absolute arm-joint error greater than `0.30 rad`.
+
+The trigger has a `0.60 s` grace period after each new trajectory and a
+`2.0 s` minimum interval between replans. On a trigger, REMANI keeps the
+original goal, rebuilds the global path from the latest measured whole-body
+state, and publishes a replacement polynomial trajectory. The bridge sees
+the new first section (`trajectory_id=1`), clears its old assembly, and
+publishes the replacement OCS2 target.
+
+Trajectory time reaching the end is no longer sufficient to report success.
+The measured state must also satisfy the configured goal tolerances. Otherwise
+the same measured-state replanning path is used.
+
+Tune the feature directly from the integration launch, for example:
+
+```bash
+ros2 launch remani_planner remani_mpc_tracking.launch.py \
+  tracking_error_position_threshold:=0.25 \
+  tracking_error_yaw_threshold:=0.40 \
+  tracking_error_joint_threshold:=0.25 \
+  tracking_error_persistence:=0.40 \
+  tracking_error_min_interval:=2.5
+```
+
+Set `tracking_error_replan_enabled:=false` to disable the feature.
+
 ## Required checks before enabling hardware commands
 
 1. Confirm `/joint_states` contains `joint_1` through `joint_6`.

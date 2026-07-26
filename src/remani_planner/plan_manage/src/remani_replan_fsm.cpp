@@ -80,7 +80,61 @@ namespace remani_planner
     replan_trajectory_time_ = declareAndGet<double>(node_, "fsm.replan_trajectory_time", 0.0);
     time_for_gripper_ = declareAndGet<double>(node_, "fsm.time_for_gripper", -1.0);
     global_plan_ = declareAndGet<bool>(node_, "fsm.global_plan", false);
+    tracking_error_replan_enabled_ =
+        declareAndGet<bool>(
+            node_, "fsm.tracking_error_replan_enabled", true);
+    tracking_error_position_threshold_ =
+        declareAndGet<double>(
+            node_, "fsm.tracking_error_position_threshold", 0.30);
+    tracking_error_yaw_threshold_ =
+        declareAndGet<double>(
+            node_, "fsm.tracking_error_yaw_threshold", 0.45);
+    tracking_error_joint_threshold_ =
+        declareAndGet<double>(
+            node_, "fsm.tracking_error_joint_threshold", 0.30);
+    tracking_error_persistence_ =
+        std::max(
+            0.0, declareAndGet<double>(
+                     node_, "fsm.tracking_error_persistence", 0.30));
+    tracking_error_min_interval_ =
+        std::max(
+            0.0, declareAndGet<double>(
+                     node_, "fsm.tracking_error_min_interval", 2.0));
+    tracking_error_grace_period_ =
+        std::max(
+            0.0, declareAndGet<double>(
+                     node_, "fsm.tracking_error_grace_period", 0.60));
+    tracking_goal_position_tolerance_ =
+        std::max(
+            0.0, declareAndGet<double>(
+                     node_, "fsm.tracking_goal_position_tolerance", 0.12));
+    tracking_goal_yaw_tolerance_ =
+        std::max(
+            0.0, declareAndGet<double>(
+                     node_, "fsm.tracking_goal_yaw_tolerance", 0.20));
+    tracking_goal_joint_tolerance_ =
+        std::max(
+            0.0, declareAndGet<double>(
+                     node_, "fsm.tracking_goal_joint_tolerance", 0.15));
+    tracking_error_since_sec_ = -1.0;
+    last_tracking_replan_sec_ = -1.0e9;
     if(global_plan_) planning_horizen_ = 1.0e3;
+
+    RCLCPP_INFO(
+        node_->get_logger(),
+        "Tracking-error replanning %s: position=%.3f m, yaw=%.3f rad, "
+        "joint=%.3f rad, persistence=%.2f s, min_interval=%.2f s, "
+        "grace=%.2f s; goal tolerances=[%.3f m, %.3f rad, %.3f rad].",
+        tracking_error_replan_enabled_ ? "enabled" : "disabled",
+        tracking_error_position_threshold_,
+        tracking_error_yaw_threshold_,
+        tracking_error_joint_threshold_,
+        tracking_error_persistence_,
+        tracking_error_min_interval_,
+        tracking_error_grace_period_,
+        tracking_goal_position_tolerance_,
+        tracking_goal_yaw_tolerance_,
+        tracking_goal_joint_tolerance_);
 
     /* ---------- 机器人自由度参数 ---------- */
     mobile_base_dim_ = declareAndGet<int>(node_, "mm.mobile_base_dof", -1);
@@ -348,14 +402,122 @@ namespace remani_planner
     {
       /* determine if need to replan */
       SingulTrajData *info = &planner_manager_->traj_container_.singul_traj_data;
-      double t_cur = node_->now().seconds() - info->start_time; // 轨迹执行到的相对时间
-      bool need_to_plan_next = ((t_cur - info->duration) > time_for_gripper_);
-      bool need_to_gripper = (t_cur > info->duration + 0.01);
-      t_cur = min(info->duration, t_cur); // 钳位到轨迹时长内
+      const double now_sec = node_->now().seconds();
+      const double elapsed_time =
+          now_sec - info->start_time; // 轨迹执行到的相对时间
+      bool need_to_plan_next =
+          ((elapsed_time - info->duration) > time_for_gripper_);
+      bool need_to_gripper =
+          (elapsed_time > info->duration + 0.01);
+      const double t_cur =
+          std::clamp(elapsed_time, 0.0, info->duration);
 
       Eigen::VectorXd pos = info->getPos(t_cur);                  // 当前跟踪位置
       bool touch_the_goal = ((local_target_pt_ - end_pt_).norm() < 1e-2);  // 局部目标≈终点?
       bool close_to_no_replan_thresh = ((end_pt_ - pos).head(2).norm() < no_replan_thresh_); // 离终点足够近?
+      const bool trajectory_finished =
+          elapsed_time >= info->duration - 1.0e-2;
+      const double goal_position_error =
+          (mm_state_pos_.head(2) - end_pt_.head(2)).norm();
+      const double goal_yaw_error = std::abs(std::atan2(
+          std::sin(mm_car_yaw_ - end_yaw_),
+          std::cos(mm_car_yaw_ - end_yaw_)));
+      double goal_joint_error = 0.0;
+      if (manipulator_dim_ > 0)
+      {
+        goal_joint_error =
+            (mm_state_pos_.segment(mobile_base_dim_, manipulator_dim_) -
+             end_pt_.segment(mobile_base_dim_, manipulator_dim_))
+                .cwiseAbs()
+                .maxCoeff();
+      }
+      const bool measured_goal_reached =
+          goal_position_error <= tracking_goal_position_tolerance_ &&
+          goal_yaw_error <= tracking_goal_yaw_tolerance_ &&
+          goal_joint_error <= tracking_goal_joint_tolerance_;
+
+      // --- MPC 跟踪偏差监控 ---
+      // 使用同一墙钟时刻比较当前实测全身状态和规划轨迹参考状态，因此既能
+      // 检测空间偏离，也能检测控制器逐渐落后于时间参数化参考的情况。
+      if (tracking_error_replan_enabled_ &&
+          have_odom_ && have_joint_state_ && have_target_ &&
+          t_cur >= tracking_error_grace_period_)
+      {
+        const double position_error =
+            (mm_state_pos_.head(2) - pos.head(2)).norm();
+        const double reference_yaw = info->getCarAngle(t_cur);
+        const double yaw_error = std::abs(std::atan2(
+            std::sin(mm_car_yaw_ - reference_yaw),
+            std::cos(mm_car_yaw_ - reference_yaw)));
+        double joint_error = 0.0;
+        if (manipulator_dim_ > 0)
+        {
+          joint_error =
+              (mm_state_pos_.segment(mobile_base_dim_, manipulator_dim_) -
+               pos.segment(mobile_base_dim_, manipulator_dim_))
+                  .cwiseAbs()
+                  .maxCoeff();
+        }
+
+        const bool position_exceeded =
+            tracking_error_position_threshold_ > 0.0 &&
+            position_error > tracking_error_position_threshold_;
+        const bool yaw_exceeded =
+            tracking_error_yaw_threshold_ > 0.0 &&
+            yaw_error > tracking_error_yaw_threshold_;
+        const bool joint_exceeded =
+            tracking_error_joint_threshold_ > 0.0 &&
+            joint_error > tracking_error_joint_threshold_;
+        const bool tracking_error_exceeded =
+            position_exceeded || yaw_exceeded || joint_exceeded ||
+            (trajectory_finished && !measured_goal_reached);
+
+        if (tracking_error_exceeded)
+        {
+          if (tracking_error_since_sec_ < 0.0)
+            tracking_error_since_sec_ = now_sec;
+
+          const bool persistent =
+              now_sec - tracking_error_since_sec_ >=
+              tracking_error_persistence_;
+          const bool cooldown_elapsed =
+              now_sec - last_tracking_replan_sec_ >=
+              tracking_error_min_interval_;
+          if (persistent && cooldown_elapsed)
+          {
+            last_tracking_replan_sec_ = now_sec;
+            tracking_error_since_sec_ = -1.0;
+            RCLCPP_WARN(
+                node_->get_logger(),
+                "Tracking error persisted; replanning from measured state "
+                "to the original target (position=%.3f m, yaw=%.3f rad, "
+                "max_joint=%.3f rad).",
+                position_error, yaw_error, joint_error);
+
+            // Rebuild the global reference from current odometry/joints to
+            // the retained goal. planNextWaypoint() switches the FSM to
+            // GEN_NEW_TRAJ on success, and the resulting trajectory starts
+            // exactly from the latest measured whole-body state.
+            if (!planNextWaypoint(end_pt_, end_yaw_))
+            {
+              RCLCPP_ERROR(
+                  node_->get_logger(),
+                  "Tracking-error replanning could not rebuild the global "
+                  "trajectory; keeping the current trajectory until the "
+                  "next cooldown window.");
+            }
+            goto force_return;
+          }
+        }
+        else
+        {
+          tracking_error_since_sec_ = -1.0;
+        }
+      }
+      else
+      {
+        tracking_error_since_sec_ = -1.0;
+      }
 
       // --- 预设航点模式 ---
       if((target_type_ == TARGET_TYPE::PRESET_TARGET) && close_to_no_replan_thresh){
@@ -379,7 +541,8 @@ namespace remani_planner
           gripper_flag_ = false;
         }
       // --- 到达终点: 任务完成 ---
-      }else if(t_cur > info->duration - 1e-2 && touch_the_goal){
+      }else if(trajectory_finished && touch_the_goal &&
+               (!tracking_error_replan_enabled_ || measured_goal_reached)){
         if(target_type_ != TARGET_TYPE::PRESET_TARGET && wpt_id_ >= waypoint_num_ - 1){
           have_target_ = false;
           have_trigger_ = false;

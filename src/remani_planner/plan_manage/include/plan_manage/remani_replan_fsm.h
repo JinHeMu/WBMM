@@ -86,6 +86,18 @@ namespace remani_planner
     int replan_fail_time_;
     double time_for_gripper_;
     bool global_plan_;
+    bool tracking_error_replan_enabled_;
+    double tracking_error_position_threshold_;
+    double tracking_error_yaw_threshold_;
+    double tracking_error_joint_threshold_;
+    double tracking_error_persistence_;
+    double tracking_error_min_interval_;
+    double tracking_error_grace_period_;
+    double tracking_goal_position_tolerance_;
+    double tracking_goal_yaw_tolerance_;
+    double tracking_goal_joint_tolerance_;
+    double tracking_error_since_sec_;
+    double last_tracking_replan_sec_;
 
     int mobile_base_dim_, manipulator_dim_, traj_dim_;
     double mobile_base_non_singul_vel_;

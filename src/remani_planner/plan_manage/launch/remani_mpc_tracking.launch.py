@@ -48,6 +48,26 @@ def generate_launch_description():
     planner_to_ocs2_x = LaunchConfiguration('planner_to_ocs2_x')
     planner_to_ocs2_y = LaunchConfiguration('planner_to_ocs2_y')
     planner_to_ocs2_yaw = LaunchConfiguration('planner_to_ocs2_yaw')
+    tracking_error_replan_enabled = LaunchConfiguration(
+        'tracking_error_replan_enabled')
+    tracking_error_position_threshold = LaunchConfiguration(
+        'tracking_error_position_threshold')
+    tracking_error_yaw_threshold = LaunchConfiguration(
+        'tracking_error_yaw_threshold')
+    tracking_error_joint_threshold = LaunchConfiguration(
+        'tracking_error_joint_threshold')
+    tracking_error_persistence = LaunchConfiguration(
+        'tracking_error_persistence')
+    tracking_error_min_interval = LaunchConfiguration(
+        'tracking_error_min_interval')
+    tracking_error_grace_period = LaunchConfiguration(
+        'tracking_error_grace_period')
+    tracking_goal_position_tolerance = LaunchConfiguration(
+        'tracking_goal_position_tolerance')
+    tracking_goal_yaw_tolerance = LaunchConfiguration(
+        'tracking_goal_yaw_tolerance')
+    tracking_goal_joint_tolerance = LaunchConfiguration(
+        'tracking_goal_joint_tolerance')
 
     planner_parameters = _merged_planner_parameters()
 
@@ -87,6 +107,26 @@ def generate_launch_description():
                 'grid_map.frame_id': 'odom',
                 'fsm.global_plan': True,
                 'fsm.target_type': 1,
+                'fsm.tracking_error_replan_enabled': ParameterValue(
+                    tracking_error_replan_enabled, value_type=bool),
+                'fsm.tracking_error_position_threshold': ParameterValue(
+                    tracking_error_position_threshold, value_type=float),
+                'fsm.tracking_error_yaw_threshold': ParameterValue(
+                    tracking_error_yaw_threshold, value_type=float),
+                'fsm.tracking_error_joint_threshold': ParameterValue(
+                    tracking_error_joint_threshold, value_type=float),
+                'fsm.tracking_error_persistence': ParameterValue(
+                    tracking_error_persistence, value_type=float),
+                'fsm.tracking_error_min_interval': ParameterValue(
+                    tracking_error_min_interval, value_type=float),
+                'fsm.tracking_error_grace_period': ParameterValue(
+                    tracking_error_grace_period, value_type=float),
+                'fsm.tracking_goal_position_tolerance': ParameterValue(
+                    tracking_goal_position_tolerance, value_type=float),
+                'fsm.tracking_goal_yaw_tolerance': ParameterValue(
+                    tracking_goal_yaw_tolerance, value_type=float),
+                'fsm.tracking_goal_joint_tolerance': ParameterValue(
+                    tracking_goal_joint_tolerance, value_type=float),
             },
         ],
         remappings=[
@@ -145,6 +185,26 @@ def generate_launch_description():
         DeclareLaunchArgument('planner_to_ocs2_x', default_value='0.0'),
         DeclareLaunchArgument('planner_to_ocs2_y', default_value='0.0'),
         DeclareLaunchArgument('planner_to_ocs2_yaw', default_value='0.0'),
+        DeclareLaunchArgument(
+            'tracking_error_replan_enabled', default_value='true'),
+        DeclareLaunchArgument(
+            'tracking_error_position_threshold', default_value='0.30'),
+        DeclareLaunchArgument(
+            'tracking_error_yaw_threshold', default_value='0.45'),
+        DeclareLaunchArgument(
+            'tracking_error_joint_threshold', default_value='0.30'),
+        DeclareLaunchArgument(
+            'tracking_error_persistence', default_value='0.30'),
+        DeclareLaunchArgument(
+            'tracking_error_min_interval', default_value='2.0'),
+        DeclareLaunchArgument(
+            'tracking_error_grace_period', default_value='0.60'),
+        DeclareLaunchArgument(
+            'tracking_goal_position_tolerance', default_value='0.12'),
+        DeclareLaunchArgument(
+            'tracking_goal_yaw_tolerance', default_value='0.20'),
+        DeclareLaunchArgument(
+            'tracking_goal_joint_tolerance', default_value='0.15'),
         planner,
         bridge,
     ])

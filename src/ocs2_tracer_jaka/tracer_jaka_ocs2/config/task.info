@@ -317,52 +317,112 @@ environmentCollision
   ;       这样既能看到明显绕行, 又不至于让软约束和跟踪 cost 打架到发散。
   obstacles
   {
-    box_1
-    {
-      type box
-      position    { [0] 1.30  [1] -0.55  [2] 0.30 }
-      orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
-      halfExtents { [0] 0.15  [1] 0.15  [2] 0.30 }
-      minimumDistance 0.05
-    }
-    box_2
-    {
-      type box
-      position    { [0] 2.5  [1] -0.0  [2] 0.35 }
-      orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
-      halfExtents { [0] 0.15  [1] 0.15  [2] 0.35 }
-      minimumDistance 0.05
-    }
-    cylinder_1
+    cyl_nw1
     {
       type cylinder
-      position    { [0] 1.50  [1] 0.80  [2] 0.30 }
+      position    { [0] 0.20  [1] 1.80  [2] 0.50 }
       orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
       radius 0.12
-      height  0.60
+      height  1.00
       minimumDistance 0.05
     }
-    sphere_1
+    cyl_nw2
     {
-      type sphere
-      position    { [0] 2.00  [1] 1.00  [2] 0.25 }
-      radius 0.18
-      minimumDistance 0.05
-    }
-    box_3
-    {
-      type box
-      position    { [0] 0.50  [1] -1.20  [2] 0.20 }
+      type cylinder
+      position    { [0] 1.20  [1] 1.50  [2] 0.50 }
       orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
-      halfExtents { [0] 0.35  [1] 0.12  [2] 0.20 }
+      radius 0.12
+      height  1.00
       minimumDistance 0.05
     }
-    box_4
+    cyl_ne1
     {
-      type box
-      position    { [0] 2.00  [1] -0.90  [2] 0.25 }
+      type cylinder
+      position    { [0] 3.50  [1] 1.80  [2] 0.50 }
       orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
-      halfExtents { [0] 0.20  [1] 0.20  [2] 0.25 }
+      radius 0.12
+      height  1.00
+      minimumDistance 0.05
+    }
+    cyl_ne2
+    {
+      type cylinder
+      position    { [0] 4.00  [1] 0.50  [2] 0.50 }
+      orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
+      radius 0.10
+      height  1.00
+      minimumDistance 0.05
+    }
+    cyl_sw1
+    {
+      type cylinder
+      position    { [0] 0.50  [1] -1.80  [2] 0.50 }
+      orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
+      radius 0.12
+      height  1.00
+      minimumDistance 0.05
+    }
+    cyl_sw2
+    {
+      type cylinder
+      position    { [0] 1.20  [1] -1.50  [2] 0.50 }
+      orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
+      radius 0.10
+      height  1.00
+      minimumDistance 0.05
+    }
+    cyl_se1
+    {
+      type cylinder
+      position    { [0] 3.80  [1] -1.50  [2] 0.50 }
+      orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
+      radius 0.12
+      height  1.00
+      minimumDistance 0.05
+    }
+    cyl_se2
+    {
+      type cylinder
+      position    { [0] 2.80  [1] -2.00  [2] 0.50 }
+      orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
+      radius 0.12
+      height  1.00
+      minimumDistance 0.05
+    }
+    cyl_ct1
+    {
+      type cylinder
+      position    { [0] 1.50  [1] -0.50  [2] 0.50 }
+      orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
+      radius 0.15
+      height  1.00
+      minimumDistance 0.05
+    }
+    cyl_ct2
+    {
+      type cylinder
+      position    { [0] 2.80  [1] -0.20  [2] 0.50 }
+      orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
+      radius 0.10
+      height  1.00
+      minimumDistance 0.05
+    }
+    cyl_sc1
+    {
+      type cylinder
+      position    { [0] 1.70  [1] 1.20  [2] 0.50 }
+      orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
+      radius 0.10
+      height  1.00
+      minimumDistance 0.05
+    }
+    cyl_sc2
+    {
+      type cylinder
+      position    { [0] 0.50  [1] -0.80  [2] 0.50 }
+      orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
+      radius 0.10
+      height  1.00
       minimumDistance 0.05
     }
   }

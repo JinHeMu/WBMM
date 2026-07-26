@@ -3,24 +3,22 @@
   <compiler angle="radian"
             meshdir="/home/a/mujoco_sim/tracer_jaka_zu5/tracer_jaka_zu5_mjcf/tracer_jaka_zu5/meshes" />
 
-  <!-- 引入机器人描述文件 -->
   <include file="tracer_jaka_zu5_robot.xml"/>
 
   <asset>
-    <!-- 地板纹理 -->
     <texture name="groundplane" type="2d" builtin="checker" mark="edge"
              rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8"
              width="300" height="300"/>
-    <material name="groundplane" texture="groundplane" texrepeat="5 5"
+    <material name="groundplane" texture="groundplane" texrepeat="4 4"
               texuniform="true" reflectance="0.2"/>
   </asset>
 
   <worldbody>
-    <light name="top" pos="0 0 3" dir="0 0 -1" diffuse="0.7 0.7 0.7" />
+    <light name="top" pos="0 0 4" dir="0 0 -1" diffuse="0.7 0.7 0.7" />
 
     <geom name="floor"
           type="plane"
-          size="10 10 0.05"
+          size="8 8 0.05"
           pos="0 0 0"
           material="groundplane"
           contype="1"
@@ -28,63 +26,88 @@
           condim="3"
           friction="2.0 0.01 0.001" />
 
-    <!-- 四周墙体 -->
-    <body name="wall_n" pos="0 3 0.5">
-      <geom type="box" size="3 0.05 0.5"  contype="1" conaffinity="1"
+    <!-- 四周墙体 — 5m×5m 活动区域 -->
+    <body name="wall_n" pos="0 2.5 0.5">
+      <geom type="box" size="2.5 0.05 0.5" contype="1" conaffinity="1"
+            rgba="0.8 0.8 0.78 1"/>
+    </body>
+    <body name="wall_s" pos="0 -2.5 0.5">
+      <geom type="box" size="2.5 0.05 0.5" contype="1" conaffinity="1"
+            rgba="0.8 0.8 0.78 1"/>
+    </body>
+    <body name="wall_e" pos="2.5 0 0.5">
+      <geom type="box" size="0.05 2.5 0.5" contype="1" conaffinity="1"
+            rgba="0.8 0.8 0.78 1"/>
+    </body>
+    <body name="wall_w" pos="-2.5 0 0.5">
+      <geom type="box" size="0.05 2.5 0.5" contype="1" conaffinity="1"
             rgba="0.8 0.8 0.78 1"/>
     </body>
 
-    <body name="wall_s" pos="0 -3 0.5">
-      <geom type="box" size="3 0.05 0.5"  contype="1" conaffinity="1"
-            rgba="0.8 0.8 0.78 1"/>
+    <!-- ==================================================================== -->
+    <!-- 12 根圆柱体 — 5m×5m, 高 1m, 半径 0.10~0.15m                         -->
+    <!-- map->odom TF: x_odom = x_map + 2.0                                   -->
+    <!-- ==================================================================== -->
+
+    <!-- NW 象限: 2根 -->
+    <body name="cyl_nw1" pos="-1.80  1.80 0.50">
+      <geom type="cylinder" size="0.12 0.50" contype="1" conaffinity="1"
+            rgba="0.50 0.55 0.70 1"/>
+    </body>
+    <body name="cyl_nw2" pos="-0.80  1.50 0.50">
+      <geom type="cylinder" size="0.12 0.50" contype="1" conaffinity="1"
+            rgba="0.55 0.45 0.65 1"/>
     </body>
 
-    <body name="wall_e" pos="3 0 0.5">
-      <geom type="box" size="0.05 3 0.5"  contype="1" conaffinity="1"
-            rgba="0.8 0.8 0.78 1"/>
+    <!-- NE 象限: 2根 -->
+    <body name="cyl_ne1" pos=" 1.50  1.80 0.50">
+      <geom type="cylinder" size="0.12 0.50" contype="1" conaffinity="1"
+            rgba="0.50 0.55 0.70 1"/>
+    </body>
+    <body name="cyl_ne2" pos=" 2.00  0.50 0.50">
+      <geom type="cylinder" size="0.10 0.50" contype="1" conaffinity="1"
+            rgba="0.60 0.45 0.35 1"/>
     </body>
 
-    <body name="wall_w" pos="-3 0 0.5">
-      <geom type="box" size="0.05 3 0.5"  contype="1" conaffinity="1"
-            rgba="0.8 0.8 0.78 1"/>
+    <!-- SW 象限: 2根 -->
+    <body name="cyl_sw1" pos="-1.50 -1.80 0.50">
+      <geom type="cylinder" size="0.12 0.50" contype="1" conaffinity="1"
+            rgba="0.50 0.55 0.70 1"/>
+    </body>
+    <body name="cyl_sw2" pos="-0.80 -1.50 0.50">
+      <geom type="cylinder" size="0.10 0.50" contype="1" conaffinity="1"
+            rgba="0.60 0.40 0.30 1"/>
     </body>
 
-    <!-- ====================================================================== -->
-    <!-- 静态障碍物: 与 task.info environmentCollision.obstacles 同步            -->
-    <!-- 坐标系: MuJoCo world = map frame; task.info 使用 odom frame            -->
-    <!-- map->odom TF: (-2, 0, 0), 即 x_map = x_odom - 2                       -->
-    <!-- ====================================================================== -->
-
-    <body name="box_1" pos="-0.70 -0.55 0.30">
-      <geom type="box" size="0.15 0.15 0.30"
-            contype="1" conaffinity="1" rgba="0.4 0.5 0.7 1"/>
+    <!-- SE 象限: 2根 -->
+    <body name="cyl_se1" pos=" 1.80 -1.50 0.50">
+      <geom type="cylinder" size="0.12 0.50" contype="1" conaffinity="1"
+            rgba="0.50 0.55 0.70 1"/>
+    </body>
+    <body name="cyl_se2" pos=" 0.80 -2.00 0.50">
+      <geom type="cylinder" size="0.12 0.50" contype="1" conaffinity="1"
+            rgba="0.55 0.50 0.40 1"/>
     </body>
 
-    <body name="box_2" pos="0.50 0.00 0.35">
-      <geom type="box" size="0.15 0.15 0.35"
-            contype="1" conaffinity="1" rgba="0.4 0.5 0.7 1"/>
+    <!-- 中心区域: 2根 -->
+    <body name="cyl_ct1" pos="-0.50 -0.50 0.50">
+      <geom type="cylinder" size="0.15 0.50" contype="1" conaffinity="1"
+            rgba="0.45 0.50 0.60 1"/>
+    </body>
+    <body name="cyl_ct2" pos=" 0.80 -0.20 0.50">
+      <geom type="cylinder" size="0.10 0.50" contype="1" conaffinity="1"
+            rgba="0.65 0.40 0.35 1"/>
     </body>
 
-    <body name="cylinder_1" pos="-0.50 0.80 0.30">
-      <geom type="cylinder" size="0.12 0.30"
-            contype="1" conaffinity="1" rgba="0.6 0.4 0.2 1"/>
+    <!-- 零星散布: 2根 -->
+    <body name="cyl_sc1" pos="-0.30  1.20 0.50">
+      <geom type="cylinder" size="0.10 0.50" contype="1" conaffinity="1"
+            rgba="0.50 0.55 0.65 1"/>
     </body>
-
-    <body name="sphere_1" pos="0.00 1.00 0.25">
-      <geom type="sphere" size="0.18"
-            contype="1" conaffinity="1" rgba="0.7 0.3 0.3 1"/>
-    </body>
-
-    <body name="box_3" pos="-1.50 -1.20 0.20">
-      <geom type="box" size="0.35 0.12 0.20"
-            contype="1" conaffinity="1" rgba="0.5 0.45 0.35 1"/>
-    </body>
-
-    <body name="box_4" pos="0.00 -0.90 0.25">
-      <geom type="box" size="0.20 0.20 0.25"
-            contype="1" conaffinity="1" rgba="0.4 0.5 0.7 1"/>
+    <body name="cyl_sc2" pos="-1.50 -0.80 0.50">
+      <geom type="cylinder" size="0.10 0.50" contype="1" conaffinity="1"
+            rgba="0.55 0.45 0.50 1"/>
     </body>
 
   </worldbody>
-
 </mujoco>
