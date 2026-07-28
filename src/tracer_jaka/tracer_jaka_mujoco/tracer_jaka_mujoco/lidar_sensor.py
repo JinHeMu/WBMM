@@ -8,7 +8,7 @@ lidar_sensor.py —— MuJoCo-LiDAR 封装为 ROS2 传感器
 * 在 **独立线程** 中按 lidar.rate 跑光线追踪，不阻塞 500Hz 物理步进。
 * 每次扫描前在锁内把 MjData 快照到私有副本，再在锁外做耗时的 trace_rays，
   既保证数据一致，又不长时间占用物理锁。
-* 默认生成单层 360° 扫描并直接发布 sensor_msgs/LaserScan，供 slam_toolbox 使用。
+* 生成可配置角度范围的单层扫描并直接发布 sensor_msgs/LaserScan，供 slam_toolbox 使用。
 * 可选同时发布 PointCloud2，方便在 RViz 中调试。
 * 通过 MuJoCo geom group 掩码只扫描环境(group 0)，从源头避免机械臂和底盘自遮挡。
 """

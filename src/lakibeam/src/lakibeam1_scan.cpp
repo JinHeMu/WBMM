@@ -29,9 +29,13 @@ public:
 	{
 		declare_parameters();
 		get_parameters();
-		scan_pub = create_publisher<sensor_msgs::msg::LaserScan>(output_topic, 1000);
+		scan_pub = create_publisher<sensor_msgs::msg::LaserScan>(
+			output_topic, rclcpp::SensorDataQoS());
 		info();
-		// scan_config();
+		if (configure_sensor)
+		{
+			scan_config();
+		}
 		create_socket();
 		scan_publish();
 	}
@@ -49,23 +53,25 @@ protected:
 		get_parameter<string>("scan_range_start",scan_range_start);
 		get_parameter<string>("scan_range_stop",scan_range_stop);
 		get_parameter<bool>("inverted",inverted);
+		get_parameter<bool>("configure_sensor",configure_sensor);
 		get_parameter<int>("angle_offset",angle_offset);
 	};
 
 	void declare_parameters()
 	{
-		declare_parameter<string>("frame_id",frame_id);
-		declare_parameter<string>("port",port);
-		declare_parameter<string>("hostip",hostip);
-		declare_parameter<string>("sensorip",sensorip);
-		declare_parameter<string>("output_topic",output_topic);
-		declare_parameter<string>("scanfreq",scanfreq);
-		declare_parameter<string>("filter",filter);
-		declare_parameter<string>("laser_enable",laser_enable);
-		declare_parameter<string>("scan_range_start",scan_range_start);
-		declare_parameter<string>("scan_range_stop",scan_range_stop);
-		declare_parameter<bool>("inverted",inverted);
-		declare_parameter<int>("angle_offset",angle_offset);
+		declare_parameter<string>("frame_id","laser_link");
+		declare_parameter<string>("port","2368");
+		declare_parameter<string>("hostip","0.0.0.0");
+		declare_parameter<string>("sensorip","192.168.198.2");
+		declare_parameter<string>("output_topic","scan");
+		declare_parameter<string>("scanfreq","30");
+		declare_parameter<string>("filter","3");
+		declare_parameter<string>("laser_enable","true");
+		declare_parameter<string>("scan_range_start","45");
+		declare_parameter<string>("scan_range_stop","315");
+		declare_parameter<bool>("inverted",false);
+		declare_parameter<bool>("configure_sensor",false);
+		declare_parameter<int>("angle_offset",0);
 	};
 	void info()
 	{
@@ -80,12 +86,14 @@ protected:
 		RCLCPP_INFO(get_logger(),"laser_enable:%s", laser_enable.c_str());
 		RCLCPP_INFO(get_logger(),"scan_range_start:%s", scan_range_start.c_str());
 		RCLCPP_INFO(get_logger(),"scan_range_stop:%s", scan_range_stop.c_str());
+		RCLCPP_INFO(get_logger(),"configure_sensor:%s", configure_sensor ? "True" : "False");
 
 	};
 	void scan_config()
 	{
 		RCLCPP_INFO(get_logger(),"scan_config");
 		sensor_config(sensorip, "/api/v1/sensor/scanfreq", scanfreq);
+		sensor_config(sensorip, "/api/v1/sensor/filter/level", filter);
 		sensor_config(sensorip, "/api/v1/sensor/laser_enable", laser_enable);
 		sensor_config(sensorip, "/api/v1/sensor/scan_range/start", scan_range_start);
 		sensor_config(sensorip, "/api/v1/sensor/scan_range/stop", scan_range_stop);		
@@ -154,7 +162,7 @@ protected:
 							{
 								if(response_ptr.angle == 0)
 								{
-									if(!scan_vec.empty() & (scan_vec_ready == 0))
+									if(!scan_vec.empty() && (scan_vec_ready == 0))
 									{
 										scan_vec_ready = 1;
 										if(scan_vec.size() < 1200)
@@ -195,8 +203,8 @@ protected:
 				scan.angle_max = DEG2RAD(180 + angle_offset);
 				scan.angle_increment = 2.0 * M_PI / num_readings;
 				scan.scan_time = duration;
-				scan.time_increment = duration/(float)num_readings/2;
-				scan.range_min = 0.0;
+				scan.time_increment = duration/(float)num_readings;
+				scan.range_min = 0.08;
 				scan.range_max = 100.0;
 				scan.ranges.resize(num_readings);
 				scan.intensities.resize(num_readings);
@@ -226,7 +234,10 @@ protected:
 				}
 
 				scan_pub->publish(scan);
-				RCLCPP_INFO(get_logger(), "New topic %s published, total data points: %d", output_topic.c_str(), num_readings);
+				RCLCPP_INFO_THROTTLE(
+					get_logger(), *get_clock(), 5000,
+					"Publishing %s, data points: %d",
+					output_topic.c_str(), num_readings);
 				scan_vec.clear();
 				scan_vec_ready = 0;
 			}
@@ -237,7 +248,7 @@ protected:
 private:
     string hostip, sensorip, port, frame_id, output_topic,scanfreq,filter,laser_enable,scan_range_start,scan_range_stop;
     int resolution=25, scan_vec_ready=0, angle_offset;
-    bool inverted;
+    bool inverted, configure_sensor;
     rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr scan_pub;
     rclcpp::Time scan_begin, scan_end;
     struct sockaddr_in ser_addr, clent_addr; 

@@ -82,7 +82,7 @@ Visualization Manager:
       Size (m): 0.029999999329447746
       Style: Flat Squares
       Topic: /scan
-      Unreliable: false
+      Unreliable: true
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
@@ -90,7 +90,7 @@ Visualization Manager:
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: laser
+    Fixed Frame: laser_link
     Frame Rate: 30
   Name: root
   Tools:

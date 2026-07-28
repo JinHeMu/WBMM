@@ -27,7 +27,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.actions import LogInfo
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from launch.substitutions import TextSubstitution
+from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
     frame_id = LaunchConfiguration('frame_id')
@@ -44,6 +44,7 @@ def generate_launch_description():
     scan_range_start = LaunchConfiguration('scan_range_start')
     scan_range_stop = LaunchConfiguration('scan_range_stop')
     sensorip = LaunchConfiguration('sensorip')
+    configure_sensor = LaunchConfiguration('configure_sensor')
 
 
     # frame_id = LaunchConfiguration('frame_id', default='laser')
@@ -58,7 +59,7 @@ def generate_launch_description():
 
     declare_frame_id_cmd = DeclareLaunchArgument(
     'frame_id',
-    default_value='laser',
+    default_value='laser_link',
     )
     declare_output_topic0_cmd = DeclareLaunchArgument(
     'output_topic0',
@@ -78,11 +79,11 @@ def generate_launch_description():
     )
     declare_port0_cmd = DeclareLaunchArgument(
     'port0',
-    default_value=TextSubstitution(text='"2368"'),
+    default_value='2368',
     )
     declare_port1_cmd = DeclareLaunchArgument(
     'port1',
-    default_value='"2369"',
+    default_value='2369',
     )
     declare_angle_offset_cmd = DeclareLaunchArgument(
     'angle_offset',
@@ -90,27 +91,31 @@ def generate_launch_description():
     )
     declare_filter_cmd = DeclareLaunchArgument(
     'filter',
-    default_value='"3"',
+    default_value='3',
     )
     declare_scanfreq_cmd = DeclareLaunchArgument(
     'scanfreq',
-    default_value='"30"',
+    default_value='30',
     )
     declare_laser_enable_cmd = DeclareLaunchArgument(
     'laser_enable',
-    default_value='"true"',
+    default_value='true',
     )
     declare_scan_range_start_cmd = DeclareLaunchArgument(
     'scan_range_start',
-    default_value='"45"',
+    default_value='45',
     )
     declare_scan_range_stop_cmd = DeclareLaunchArgument(
     'scan_range_stop',
-    default_value='"315"',
+    default_value='315',
     )
     declare_sensorip_cmd = DeclareLaunchArgument(
     'sensorip',
     default_value='192.168.198.2',
+    )
+    declare_configure_sensor_cmd = DeclareLaunchArgument(
+    'configure_sensor',
+    default_value='false',
     )
 
     richbeam_lidar_node0 = Node(
@@ -118,18 +123,19 @@ def generate_launch_description():
         name='richbeam_lidar_node0',
         executable='lakibeam1_scan_node',
         parameters=[{
-            'frame_id':frame_id,
-            'output_topic':output_topic0,
-            'inverted':inverted,
-            'hostip':hostip,
-            'port':port0,
-            'angle_offset':angle_offset,
-            'sensorip':sensorip,
-            'scanfreq':scanfreq,
-            'filter':filter,
-            'laser_enable':laser_enable,
-            'scan_range_start':scan_range_start,
-            'scan_range_stop':scan_range_stop
+            'frame_id':ParameterValue(frame_id, value_type=str),
+            'output_topic':ParameterValue(output_topic0, value_type=str),
+            'inverted':ParameterValue(inverted, value_type=bool),
+            'hostip':ParameterValue(hostip, value_type=str),
+            'port':ParameterValue(port0, value_type=str),
+            'angle_offset':ParameterValue(angle_offset, value_type=int),
+            'sensorip':ParameterValue(sensorip, value_type=str),
+            'scanfreq':ParameterValue(scanfreq, value_type=str),
+            'filter':ParameterValue(filter, value_type=str),
+            'laser_enable':ParameterValue(laser_enable, value_type=str),
+            'scan_range_start':ParameterValue(scan_range_start, value_type=str),
+            'scan_range_stop':ParameterValue(scan_range_stop, value_type=str),
+            'configure_sensor':ParameterValue(configure_sensor, value_type=bool),
         }],
         output='screen'
     )
@@ -150,6 +156,7 @@ def generate_launch_description():
     ld.add_action(declare_scan_range_start_cmd)
     ld.add_action(declare_scan_range_stop_cmd)
     ld.add_action(declare_sensorip_cmd)
+    ld.add_action(declare_configure_sensor_cmd)
     ld.add_action(richbeam_lidar_node0)
     # ld.add_action(richbeam_lidar_node1)
     # ld.add_action(rviz_node)

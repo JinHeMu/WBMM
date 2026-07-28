@@ -44,6 +44,7 @@ def generate_launch_description():
     urdf_file  = LaunchConfiguration('urdf_file')
     lib_folder = LaunchConfiguration('lib_folder')
     can_port   = LaunchConfiguration('can_port')
+    publish_odom_tf = LaunchConfiguration('publish_odom_tf')
     robot_ip   = LaunchConfiguration('robot_ip')
     local_ip   = LaunchConfiguration('local_ip')
 
@@ -51,6 +52,10 @@ def generate_launch_description():
     declare_args = [
         DeclareLaunchArgument('use_rviz',  default_value='true'),
         DeclareLaunchArgument('can_port',  default_value='can0'),
+        DeclareLaunchArgument(
+            'publish_odom_tf',
+            default_value='true',
+            description='Set false when robot_localization publishes odom TF'),
         DeclareLaunchArgument('robot_ip',  default_value='192.168.0.100'),
         DeclareLaunchArgument('local_ip',  default_value='192.168.0.10'),
         DeclareLaunchArgument(
@@ -98,6 +103,7 @@ def generate_launch_description():
             'odom_frame':      'odom',
             'base_frame':      'base_footprint',  # 与 OCS2 / URDF 对齐
             'odom_topic_name': 'odom',
+            'publish_odom_tf': publish_odom_tf,
             'is_tracer_mini':  False,
             'simulated_robot': False,
             'control_rate':    50,
@@ -310,4 +316,3 @@ def generate_launch_description():
 
         rviz_delayed,
     ])
-

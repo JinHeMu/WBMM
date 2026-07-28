@@ -3,7 +3,7 @@
 #
 # 频率说明：MuJoCo 物理步进通常是 1/timestep（默认 0.002s = 500Hz）。
 # 传感器不再跟着 500Hz 跑，而是按下面的 rate 抽帧，避免仿真卡顿。
-#   lidar.rate  = 25.0   -> 雷达 25Hz
+#   lidar.rate  = 30.0   -> 与实机 Lakibeam 配置一致
 #   camera.rate = 15.0   -> 相机 15Hz
 # 改这两个值即可调节传感器频率。
 # =====================================================================
@@ -42,19 +42,21 @@ mujoco_bridge:
     lidar:
       enable: true
       site_name: "lidar_site"        # 必须与 XML 中 <site name=.../> 一致
-      frame_id: "laser_frame"
+      frame_id: "laser_link"
       topic: "/scan"                 # slam_toolbox 标准 LaserScan 输入
       points_topic: "/lidar/points"  # 可选调试点云
       publish_points: false
-      rate: 20.0                     # 扫描频率(Hz)
+      rate: 30.0                     # Lakibeam 实机配置: 30Hz
       backend: "cpu"                 # cpu | taichi(GPU，需 taichi+CUDA)
       range_min: 0.08
-      cutoff_dist: 8.0               # 最大测距(m)
+      cutoff_dist: 100.0             # 与 Lakibeam 驱动 LaserScan.range_max 一致
       pattern: "2d"
-      num_ray_cols: 720              # 0.5° 分辨率
+      # 实机配置的有效扫描区间为 45°..315°。Lakibeam 驱动把硬件
+      # 0°映射到 ROS 的 -180°，因此对应 ROS 扇区为 -135°..+135°。
+      num_ray_cols: 1080             # 270° / 0.25°，匹配驱动默认分辨率
       num_ray_rows: 1
-      angle_min: -3.141592653589793
-      angle_max: 3.141592653589793
+      angle_min: -2.356194490192345
+      angle_max: 2.356194490192345
       # 只扫描环境 group 0；机器人视觉/碰撞几何是 group 1/3，因此不会自遮挡。
       geom_group: [true, false, false, false, false, false]
       publish_static_tf: false       # TF 由 robot_state_publisher 从 URDF 发布

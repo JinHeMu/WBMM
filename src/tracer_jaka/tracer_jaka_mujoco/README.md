@@ -13,8 +13,11 @@ tracer_jaka_mujoco/
 ├── config/sensors.yaml          # 所有参数都在这里改
 ├── config/ekf.yaml              # wheel odom + IMU 融合
 ├── config/slam_toolbox.yaml     # 2D 建图
+├── config/ekf_real.yaml         # 实机 Tracer + Hipnuc
+├── config/slam_toolbox_real.yaml
 ├── launch/bridge.launch.py
 ├── launch/slam_sim.launch.py    # MuJoCo 完整建图链
+├── launch/real_slam.launch.py   # 实机完整建图链
 ├── models/                      # 放 scene.xml / tracer_jaka_zu5_robot.xml / meshes/（自己拷进来）
 ├── urdf/                        # 可选：tracer_jaka_zu5.urdf（给 robot_state_publisher）
 └── tracer_jaka_mujoco/
@@ -62,7 +65,7 @@ ros2 launch tracer_jaka_mujoco bridge.launch.py model:=/abs/path/scene.xml viewe
 
 | 话题 | 类型 | 说明 |
 |---|---|---|
-| `/scan` | `sensor_msgs/LaserScan` | 帧 `laser_frame`，720 点 360° |
+| `/scan` | `sensor_msgs/LaserScan` | 帧 `laser_link`，1080 点、有效 270° |
 | `/imu/data` | `sensor_msgs/Imu` | 帧 `imu_link` |
 | `/wheel/odometry` | `nav_msgs/Odometry` | 原始轮式里程计 |
 | `/lidar/points` | `sensor_msgs/PointCloud2` | 可选调试输出，默认关闭 |
@@ -80,9 +83,9 @@ ros2 topic pub /arm_controller/commands std_msgs/Float64MultiArray "{data:[0,0.5
 
 ## 6. 改参数 / 改频率（`config/sensors.yaml`）
 
-- **雷达频率**：`lidar.rate`（默认 20Hz）
+- **雷达频率**：`lidar.rate`（默认 30Hz，与 Lakibeam 一致）
 - **相机帧率**：`camera.rate`（默认 15Hz）
-- 雷达分辨率：`num_ray_cols`（默认 720，即 0.5°）；固定为单层 `pattern: 2d`
+- 雷达分辨率：`num_ray_cols`（默认 1080，即 270°/0.25°）；固定为单层 `pattern: 2d`
 - 雷达测距：`cutoff_dist`；后端：`backend: cpu|taichi`
 - 相机分辨率/FOV：`width` `height` `fovy`（`fovy` 要与 XML 中相机一致）
 - 深度上限：`max_depth`，超出是否置 0：`clip_far_to_zero`
@@ -92,12 +95,22 @@ ros2 topic pub /arm_controller/commands std_msgs/Float64MultiArray "{data:[0,0.5
 
 ## 7. 坐标系（TF）
 
+`urdf/tracer_jaka_zu5.urdf` 是仿真和实机建图的传感器标定基准：
+
+| 固定关节 | xyz (m) | rpy (rad) |
+|---|---|---|
+| `base_link -> laser_link` | `0.31 0 0.03` | `0 0 0` |
+| `base_link -> imu_link` | `0.185 0.185 0.23` | `0 0 3.1415` |
+
+雷达和 IMU 的 MuJoCo site 必须与这两个固定关节一致。雷达的
+`angle_offset` 保持为 0，安装旋转只由 TF 表达，避免重复旋转。
+
 完整 SLAM 启动文件中各节点分别发布：
 ```
 slam_toolbox:       map -> odom
 robot_localization: odom -> base_footprint
 robot_state_publisher:
-                    base_footprint -> base_link -> laser_frame / imu_link
+                    base_footprint -> base_link -> laser_link / imu_link
 base_footprint -> camera_depth_optical_frame (动态，相机在臂末端，随臂运动)
 ```
 相机已做 MuJoCo 相机系→ROS 光学系（x 右 / y 下 / z 朝前）的转换，深度图可直接生成点云。
@@ -123,7 +136,7 @@ The package exposes the same ROS 2 contract in MuJoCo and on the real robot:
 |---|---|---|
 | `/wheel/odometry` | `nav_msgs/msg/Odometry` | `odom -> base_footprint` |
 | `/imu/data` | `sensor_msgs/msg/Imu` | `imu_link` |
-| `/scan` | `sensor_msgs/msg/LaserScan` | `laser_frame` |
+| `/scan` | `sensor_msgs/msg/LaserScan` | `laser_link` |
 | `/odometry/filtered` | `nav_msgs/msg/Odometry` | `odom -> base_footprint` |
 | `/map` | `nav_msgs/msg/OccupancyGrid` | `map` |
 
@@ -133,7 +146,7 @@ TF ownership is deliberately unique:
 slam_toolbox:       map -> odom
 robot_localization: odom -> base_footprint
 robot_state_publisher:
-                    base_footprint -> base_link -> laser_frame / imu_link / arm
+                    base_footprint -> base_link -> laser_link / imu_link / arm
 ```
 
 Build and run the complete MuJoCo mapping demo:
@@ -163,16 +176,13 @@ ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \
   "{linear: {x: 0.20}, angular: {z: 0.25}}"
 ```
 
-For the real robot, start the drivers first and remap their topics:
+For the real robot, the integrated launch uses Tracer `/odom`, Hipnuc
+`/IMU_data`, Lakibeam `/scan`, and starts all three drivers:
 
 ```bash
-ros2 launch tracer_jaka_mujoco localization.launch.py \
-  wheel_odom_topic:=/your_base/odom \
-  imu_topic:=/your_imu/data \
-  scan_topic:=/your_lidar/scan
+ros2 launch tracer_jaka_mujoco real_slam.launch.py
 ```
 
-The real 2D laser driver must publish `LaserScan`, and the URDF must provide
-`base_footprint -> laser_frame` and `base_footprint -> imu_link`.  If the real
-IMU does not provide a magnetometer-corrected absolute yaw, disable yaw index 5
-in `config/ekf.yaml` while keeping yaw-rate index 11 enabled.
+The URDF provides `base_footprint -> laser_link` and
+`base_footprint -> imu_link`. The real EKF deliberately fuses Hipnuc yaw rate
+only; absolute yaw remains disabled until the assembled robot is calibrated.

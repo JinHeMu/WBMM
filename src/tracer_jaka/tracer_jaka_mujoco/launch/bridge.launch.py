@@ -13,7 +13,7 @@ bridge.launch.py —— 纯桥接 + 2D LiDAR + IMU + 深度相机
   机械臂(MoveIt):  action /arm_controller/follow_joint_trajectory
 
 传感器话题:
-  /scan                               (sensor_msgs/LaserScan, 帧 laser_frame)
+  /scan                               (sensor_msgs/LaserScan, 帧 laser_link)
   /imu/data                           (sensor_msgs/Imu, 帧 imu_link)
   /wheel/odometry                     (nav_msgs/Odometry, 原始轮式里程计)
   /lidar/points                       (可选 PointCloud2 调试输出)

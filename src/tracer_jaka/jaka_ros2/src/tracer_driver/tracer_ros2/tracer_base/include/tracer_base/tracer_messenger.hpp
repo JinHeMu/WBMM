@@ -37,6 +37,7 @@ class TracerMessenger {
   void SetOdometryFrame(std::string frame) { odom_frame_ = frame; }
   void SetBaseFrame(std::string frame) { base_frame_ = frame; }
   void SetOdometryTopicName(std::string name) { odom_topic_name_ = name; }
+  void SetPublishOdometryTF(bool enabled) { publish_odom_tf_ = enabled; }
 
   void SetSimulationMode(int loop_rate) {
     simulated_robot_ = true;
@@ -157,6 +158,7 @@ class TracerMessenger {
   std::string odom_topic_name_;
 
   bool simulated_robot_ = false;
+  bool publish_odom_tf_ = true;
   int sim_control_rate_ = 50;
 
   std::mutex twist_mutex_;
@@ -295,7 +297,9 @@ class TracerMessenger {
     tf_msg.transform.translation.z = 0.0;
     tf_msg.transform.rotation = odom_quat;
 
-    tf_broadcaster_->sendTransform(tf_msg);
+    if (publish_odom_tf_) {
+      tf_broadcaster_->sendTransform(tf_msg);
+    }
 
     // publish odometry and tf messages
     nav_msgs::msg::Odometry odom_msg;

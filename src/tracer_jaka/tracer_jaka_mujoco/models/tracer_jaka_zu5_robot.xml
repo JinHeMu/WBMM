@@ -286,18 +286,21 @@
         <joint name="base_y"   type="slide" axis="0 1 0" damping="20"/>
         <joint name="base_yaw" type="hinge" axis="0 0 1" damping="80" frictionloss="5"/>
       <body name="base_link" pos="0 0  0.147">
-          <!-- 2D LiDAR: front edge above the top plate.  Ray tracing excludes
-               robot geom groups 1/3, so the arm cannot self-occlude the scan. -->
-          <site name="lidar_site" pos="0.29 0 0.26" quat="1 0 0 0"
+          <!-- Calibrated from tracer_jaka_zu5.urdf. Ray tracing excludes robot
+               geom groups 1/3, so the arm cannot self-occlude the scan. -->
+          <site name="lidar_site" pos="0.31 0 0.03"
+                quat="1 0 0 0"
                 size="0.01" rgba="0.1 0.8 1 1"/>
-          <geom name="lidar_visual" pos="0.29 0 0.25" type="cylinder"
+          <geom name="lidar_visual" pos="0.31 0 0.03" type="cylinder"
                 size="0.035 0.025" group="1" contype="0" conaffinity="0"
                 rgba="0.08 0.12 0.16 1"/>
 
-          <!-- IMU: upper-left corner of the plate above the aluminium posts. -->
-          <site name="imu_site" pos="0.20 0.15 0.255" quat="1 0 0 0"
+          <!-- IMU pose calibrated from tracer_jaka_zu5.urdf. -->
+          <site name="imu_site" pos="0.185 0.185 0.23"
+                quat="0.00004632679486 0 0 0.99999999892691"
                 size="0.008" rgba="1 0.55 0.05 1"/>
-          <geom name="imu_visual" pos="0.20 0.15 0.25" type="box"
+          <geom name="imu_visual" pos="0.185 0.185 0.225"
+                quat="0.70710678 0 0 0.70710678" type="box"
                 size="0.025 0.018 0.008" group="1" contype="0" conaffinity="0"
                 rgba="1 0.45 0.05 1"/>
         <inertial pos="0 0 0" mass="10" diaginertia="0.01 0.01 0.01"/>

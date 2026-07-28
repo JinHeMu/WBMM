@@ -33,6 +33,7 @@ class TracerBaseRos : public rclcpp::Node {
   std::string odom_topic_name_;
 
   bool is_tracer_mini_ = false;
+  bool publish_odom_tf_ = true;
   // bool is_omni_wheel_ = false;
 
   bool simulated_robot_ = false;

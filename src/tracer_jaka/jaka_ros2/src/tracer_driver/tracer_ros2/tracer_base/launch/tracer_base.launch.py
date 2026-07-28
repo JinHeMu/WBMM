@@ -21,6 +21,9 @@ def generate_launch_description():
                                                 description='Base link frame id')
     odom_topic_arg = DeclareLaunchArgument('odom_topic_name', default_value='odom',
                                            description='Odometry topic name')
+    publish_odom_tf_arg = DeclareLaunchArgument(
+        'publish_odom_tf', default_value='true',
+        description='Publish odom to base TF (disable when robot_localization owns it)')
     is_tracer_mini_arg = DeclareLaunchArgument('is_tracer_mini', default_value='false',
                                           description='Scout mini model')
     simulated_robot_arg = DeclareLaunchArgument('simulated_robot', default_value='false',
@@ -39,6 +42,7 @@ def generate_launch_description():
                 'odom_frame': launch.substitutions.LaunchConfiguration('odom_frame'),
                 'base_frame': launch.substitutions.LaunchConfiguration('base_frame'),
                 'odom_topic_name': launch.substitutions.LaunchConfiguration('odom_topic_name'),
+                'publish_odom_tf': launch.substitutions.LaunchConfiguration('publish_odom_tf'),
                 'is_tracer_mini': launch.substitutions.LaunchConfiguration('is_tracer_mini'),
                 'simulated_robot': launch.substitutions.LaunchConfiguration('simulated_robot'),
                 'control_rate': launch.substitutions.LaunchConfiguration('control_rate'),
@@ -50,6 +54,7 @@ def generate_launch_description():
         odom_frame_arg,
         base_link_frame_arg,
         odom_topic_arg,
+        publish_odom_tf_arg,
         is_tracer_mini_arg,
         simulated_robot_arg,
         sim_control_rate_arg,
