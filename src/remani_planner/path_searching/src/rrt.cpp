@@ -30,9 +30,9 @@ namespace remani_planner{
     node->get_parameter(name, value);
   }
 
-  // ============================================================================
-  // 主入口: RRT 搜索 → 路径提取 (供 SampleMani 调用)
-  // ============================================================================
+  /**
+   * @brief 主入口: RRT 搜索 → 路径提取 (供 SampleMani 调用)
+   */
   int RrtPlanning::RRTSearchAndGetSimplePath(
       const std::vector<Eigen::VectorXd>& start_pt_list, const std::vector<double>& start_yaw_list,
       const std::vector<Eigen::VectorXd>& end_pt_list, const std::vector<double>& end_yaw_list,
@@ -96,20 +96,20 @@ namespace remani_planner{
     return status;
   }
 
-  // ============================================================================
-  // Bidirectional RRT* 搜索主体
-  //
-  // 输入: 多个起点/终点 (由 SampleMani 传入)
-  //   每棵树可以有多个根节点 (降低失败率)
-  //
-  // 算法流程:
-  //   1. 将所有起点插入 IN_TREE, 所有终点插入 IN_ANTI_TREE
-  //   2. 交替扩展两棵树 (谁节点少谁扩展)
-  //   3. sample() → near() → steer() → 碰撞检查
-  //   4. 使用 RRT* 的 rewire 优化路径
-  //   5. 两棵树相遇时记录最优路径 (最小化 g1 + g2 + heuristic)
-  //   6. 合并两棵树 → 输出完整路径
-  // ============================================================================
+  /**
+   * @brief Bidirectional RRT* 搜索主体
+   *
+   * 输入: 多个起点/终点 (由 SampleMani 传入)
+   *   每棵树可以有多个根节点 (降低失败率)
+   *
+   * 算法流程:
+   *   1. 将所有起点插入 IN_TREE, 所有终点插入 IN_ANTI_TREE
+   *   2. 交替扩展两棵树 (谁节点少谁扩展)
+   *   3. sample() → near() → steer() → 碰撞检查
+   *   4. 使用 RRT* 的 rewire 优化路径
+   *   5. 两棵树相遇时记录最优路径 (最小化 g1 + g2 + heuristic)
+   *   6. 合并两棵树 → 输出完整路径
+   */
   bool RrtPlanning::search(const std::vector<Eigen::VectorXd>& start_pt_list, const std::vector<double>& start_yaw_list,
                           const std::vector<Eigen::VectorXd>& end_pt_list, const std::vector<double>& end_yaw_list,
                           const std::vector<double>& start_g_score_list, const std::vector<int>& start_layer_list,
@@ -296,9 +296,9 @@ namespace remani_planner{
     }
   }
 
-  // ============================================================================
-  // 初始化/获取节点 (如果已存在则返回, 否则新建)
-  // ============================================================================
+  /**
+   * @brief 初始化/获取节点 (如果已存在则返回, 否则新建)
+   */
   PathNodeRRTPtr RrtPlanning::initNode(const Eigen::VectorXd &s, const double yaw){
     auto it = node_pool_.find(calculateValue(s, yaw));
     if(it != node_pool_.end()){
@@ -313,14 +313,14 @@ namespace remani_planner{
     return node;
   }
 
-  // ============================================================================
-  // 采样: Informed RRT* 椭球采样 (有路径后) / 均匀采样 (初始)
-  //
-  // 椭球采样: 以 start-end 为焦点的超椭球体
-  //   长轴: c_max_  (当前最优路径长度)
-  //   短轴: √(c_max² - c_min²)
-  //   通过 SVD 分解旋转到正确朝向
-  // ============================================================================
+  /**
+   * @brief 采样: Informed RRT* 椭球采样 (有路径后) / 均匀采样 (初始)
+   *
+   * 椭球采样: 以 start-end 为焦点的超椭球体
+   *   长轴: c_max_  (当前最优路径长度)
+   *   短轴: √(c_max² - c_min²)
+   *   通过 SVD 分解旋转到正确朝向
+   */
   void RrtPlanning::sample(Eigen::VectorXd &s_state, double &s_yaw){
     Eigen::VectorXd sample_state(traj_dim_);
     if(c_max_ < 1.0e5){
@@ -372,13 +372,13 @@ namespace remani_planner{
     }
   }
 
-  // ============================================================================
-  // 最近邻搜索 (暴力遍历)
-  //
-  // @param s    随机采样状态
-  // @param yaw  随机采样朝向
-  // @param flag true=在 IN_TREE 中找, false=在 IN_ANTI_TREE 中找
-  // ============================================================================
+  /**
+   * @brief 最近邻搜索 (暴力遍历)
+   *
+   * @param s    随机采样状态
+   * @param yaw  随机采样朝向
+   * @param flag true=在 IN_TREE 中找, false=在 IN_ANTI_TREE 中找
+   */
   PathNodeRRTPtr RrtPlanning::near(const Eigen::VectorXd &s, const double yaw, bool flag){
     PathNodeRRTPtr q_near = nullptr;
     PathNodeRRTPtr node;
@@ -397,18 +397,18 @@ namespace remani_planner{
     return q_near;
   }
 
-  // ============================================================================
-  // 控制扩展: 从 q_near 向目标 (s_rand, s_yaw) 扩展一步
-  //
-  // 使用 Dubins 曲线连接基底状态, 机械臂关节线性插值.
-  // 扩展距离受 max_vel × step_time 限制.
-  //
-  // @param  q_near     当前节点
-  // @param  s_rand     目标位置 (含机械臂)
-  // @param  s_yaw      目标朝向
-  // @param  step_time  扩展时间步长
-  // @return q_new      新节点 (nullptr 表示扩展失败)
-  // ============================================================================
+  /**
+   * @brief 控制扩展: 从 q_near 向目标 (s_rand, s_yaw) 扩展一步
+   *
+   * 使用 Dubins 曲线连接基底状态, 机械臂关节线性插值.
+   * 扩展距离受 max_vel × step_time 限制.
+   *
+   * @param  q_near     当前节点
+   * @param  s_rand     目标位置 (含机械臂)
+   * @param  s_yaw      目标朝向
+   * @param  step_time  扩展时间步长
+   * @return q_new      新节点 (nullptr 表示扩展失败)
+   */
   PathNodeRRTPtr RrtPlanning::steer(PathNodeRRTPtr &q_near, const Eigen::VectorXd &s_rand,
                                      double s_yaw, double step_time){
     Eigen::VectorXd dir = s_rand - q_near->state;
@@ -488,13 +488,13 @@ namespace remani_planner{
     return q_new;
   }
 
-  // ============================================================================
-  // RRT* 重新布线: 在临近区域内优化父节点选择
-  //
-  // 对 q_new 附近的节点:
-  //   1. 如果邻节点 + heuristic 更小 → 选邻节点为父节点
-  //   2. 如果 q_new + heuristic 更小 → 重设邻节点的父节点为 q_new
-  // ============================================================================
+  /**
+   * @brief RRT* 重新布线: 在临近区域内优化父节点选择
+   *
+   * 对 q_new 附近的节点:
+   *   1. 如果邻节点 + heuristic 更小 → 选邻节点为父节点
+   *   2. 如果 q_new + heuristic 更小 → 重设邻节点的父节点为 q_new
+   */
   void RrtPlanning::rewire(PathNodeRRTPtr q_new, double near_time){
     std::vector<PathNodeRRTPtr> neighbour;
     PathNodeRRTPtr temp;
@@ -540,9 +540,9 @@ namespace remani_planner{
     }
   }
 
-  // ============================================================================
-  // 节点连接: 设置 parent-child 关系, 并更新 singul 和 g_score
-  // ============================================================================
+  /**
+   * @brief 节点连接: 设置 parent-child 关系, 并更新 singul 和 g_score
+   */
   void RrtPlanning::linkNode(PathNodeRRTPtr &parent, PathNodeRRTPtr &child){
     if(parent == nullptr || child == nullptr || parent == child) return;
     for(PathNodeRRTPtr ancestor = parent; ancestor != nullptr; ancestor = ancestor->parent){
@@ -576,9 +576,9 @@ namespace remani_planner{
     expandGscore(child);
   }
 
-  // ============================================================================
-  // 递归更新子树 g_score
-  // ============================================================================
+  /**
+   * @brief 递归更新子树 g_score
+   */
   void RrtPlanning::expandGscore(PathNodeRRTPtr q){
     if(q == nullptr || q->parent == nullptr) return;
     if(q->g_score == q->parent->g_score + estimateHeuristic(q->parent, q)){
@@ -591,16 +591,16 @@ namespace remani_planner{
     }
   }
 
-  // ============================================================================
-  // 启发式函数 (两点之间距离)
-  // ============================================================================
+  /**
+   * @brief 启发式函数 (两点之间距离)
+   */
   double RrtPlanning::estimateHeuristic(PathNodeRRTPtr &x1, PathNodeRRTPtr &x2){
     return estimateHeuristic(x1->state, x1->yaw, x2->state, x2->yaw);
   }
 
-  // ============================================================================
-  // 合并两棵树: 将 ANTI_TREE 的节点并入 TREE
-  // ============================================================================
+  /**
+   * @brief 合并两棵树: 将 ANTI_TREE 的节点并入 TREE
+   */
   void RrtPlanning::mergeTree(PathNodeRRTPtr &s1, PathNodeRRTPtr &s2){
     PathNodeRRTPtr q1, q2, q_temp;
     if(s1->node_state == PathNodeRRT::IN_TREE){
@@ -626,9 +626,9 @@ namespace remani_planner{
     this->end_node_ = s_list.back();
   }
 
-  // ============================================================================
-  // 启发式函数: 欧几里得距离 + yaw 差
-  // ============================================================================
+  /**
+   * @brief 启发式函数: 欧几里得距离 + yaw 差
+   */
   double RrtPlanning::estimateHeuristic(const Eigen::VectorXd& s1, const double& yaw1,
                                          const Eigen::VectorXd& s2, const double& yaw2){
     double ret = 0.0;
@@ -636,9 +636,9 @@ namespace remani_planner{
     return ret;
   }
 
-  // ============================================================================
-  // 节点索引 (字符串哈希): 状态量 × 100 取整 → 拼接字符串
-  // ============================================================================
+  /**
+   * @brief 节点索引 (字符串哈希): 状态量 × 100 取整 → 拼接字符串
+   */
   string RrtPlanning::calculateValue(PathNodeRRTPtr &q){
     return calculateValue(q->state, q->yaw);
   }
@@ -655,9 +655,9 @@ namespace remani_planner{
     return ret;
   }
 
-  // ============================================================================
-  // 初始化: 计算采样空间边界和椭球参数
-  // ============================================================================
+  /**
+   * @brief 初始化: 计算采样空间边界和椭球参数
+   */
   void RrtPlanning::init(const std::vector<Eigen::VectorXd>& start_pt_list,
                           const std::vector<Eigen::VectorXd>& end_pt_list){
     this->reset();
@@ -710,16 +710,16 @@ namespace remani_planner{
         }
   }
 
-  // ============================================================================
-  // 角度差 (简化)
-  // ============================================================================
+  /**
+   * @brief 角度差 (简化)
+   */
   double RrtPlanning::calAngleErr(double angle1, double angle2){
     return fabs(angle1 - angle2);
   }
 
-  // ============================================================================
-  // 碰撞检查 (节点自身)
-  // ============================================================================
+  /**
+   * @brief 碰撞检查 (节点自身)
+   */
   bool RrtPlanning::checkcollision(PathNodeRRTPtr& cur_state){
     Eigen::Vector3d xt;
     xt[0] = cur_state->state[0];
@@ -728,11 +728,11 @@ namespace remani_planner{
     return mm_config_->checkcollision(xt, cur_state->state.tail(manipulator_dof_), false);
   }
 
-  // ============================================================================
-  // 碰撞检查 (两个节点之间的路径)
-  //
-  // 沿 Dubins 曲线和机械臂线性插值密集采样, 逐点碰撞检查.
-  // ============================================================================
+  /**
+   * @brief 碰撞检查 (两个节点之间的路径)
+   *
+   * 沿 Dubins 曲线和机械臂线性插值密集采样, 逐点碰撞检查.
+   */
   bool RrtPlanning::checkcollision(PathNodeRRTPtr& cur_state, const Eigen::VectorXd& next_state,
                                     const double next_yaw){
     if(cur_state->node_state == PathNodeRRT::NODE_STATE::COLLISION){
@@ -798,9 +798,9 @@ namespace remani_planner{
     return checkcollision(cur_state, next_state->state, next_state->yaw);
   }
 
-  // ============================================================================
-  // 轨迹平滑 (后端处理)
-  // ============================================================================
+  /**
+   * @brief 轨迹平滑 (后端处理)
+   */
   void RrtPlanning::smoothTraj(std::vector<Eigen::VectorXd> &traj, std::vector<double> &yaw_list,
                                 std::vector<double> &t_list){
     PathNodeRRTPtr temp_end = end_node_;
@@ -817,9 +817,9 @@ namespace remani_planner{
     return;
   }
 
-  // ============================================================================
-  // 路径平滑: 尝试跳过中间节点, 用 Dubins 曲线直接连接
-  // ============================================================================
+  /**
+   * @brief 路径平滑: 尝试跳过中间节点, 用 Dubins 曲线直接连接
+   */
   bool RrtPlanning::smooth(PathNodeRRTPtr smooth_node){
     if(!have_path_) return false;
 
@@ -874,9 +874,9 @@ namespace remani_planner{
     return true;
   }
 
-  // ============================================================================
-  // 获取完整路径 (从 end_node_ 回溯到根)
-  // ============================================================================
+  /**
+   * @brief 获取完整路径 (从 end_node_ 回溯到根)
+   */
   bool RrtPlanning::getTraj(std::vector<Eigen::VectorXd> &traj, std::vector<double> &yaw_list,
                              std::vector<double> &t_list){
     traj.clear();
@@ -907,11 +907,11 @@ namespace remani_planner{
     return true;
   }
 
-  // ============================================================================
-  // 计算两个节点之间的运动时间
-  //
-  // 时间 = max(Dubins弧长/最大速度, 各关节角度差/最大关节速度)
-  // ============================================================================
+  /**
+   * @brief 计算两个节点之间的运动时间
+   *
+   * 时间 = max(Dubins弧长/最大速度, 各关节角度差/最大关节速度)
+   */
   double RrtPlanning::getTime(PathNodeRRTPtr &pre_node, PathNodeRRTPtr &cur_node){
     double t = -1.0;
     Eigen::VectorXd pre_state = pre_node->state;

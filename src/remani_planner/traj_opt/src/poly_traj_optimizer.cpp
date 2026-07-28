@@ -32,9 +32,9 @@ namespace remani_planner
     }
     node->get_parameter(name, value);
   }
-  // ============================================================================
-  // 参数加载与子模块初始化
-  // ============================================================================
+  /**
+   * @brief 参数加载与子模块初始化
+   */
   void PolyTrajOptimizer::setParam(const rclcpp::Node::SharedPtr &node, const std::shared_ptr<GridMap> &map, const std::shared_ptr<MMConfig> &mm_config){
     node_ = node;
     grid_map_ = map;
@@ -125,29 +125,29 @@ namespace remani_planner
     back_end_mm_mesh_vis_pub_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>("back_end_mm_mesh_vis", 50);
   }
 
-  // ============================================================================
-  // 主优化入口: 接收前端初值 → 调用 L-BFGS 优化 → 输出优化后轨迹
-  //
-  // 优化变量组成 (按顺序):
-  //   [1] 各段 MINCO 的中间点       (traj_dim_ × (piece_num-1)) × traj_num_
-  //   [2] 各段的虚拟时间分配          piece_num × traj_num_
-  //   [3] 段间换向点的位置 (Gear)     traj_dim_ × (traj_num_-1)
-  //   [4] 段间换向点的角度 (Angle)    1 × (traj_num_-1)
-  //
-  // 关键技术: 虚拟时间映射 (RealT2VirtualT/VirtualT2RealT)
-  //   将严格为正的时间 T > 0 映射到无约束的虚拟时间 τ ∈ ℝ,
-  //   使 L-BFGS 可以自由优化时间而不违反约束.
-  //
-  // @param iniState_container    各段的起始边界状态 (pos, vel, acc, jerk)
-  // @param finState_container    各段的终止边界状态
-  // @param initInnerPts_container 各段的中间点 (前端 A* 的输出)
-  // @param initT_container        各段的初始时间分配
-  // @param singul_container       各段的前进/后退标志
-  // @param optCps_container       [输出] 优化后的控制点
-  // @param optWps_container       [输出] 优化后的路径点
-  // @param optT_container         [输出] 优化后的时间分配
-  // @return true 优化成功且轨迹安全
-  // ============================================================================
+  /**
+   * @brief 主优化入口: 接收前端初值 → 调用 L-BFGS 优化 → 输出优化后轨迹
+   *
+   * 优化变量组成 (按顺序):
+   *   [1] 各段 MINCO 的中间点       (traj_dim_ × (piece_num-1)) × traj_num_
+   *   [2] 各段的虚拟时间分配          piece_num × traj_num_
+   *   [3] 段间换向点的位置 (Gear)     traj_dim_ × (traj_num_-1)
+   *   [4] 段间换向点的角度 (Angle)    1 × (traj_num_-1)
+   *
+   * 关键技术: 虚拟时间映射 (RealT2VirtualT/VirtualT2RealT)
+   *   将严格为正的时间 T > 0 映射到无约束的虚拟时间 τ ∈ ℝ,
+   *   使 L-BFGS 可以自由优化时间而不违反约束.
+   *
+   * @param iniState_container    各段的起始边界状态 (pos, vel, acc, jerk)
+   * @param finState_container    各段的终止边界状态
+   * @param initInnerPts_container 各段的中间点 (前端 A* 的输出)
+   * @param initT_container        各段的初始时间分配
+   * @param singul_container       各段的前进/后退标志
+   * @param optCps_container       [输出] 优化后的控制点
+   * @param optWps_container       [输出] 优化后的路径点
+   * @param optT_container         [输出] 优化后的时间分配
+   * @return true 优化成功且轨迹安全
+   */
   bool PolyTrajOptimizer::OptimizeTrajectory_lbfgs(
       const std::vector<Eigen::MatrixXd> &iniState_container,
       const std::vector<Eigen::MatrixXd> &finState_container,
@@ -308,9 +308,9 @@ namespace remani_planner
     return good_traj;
   }
 
-  // ============================================================================
-  // 可视化: 后端优化后的轨迹碰撞球体
-  // ============================================================================
+  /**
+   * @brief 可视化: 后端优化后的轨迹碰撞球体
+   */
   void PolyTrajOptimizer::displayBackEndMesh(const SingulTrajData &traj_data, bool init, bool gripper_close){
     Eigen::Vector3d car_state;
     Eigen::VectorXd joint_state;
@@ -341,20 +341,20 @@ namespace remani_planner
     }
   }
 
-  // ============================================================================
-  // 平滑 L1 惩罚函数 (Smoothed L1)
-  //
-  // 对约束违反量 x 进行平滑近似, 使梯度可导:
-  //   x ≤ 0:        f = 0, df = 0       (无违反)
-  //   0 < x ≤ μ:    三次平滑过渡
-  //   x > μ:        f = x - μ/2, df = 1 (线性惩罚)
-  //
-  // @param x  约束违反量 (penalty = constraint - limit)
-  // @param mu 平滑参数 (过渡区宽度)
-  // @param f  [输出] 惩罚函数值
-  // @param df [输出] 导数
-  // @return true 表示违反约束 (需要加入代价)
-  // ============================================================================
+  /**
+   * @brief 平滑 L1 惩罚函数 (Smoothed L1)
+   *
+   * 对约束违反量 x 进行平滑近似, 使梯度可导:
+   *   x ≤ 0:        f = 0, df = 0       (无违反)
+   *   0 < x ≤ μ:    三次平滑过渡
+   *   x > μ:        f = x - μ/2, df = 1 (线性惩罚)
+   *
+   * @param x  约束违反量 (penalty = constraint - limit)
+   * @param mu 平滑参数 (过渡区宽度)
+   * @param f  [输出] 惩罚函数值
+   * @param df [输出] 导数
+   * @return true 表示违反约束 (需要加入代价)
+   */
   bool PolyTrajOptimizer::smoothedL1(const double &x, const double &mu, double &f, double &df){
     if (x < 0.0)
     {
@@ -380,9 +380,9 @@ namespace remani_planner
     }
   }
 
-  // ============================================================================
-  // 平滑三次惩罚: f = max(x, 0)³ 的平滑近似
-  // ============================================================================
+  /**
+   * @brief 平滑三次惩罚: f = max(x, 0)³ 的平滑近似
+   */
   bool PolyTrajOptimizer::smoothedMax3(const double &x, double &f, double &df){
     if (x < 0.0)
     {
@@ -396,12 +396,12 @@ namespace remani_planner
     }
   }
 
-  // ============================================================================
-  // 平滑 Log 函数 (用于近似阶跃/指示函数)
-  //
-  // 从 0 → 1 的平滑过渡, 支持梯度计算.
-  // 用于最小速度惩罚中的"密集采样开关" (只有在低速度区才激活密集采样).
-  // ============================================================================
+  /**
+   * @brief 平滑 Log 函数 (用于近似阶跃/指示函数)
+   *
+   * 从 0 → 1 的平滑过渡, 支持梯度计算.
+   * 用于最小速度惩罚中的"密集采样开关" (只有在低速度区才激活密集采样).
+   */
   bool PolyTrajOptimizer::smoothedLog(const double &x, const double &mu, double &l, double &grad){
     if (x <= -mu){
       l = 0.0;
@@ -428,15 +428,15 @@ namespace remani_planner
     }
   }
 
-  // ============================================================================
-  // 可行性检查: 在时间 t 检查轨迹是否满足运动学约束
-  //
-  // 检查项:
-  //   1. 底盘: 左右轮转速、左右轮角加速度 (基于差速轮模型)
-  //   2. 机械臂: 关节速度、关节加速度
-  //
-  // @return true 表示不满足可行性
-  // ============================================================================
+  /**
+   * @brief 可行性检查: 在时间 t 检查轨迹是否满足运动学约束
+   *
+   * 检查项:
+   *   1. 底盘: 左右轮转速、左右轮角加速度 (基于差速轮模型)
+   *   2. 机械臂: 关节速度、关节加速度
+   *
+   * @return true 表示不满足可行性
+   */
   bool PolyTrajOptimizer::IsNotFeasibie(const SingulTrajData &traj_data, double t){
     Eigen::VectorXd vel, acc, jer;
     double pen;
@@ -510,13 +510,13 @@ namespace remani_planner
     return false;
   }
 
-  // ============================================================================
-  // 整条轨迹安全性检查 (优化后调用)
-  //
-  // 沿轨迹密集采样, 检查每个时刻的:
-  //   1. 碰撞 (底盘/机械臂/自碰撞)
-  //   2. 运动学可行性
-  // ============================================================================
+  /**
+   * @brief 整条轨迹安全性检查 (优化后调用)
+   *
+   * 沿轨迹密集采样, 检查每个时刻的:
+   *   1. 碰撞 (底盘/机械臂/自碰撞)
+   *   2. 运动学可行性
+   */
   bool PolyTrajOptimizer::IsTrajSafe(const SingulTrajData &traj_data){
     double dt = 0.01;
     double T_all = traj_data.duration;
@@ -544,12 +544,12 @@ namespace remani_planner
     return true;
   }
 
-  // ============================================================================
-  // 单点碰撞检测 (封装 MMConfig 的 checkcollision)
-  //
-  // @param t  相对时间
-  // @param coll_type [输出] 碰撞类型: 0=car-obs, 1=mani-obs, 2=car-mani, 3=mani-mani
-  // ============================================================================
+  /**
+   * @brief 单点碰撞检测 (封装 MMConfig 的 checkcollision)
+   *
+   * @param t  相对时间
+   * @param coll_type [输出] 碰撞类型: 0=car-obs, 1=mani-obs, 2=car-mani, 3=mani-mani
+   */
   bool PolyTrajOptimizer::checkCollision(const SingulTrajData &traj, double t, int &coll_type)
   {
     Eigen::VectorXd pos = traj.getPos(t);
@@ -559,17 +559,17 @@ namespace remani_planner
                                       pos.tail(manipulator_dof_), false, coll_type);
   }
 
-  // ============================================================================
-  // L-BFGS 代价函数回调 (static, 通过 instance 指针访问成员)
-  //
-  // 这是优化器的核心: 计算完整代价函数和解析梯度.
-  //
-  // 代价组成:
-  //   total = J_snap (平滑性) + Σ(obs/feas 代价) + J_time (时间代价)
-  //
-  // 梯度计算: 通过 MINCO 的伴随方法 (chain rule via getGrad2TP)
-  //   从控制点到优化变量的链式法则梯度传播
-  // ============================================================================
+  /**
+   * @brief L-BFGS 代价函数回调 (static, 通过 instance 指针访问成员)
+   *
+   * 这是优化器的核心: 计算完整代价函数和解析梯度.
+   *
+   * 代价组成:
+   *   total = J_snap (平滑性) + Σ(obs/feas 代价) + J_time (时间代价)
+   *
+   * 梯度计算: 通过 MINCO 的伴随方法 (chain rule via getGrad2TP)
+   *   从控制点到优化变量的链式法则梯度传播
+   */
   double PolyTrajOptimizer::costFunctionCallback(void *instance,
                                        const Eigen::VectorXd &x,
                                        Eigen::VectorXd &g)
@@ -717,11 +717,11 @@ namespace remani_planner
     return costall;
   }
 
-  // ============================================================================
-  // L-BFGS 提前退出回调
-  //
-  // 当检测到错误/需要重新规划时, 提前终止优化
-  // ============================================================================
+  /**
+   * @brief L-BFGS 提前退出回调
+   *
+   * 当检测到错误/需要重新规划时, 提前终止优化
+   */
   int PolyTrajOptimizer::earlyExitCallback(void *func_data,const Eigen::VectorXd &x,
                                     const Eigen::VectorXd &g,
                                     const double fx,
@@ -733,16 +733,16 @@ namespace remani_planner
     return (opt->force_stop_type_ == STOP_FOR_ERROR || opt->force_stop_type_ == STOP_FOR_REBOUND);
   }
 
-  // ============================================================================
-  // 时间映射: 真实时间 → 无约束虚拟时间
-  //
-  // 公式: τ = f(T)
-  //   T > 1:  τ = sqrt(2T - 1) - 1       (τ ∈ (0, ∞))
-  //   T ≤ 1:  τ = 1 - sqrt(2/T - 1)      (τ ∈ (-∞, 0])
-  //
-  // 满足: T > 0 对任意 τ ∈ ℝ 成立
-  // 使得 L-BFGS 可以自由优化 τ 而不需要约束 T > 0
-  // ============================================================================
+  /**
+   * @brief 时间映射: 真实时间 → 无约束虚拟时间
+   *
+   * 公式: τ = f(T)
+   *   T > 1:  τ = sqrt(2T - 1) - 1       (τ ∈ (0, ∞))
+   *   T ≤ 1:  τ = 1 - sqrt(2/T - 1)      (τ ∈ (-∞, 0])
+   *
+   * 满足: T > 0 对任意 τ ∈ ℝ 成立
+   * 使得 L-BFGS 可以自由优化 τ 而不需要约束 T > 0
+   */
   template <typename EIGENVEC>
   void PolyTrajOptimizer::RealT2VirtualT(const Eigen::VectorXd &RT, EIGENVEC &VT)
   {
@@ -753,13 +753,13 @@ namespace remani_planner
     }
   }
 
-  // ============================================================================
-  // 时间映射: 无约束虚拟时间 → 真实时间 (逆映射)
-  //
-  // 公式: T = g(τ)
-  //   τ > 0:  T = 0.5τ² + τ + 1
-  //   τ ≤ 0:  T = 1 / (0.5τ² - τ + 1)
-  // ============================================================================
+  /**
+   * @brief 时间映射: 无约束虚拟时间 → 真实时间 (逆映射)
+   *
+   * 公式: T = g(τ)
+   *   τ > 0:  T = 0.5τ² + τ + 1
+   *   τ ≤ 0:  T = 1 / (0.5τ² - τ + 1)
+   */
   template <typename EIGENVEC>
   void PolyTrajOptimizer::VirtualT2RealT(const EIGENVEC &VT, Eigen::VectorXd &RT)
   {
@@ -770,14 +770,14 @@ namespace remani_planner
     }
   }
 
-  // ============================================================================
-  // 虚拟时间梯度映射 + 时间代价
-  //
-  // 将真实时间的梯度通过链式法则映射到虚拟时间:
-  //   dJ/dτ = (dJ/dT + w_time) × dT/dτ
-  //
-  // 时间代价: J_time = w_time × Σ(T_i)
-  // ============================================================================
+  /**
+   * @brief 虚拟时间梯度映射 + 时间代价
+   *
+   * 将真实时间的梯度通过链式法则映射到虚拟时间:
+   *   dJ/dτ = (dJ/dT + w_time) × dT/dτ
+   *
+   * 时间代价: J_time = w_time × Σ(T_i)
+   */
   template <typename EIGENVEC, typename EIGENVECGD>
   void PolyTrajOptimizer::VirtualTGradCost(
       const Eigen::VectorXd &RT, const EIGENVEC &VT,
@@ -801,36 +801,36 @@ namespace remani_planner
     costT = RT.sum() * wei_time_;
   }
 
-  // ============================================================================
-  // 平滑性代价与梯度初始化
-  //
-  // 调用 MINCO 的 initGradCost, 计算 min-snap 代价:
-  //   J_snap = ∫ ||d⁴p/dt⁴||² dt
-  //
-  // 同时初始化多项式系数梯度 gdC (通过伴随方法)
-  // ============================================================================
+  /**
+   * @brief 平滑性代价与梯度初始化
+   *
+   * 调用 MINCO 的 initGradCost, 计算 min-snap 代价:
+   *   J_snap = ∫ ||d⁴p/dt⁴||² dt
+   *
+   * 同时初始化多项式系数梯度 gdC (通过伴随方法)
+   */
   template <typename EIGENVEC>
   void PolyTrajOptimizer::initAndGetSmoothnessGradCost2PT(const int trajid, EIGENVEC &gdT, double &cost)
   {
     SnapOpt_container_[trajid].initGradCost(gdT, cost);
   }
 
-  // ============================================================================
-  // 添加 P-V-A-J 相关的代价和梯度 (时间积分)
-  //
-  // 在每个积分点上计算:
-  //   1. 障碍物代价 (底盘 + 机械臂 + 自碰撞)
-  //   2. 基底可行性代价 (差速轮运动学)
-  //   3. 密集采样代价 (低速度区的额外可行性检查)
-  //   4. 机械臂关节可行性代价 (位置/速度/加速度限位)
-  //
-  // 梯度通过链式法则: dJ/dc = Σ β_k × (∂J/∂q)ᵀ
-  //   其中 β_k 是多项式基函数在采样点的值
-  //   最终汇聚到多项式系数梯度 get_gdC()
-  //
-  // @param trajid  轨迹段ID
-  // @param K       每段内的采样点数 (控制精度)
-  // ============================================================================
+  /**
+   * @brief 添加 P-V-A-J 相关的代价和梯度 (时间积分)
+   *
+   * 在每个积分点上计算:
+   *   1. 障碍物代价 (底盘 + 机械臂 + 自碰撞)
+   *   2. 基底可行性代价 (差速轮运动学)
+   *   3. 密集采样代价 (低速度区的额外可行性检查)
+   *   4. 机械臂关节可行性代价 (位置/速度/加速度限位)
+   *
+   * 梯度通过链式法则: dJ/dc = Σ β_k × (∂J/∂q)ᵀ
+   *   其中 β_k 是多项式基函数在采样点的值
+   *   最终汇聚到多项式系数梯度 get_gdC()
+   *
+   * @param trajid  轨迹段ID
+   * @param K       每段内的采样点数 (控制精度)
+   */
   template <typename EIGENVEC>
   void PolyTrajOptimizer::addPVAJGradCost2CT(const int trajid, EIGENVEC &gdT,
                                               Eigen::VectorXd &costs, const int &K){
@@ -1057,32 +1057,32 @@ namespace remani_planner
     }
   }
 
-  // ============================================================================
-  // 障碍物代价与梯度计算 (完整 4 层碰撞)
-  //
-  // 核心: 对所有碰撞球计算 ESDF 距离惩罚, 并通过链式法则求解析梯度.
-  //
-  // 碰撞类型:
-  //   1. 底盘-障碍物 (car-obs):    从 getCarPtsGradNew 获取底盘碰撞球
-  //   2. 机械臂-障碍物 (mani-obs):  从正运动学获取连杆碰撞球位置
-  //   3. 地面碰撞 (ground):        检查机械臂碰撞球 z 坐标
-  //   4. 底盘-机械臂自碰撞 (car-mani):  底盘球 vs 机械臂球
-  //   5. 机械臂自碰撞 (mani-mani):     不同连杆之间的碰撞球
-  //
-  // 代价函数: J = wei_obs × Σ max(0, safe_margin - dist)³
-  // 梯度: dJ/dp = -3·wei_obs·(safe_margin - dist)² · ∇(dist) · (球位置/优化变量)
-  //
-  // @param i_dp   控制点索引 (用于可视化)
-  // @param pos    当前轨迹位置
-  // @param vel    当前轨迹速度
-  // @param trajid 轨迹段ID
-  // @param gradp  [输出] 对位置 p 的梯度
-  // @param gradv  [输出] 对速度 v 的梯度
-  // @param costp  [输出] 底盘避障代价
-  // @param costp_mani  [输出] 机械臂避障代价
-  // @param costp_self  [输出] 自碰撞代价
-  // @return true 表示有碰撞代价贡献
-  // ============================================================================
+  /**
+   * @brief 障碍物代价与梯度计算 (完整 4 层碰撞)
+   *
+   * 核心: 对所有碰撞球计算 ESDF 距离惩罚, 并通过链式法则求解析梯度.
+   *
+   * 碰撞类型:
+   *   1. 底盘-障碍物 (car-obs):    从 getCarPtsGradNew 获取底盘碰撞球
+   *   2. 机械臂-障碍物 (mani-obs):  从正运动学获取连杆碰撞球位置
+   *   3. 地面碰撞 (ground):        检查机械臂碰撞球 z 坐标
+   *   4. 底盘-机械臂自碰撞 (car-mani):  底盘球 vs 机械臂球
+   *   5. 机械臂自碰撞 (mani-mani):     不同连杆之间的碰撞球
+   *
+   * 代价函数: J = wei_obs × Σ max(0, safe_margin - dist)³
+   * 梯度: dJ/dp = -3·wei_obs·(safe_margin - dist)² · ∇(dist) · (球位置/优化变量)
+   *
+   * @param i_dp   控制点索引 (用于可视化)
+   * @param pos    当前轨迹位置
+   * @param vel    当前轨迹速度
+   * @param trajid 轨迹段ID
+   * @param gradp  [输出] 对位置 p 的梯度
+   * @param gradv  [输出] 对速度 v 的梯度
+   * @param costp  [输出] 底盘避障代价
+   * @param costp_mani  [输出] 机械臂避障代价
+   * @param costp_self  [输出] 自碰撞代价
+   * @return true 表示有碰撞代价贡献
+   */
   bool PolyTrajOptimizer::obstacleGradCostforMM(const int i_dp,
                                             const Eigen::VectorXd &pos,
                                             const Eigen::VectorXd &vel,
@@ -1329,22 +1329,22 @@ namespace remani_planner
     return ret;
   }
 
-  // ============================================================================
-  // 底盘可行性代价与梯度 (差速轮运动学模型)
-  //
-  // 约束项:
-  //   (a) 最小速度 (仅密集采样时): |v| ≥ non_singul_v_
-  //   (b) 最大速度: |v| ≤ max_vel_
-  //   (c) 左右轮最大转速: |ω_left|, |ω_right| ≤ max_wheel_omega_
-  //   (d) 左右轮最大角加速度: |α_left|, |α_right| ≤ max_wheel_alpha_
-  //
-  // 差速轮模型:
-  //   ω = (aᵀ·B·v) / (vᵀ·v)     (航向角速度)
-  //   ω_left  = (2·s·|v| - b·ω) / (2·r)
-  //   ω_right = (2·s·|v| + b·ω) / (2·r)
-  //
-  // 每个约束均使用 smoothedL1 惩罚, 并计算解析梯度.
-  // ============================================================================
+  /**
+   * @brief 底盘可行性代价与梯度 (差速轮运动学模型)
+   *
+   * 约束项:
+   *   (a) 最小速度 (仅密集采样时): |v| ≥ non_singul_v_
+   *   (b) 最大速度: |v| ≤ max_vel_
+   *   (c) 左右轮最大转速: |ω_left|, |ω_right| ≤ max_wheel_omega_
+   *   (d) 左右轮最大角加速度: |α_left|, |α_right| ≤ max_wheel_alpha_
+   *
+   * 差速轮模型:
+   *   ω = (aᵀ·B·v) / (vᵀ·v)     (航向角速度)
+   *   ω_left  = (2·s·|v| - b·ω) / (2·r)
+   *   ω_right = (2·s·|v| + b·ω) / (2·r)
+   *
+   * 每个约束均使用 smoothedL1 惩罚, 并计算解析梯度.
+   */
   bool PolyTrajOptimizer::feasibilityGradCostCar(const Eigen::Vector2d &vel,
                                                   const Eigen::Vector2d &acc,
                                                   const Eigen::Vector2d &jer,
@@ -1471,16 +1471,16 @@ namespace remani_planner
     return ret;
   }
 
-  // ============================================================================
-  // 机械臂关节可行性代价与梯度
-  //
-  // 约束项:
-  //   1. 关节位置限位: pos_min ≤ q ≤ pos_max
-  //   2. 关节速度限位: |q̇| ≤ max_vel
-  //   3. 关节加速度限位: |q̈| ≤ max_acc
-  //
-  // 全部使用 smoothedL1 惩罚函数
-  // ============================================================================
+  /**
+   * @brief 机械臂关节可行性代价与梯度
+   *
+   * 约束项:
+   *   1. 关节位置限位: pos_min ≤ q ≤ pos_max
+   *   2. 关节速度限位: |q̇| ≤ max_vel
+   *   3. 关节加速度限位: |q̈| ≤ max_acc
+   *
+   * 全部使用 smoothedL1 惩罚函数
+   */
   bool PolyTrajOptimizer::feasibilityGradCostJoint(const Eigen::VectorXd &pos,
                                                     const Eigen::VectorXd &vel,
                                                     const Eigen::VectorXd &acc,
@@ -1535,23 +1535,23 @@ namespace remani_planner
     return ret;
   }
 
-  // ============================================================================
-  // 前端 A* 搜索 + MINCO 轨迹生成
-  //
-  // 步骤:
-  //   1. 调用 KinoAstar 搜索基底路径 (x, y, yaw), 含前进/后退切换
-  //   2. 为每段 singul 轨迹创建 MINCO (MinSnapOpt)
-  //   3. 根据 A* 搜索的路径点和时间生成 MINCO 初值
-  //
-  // 时间分配: 考虑机械臂关节最大速度/加速度, 确保关节运动可行
-  //   对每段: t = max(基底时间, 各关节的梯形速度时间)
-  //
-  // @param simple_path_container [输出] A* 搜索路径 (按 singul 分段)
-  // @param yaw_list_container    [输出] 每段的 yaw 序列
-  // @param frontendMJ_container  [输出] 每段对应的 MINCO 优化器
-  // @param singul_container      [输出] 每段的前进/后退标志
-  // @return KinoAstar 返回状态码
-  // ============================================================================
+  /**
+   * @brief 前端 A* 搜索 + MINCO 轨迹生成
+   *
+   * 步骤:
+   *   1. 调用 KinoAstar 搜索基底路径 (x, y, yaw), 含前进/后退切换
+   *   2. 为每段 singul 轨迹创建 MINCO (MinSnapOpt)
+   *   3. 根据 A* 搜索的路径点和时间生成 MINCO 初值
+   *
+   * 时间分配: 考虑机械臂关节最大速度/加速度, 确保关节运动可行
+   *   对每段: t = max(基底时间, 各关节的梯形速度时间)
+   *
+   * @param simple_path_container [输出] A* 搜索路径 (按 singul 分段)
+   * @param yaw_list_container    [输出] 每段的 yaw 序列
+   * @param frontendMJ_container  [输出] 每段对应的 MINCO 优化器
+   * @param singul_container      [输出] 每段的前进/后退标志
+   * @return KinoAstar 返回状态码
+   */
   int PolyTrajOptimizer::astarWithMinTraj(const Eigen::MatrixXd &iniState,
                                            const Eigen::MatrixXd &finState,
                                            const double start_yaw,
@@ -1685,9 +1685,9 @@ namespace remani_planner
     return status;
   }
 
-  // ============================================================================
-  // 可视化: 前端搜索的碰撞球体
-  // ============================================================================
+  /**
+   * @brief 可视化: 前端搜索的碰撞球体
+   */
   void PolyTrajOptimizer::displayFrontEndMesh(std::vector<Eigen::VectorXd> &simple_path_full,
                                                vector<double> &yaw_list){
     Eigen::Vector3d car_state;
@@ -1711,9 +1711,9 @@ namespace remani_planner
     front_end_mm_mesh_vis_pub_->publish(marker_array_all);
   }
 
-  // ============================================================================
-  // 辅助函数: 清理和设置控制点容器
-  // ============================================================================
+  /**
+   * @brief 辅助函数: 清理和设置控制点容器
+   */
   void PolyTrajOptimizer::clear_resize_Cps_container(int container_size){
     cps_container_.clear();
     cps_container_.resize(container_size);

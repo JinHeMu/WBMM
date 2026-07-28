@@ -45,9 +45,9 @@ namespace remani_planner{
     node->get_parameter(name, value);
   }
 
-  // ============================================================================
-  // 参数加载与初始化
-  // ============================================================================
+  /**
+   * @brief 参数加载与初始化
+   */
   void KinoAstar::setParam(const rclcpp::Node::SharedPtr &node, const std::shared_ptr<GridMap> &env, const std::shared_ptr<MMConfig> &mm_config){
     node_ = node;
     sdf_map_ = env;
@@ -131,9 +131,9 @@ namespace remani_planner{
     grid_interval_ = sdf_map_->getResolution();  // 栅格分辨率
   }
 
-  // ============================================================================
-  // 重置搜索状态 (每次搜索前调用)
-  // ============================================================================
+  /**
+   * @brief 重置搜索状态 (每次搜索前调用)
+   */
   void KinoAstar::reset(){
     expanded_nodes_.clear();
     path_nodes_.clear();
@@ -161,24 +161,24 @@ namespace remani_planner{
     }
   }
 
-  // ============================================================================
-  // 主入口: Hybrid A* 搜索 + 机械臂构型采样
-  //
-  // 完整流程:
-  //   1. search():            Hybrid A* 搜索基底路径 (x, y, yaw, singul)
-  //   2. getKinoNode():
-  //        ├── getSampleTrajs():  路径稠密采样
-  //        └── getTrajsWithTime(): 梯形速度时间分配
-  //   3. ManiSampleSearch():   在基底路径点上采样机械臂构型
-  //   4. 裁剪到规划视距内
-  //
-  // @param simple_path_container [输出] 每段 (按 singul) 的路径点 [x, y, q1..qN]
-  // @param yaw_list_container    [输出] 每段的 yaw 序列
-  // @param singul_container      [输出] 每段的 singul 标志
-  // @param t_list_container      [输出] 每段的时间分配
-  //
-  // @return REACH_HORIZON / REACH_END / NO_PATH / START_COLLISION / GOAL_COLLISION
-  // ============================================================================
+  /**
+   * @brief 主入口: Hybrid A* 搜索 + 机械臂构型采样
+   *
+   * 完整流程:
+   *   1. search():            Hybrid A* 搜索基底路径 (x, y, yaw, singul)
+   *   2. getKinoNode():
+   *        ├── getSampleTrajs():  路径稠密采样
+   *        └── getTrajsWithTime(): 梯形速度时间分配
+   *   3. ManiSampleSearch():   在基底路径点上采样机械臂构型
+   *   4. 裁剪到规划视距内
+   *
+   * @param simple_path_container [输出] 每段 (按 singul) 的路径点 [x, y, q1..qN]
+   * @param yaw_list_container    [输出] 每段的 yaw 序列
+   * @param singul_container      [输出] 每段的 singul 标志
+   * @param t_list_container      [输出] 每段的时间分配
+   *
+   * @return REACH_HORIZON / REACH_END / NO_PATH / START_COLLISION / GOAL_COLLISION
+   */
   int KinoAstar::KinoAstarSearchAndGetSimplePath(
       const Eigen::VectorXd &start_pos, const Eigen::VectorXd &start_vel,
       const double start_yaw, const int start_singul, const bool start_gripper,
@@ -355,9 +355,9 @@ namespace remani_planner{
     }
   }
 
-  // ============================================================================
-  // 可视化: 路径点 + 连线
-  // ============================================================================
+  /**
+   * @brief 可视化: 路径点 + 连线
+   */
   void KinoAstar::visPath(std::vector<std::vector<Eigen::Vector3d>> path, bool pt){
     if (frontend_path_pub_->get_subscription_count() == 0){
       return;
@@ -449,29 +449,29 @@ namespace remani_planner{
     pub->publish(sphere);
   }
 
-  // ============================================================================
-  // Hybrid A* 搜索主体
-  //
-  // 状态: (x, y, yaw) ∈ SE(2)
-  // 控制: (steer, arc) — 转向角 + 弧长
-  // 离散化:
-  //   - 空间: 栅格地图索引 (x, y)
-  //   - 朝向: yaw 按分辨率离散
-  //
-  // 代价函数:
-  //   g_score = 前进/后退惩罚 + 换向惩罚 + 转向惩罚 + 转向变化惩罚
-  //   f_score = g_score + lambda_heu × 欧几里得启发式
-  //
-  // 搜索流程:
-  //   1. 起止点碰撞检查
-  //   2. 从起点开始扩展
-  //   3. 对每个节点尝试多组控制输入 (steer × arc)
-  //   4. 状态转移 → 碰撞检查 → 计算代价 → 更新 open_set
-  //   5. 接近目标时尝试 Reeds-Shepp 曲线加速
-  //   6. 超时返回 NO_PATH
-  //
-  // @return REACH_END / NO_PATH / START_COLLISION / GOAL_COLLISION
-  // ============================================================================
+  /**
+   * @brief Hybrid A* 搜索主体
+   *
+   * 状态: (x, y, yaw) ∈ SE(2)
+   * 控制: (steer, arc) — 转向角 + 弧长
+   * 离散化:
+   *   - 空间: 栅格地图索引 (x, y)
+   *   - 朝向: yaw 按分辨率离散
+   *
+   * 代价函数:
+   *   g_score = 前进/后退惩罚 + 换向惩罚 + 转向惩罚 + 转向变化惩罚
+   *   f_score = g_score + lambda_heu × 欧几里得启发式
+   *
+   * 搜索流程:
+   *   1. 起止点碰撞检查
+   *   2. 从起点开始扩展
+   *   3. 对每个节点尝试多组控制输入 (steer × arc)
+   *   4. 状态转移 → 碰撞检查 → 计算代价 → 更新 open_set
+   *   5. 接近目标时尝试 Reeds-Shepp 曲线加速
+   *   6. 超时返回 NO_PATH
+   *
+   * @return REACH_END / NO_PATH / START_COLLISION / GOAL_COLLISION
+   */
   int KinoAstar::search(Eigen::VectorXd &start_state, const Eigen::VectorXd &end_state,
                          const Eigen::Vector2d &init_ctrl){
     bool isocc = false;
@@ -680,18 +680,18 @@ namespace remani_planner{
     return NO_PATH;
   }
 
-  // ============================================================================
-  // yaw 角 → 离散索引 (用于哈希表)
-  // ============================================================================
+  /**
+   * @brief yaw 角 → 离散索引 (用于哈希表)
+   */
   int KinoAstar::yawToIndex(const double &yaw){
     double nor_yaw = normalize_angle(yaw);
     int idx = floor((nor_yaw - 0.0) * inv_yaw_resolution_);
     return idx;
   }
 
-  // ============================================================================
-  // 角度归一化到 (-π, π]
-  // ============================================================================
+  /**
+   * @brief 角度归一化到 (-π, π]
+   */
   double KinoAstar::normalize_angle(const double &angle){
     double nor_angle = angle;
     while (nor_angle > M_PI || nor_angle <= -M_PI){
@@ -701,12 +701,12 @@ namespace remani_planner{
     return nor_angle;
   }
 
-  // ============================================================================
-  // 从速度值判断前进/后退/静止
-  //
-  // @param vel signed velocity
-  // @return 1=前进, -1=后退, 0=静止(奇异区)
-  // ============================================================================
+  /**
+   * @brief 从速度值判断前进/后退/静止
+   *
+   * @param vel signed velocity
+   * @return 1=前进, -1=后退, 0=静止(奇异区)
+   */
   inline int KinoAstar::getSingularity(const double &vel){
     int singul = 0;
     if (fabs(vel) > non_siguav_){
@@ -716,26 +716,26 @@ namespace remani_planner{
     return singul;
   }
 
-  // ============================================================================
-  // 启发式函数: 欧几里得距离 (h = |x1 - x2|)
-  // ============================================================================
+  /**
+   * @brief 启发式函数: 欧几里得距离 (h = |x1 - x2|)
+   */
   inline double KinoAstar::getHeu(const Eigen::Vector3d &x1, const Eigen::Vector3d &x2){
     return (x1 - x2).head(2).norm();
   }
 
-  // ============================================================================
-  // Reeds-Shepp 曲线直接连接检查 (终点加速)
-  //
-  // 当 A* 节点接近目标时, 尝试用 Reeds-Shepp 曲线直接连接.
-  // 使用三个不同转弯半径的 RS 空间 (从松到紧).
-  // 条件:
-  //   1. 曲线全程无碰撞
-  //   2. 曲线中不出现超过 1 次换向 (保证轨迹质量)
-  //
-  // @param state1    当前节点状态
-  // @param state2    目标状态
-  // @param last_dir  上一个运动方向
-  // ============================================================================
+  /**
+   * @brief Reeds-Shepp 曲线直接连接检查 (终点加速)
+   *
+   * 当 A* 节点接近目标时, 尝试用 Reeds-Shepp 曲线直接连接.
+   * 使用三个不同转弯半径的 RS 空间 (从松到紧).
+   * 条件:
+   *   1. 曲线全程无碰撞
+   *   2. 曲线中不出现超过 1 次换向 (保证轨迹质量)
+   *
+   * @param state1    当前节点状态
+   * @param state2    目标状态
+   * @param last_dir  上一个运动方向
+   */
   bool KinoAstar::is_shot_sucess(const Eigen::Vector3d &state1, const Eigen::Vector3d &state2, int last_dir){
     std::vector<Eigen::Vector3d> path_list;
     double len;
@@ -801,9 +801,9 @@ namespace remani_planner{
     return false;
   }
 
-  // ============================================================================
-  // 计算 Reeds-Shepp 曲线详细信息 (成功后调用)
-  // ============================================================================
+  /**
+   * @brief 计算 Reeds-Shepp 曲线详细信息 (成功后调用)
+   */
   double KinoAstar::computeShotTraj(const Eigen::Vector3d &state1, const Eigen::Vector3d &state2,
                                     const int shotptrind,
                                     std::vector<Eigen::Vector3d> &path_list, double& len){
@@ -825,9 +825,9 @@ namespace remani_planner{
     return sum_T;
   }
 
-  // ============================================================================
-  // 回溯路径: 从目标节点沿 parent 指针反向走到起点
-  // ============================================================================
+  /**
+   * @brief 回溯路径: 从目标节点沿 parent 指针反向走到起点
+   */
   void KinoAstar::retrievePath(const PathNodePtr &end_node){
     path_nodes_.clear();
     PathNodePtr cur_node = end_node;
@@ -839,23 +839,23 @@ namespace remani_planner{
     reverse(path_nodes_.begin(), path_nodes_.end());
   }
 
-  // ============================================================================
-  // 自行车模型状态转移
-  //
-  // 输入: (steer, arc)
-  //   steer — 前轮转向角 (rad)
-  //   arc   — 行驶弧长 (m), 正=前进, 负=后退
-  //
-  // 运动学:
-  //   k = wheel_base / tan(steer)       ← 转弯半径
-  //   x' = x + k * (sin(yaw + arc/k) - sin(yaw))
-  //   y' = y - k * (cos(yaw + arc/k) - cos(yaw))
-  //   yaw' = yaw + arc/k
-  //
-  // 直行特例 (steer ≈ 0):
-  //   x' = x + arc * cos(yaw)
-  //   y' = y + arc * sin(yaw)
-  // ============================================================================
+  /**
+   * @brief 自行车模型状态转移
+   *
+   * 输入: (steer, arc)
+   *   steer — 前轮转向角 (rad)
+   *   arc   — 行驶弧长 (m), 正=前进, 负=后退
+   *
+   * 运动学:
+   *   k = wheel_base / tan(steer)       ← 转弯半径
+   *   x' = x + k * (sin(yaw + arc/k) - sin(yaw))
+   *   y' = y - k * (cos(yaw + arc/k) - cos(yaw))
+   *   yaw' = yaw + arc/k
+   *
+   * 直行特例 (steer ≈ 0):
+   *   x' = x + arc * cos(yaw)
+   *   y' = y + arc * sin(yaw)
+   */
   void KinoAstar::stateTransit(const Eigen::Vector3d &state0, const Eigen::Vector2d &ctrl_input,
                                 Eigen::Vector3d &state1){
     double psi = ctrl_input(0);   // 转向角
@@ -872,20 +872,20 @@ namespace remani_planner{
     }
   }
 
-  // ============================================================================
-  // 获取 KinoA* 节点数据 → 采样轨迹 → 时间分配
-  // ============================================================================
+  /**
+   * @brief 获取 KinoA* 节点数据 → 采样轨迹 → 时间分配
+   */
   void KinoAstar::getKinoNode(){
     getSampleTrajs();
     if(has_path_) getTrajsWithTime();
   }
 
-  // ============================================================================
-  // 路径简化: 用 Reeds-Shepp 曲线替代稠密节点序列
-  //
-  // 对稠密的 A* 路径, 尝试用 RS 曲线直接连接较远的两个节点,
-  // 如果无碰撞则跳过中间节点, 大幅减少路径点数.
-  // ============================================================================
+  /**
+   * @brief 路径简化: 用 Reeds-Shepp 曲线替代稠密节点序列
+   *
+   * 对稠密的 A* 路径, 尝试用 RS 曲线直接连接较远的两个节点,
+   * 如果无碰撞则跳过中间节点, 大幅减少路径点数.
+   */
   void KinoAstar::simplifyRoute(const std::vector<Eigen::Vector3d> &node_path,
                                 const std::vector<Eigen::Vector2d> &node_input,
                                 std::vector<Eigen::Vector3d> &SampleList){
@@ -948,14 +948,14 @@ namespace remani_planner{
     return;
   }
 
-  // ============================================================================
-  // 路径稠密采样 (从 A* 节点得到稠密路径点)
-  //
-  // 步骤:
-  //   1. 从 path_nodes_ 反向遍历, 对每段的控制输入密集采样
-  //   2. 如果搜索成功触发了 is_shot_succ_, 在终点追加 Reeds-Shepp 曲线
-  //   3. 修剪路径: 使用 curvature-weighted distance 简化
-  // ============================================================================
+  /**
+   * @brief 路径稠密采样 (从 A* 节点得到稠密路径点)
+   *
+   * 步骤:
+   *   1. 从 path_nodes_ 反向遍历, 对每段的控制输入密集采样
+   *   2. 如果搜索成功触发了 is_shot_succ_, 在终点追加 Reeds-Shepp 曲线
+   *   3. 修剪路径: 使用 curvature-weighted distance 简化
+   */
   void KinoAstar::getSampleTrajs(){
     std::vector<Eigen::Vector3d> roughSampleList;
     PathNodePtr node = path_nodes_.back();
@@ -1015,19 +1015,19 @@ namespace remani_planner{
     sample_trajs_ = roughSampleList;
   }
 
-  // ============================================================================
-  // 时间分配 (梯形速度曲线)
-  //
-  // 将稠密路径按 singul (前进/后退) 分段, 每段分配梯形速度曲线时间.
-  // 使用 evaluateDuration 计算梯形速度下行驶该段所需时间.
-  //
-  // 输出: flat_trajs_ — 每段包含:
-  //   - traj_pts:    (x, y, time_per_pt) 序列
-  //   - thetas:      yaw 序列
-  //   - start_state: 起始平面状态
-  //   - final_state: 终止平面状态
-  //   - singul:      方向标志
-  // ============================================================================
+  /**
+   * @brief 时间分配 (梯形速度曲线)
+   *
+   * 将稠密路径按 singul (前进/后退) 分段, 每段分配梯形速度曲线时间.
+   * 使用 evaluateDuration 计算梯形速度下行驶该段所需时间.
+   *
+   * 输出: flat_trajs_ — 每段包含:
+   *   - traj_pts:    (x, y, time_per_pt) 序列
+   *   - thetas:      yaw 序列
+   *   - start_state: 起始平面状态
+   *   - final_state: 终止平面状态
+   *   - singul:      方向标志
+   */
   void KinoAstar::getTrajsWithTime(){
     double startvel = fabs(start_state_(3));
     double endvel = fabs(end_state_(3));
@@ -1169,14 +1169,14 @@ namespace remani_planner{
     }
   }
 
-  // ============================================================================
-  // 曲率加权距离
-  //
-  // 如果两点之间的直线路径与起始朝向偏差过大 (转弯半径 < min_turning_radius),
-  // 则返回基于朝向差的惩罚距离; 否则返回欧几里得距离.
-  //
-  // 用途: 路径剪枝和时距评估时避免不可行的小半径转弯
-  // ============================================================================
+  /**
+   * @brief 曲率加权距离
+   *
+   * 如果两点之间的直线路径与起始朝向偏差过大 (转弯半径 < min_turning_radius),
+   * 则返回基于朝向差的惩罚距离; 否则返回欧几里得距离.
+   *
+   * 用途: 路径剪枝和时距评估时避免不可行的小半径转弯
+   */
   double KinoAstar::evaluateCurvatureWeightedDistance(const Eigen::Vector2d &state1,
                                                        const Eigen::Vector2d &state2,
                                                        const double &yaw1, const double &yaw2){
@@ -1206,12 +1206,12 @@ namespace remani_planner{
     return EuDis;
   }
 
-  // ============================================================================
-  // 梯形速度曲线: 给定长度和起止速度, 计算所需时间
-  //
-  // 时间 = 加速段 + 匀速段 + 减速段 (如果距离足够)
-  //       = 三角形速度曲线 (如果距离不足)
-  // ============================================================================
+  /**
+   * @brief 梯形速度曲线: 给定长度和起止速度, 计算所需时间
+   *
+   * 时间 = 加速段 + 匀速段 + 减速段 (如果距离足够)
+   *       = 三角形速度曲线 (如果距离不足)
+   */
   double KinoAstar::evaluateDuration(const double &length, const double &startV, const double &endV){
     double critical_len;
     if(startV > max_vel_ || endV > max_vel_){
@@ -1236,11 +1236,11 @@ namespace remani_planner{
     }
   }
 
-  // ============================================================================
-  // 梯形速度曲线: 给定时间, 计算该时刻行驶的距离
-  //
-  // inverse of evaluateDuration: 给定时间 → 该时刻的弧长位置
-  // ============================================================================
+  /**
+   * @brief 梯形速度曲线: 给定时间, 计算该时刻行驶的距离
+   *
+   * inverse of evaluateDuration: 给定时间 → 该时刻的弧长位置
+   */
   double KinoAstar::evaluateLength(const double &curt, const double &locallength,
                                     const double &localtime, const double &startV, const double &endV){
     double critical_len;
@@ -1277,15 +1277,15 @@ namespace remani_planner{
     }
   }
 
-  // ============================================================================
-  // 计算平面轨迹状态 (用于 flatness-based 控制)
-  //
-  // flat_state = [位置, 速度(体坐标系→世界), 加速度(体坐标系→世界)]
-  //
-  // 输入: state = (x, y, yaw, signed_vel)
-  // 输出: flat_state (2×3) = [x, dx/dt, d²x/dt²;
-  //                            y, dy/dt, d²y/dt²]
-  // ============================================================================
+  /**
+   * @brief 计算平面轨迹状态 (用于 flatness-based 控制)
+   *
+   * flat_state = [位置, 速度(体坐标系→世界), 加速度(体坐标系→世界)]
+   *
+   * 输入: state = (x, y, yaw, signed_vel)
+   * 输出: flat_state (2×3) = [x, dx/dt, d²x/dt²;
+   *                            y, dy/dt, d²y/dt²]
+   */
   void KinoAstar::getFlatState(const Eigen::Vector4d &state, const Eigen::Vector2d &control_input,
                                 const int &singul, Eigen::MatrixXd &flat_state){
     flat_state.resize(2, 3);
@@ -1308,12 +1308,12 @@ namespace remani_planner{
                     std::tan(control_input(0)) / mobile_base_wheel_base_ * std::pow(vel, 2));
   }
 
-  // ============================================================================
-  // 沿完整轨迹按时间查询位置
-  //
-  // 根据时间 t, 找到对应的 singul 段, 然后在段内通过梯形速度曲线
-  // 反算当前位置 (x, y, yaw).
-  // ============================================================================
+  /**
+   * @brief 沿完整轨迹按时间查询位置
+   *
+   * 根据时间 t, 找到对应的 singul 段, 然后在段内通过梯形速度曲线
+   * 反算当前位置 (x, y, yaw).
+   */
   Eigen::Vector3d KinoAstar::evaluatePos(const double &input_t){
     double t = input_t;
     if(t < 0 || t > totalTrajTime){

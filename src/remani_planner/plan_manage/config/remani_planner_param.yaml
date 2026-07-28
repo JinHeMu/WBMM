@@ -56,7 +56,7 @@ fsm:
 
   # Replan from the measured whole-body state when MPC tracking drifts or
   # falls behind the time-parameterized REMANI reference.
-  tracking_error_replan_enabled: true
+  tracking_error_replan_enabled: false # whether to replan when tracking error exceeds thresholds
   tracking_error_position_threshold: 0.30 # mobile-base xy error [m]
   tracking_error_yaw_threshold: 0.45      # wrapped base yaw error [rad]
   tracking_error_joint_threshold: 0.30    # maximum absolute joint error [rad]

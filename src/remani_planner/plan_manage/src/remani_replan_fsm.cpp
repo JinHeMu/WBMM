@@ -51,9 +51,9 @@ namespace remani_planner
 
   REMANIReplanFSM::~REMANIReplanFSM() {}
 
-  // ============================================================================
-  // 初始化: 加载参数 + 创建子模块 + 注册 ROS 回调
-  // ============================================================================
+  /**
+   * @brief 初始化: 加载参数 + 创建子模块 + 注册 ROS 回调
+   */
   void REMANIReplanFSM::init(rclcpp::Node::SharedPtr node)
   {
     node_ = node;
@@ -275,10 +275,10 @@ namespace remani_planner
         std::bind(&REMANIReplanFSM::waypointCallback, this, std::placeholders::_1));
   }
 
-  // ============================================================================
-  // FSM 主回调 (100Hz)
-  // 每个周期执行的调度逻辑, 通过 switch-case 驱动状态流转
-  // ============================================================================
+  /**
+   * @brief FSM 主回调 (100Hz)
+   * 每个周期执行的调度逻辑, 通过 switch-case 驱动状态流转
+   */
   void REMANIReplanFSM::execFSMCallback()
   {
     exec_timer_->cancel(); // 防止重入: 执行期间暂停定时器
@@ -292,11 +292,11 @@ namespace remani_planner
 
     switch (exec_state_){
 
-    // ====================================================================
-    // 状态: INIT — 初始化, 等待里程计数据
-    // 入口条件: 启动后立即进入
-    // 出口条件: 收到里程计 → WAIT_TARGET
-    // ====================================================================
+    /**
+     * @brief 状态: INIT — 初始化, 等待里程计数据
+     * 入口条件: 启动后立即进入
+     * 出口条件: 收到里程计 → WAIT_TARGET
+     */
     case INIT:
     {
       if (!have_odom_){
@@ -306,11 +306,11 @@ namespace remani_planner
       break;
     }
 
-    // ====================================================================
-    // 状态: WAIT_TARGET — 等待用户/系统下发目标点
-    // 入口条件: 已获取里程计
-    // 出口条件: 收到目标 → GEN_NEW_TRAJ
-    // ====================================================================
+    /**
+     * @brief 状态: WAIT_TARGET — 等待用户/系统下发目标点
+     * 入口条件: 已获取里程计
+     * 出口条件: 收到目标 → GEN_NEW_TRAJ
+     */
     case WAIT_TARGET:
     {
       if (!have_target_)
@@ -321,14 +321,14 @@ namespace remani_planner
       break;
     }
 
-    // ====================================================================
-    // 状态: GEN_NEW_TRAJ — 生成全新全局轨迹
-    // 入口条件: 收到新目标
-    // 逻辑: 尝试 planFromGlobalTraj() 最多10次
-    // 出口条件:
-    //   ├─ 成功 → EXEC_TRAJ
-    //   └─ 失败 → GEN_NEW_TRAJ (重试)
-    // ====================================================================
+    /**
+     * @brief 状态: GEN_NEW_TRAJ — 生成全新全局轨迹
+     * 入口条件: 收到新目标
+     * 逻辑: 尝试 planFromGlobalTraj() 最多10次
+     * 出口条件:
+     *   ├─ 成功 → EXEC_TRAJ
+     *   └─ 失败 → GEN_NEW_TRAJ (重试)
+     */
     case GEN_NEW_TRAJ:
     {
       if(try_plan_after_emergency_){
@@ -353,15 +353,15 @@ namespace remani_planner
       break;
     }
 
-    // ====================================================================
-    // 状态: REPLAN_TRAJ — 局部重规划 (在已有轨迹基础上调整)
-    // 入口条件: EXEC_TRAJ 中检测到需要重规划
-    // 逻辑: planFromLocalTraj() 从当前轨迹采样起始状态重新规划
-    // 出口条件:
-    //   ├─ 成功 → EXEC_TRAJ
-    //   ├─ 失败×20 → WAIT_TARGET (放弃任务)
-    //   └─ 失败(≤20次) → REPLAN_TRAJ (重试)
-    // ====================================================================
+    /**
+     * @brief 状态: REPLAN_TRAJ — 局部重规划 (在已有轨迹基础上调整)
+     * 入口条件: EXEC_TRAJ 中检测到需要重规划
+     * 逻辑: planFromLocalTraj() 从当前轨迹采样起始状态重新规划
+     * 出口条件:
+     *   ├─ 成功 → EXEC_TRAJ
+     *   ├─ 失败×20 → WAIT_TARGET (放弃任务)
+     *   └─ 失败(≤20次) → REPLAN_TRAJ (重试)
+     */
     case REPLAN_TRAJ:
     {
       if(planFromLocalTraj(flag_relan_astar_)){
@@ -390,14 +390,14 @@ namespace remani_planner
       break;
     }
 
-    // ====================================================================
-    // 状态: EXEC_TRAJ — 执行轨迹, 同时监控是否需要重规划
-    // 入口条件: 轨迹生成成功
-    // 监控逻辑:
-    //   1. 预设航点模式: 到达航点后自动切换到下一航点/夹爪操作
-    //   2. 到达终点: 发布完成信号, 回到 WAIT_TARGET
-    //   3. 超出重规划时间阈值: 触发 REPLAN_TRAJ
-    // ====================================================================
+    /**
+     * @brief 状态: EXEC_TRAJ — 执行轨迹, 同时监控是否需要重规划
+     * 入口条件: 轨迹生成成功
+     * 监控逻辑:
+     *   1. 预设航点模式: 到达航点后自动切换到下一航点/夹爪操作
+     *   2. 到达终点: 发布完成信号, 回到 WAIT_TARGET
+     *   3. 超出重规划时间阈值: 触发 REPLAN_TRAJ
+     */
     case EXEC_TRAJ:
     {
       /* determine if need to replan */
@@ -562,14 +562,14 @@ namespace remani_planner
       break;
     }
 
-    // ====================================================================
-    // 状态: EMERGENCY_STOP — 紧急停止
-    // 触发条件: checkCollisionCallback 检测到碰撞即将发生
-    // 动作: 发布停止轨迹 (轨迹ID_ABORT)
-    // 出口条件:
-    //   ├─ 机器人静止(速度<0.1) → GEN_NEW_TRAJ
-    //   └─ 等待静止中 → 保持 EMERGENCY_STOP
-    // ====================================================================
+    /**
+     * @brief 状态: EMERGENCY_STOP — 紧急停止
+     * 触发条件: checkCollisionCallback 检测到碰撞即将发生
+     * 动作: 发布停止轨迹 (轨迹ID_ABORT)
+     * 出口条件:
+     *   ├─ 机器人静止(速度<0.1) → GEN_NEW_TRAJ
+     *   └─ 等待静止中 → 保持 EMERGENCY_STOP
+     */
     case EMERGENCY_STOP:
     {
       if(flag_escape_emergency_){
@@ -595,12 +595,12 @@ namespace remani_planner
     exec_timer_->reset();  // 重启定时器
   }
 
-  // ============================================================================
-  // 碰撞检测回调 (100Hz, 独立于 FSM 主循环)
-  // 沿着当前轨迹采样, 检测未来碰撞:
-  //   - 若碰撞剩余时间 < emergency_time_ → 直接 EMERGENCY_STOP
-  //   - 若碰撞剩余时间 ≥ emergency_time_ → 尝试重规划
-  // ============================================================================
+  /**
+   * @brief 碰撞检测回调 (100Hz, 独立于 FSM 主循环)
+   * 沿着当前轨迹采样, 检测未来碰撞:
+   *   - 若碰撞剩余时间 < emergency_time_ → 直接 EMERGENCY_STOP
+   *   - 若碰撞剩余时间 ≥ emergency_time_ → 尝试重规划
+   */
   void REMANIReplanFSM::checkCollisionCallback(){
     SingulTrajData *info = &planner_manager_->traj_container_.singul_traj_data;
     auto map = planner_manager_->grid_map_;
@@ -676,19 +676,19 @@ namespace remani_planner
     }
   }
 
-  // ============================================================================
-  // 规划下一航点轨迹 (用于 PRESET_TARGET 模式)
-  //
-  // @param next_wp  下一个航点 [x, y, q1, ..., qN]
-  // @param next_yaw 下一个航点的偏航角
-  // @return true 规划成功
-  //
-  // 流程:
-  //   1. 调用 planner_manager_->planGlobalTrajWaypoints() 生成全局轨迹
-  //   2. 更新 end_pt_ 为新的航点
-  //   3. 显示轨迹到 RViz
-  //   4. 如果当前 FSM 不在 WAIT_TARGET, 强制触发 GEN_NEW_TRAJ
-  // ============================================================================
+  /**
+   * @brief 规划下一航点轨迹 (用于 PRESET_TARGET 模式)
+   *
+   * @param next_wp  下一个航点 [x, y, q1, ..., qN]
+   * @param next_yaw 下一个航点的偏航角
+   * @return true 规划成功
+   *
+   * 流程:
+   *   1. 调用 planner_manager_->planGlobalTrajWaypoints() 生成全局轨迹
+   *   2. 更新 end_pt_ 为新的航点
+   *   3. 显示轨迹到 RViz
+   *   4. 如果当前 FSM 不在 WAIT_TARGET, 强制触发 GEN_NEW_TRAJ
+   */
   bool REMANIReplanFSM::planNextWaypoint(const Eigen::VectorXd next_wp, const double next_yaw)
   {
     std::vector<Eigen::VectorXd> one_pt_wps;
@@ -739,13 +739,13 @@ namespace remani_planner
     return success;
   }
 
-  // ============================================================================
-  // 2D Nav Goal 目标点回调 (RViz 点击 / 外部发送)
-  //
-  // 根据 target_type_ 区分处理:
-  //   PRESET_TARGET: 触发预设航点序列 (忽略消息内容)
-  //   MANUAL_TARGET: 从消息中解析 (x, y, yaw) 作为目标
-  // ============================================================================
+  /**
+   * @brief 2D Nav Goal 目标点回调 (RViz 点击 / 外部发送)
+   *
+   * 根据 target_type_ 区分处理:
+   *   PRESET_TARGET: 触发预设航点序列 (忽略消息内容)
+   *   MANUAL_TARGET: 从消息中解析 (x, y, yaw) 作为目标
+   */
   void REMANIReplanFSM::waypointCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg){
     if(!have_odom_ || !have_joint_state_){
       RCLCPP_WARN(node_->get_logger(), "Ignoring goal until odometry and joint state are ready");
@@ -790,14 +790,14 @@ namespace remani_planner
     planNextWaypoint(end_pt_, end_yaw_);
   }
 
-  // ============================================================================
-  // 移动基底里程计回调
-  // 更新: 位置 (x, y), 偏航角, 速度, 前进/后退标志
-  //
-  // 奇异速度处理:
-  //   当线速度 < mobile_base_non_singul_vel_ (近似静止/换向) 时,
-  //   将速度方向强制设为朝向当前 yaw 方向, 避免数值不稳定
-  // ============================================================================
+  /**
+   * @brief 移动基底里程计回调
+   * 更新: 位置 (x, y), 偏航角, 速度, 前进/后退标志
+   *
+   * 奇异速度处理:
+   *   当线速度 < mobile_base_non_singul_vel_ (近似静止/换向) 时,
+   *   将速度方向强制设为朝向当前 yaw 方向, 避免数值不稳定
+   */
   void REMANIReplanFSM::mmCarOdomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
   {
     mm_state_pos_(0) = msg->pose.pose.position.x;
@@ -844,14 +844,14 @@ namespace remani_planner
     have_odom_ = true;
   }
 
-  // ============================================================================
-  // 机械臂关节状态回调
-  //
-  // 从 sensor_msgs/JointState 中提取:
-  //   position → mm_state_pos_ (用于规划起始状态)
-  //   velocity → mm_state_vel_
-  //   effort   → mm_state_acc_ (这里将力矩作为加速度近似)
-  // ============================================================================
+  /**
+   * @brief 机械臂关节状态回调
+   *
+   * 从 sensor_msgs/JointState 中提取:
+   *   position → mm_state_pos_ (用于规划起始状态)
+   *   velocity → mm_state_vel_
+   *   effort   → mm_state_acc_ (这里将力矩作为加速度近似)
+   */
   void REMANIReplanFSM::mmManiOdomCallback(const sensor_msgs::msg::JointState::SharedPtr msg){
     if(msg->position.size() < static_cast<size_t>(manipulator_dim_)){
       RCLCPP_WARN_THROTTLE(
@@ -910,11 +910,11 @@ namespace remani_planner
         marker_array.markers.size());
   }
 
-  // ============================================================================
-  // 夹爪状态回调
-  //
-  // 当夹爪状态改变时, 通知 MMConfig 更新碰撞模型 (夹爪开/闭时外形不同)
-  // ============================================================================
+  /**
+   * @brief 夹爪状态回调
+   *
+   * 当夹爪状态改变时, 通知 MMConfig 更新碰撞模型 (夹爪开/闭时外形不同)
+   */
   void REMANIReplanFSM::gripperCallback(const std_msgs::msg::Bool::SharedPtr msg){
     if(gripper_state_ != msg->data || (!rcv_gripper_state_)){
       rcv_gripper_state_ = true;
@@ -923,15 +923,15 @@ namespace remani_planner
     }
   }
 
-  // ============================================================================
-  // FSM 状态切换
-  //
-  // @param new_state 目标状态
-  // @param pos_call  调用位置标识 (用于日志, 如 "FSM", "SAFETY", "TRIG")
-  //
-  // 维护 continously_called_times_: 同一状态连续被调用的次数
-  //   - 用于 GEN_NEW_TRAJ 判断是否使用随机初值 (避免局部最优)
-  // ============================================================================
+  /**
+   * @brief FSM 状态切换
+   *
+   * @param new_state 目标状态
+   * @param pos_call  调用位置标识 (用于日志, 如 "FSM", "SAFETY", "TRIG")
+   *
+   * 维护 continously_called_times_: 同一状态连续被调用的次数
+   *   - 用于 GEN_NEW_TRAJ 判断是否使用随机初值 (避免局部最优)
+   */
   void REMANIReplanFSM::changeFSMExecState(FSM_EXEC_STATE new_state, string pos_call){
     if (new_state == exec_state_)
       continously_called_times_++;
@@ -944,9 +944,9 @@ namespace remani_planner
     cout << "[" + pos_call + "]: from " + state_str[pre_s] + " to " + state_str[int(new_state)] << endl;
   }
 
-  // ============================================================================
-  // 打印 FSM 当前状态 (调试用, 默认关闭)
-  // ============================================================================
+  /**
+   * @brief 打印 FSM 当前状态 (调试用, 默认关闭)
+   */
   void REMANIReplanFSM::printFSMExecState(){
     static string state_str[8] = {"INIT", "WAIT_TARGET", "GEN_NEW_TRAJ", "REPLAN_TRAJ", "EXEC_TRAJ", "EMERGENCY_STOP"};
     static int last_printed_state = -1, dot_nums = 0;
@@ -974,26 +974,26 @@ namespace remani_planner
     fflush(stdout);
   }
 
-  // ============================================================================
-  // 获取当前状态连续调用次数
-  //
-  // @return pair<连续调用次数, 当前状态>
-  //
-  // 用途: planFromGlobalTraj() 据此决定是否使用随机初值
-  //   首次调用 → 使用 MINCO 平滑初值 (更快)
-  //   连续失败 → 使用随机初值 (避免局部最优)
-  // ============================================================================
+  /**
+   * @brief 获取当前状态连续调用次数
+   *
+   * @return pair<连续调用次数, 当前状态>
+   *
+   * 用途: planFromGlobalTraj() 据此决定是否使用随机初值
+   *   首次调用 → 使用 MINCO 平滑初值 (更快)
+   *   连续失败 → 使用随机初值 (避免局部最优)
+   */
   std::pair<int, REMANIReplanFSM::FSM_EXEC_STATE> REMANIReplanFSM::timesOfConsecutiveStateCalls()
   {
     return std::pair<int, FSM_EXEC_STATE>(continously_called_times_, exec_state_);
   }
 
-  // ============================================================================
-  // 发布多项式轨迹到 ROS 消息
-  //
-  // 将 REMANI 内部的 SingulTrajData 转换为 quadrotor_msgs::msg::PolynomialTraj
-  // 每条消息包含一段基底运动方向(singul)对应的多项式轨迹
-  // ============================================================================
+  /**
+   * @brief 发布多项式轨迹到 ROS 消息
+   *
+   * 将 REMANI 内部的 SingulTrajData 转换为 quadrotor_msgs::msg::PolynomialTraj
+   * 每条消息包含一段基底运动方向(singul)对应的多项式轨迹
+   */
   void REMANIReplanFSM::sendPolyTrajROSMsg(){
     auto data = &planner_manager_->traj_container_.singul_traj_data;
 
@@ -1019,17 +1019,17 @@ namespace remani_planner
     }
   }
 
-  // ============================================================================
-  // 从全局规划生成轨迹 (GEN_NEW_TRAJ 入口)
-  //
-  // @param trial_times 最大尝试次数 (默认10)
-  // @return true 规划成功
-  //
-  // 流程:
-  //   1. 从里程计获取当前机器人状态 (位置/速度/加速度/yaw/singul)
-  //   2. 判断是否连续调用: 连续失败则启用随机初值 (跳出局部最优)
-  //   3. 调用 callReboundReplan() 执行完整的前端+后端规划
-  // ============================================================================
+  /**
+   * @brief 从全局规划生成轨迹 (GEN_NEW_TRAJ 入口)
+   *
+   * @param trial_times 最大尝试次数 (默认10)
+   * @return true 规划成功
+   *
+   * 流程:
+   *   1. 从里程计获取当前机器人状态 (位置/速度/加速度/yaw/singul)
+   *   2. 判断是否连续调用: 连续失败则启用随机初值 (跳出局部最优)
+   *   3. 调用 callReboundReplan() 执行完整的前端+后端规划
+   */
   bool REMANIReplanFSM::planFromGlobalTraj(const int trial_times /*= 1*/){
     start_pos_ = mm_state_pos_;
     start_vel_ = mm_state_vel_;
@@ -1049,17 +1049,17 @@ namespace remani_planner
     return false;
   }
 
-  // ============================================================================
-  // 从局部重规划生成轨迹 (REPLAN_TRAJ 入口)
-  //
-  // @param flag_use_poly_init 是否使用当前多项式作为初值
-  // @return true 规划成功
-  //
-  // 流程:
-  //   1. 从当前执行轨迹的当前位置采样起始状态
-  //   2. 调用 callReboundReplan()
-  //   3. 若失败, 再尝试一次全随机初值
-  // ============================================================================
+  /**
+   * @brief 从局部重规划生成轨迹 (REPLAN_TRAJ 入口)
+   *
+   * @param flag_use_poly_init 是否使用当前多项式作为初值
+   * @return true 规划成功
+   *
+   * 流程:
+   *   1. 从当前执行轨迹的当前位置采样起始状态
+   *   2. 调用 callReboundReplan()
+   *   3. 若失败, 再尝试一次全随机初值
+   */
   bool REMANIReplanFSM::planFromLocalTraj(bool flag_use_poly_init){
     SingulTrajData *info = &planner_manager_->traj_container_.singul_traj_data;
     double t_cur = node_->now().seconds() - info->start_time + replan_trajectory_time_;
@@ -1090,19 +1090,19 @@ namespace remani_planner
     return true;
   }
 
-  // ============================================================================
-  // 核心规划调用: 前端搜索 + 后端优化 (关键函数)
-  //
-  // @param flag_use_poly_init    是否使用多项式初值 (true=MINCO, false=A*)
-  // @param flag_randomPolyTraj   是否使用随机轨迹初值
-  // @return true 规划成功
-  //
-  // 步骤:
-  //   1. getLocalTarget():   从全局轨迹上选取局部目标点
-  //   2. 构造 desired_start: 热启动状态 (使用已有轨迹或当前状态)
-  //   3. reboundReplan():    planner_manager 执行完整规划管线
-  //   4. 成功后: 发布轨迹 + 可视化
-  // ============================================================================
+  /**
+   * @brief 核心规划调用: 前端搜索 + 后端优化 (关键函数)
+   *
+   * @param flag_use_poly_init    是否使用多项式初值 (true=MINCO, false=A*)
+   * @param flag_randomPolyTraj   是否使用随机轨迹初值
+   * @return true 规划成功
+   *
+   * 步骤:
+   *   1. getLocalTarget():   从全局轨迹上选取局部目标点
+   *   2. 构造 desired_start: 热启动状态 (使用已有轨迹或当前状态)
+   *   3. reboundReplan():    planner_manager 执行完整规划管线
+   *   4. 成功后: 发布轨迹 + 可视化
+   */
   bool REMANIReplanFSM::callReboundReplan(bool flag_use_poly_init, bool flag_randomPolyTraj){
     /* ---------- Step 1: 获取局部目标 ---------- */
     bool reach_horizon;
@@ -1196,17 +1196,17 @@ namespace remani_planner
     return plan_success;
   }
 
-  // ============================================================================
-  // 紧急停止
-  //
-  // @param stop_pos  停止位置 (当前机器人位置)
-  // @param stop_yaw  停止朝向
-  // @param singul    停止时前进/后退状态
-  //
-  // 发布:
-  //   1. 零速轨迹给控制器
-  //   2. ACTION_ABORT 信号通知控制器取消当前轨迹
-  // ============================================================================
+  /**
+   * @brief 紧急停止
+   *
+   * @param stop_pos  停止位置 (当前机器人位置)
+   * @param stop_yaw  停止朝向
+   * @param singul    停止时前进/后退状态
+   *
+   * 发布:
+   *   1. 零速轨迹给控制器
+   *   2. ACTION_ABORT 信号通知控制器取消当前轨迹
+   */
   bool REMANIReplanFSM::callEmergencyStop(Eigen::VectorXd stop_pos, double stop_yaw, const int singul){
     std::cout << "\033[31mcall EmergencyStop\033[0m" << std::endl;
     planner_manager_->EmergencyStop(stop_pos, stop_yaw, singul);

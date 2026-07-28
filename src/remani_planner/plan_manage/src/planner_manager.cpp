@@ -48,14 +48,14 @@ namespace remani_planner
     destory_cmd.data = true;
   }
 
-  // ============================================================================
-  // 初始化所有规划子模块
-  //
-  // 加载参数并创建三大核心模块:
-  //   1. GridMap          — ESDF 占据地图 (碰撞检测用)
-  //   2. MMConfig          — 机器人运动学/碰撞模型
-  //   3. PolyTrajOptimizer — 后端轨迹优化器 (L-BFGS)
-  // ============================================================================
+  /**
+   * @brief 初始化所有规划子模块
+   *
+   * 加载参数并创建三大核心模块:
+   *   1. GridMap          — ESDF 占据地图 (碰撞检测用)
+   *   2. MMConfig          — 机器人运动学/碰撞模型
+   *   3. PolyTrajOptimizer — 后端轨迹优化器 (L-BFGS)
+   */
   void MMPlannerManager::initPlanModules(rclcpp::Node::SharedPtr node, PlanningVisualization::Ptr vis)
   {
     node_ = node;
@@ -110,25 +110,25 @@ namespace remani_planner
     ploy_traj_opt_->setParam(node_, grid_map_, mm_config_);
   }
 
-  // ============================================================================
-  // 前端: 计算初始参考状态 (MINCO 初值)
-  //
-  // 两种模式:
-  //   Case 1 (flag_polyInit=true 或首次): 执行 A* 搜索 → MINCO 轨迹
-  //   Case 2 (flag_polyInit=false, 有旧轨迹): 从上一轮轨迹采样 → 热启动
-  //
-  // @param start_pt / vel / acc / jerk  起始边界条件
-  // @param start_yaw / singul           起始朝向与前进/后退
-  // @param local_target_*               局部目标点 (从全局轨迹采样)
-  // @param initMJO_container            [输出] 每段 MINCO 优化器实例
-  // @param singul_container             [输出] 每段的前进/后退标志
-  // @param flag_polyInit                是否执行 A* 搜索 (true) 或热启动 (false)
-  // @param continous_failures_count     连续失败次数 (影响搜索策略)
-  //
-  // @return false 表示前端搜索失败
-  //
-  // 重要: 每段 singul 轨迹对应一个连续同向运动段 (换向时另起一段)
-  // ============================================================================
+  /**
+   * @brief 前端: 计算初始参考状态 (MINCO 初值)
+   *
+   * 两种模式:
+   *   Case 1 (flag_polyInit=true 或首次): 执行 A* 搜索 → MINCO 轨迹
+   *   Case 2 (flag_polyInit=false, 有旧轨迹): 从上一轮轨迹采样 → 热启动
+   *
+   * @param start_pt / vel / acc / jerk  起始边界条件
+   * @param start_yaw / singul           起始朝向与前进/后退
+   * @param local_target_*               局部目标点 (从全局轨迹采样)
+   * @param initMJO_container            [输出] 每段 MINCO 优化器实例
+   * @param singul_container             [输出] 每段的前进/后退标志
+   * @param flag_polyInit                是否执行 A* 搜索 (true) 或热启动 (false)
+   * @param continous_failures_count     连续失败次数 (影响搜索策略)
+   *
+   * @return false 表示前端搜索失败
+   *
+   * 重要: 每段 singul 轨迹对应一个连续同向运动段 (换向时另起一段)
+   */
   bool MMPlannerManager::computeInitReferenceState(const Eigen::VectorXd &start_pt,
                                                     const Eigen::VectorXd &start_vel,
                                                     const Eigen::VectorXd &start_acc,
@@ -150,9 +150,9 @@ namespace remani_planner
     initMJO_container.clear();
     singul_container.clear();
 
-    // ====================================================================
-    // Case 1: 使用 A* 搜索生成初值 (首次或全局重规划)
-    // ====================================================================
+    /**
+     * @brief Case 1: 使用 A* 搜索生成初值 (首次或全局重规划)
+     */
     if (flag_first_call || flag_polyInit || true){
       flag_first_call = false;
 
@@ -236,9 +236,9 @@ namespace remani_planner
       ploy_traj_opt_->displayFrontEndMesh(display_simple_path, display_yaw); // 显示前端搜索的碰撞球
     }
 
-    // ====================================================================
-    // Case 2: 从上一轮优化轨迹热启动 (用于连续重规划)
-    // ====================================================================
+    /**
+     * @brief Case 2: 从上一轮优化轨迹热启动 (用于连续重规划)
+     */
     else{
       RCLCPP_INFO(node_->get_logger(),"get init from local traj");
 
@@ -350,21 +350,21 @@ namespace remani_planner
     return true;
   }
 
-  // ============================================================================
-  // 沿全局轨迹选取局部目标点
-  //
-  // 从上次选取的时间(glb_t_of_lc_tgt)开始, 沿全局轨迹向前扫描,
-  // 直到距离起点达到 planning_horizen 且该点无碰撞.
-  //
-  // @param planning_horizen   局部规划视距 (m)
-  // @param start_pt / yaw     当前机器人位置
-  // @param global_end_pt/yaw  全局终点
-  // @param local_target_pos/vel/acc  [输出] 局部目标状态
-  // @param reach_horizon      [输出] 是否到达规划视距 (false=已到全局终点)
-  //
-  // 两次调用间的状态持续:
-  //   glb_t_of_lc_tgt 持续前进 (不会回退), 避免重复选取同一段
-  // ============================================================================
+  /**
+   * @brief 沿全局轨迹选取局部目标点
+   *
+   * 从上次选取的时间(glb_t_of_lc_tgt)开始, 沿全局轨迹向前扫描,
+   * 直到距离起点达到 planning_horizen 且该点无碰撞.
+   *
+   * @param planning_horizen   局部规划视距 (m)
+   * @param start_pt / yaw     当前机器人位置
+   * @param global_end_pt/yaw  全局终点
+   * @param local_target_pos/vel/acc  [输出] 局部目标状态
+   * @param reach_horizon      [输出] 是否到达规划视距 (false=已到全局终点)
+   *
+   * 两次调用间的状态持续:
+   *   glb_t_of_lc_tgt 持续前进 (不会回退), 避免重复选取同一段
+   */
   void MMPlannerManager::getLocalTarget(
       const double planning_horizen, const Eigen::VectorXd &start_pt, const double &start_yaw,
       const Eigen::VectorXd &global_end_pt, const double global_end_yaw,
@@ -421,24 +421,24 @@ namespace remani_planner
     }
   }
 
-  // ============================================================================
-  // 核心规划管线 (FSM 调用的主力接口)
-  //
-  // 完整流程:
-  //   Step 1 — 前端初始化 (computeInitReferenceState)
-  //             → A* 搜索 或 旧轨迹热启动 → MINCO 分段轨迹
-  //   Step 2 — 后端优化 (OptimizeTrajectory_lbfgs)
-  //             → L-BFGS 优化: obstacle + feasibility + time + snap
-  //   Step 3 — 结果写入 traj_container_
-  //
-  // @param start_* / end_* / ...  起止状态
-  // @param flag_polyInit           是否使用 A* 搜索 (false=热启动)
-  // @param flag_randomPolyTraj     是否随机初值 (跳出局部最优)
-  // @param have_local_traj         是否已有局部轨迹 (决定时间同步方式)
-  // @param init_time, opt_time     [输出] 前端/后端耗时 (ms)
-  //
-  // @return true 规划成功
-  // ============================================================================
+  /**
+   * @brief 核心规划管线 (FSM 调用的主力接口)
+   *
+   * 完整流程:
+   *   Step 1 — 前端初始化 (computeInitReferenceState)
+   *             → A* 搜索 或 旧轨迹热启动 → MINCO 分段轨迹
+   *   Step 2 — 后端优化 (OptimizeTrajectory_lbfgs)
+   *             → L-BFGS 优化: obstacle + feasibility + time + snap
+   *   Step 3 — 结果写入 traj_container_
+   *
+   * @param start_* / end_* / ...  起止状态
+   * @param flag_polyInit           是否使用 A* 搜索 (false=热启动)
+   * @param flag_randomPolyTraj     是否随机初值 (跳出局部最优)
+   * @param have_local_traj         是否已有局部轨迹 (决定时间同步方式)
+   * @param init_time, opt_time     [输出] 前端/后端耗时 (ms)
+   *
+   * @return true 规划成功
+   */
   bool MMPlannerManager::reboundReplan(
       const Eigen::VectorXd &start_pt, const Eigen::VectorXd &start_vel,
       const Eigen::VectorXd &start_acc,const Eigen::VectorXd &start_jerk,
@@ -455,9 +455,9 @@ namespace remani_planner
     rclcpp::Time t_start = node_->now();
     rclcpp::Duration t_init(0, 0), t_opt(0, 0);
 
-    // ====================================================================
-    // STEP 1: 前端初始化 — 生成 MINCO 初值
-    // ====================================================================
+    /**
+     * @brief STEP 1: 前端初始化 — 生成 MINCO 初值
+     */
     std::vector<poly_traj::MinSnapOpt<8>> initMJO_container;  // 每段 singul 对应的 MINCO 优化器
     std::vector<int> singul_container;                         // 每段的 singul 标志
     if (!computeInitReferenceState(start_pt, start_vel, start_acc, start_jerk, start_yaw, start_singul, start_gripper,
@@ -526,9 +526,9 @@ namespace remani_planner
     t_init = node_->now() - t_start;  // 前端耗时
     t_start = node_->now();
 
-    // ====================================================================
-    // STEP 2: 后端优化 — L-BFGS 轨迹优化
-    // ====================================================================
+    /**
+     * @brief STEP 2: 后端优化 — L-BFGS 轨迹优化
+     */
     bool flag_success = false;
     vector<vector<Eigen::Vector3d>> vis_trajs;
 
@@ -591,9 +591,9 @@ namespace remani_planner
          << ", count_success: " << count_success << "\033[0m"<< endl;
     average_plan_time_ = sum_time / count_success;
 
-    // ====================================================================
-    // STEP 3: 写入轨迹容器
-    // ====================================================================
+    /**
+     * @brief STEP 3: 写入轨迹容器
+     */
 
     // 时间同步: 如果是从旧轨迹热启动, 需要 sleep 等待到 trajectory_start_time
     double traj_start_time;
@@ -641,16 +641,16 @@ namespace remani_planner
     return true;
   }
 
-  // ============================================================================
-  // 紧急停止轨迹生成
-  //
-  // 生成一条零速停止轨迹 (位置不变, vel=acc=jerk=0)
-  // 轨迹为 2 段 MINCO 多项式, 时长 1.0s
-  //
-  // @param stop_pos  停止位置
-  // @param stop_yaw  停止朝向
-  // @param singul    停止时的前进/后退标志
-  // ============================================================================
+  /**
+   * @brief 紧急停止轨迹生成
+   *
+   * 生成一条零速停止轨迹 (位置不变, vel=acc=jerk=0)
+   * 轨迹为 2 段 MINCO 多项式, 时长 1.0s
+   *
+   * @param stop_pos  停止位置
+   * @param stop_yaw  停止朝向
+   * @param singul    停止时的前进/后退标志
+   */
   bool MMPlannerManager::EmergencyStop(Eigen::VectorXd stop_pos, double stop_yaw,  const int singul){
     auto ZERO = Eigen::VectorXd::Zero(pp_.traj_dim_);
     Eigen::MatrixXd headState, tailState;
@@ -668,21 +668,21 @@ namespace remani_planner
     return true;
   }
 
-  // ============================================================================
-  // 生成全局参考轨迹 (通过航点)
-  //
-  // 使用 MINCO (MinSnapOpt) 连接一系列航点, 生成平滑的全局参考轨迹.
-  // 时间分配基于基底速度 max_vel/1.5 和机械臂速度 max_mani_vel 的较大值.
-  // 如果生成轨迹的最大速度超过 max_vel, 会降低期望速度重试 (最多5次).
-  //
-  // @param start_pos / yaw / vel / acc  起始状态
-  // @param waypoints                     航点序列 [x, y, q1, ..., qN]
-  // @param end_yaw / vel / acc           终点的约束
-  //
-  // 结果写入 traj_container_.global_traj
-  //
-  // FIXME: singul 处理 — 当前仅支持前进(singul=1)
-  // ============================================================================
+  /**
+   * @brief 生成全局参考轨迹 (通过航点)
+   *
+   * 使用 MINCO (MinSnapOpt) 连接一系列航点, 生成平滑的全局参考轨迹.
+   * 时间分配基于基底速度 max_vel/1.5 和机械臂速度 max_mani_vel 的较大值.
+   * 如果生成轨迹的最大速度超过 max_vel, 会降低期望速度重试 (最多5次).
+   *
+   * @param start_pos / yaw / vel / acc  起始状态
+   * @param waypoints                     航点序列 [x, y, q1, ..., qN]
+   * @param end_yaw / vel / acc           终点的约束
+   *
+   * 结果写入 traj_container_.global_traj
+   *
+   * FIXME: singul 处理 — 当前仅支持前进(singul=1)
+   */
   bool MMPlannerManager::planGlobalTrajWaypoints(
       const Eigen::VectorXd &start_pos, const double start_yaw,
       const Eigen::VectorXd &start_vel, const Eigen::VectorXd &start_acc,

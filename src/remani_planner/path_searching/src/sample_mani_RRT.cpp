@@ -33,21 +33,21 @@ namespace mani_sample{
     node->get_parameter(name, value);
   }
 
-  // ============================================================================
-  // 主入口: 在基底路径上采样机械臂构型
-  //
-  // @param astar_succ           KinoA* 是否搜到路径
-  // @param start_state          起始机械臂构型
-  // @param end_state            终止机械臂构型
-  // @param car_state_list       基底路径序列 (x, y, yaw)
-  // @param car_state_list_check 基底路径稠密采样 (用于碰撞检查)
-  // @param t_list               基底路径时间分配
-  // @param singul_container     基底路径各段方向
-  // @param simple_path_container [输出] 完整路径 (按 singul 分段)
-  // @param singul_container_new  [输出] 每段方向
-  // @param yaw_list_container    [输出] 每段 yaw 序列
-  // @param t_list_container      [输出] 每段时间
-  // ============================================================================
+  /**
+   * @brief 主入口: 在基底路径上采样机械臂构型
+   *
+   * @param astar_succ           KinoA* 是否搜到路径
+   * @param start_state          起始机械臂构型
+   * @param end_state            终止机械臂构型
+   * @param car_state_list       基底路径序列 (x, y, yaw)
+   * @param car_state_list_check 基底路径稠密采样 (用于碰撞检查)
+   * @param t_list               基底路径时间分配
+   * @param singul_container     基底路径各段方向
+   * @param simple_path_container [输出] 完整路径 (按 singul 分段)
+   * @param singul_container_new  [输出] 每段方向
+   * @param yaw_list_container    [输出] 每段 yaw 序列
+   * @param t_list_container      [输出] 每段时间
+   */
   bool SampleMani::sampleManiSearch(const bool astar_succ,
                       const Eigen::VectorXd &start_state, const Eigen::VectorXd &end_state,
                       const std::vector<Eigen::Vector3d> &car_state_list,
@@ -351,16 +351,16 @@ namespace mani_sample{
     return true;
   }
 
-  // ============================================================================
-  // 机械臂构型 Bidirectional RRT* 搜索
-  //
-  // 状态空间: 机械臂关节角 (q1, ..., qN)
-  // 索引:     基底路径的时间步索引 (0 ~ max_index_-1)
-  //
-  // 特殊: RRT 不是在连续空间生长, 而是在离散的"层"上生长.
-  //   每层对应基底路径的一个时间步, 扩展只能在相邻层之间进行.
-  //   这是因为机械臂的运动必须与基底的运动同步.
-  // ============================================================================
+  /**
+   * @brief 机械臂构型 Bidirectional RRT* 搜索
+   *
+   * 状态空间: 机械臂关节角 (q1, ..., qN)
+   * 索引:     基底路径的时间步索引 (0 ~ max_index_-1)
+   *
+   * 特殊: RRT 不是在连续空间生长, 而是在离散的"层"上生长.
+   *   每层对应基底路径的一个时间步, 扩展只能在相邻层之间进行.
+   *   这是因为机械臂的运动必须与基底的运动同步.
+   */
   bool SampleMani::search(const Eigen::VectorXd &start_state, const Eigen::VectorXd &end_state){
     std::uniform_real_distribution<double> goal_dis(0.0, 1.0);
     ManiPathNodePtr start_node, end_node;
@@ -555,9 +555,9 @@ namespace mani_sample{
     return have_path_;
   }
 
-  // ============================================================================
-  // 初始化/获取节点 (检查碰撞)
-  // ============================================================================
+  /**
+   * @brief 初始化/获取节点 (检查碰撞)
+   */
   ManiPathNodePtr SampleMani::initNode(int idx, const Eigen::VectorXd &s){
     string key = calculateValue(idx, s);
     auto it = node_pool_.find(key);
@@ -575,12 +575,12 @@ namespace mani_sample{
     return node;
   }
 
-  // ============================================================================
-  // 随机采样机械臂节点
-  //
-  // 随机选择基底路径索引, 随机生成机械臂关节角.
-  // 如果碰撞则重新采样, 最多尝试20次.
-  // ============================================================================
+  /**
+   * @brief 随机采样机械臂节点
+   *
+   * 随机选择基底路径索引, 随机生成机械臂关节角.
+   * 如果碰撞则重新采样, 最多尝试20次.
+   */
   ManiPathNodePtr SampleMani::getSampleNode(){
     std::uniform_int_distribution<int> node_dis(1, max_index_ - 2);
     std::vector<std::uniform_real_distribution<double>> state_dis_vec;
@@ -610,12 +610,12 @@ namespace mani_sample{
     return sample_node;
   }
 
-  // ============================================================================
-  // 最近邻搜索 (只在指定方向的相邻层中搜索)
-  //
-  // @param x   目标节点
-  // @param dir true=向前扩展 (index+1), false=向后扩展 (index-1)
-  // ============================================================================
+  /**
+   * @brief 最近邻搜索 (只在指定方向的相邻层中搜索)
+   *
+   * @param x   目标节点
+   * @param dir true=向前扩展 (index+1), false=向后扩展 (index-1)
+   */
   ManiPathNodePtr SampleMani::getNearestNode(ManiPathNodePtr &x, bool dir){
     int pre_idx;
     if(dir){
@@ -643,11 +643,11 @@ namespace mani_sample{
     return q_near;
   }
 
-  // ============================================================================
-  // 节点扩展: 从 q_near 向 q_rand 方向扩展到下一层
-  //
-  // 机械臂关节线性插值, 限制速度 ≤ max_joint_vel × 0.3 (安全裕度)
-  // ============================================================================
+  /**
+   * @brief 节点扩展: 从 q_near 向 q_rand 方向扩展到下一层
+   *
+   * 机械臂关节线性插值, 限制速度 ≤ max_joint_vel × 0.3 (安全裕度)
+   */
   ManiPathNodePtr SampleMani::extendNode(ManiPathNodePtr &q_near, ManiPathNodePtr &q_rand, bool flag){
     ManiPathNodePtr q_new = nullptr;
     Eigen::VectorXd dir = q_rand->state - q_near->state;
@@ -688,9 +688,9 @@ namespace mani_sample{
     return q_new;
   }
 
-  // ============================================================================
-  // RRT* 调整: 对新节点 q_new 在下一层中寻找更好的连接
-  // ============================================================================
+  /**
+   * @brief RRT* 调整: 对新节点 q_new 在下一层中寻找更好的连接
+   */
   void SampleMani::adjustTree(ManiPathNodePtr &q_new, bool dir){
     if(q_new == nullptr || q_new->index < 1) return;
 
@@ -719,9 +719,9 @@ namespace mani_sample{
     }
   }
 
-  // ============================================================================
-  // 合并两棵树
-  // ============================================================================
+  /**
+   * @brief 合并两棵树
+   */
   void SampleMani::mergeTrees(const ManiPathNodePtr &q1, const ManiPathNodePtr &q2){
     ManiPathNodePtr q_start, q_end;
     if(q1->node_state == ManiPathNode::NODE_STATE::IN_TREE){
@@ -752,9 +752,9 @@ namespace mani_sample{
     this->end_node_ = q_list.back();
   }
 
-  // ============================================================================
-  // 整理树: 对已有节点重建父子关系 (用于初始化)
-  // ============================================================================
+  /**
+   * @brief 整理树: 对已有节点重建父子关系 (用于初始化)
+   */
   void SampleMani::organizeTree(){
     if(node_pool_.size() < 2) return;
 
@@ -802,9 +802,9 @@ namespace mani_sample{
     }
   }
 
-  // ============================================================================
-  // 整理子树 (从 q 开始递归)
-  // ============================================================================
+  /**
+   * @brief 整理子树 (从 q 开始递归)
+   */
   void SampleMani::organizeTree(ManiPathNodePtr &q){
     if(q->index > max_index_ - 1) return;
     if(q->index > tree_max_index_) tree_max_index_ = q->index;
@@ -828,9 +828,9 @@ namespace mani_sample{
     }
   }
 
-  // ============================================================================
-  // 递归清理子树 (内存释放)
-  // ============================================================================
+  /**
+   * @brief 递归清理子树 (内存释放)
+   */
   void SampleMani::clearSubTree(ManiPathNodePtr &q){
     std::map<string, ManiPathNodePtr>::iterator it;
     for(it = q->children.begin(); it != q->children.end(); ++it){
@@ -840,12 +840,12 @@ namespace mani_sample{
     delete q;
   }
 
-  // ============================================================================
-  // "一次射击"优化: 尝试跨越多层直接连接
-  //
-  // 如果从祖先节点直接连接到当前节点无碰撞, 则跳过中间节点.
-  // 类似于 Reeds-Shepp shot, 但用于机械臂关节空间.
-  // ============================================================================
+  /**
+   * @brief "一次射击"优化: 尝试跨越多层直接连接
+   *
+   * 如果从祖先节点直接连接到当前节点无碰撞, 则跳过中间节点.
+   * 类似于 Reeds-Shepp shot, 但用于机械臂关节空间.
+   */
   void SampleMani::oneShot(ManiPathNodePtr &q){
     if(q->index <= 1 || q->index > tree_max_index_) return;
 
@@ -903,9 +903,9 @@ namespace mani_sample{
     oneShot(q);
   }
 
-  // ============================================================================
-  // 节点连接 (设置 parent-child 关系, 更新 g_score)
-  // ============================================================================
+  /**
+   * @brief 节点连接 (设置 parent-child 关系, 更新 g_score)
+   */
   void SampleMani::linkNode(ManiPathNodePtr &parent, ManiPathNodePtr &child){
     if(parent == nullptr || child == nullptr || parent == child) return;
     for(ManiPathNodePtr ancestor = parent; ancestor != nullptr; ancestor = ancestor->parent){
@@ -934,9 +934,9 @@ namespace mani_sample{
     }
   }
 
-  // ============================================================================
-  // 可行性检查: 速度是否在关节限速内
-  // ============================================================================
+  /**
+   * @brief 可行性检查: 速度是否在关节限速内
+   */
   bool SampleMani::feasibleCheck(ManiPathNodePtr &x1, ManiPathNodePtr &x2){
     double t_total = 0.0;
     for(int i = min<int>(x1->index, x2->index); i < max<int>(x1->index, x2->index); ++i){
@@ -949,9 +949,9 @@ namespace mani_sample{
     return false;
   }
 
-  // ============================================================================
-  // 节点索引字符串 (哈希键)
-  // ============================================================================
+  /**
+   * @brief 节点索引字符串 (哈希键)
+   */
   string SampleMani::calculateValue(int &idx, const Eigen::VectorXd &state){
     string ret(1, idx);
     int k;
@@ -967,9 +967,9 @@ namespace mani_sample{
     return calculateValue(x->index, x->state);
   }
 
-  // ============================================================================
-  // 启发式: L1 误差 / 时间
-  // ============================================================================
+  /**
+   * @brief 启发式: L1 误差 / 时间
+   */
   double SampleMani::estimateHeuristic(ManiPathNodePtr &x1, ManiPathNodePtr &x2){
     double t_total = 0.0;
     for(int i = min<int>(x1->index, x2->index); i < max<int>(x1->index, x2->index); ++i){
@@ -979,9 +979,9 @@ namespace mani_sample{
     return t_total > 1.0e-9 ? err.lpNorm<1>() / t_total : err.lpNorm<1>();
   }
 
-  // ============================================================================
-  // 初始化: 保存基底路径数据
-  // ============================================================================
+  /**
+   * @brief 初始化: 保存基底路径数据
+   */
   void SampleMani::init(const std::vector<Eigen::Vector3d> &car_state_list,
                         const std::vector<Eigen::Vector3d> &car_state_list_check,
                         const std::vector<double> &t_list){
@@ -999,9 +999,9 @@ namespace mani_sample{
     return fabs(angle1 - angle2);
   }
 
-  // ============================================================================
-  // 碰撞检查 (沿基底路径密集采样)
-  // ============================================================================
+  /**
+   * @brief 碰撞检查 (沿基底路径密集采样)
+   */
   bool SampleMani::checkcollision(const ManiPathNodePtr& state1, const ManiPathNodePtr& state2){
     ManiPathNodePtr cur_state = state1->index < state2->index ? state1 : state2;
     ManiPathNodePtr next_state = state1->index < state2->index ? state2 : state1;
@@ -1028,9 +1028,9 @@ namespace mani_sample{
     return false;
   }
 
-  // ============================================================================
-  // 获取完整路径 (回溯 + oneShot 优化)
-  // ============================================================================
+  /**
+   * @brief 获取完整路径 (回溯 + oneShot 优化)
+   */
   bool SampleMani::getTraj(std::vector<Eigen::VectorXd> &traj){
     traj.clear();
     if(!have_path_) return false;
