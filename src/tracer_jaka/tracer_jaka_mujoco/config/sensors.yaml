@@ -1,0 +1,97 @@
+# =====================================================================
+# sensors.yaml —— mujoco_bridge 全部参数（底盘 / 机械臂 / LiDAR / 相机）
+#
+# 频率说明：MuJoCo 物理步进通常是 1/timestep（默认 0.002s = 500Hz）。
+# 传感器不再跟着 500Hz 跑，而是按下面的 rate 抽帧，避免仿真卡顿。
+#   lidar.rate  = 25.0   -> 雷达 25Hz
+#   camera.rate = 15.0   -> 相机 15Hz
+# 改这两个值即可调节传感器频率。
+# =====================================================================
+mujoco_bridge:
+  ros__parameters:
+    # ---- 模型（由 launch 注入 model_path，这里留空）----
+    # model_path: ""
+
+    # ---- 底盘（平面 3 自由度运动学跟随）----
+    base_x_joint: "base_x"
+    base_y_joint: "base_y"
+    base_yaw_joint: "base_yaw"
+    wheel_separation: 0.34
+    wheel_radius: 0.065
+    exact_base: true          # true: 纯运动学底盘，零稳态偏差
+    spin_wheels: true         # 仅视觉：让轮子转
+
+    # ---- 发布频率 ----
+    publish_rate: 100.0       # /joint_states /odom /tf
+    clock_rate: 250.0         # /clock
+
+    # ---- 坐标系 ----
+    odom_frame: "odom"
+    base_frame: "base_footprint"
+    publish_odom_tf: false     # 由 robot_localization 发布 odom -> base_footprint
+    odom_topic: "/wheel/odometry"
+
+    # ---- 机械臂 ----
+    arm_actuator_suffix: "_servo"
+    init_keyframe: "home"
+
+
+    # =================================================================
+    #  LiDAR（mujoco_lidar 光线追踪，独立线程）
+    # =================================================================
+    lidar:
+      enable: true
+      site_name: "lidar_site"        # 必须与 XML 中 <site name=.../> 一致
+      frame_id: "laser_frame"
+      topic: "/scan"                 # slam_toolbox 标准 LaserScan 输入
+      points_topic: "/lidar/points"  # 可选调试点云
+      publish_points: false
+      rate: 20.0                     # 扫描频率(Hz)
+      backend: "cpu"                 # cpu | taichi(GPU，需 taichi+CUDA)
+      range_min: 0.08
+      cutoff_dist: 8.0               # 最大测距(m)
+      pattern: "2d"
+      num_ray_cols: 720              # 0.5° 分辨率
+      num_ray_rows: 1
+      angle_min: -3.141592653589793
+      angle_max: 3.141592653589793
+      # 只扫描环境 group 0；机器人视觉/碰撞几何是 group 1/3，因此不会自遮挡。
+      geom_group: [true, false, false, false, false, false]
+      publish_static_tf: false       # TF 由 robot_state_publisher 从 URDF 发布
+      taichi_device_memory_gb: 2.0   # 仅 backend=taichi 时生效
+
+    # =================================================================
+    #  IMU（MuJoCo accelerometer + gyro + framequat）
+    # =================================================================
+    imu:
+      enable: true
+      site_name: "imu_site"
+      frame_id: "imu_link"
+      topic: "/imu/data"
+      rate: 100.0
+      orientation_stddev: 0.01
+      angular_velocity_stddev: 0.005
+      linear_acceleration_stddev: 0.05
+      publish_static_tf: false       # TF 由 robot_state_publisher 从 URDF 发布
+
+    # =================================================================
+    #  深度 / RGB 相机（MuJoCo 离屏渲染）
+    # =================================================================
+    camera:
+      enable: false
+      camera_name: "d435_depth"      # 必须与 XML 中 <camera name=.../> 一致
+      width: 640
+      height: 480
+      fovy: 58.0                     # 垂直 FOV(度)，与 XML 的 fovy 保持一致
+      rate: 30.0                    # 渲染/发布帧率(Hz)
+      color_frame_id: "camera_color_optical_frame"
+      depth_frame_id: "camera_depth_optical_frame"
+      color_topic: "/camera/color/image_raw"
+      color_info_topic: "/camera/color/camera_info"
+      depth_topic: "/camera/depth/image_raw"
+      depth_info_topic: "/camera/depth/camera_info"
+      publish_color: true
+      publish_depth: true
+      publish_camera_info: true
+      max_depth: 5.0                 # 深度图最大有效距离(m)
+      clip_far_to_zero: true         # 超过 max_depth 的像素置 0（RealSense 习惯）
