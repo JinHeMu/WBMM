@@ -61,6 +61,7 @@ setup(
     entry_points={
         "console_scripts": [
             "mujoco_bridge = tracer_jaka_mujoco.mujoco_bridge_node:main",
+            "arm_pose_publisher = tracer_jaka_mujoco.arm_pose_publisher:main",
         ],
     },
 )

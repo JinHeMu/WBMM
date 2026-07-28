@@ -62,8 +62,8 @@ def generate_launch_description():
         DeclareLaunchArgument("lidar_angle_offset", default_value="0"),
         DeclareLaunchArgument(
             "configure_lidar",
-            default_value="true",
-            description="Apply 30Hz, filter=3 and 45..315 degree settings by HTTP",
+            default_value="false",
+            description="Apply 30Hz, filter=3 and 45..315 degree settings by HTTP (set to true if lidar needs reconfiguration)",
         ),
     ]
 
@@ -81,6 +81,16 @@ def generate_launch_description():
             output="screen",
             parameters=[robot_description, {"use_sim_time": False}],
             condition=IfCondition(start_rsp),
+        ),
+        # Publish a default arm-up joint state so the full TF tree (including
+        # every link of the JAKA arm) is available for RViz and slam_toolbox.
+        # On the real robot the JAKA driver publishes the actual joint states
+        # and this node can be stopped with start_arm_pose:=false.
+        Node(
+            package="tracer_jaka_mujoco",
+            executable="arm_pose_publisher",
+            name="arm_pose_publisher",
+            parameters=[{"use_sim_time": False}],
         ),
         Node(
             package="tracer_base",
@@ -140,28 +150,35 @@ def generate_launch_description():
             }],
             condition=IfCondition(start_lidar),
         ),
-        Node(
-            package="robot_localization",
-            executable="ekf_node",
-            name="ekf_filter_node",
-            output="screen",
-            parameters=[ekf_config],
-            remappings=[
-                ("/odom", wheel_odom_topic),
-                ("/IMU_data", imu_topic),
+        # Delay EKF 2 s so base + IMU drivers are already publishing data.
+        TimerAction(
+            period=2.0,
+            actions=[
+                Node(
+                    package="robot_localization",
+                    executable="ekf_node",
+                    name="ekf_filter_node",
+                    output="screen",
+                    parameters=[ekf_config],
+                    remappings=[
+                        ("/odom", wheel_odom_topic),
+                        ("/IMU_data", imu_topic),
+                    ],
+                ),
             ],
         ),
-        Node(
-            package="slam_toolbox",
-            executable="async_slam_toolbox_node",
-            name="slam_toolbox",
-            output="screen",
-            parameters=[slam_config],
-            remappings=[("/scan", scan_topic)],
-        ),
+        # Delay SLAM 4 s so EKF has time to converge and publish odom TF.
         TimerAction(
-            period=3.0,
+            period=4.0,
             actions=[
+                Node(
+                    package="slam_toolbox",
+                    executable="async_slam_toolbox_node",
+                    name="slam_toolbox",
+                    output="screen",
+                    parameters=[slam_config],
+                    remappings=[("/scan", scan_topic)],
+                ),
                 Node(
                     package="rviz2",
                     executable="rviz2",
