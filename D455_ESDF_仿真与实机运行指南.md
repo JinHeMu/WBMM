@@ -393,6 +393,34 @@ source /workspaces/isaac_ros-dev/install/setup.bash
 ros2 launch my_nvblox_bringup d455_esdf.launch.py
 ```
 
+实机启动默认使用持久地图模式：
+
+- `map_clearing_radius_m:=-1.0`：不再删除机器人一定半径外的体素；
+- `esdf_viz_follow_robot:=false`：ESDF 显示窗口固定在启动位置；
+- 显示范围默认是 `8 m × 8 m × 3 m`，刷新率为 `0.5 Hz`。
+
+如果场地超过 8 m，可扩大固定显示范围。为避免服务响应和 RViz 数据量
+过大，同时降低刷新率并提高抽样倍率：
+
+```bash
+ros2 launch my_nvblox_bringup d455_esdf.launch.py \
+  esdf_viz_size_x:=12.0 \
+  esdf_viz_size_y:=12.0 \
+  esdf_viz_rate:=0.2 \
+  esdf_viz_subsampling:=3
+```
+
+如果后续只需要机器人周围的局部避障距离场，可恢复滚动地图：
+
+```bash
+ros2 launch my_nvblox_bringup d455_esdf.launch.py \
+  map_clearing_radius_m:=7.0 \
+  esdf_viz_follow_robot:=true \
+  esdf_viz_size_x:=4.0 \
+  esdf_viz_size_y:=4.0 \
+  esdf_viz_rate:=1.0
+```
+
 如果 D455 驱动的话题名称不同，可覆盖：
 
 ```bash
@@ -623,11 +651,47 @@ ros2 run tf2_ros tf2_echo odom d455_depth_optical_frame
 
 ### 9.4 相机方向反了
 
-检查点云是否主要出现在机器人前方。MuJoCo 中相机光轴已经校正为
-`base_link +X`。如果再次修改 URDF 的 `rpy`，必须同步修改 MJCF 的
-`d455_link quat`，不能只旋转 CAD visual。
+实机的 `d455_link` 必须遵守 ROS 相机基坐标约定：
 
-### 9.5 nvblox 或 RViz 卡顿
+```text
++X 向前，+Y 向左，+Z 向上
+```
+
+RealSense 驱动会从该坐标系生成 optical frame。CAD 模型自身的轴向补偿
+只能写在 `<visual><origin .../></visual>` 中，不能写到
+`base_to_d455` 固定关节。当前 URDF 已按此规则校正：
+
+```text
+base_link -> d455_link: rpy = 0 0 0
+d455.STL visual:         rpy = 1.5708 0 1.5708
+```
+
+验证相机光轴：
+
+```bash
+ros2 run tf2_ros tf2_echo base_link d455_link
+ros2 run tf2_ros tf2_echo base_link d455_depth_optical_frame
+```
+
+第一条的旋转应接近单位旋转。D455 前方物体的深度点变换到
+`base_link` 后，其 `x` 应主要为正值。
+
+### 9.5 机器人运动后旧 ESDF 消失
+
+旧配置同时存在两个滚动窗口：
+
+1. nvblox 每秒清除机器人 7 m 外的体素；
+2. `/nvblox_node/esdf_3d_pointcloud` 只查询机器人周围
+   `4 m × 4 m × 3 m` 的范围。
+
+因此旧区域不在点云中不代表相机停止融合。当前实机默认已经关闭地图
+半径清除，并把 ESDF 查询窗口固定在启动位置。低带宽的
+`/nvblox_node/mesh` 也应保持显示。
+
+注意：关闭清图后，GPU 显存会随着探索范围增长。长期导航或大场地应使用
+滚动局部模式；短时间建图、标定和验证适合持久模式。
+
+### 9.6 nvblox 或 RViz 卡顿
 
 优先按顺序降低：
 
@@ -639,7 +703,7 @@ ros2 run tf2_ros tf2_echo odom d455_depth_optical_frame
 
 不要先增大输入队列。队列过大会增加延迟，使当前深度帧与 TF 时间更难匹配。
 
-### 9.6 同时连接 D455 和 D435 后相机串号
+### 9.7 同时连接 D455 和 D435 后相机串号
 
 分别指定序列号：
 

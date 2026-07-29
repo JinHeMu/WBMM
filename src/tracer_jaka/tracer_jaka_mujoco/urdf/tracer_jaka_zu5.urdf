@@ -559,7 +559,12 @@
 
   <link name="d455_link">
     <visual>
-      <origin xyz="0 0 0" rpy="0 0 0" />
+      <!--
+        Keep the CAD-only axis correction on the mesh.  d455_link itself must
+        follow REP-103 (+X forward, +Y left, +Z up), because realsense2_camera
+        derives the depth/color optical frames from that convention.
+      -->
+      <origin xyz="0 0 0" rpy="1.5708 0 1.5708" />
       <geometry>
         <!-- D455 CAD mesh is in millimetres. -->
         <mesh filename="package://tracer_jaka_mujoco/urdf/meshes/d455.STL" scale="0.001 0.001 0.001" />
@@ -688,8 +693,8 @@
   <joint name="base_to_d455" type="fixed">
     <parent link="base_link" />
     <child link="d455_link" />
-    <!-- D455 +Z faces forward (+X base_link); D455 +Y faces upward (+Z base_link). -->
-    <origin xyz="0.25 0 0.24" rpy="1.5708 0 1.5708" />
+    <!-- ROS camera base frame: +X forward, +Y left, +Z up. -->
+    <origin xyz="0.25 0 0.24" rpy="0 0 0" />
   </joint>
 
   <joint name="base_to_jaka" type="fixed">

@@ -306,17 +306,16 @@
                 size="0.025 0.018 0.008" group="1" contype="0" conaffinity="0"
                 rgba="1 0.45 0.05 1"/>
 
-          <!-- Fixed D455 copied from base_to_d455 in tracer_jaka_zu5.urdf.
-               The CAD origin is on the front plate; local +Z points forward. -->
-          <body name="d455_link" pos="0.25 0 0.24" quat="0.5 0.5 0.5 0.5">
+          <!-- d455_link uses ROS +X forward; the CAD correction stays on the geom. -->
+          <body name="d455_link" pos="0.25 0 0.24">
             <geom name="d455_visual" type="mesh" mesh="realsense_d455"
+                  quat="0.5 0.5 0.5 0.5"
                   material="d455_link_mat" group="1"
                   contype="0" conaffinity="0"/>
-            <!-- MuJoCo looks along camera -Z. These axes make the ROS optical
-                 frame look along d455_link +Z (robot base_link +X). -->
+            <!-- MuJoCo looks along camera -Z; here that is d455_link +X. -->
             <camera name="d455_depth"
-                    pos="0 0 0.005"
-                    xyaxes="-1 0 0  0 1 0"
+                    pos="0.005 0 0"
+                    xyaxes="0 -1 0  0 0 1"
                     fovy="58"
                     resolution="640 480"
                     output="rgb depth"/>

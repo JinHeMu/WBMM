@@ -295,13 +295,15 @@
           size="0.01"
           rgba="1 0 0 1"
           />
-          <body name="d455_link" pos="0.25 0 0.24" quat="0.5 0.5 0.5 0.5">
+          <!-- d455_link uses ROS +X forward; the CAD correction stays on the geom. -->
+          <body name="d455_link" pos="0.25 0 0.24">
             <geom name="d455_visual" type="mesh" mesh="realsense_d455"
+                  quat="0.5 0.5 0.5 0.5"
                   material="d455_link_mat" group="1"
                   contype="0" conaffinity="0"/>
             <camera name="d455_depth"
-                    pos="0 0 0.005"
-                    xyaxes="-1 0 0  0 1 0"
+                    pos="0.005 0 0"
+                    xyaxes="0 -1 0  0 0 1"
                     fovy="58"
                     resolution="640 480"
                     output="rgb depth"/>
