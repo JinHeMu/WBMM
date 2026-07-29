@@ -17,9 +17,9 @@ bridge.launch.py —— 纯桥接 + 2D LiDAR + IMU + 深度相机
   /imu/data                           (sensor_msgs/Imu, 帧 imu_link)
   /wheel/odometry                     (nav_msgs/Odometry, 原始轮式里程计)
   /lidar/points                       (可选 PointCloud2 调试输出)
-  /camera/color/image_raw             (sensor_msgs/Image rgb8)
-  /camera/depth/image_raw             (sensor_msgs/Image 32FC1, 单位 m)
-  /camera/{color,depth}/camera_info   (sensor_msgs/CameraInfo)
+  /camera/d455/color/image_raw             (sensor_msgs/Image rgb8)
+  /camera/d455/depth/image_raw             (sensor_msgs/Image 32FC1, 单位 m)
+  /camera/d455/{color,depth}/camera_info   (sensor_msgs/CameraInfo)
 
 要点:
   * 桥接节点自身 use_sim_time=false（它是 /clock 的产生者）。
@@ -45,12 +45,24 @@ def generate_launch_description():
 
     model = LaunchConfiguration("model")
     use_viewer = LaunchConfiguration("viewer")
+    camera = LaunchConfiguration("camera")
+    camera_rate = LaunchConfiguration("camera_rate")
 
     nodes = [
         DeclareLaunchArgument("model", default_value=default_model,
                               description="MuJoCo 场景 XML（建议 scene.xml）"),
         DeclareLaunchArgument("viewer", default_value="true",
                               description="是否打开 MuJoCo 自带可视化窗口"),
+        DeclareLaunchArgument(
+            "camera",
+            default_value="false",
+            description="是否发布底盘固定 D455 RGB-D 数据（建议同时 viewer:=false）",
+        ),
+        DeclareLaunchArgument(
+            "camera_rate",
+            default_value="30.0",
+            description="MuJoCo RGB-D 相机发布频率 (Hz)",
+        ),
 
         Node(
             package=pkg, executable="mujoco_bridge", name="mujoco_bridge",
@@ -63,6 +75,10 @@ def generate_launch_description():
                     "use_viewer": ParameterValue(
                         PythonExpression(["'", use_viewer, "'.lower() == 'true'"]),
                         value_type=bool),
+                    "camera.enable": ParameterValue(
+                        PythonExpression(["'", camera, "'.lower() == 'true'"]),
+                        value_type=bool),
+                    "camera.rate": ParameterValue(camera_rate, value_type=float),
                 },
             ],
         ),

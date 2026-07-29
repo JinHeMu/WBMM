@@ -23,6 +23,7 @@ Python GIL，物理主线程因此拿不到 GIL 去执行 mj_step，导致 sim_t
 """
 
 import os
+import signal
 import time
 import queue
 import threading
@@ -30,6 +31,8 @@ import multiprocessing as mp
 
 import numpy as np
 import mujoco
+import rclpy
+from rclpy._rclpy_pybind11 import RCLError
 
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, CameraInfo
@@ -43,6 +46,10 @@ from . import sensors_common as sc
 # ====================================================================== #
 def _render_process(model_path, cam_name, width, height,
                     want_color, want_depth, gl_backend, in_q, out_q):
+    # The parent owns ROS shutdown. Do not let launch SIGINT interrupt this
+    # process while it is blocked in multiprocessing.Queue.get().
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
     # 在创建 GL 上下文前确保后端为 EGL（spawn 已继承父进程环境，这里再兜底）
     if gl_backend:
         os.environ["MUJOCO_GL"] = gl_backend
@@ -120,6 +127,12 @@ class CameraSensor:
         self.cam_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_CAMERA, self.cam_name)
         if self.cam_id < 0:
             self.log.error(f"[camera] 模型中找不到相机: {self.cam_name}，相机已禁用")
+            return
+        self.base_body_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_BODY, self.node.base_frame)
+        if self.base_body_id < 0:
+            self.log.error(
+                f"[camera] 模型中找不到底盘 body: {self.node.base_frame}，相机已禁用")
             return
 
         # ---- ROS 接口 ----
@@ -206,18 +219,21 @@ class CameraSensor:
 
     # ---------------------------------------------------------------- #
     def _snapshot(self):
-        """物理锁内快照 qpos（极快），并取底盘位姿。"""
+        """物理锁内快照 qpos 和真实 base_footprint 世界位姿。"""
         with self.node.physics_lock:
             qpos = self.node.data.qpos.copy()
-            base = (float(self.node.base_x),
-                    float(self.node.base_y),
-                    float(self.node.base_yaw))
+            # Do not reconstruct this pose from the planar joint values. The
+            # scene may place the robot body at a non-zero world offset (the
+            # mapping scene starts at x=-2 m), which is not part of qpos.
+            base = (
+                self.node.data.xpos[self.base_body_id].copy(),
+                self.node.data.xmat[self.base_body_id].reshape(3, 3).copy(),
+            )
         return qpos, base
 
     # ---------------------------------------------------------------- #
     def _publish_tf(self, stamp, cam_pos, cam_mat, base):
-        x, y, yaw = base
-        R_w_b, t_w_b = sc.base_world_pose(x, y, yaw)
+        t_w_b, R_w_b = base
         R_w_opt = cam_mat @ sc.MUJOCO_CAM_TO_OPTICAL          # MuJoCo 相机系 -> ROS 光学系
         R_b_opt, t_b_opt = sc.world_to_base(R_w_b, t_w_b, R_w_opt, cam_pos)
         if self.pub_depth:
@@ -283,7 +299,14 @@ class CameraSensor:
                     self.log.error(f"[camera] {res['fatal']}，相机线程退出")
                     break
                 else:
-                    self._publish(stamp, base, res)
+                    if not self._running or not rclpy.ok():
+                        break
+                    try:
+                        self._publish(stamp, base, res)
+                    except RCLError:
+                        # SIGINT invalidates the ROS context before the main
+                        # thread reaches stop_sensors(); exit without a trace.
+                        break
 
             # 按 camera.rate 节流（往返本身慢于 period 时自动退化为“渲多快发多快”）
             next_t += period

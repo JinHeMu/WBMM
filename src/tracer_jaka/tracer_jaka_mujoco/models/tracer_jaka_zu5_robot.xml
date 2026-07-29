@@ -133,6 +133,7 @@
     <mesh name="jk_se_vi_200_link" file="jk_se_vi_200_link.stl" scale="0.001 0.001 0.001" />
     <mesh name="tool0" file="tool0.STL" scale="0.001 0.001 0.001" />
     <mesh name="realsense_d435" file="realsense_d435.stl" />
+    <mesh name="realsense_d455" file="d455.STL" scale="0.001 0.001 0.001" />
     <material name="right_wheel_link_mat" rgba="0.502 0.502 0.502 1" specular="0" />
     <material name="left_wheel_link_mat" rgba="0.502 0.502 0.502 1" specular="0" />
     <material name="fl_castor_link_mat" rgba="0.502 0.502 0.502 1" specular="0" />
@@ -158,6 +159,7 @@
     <material name="jk_se_vi_200_link_mat" rgba="0.502 0.502 0.502 1" specular="0" />
     <material name="tool0_and_camera_link_mat" rgba="0.502 0.502 0.502 1" specular="0" />
     <material name="d435i_link_mat" rgba="0.502 0.502 0.502 1" specular="0" />
+    <material name="d455_link_mat" rgba="0.12 0.12 0.12 1" specular="0" />
     <material name="base_link_mat_1" rgba="0 1 1 1" specular="0" />
     <material name="base_link_mat_2" rgba="0.7765 0.7569 0.7373 1" specular="0" />
     <material name="base_link_mat_3" rgba="0.7765 0.7569 0.7373 1" specular="0" />
@@ -303,6 +305,22 @@
                 quat="0.70710678 0 0 0.70710678" type="box"
                 size="0.025 0.018 0.008" group="1" contype="0" conaffinity="0"
                 rgba="1 0.45 0.05 1"/>
+
+          <!-- Fixed D455 copied from base_to_d455 in tracer_jaka_zu5.urdf.
+               The CAD origin is on the front plate; local +Z points forward. -->
+          <body name="d455_link" pos="0.25 0 0.24" quat="0.5 0.5 0.5 0.5">
+            <geom name="d455_visual" type="mesh" mesh="realsense_d455"
+                  material="d455_link_mat" group="1"
+                  contype="0" conaffinity="0"/>
+            <!-- MuJoCo looks along camera -Z. These axes make the ROS optical
+                 frame look along d455_link +Z (robot base_link +X). -->
+            <camera name="d455_depth"
+                    pos="0 0 0.005"
+                    xyaxes="-1 0 0  0 1 0"
+                    fovy="58"
+                    resolution="640 480"
+                    output="rgb depth"/>
+          </body>
         <inertial pos="0 0 0" mass="10" diaginertia="0.01 0.01 0.01"/>
         <geom pos="0 0 0" quat="0.7073883 0.7068252 0 0" group="1" contype="0" conaffinity="0" material="base_link_mat_1" type="mesh" mesh="tracer_base_link_no_wheel_mesh" />
         <geom pos="0 0 0" quat="0.7073883 0.7068252 0 0" group="1" contype="0" conaffinity="0" material="base_link_mat_2" type="mesh" mesh="tracer_base_link_no_wheel_mesh003" />
@@ -589,12 +607,12 @@
   </actuator>
 
   <keyframe>
-    <key name="home"
+    <key name="low"
         qpos="0 0 0  0 0  -0.515 1.5707 -1.5707 1.5707 1.5707 0.254"
         qvel="0 0 0  0 0  0 0 0 0 0 0"
         ctrl="0 0   -0.515 1.5707 -1.5707 1.5707 0.254"/>
         
-    <key name="low"
+    <key name="home"
         qpos="0 0 0  0 0  0 1.5707 0 1.5707 3.14159 0.785398"
         qvel="0 0 0  0 0  0 0 0 0 0 0"
         ctrl="0 0   0 1.5707 0 1.5707 3.14159 0.785398"/>

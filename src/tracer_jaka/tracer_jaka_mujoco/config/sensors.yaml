@@ -1,5 +1,5 @@
 # =====================================================================
-# sensors.yaml —— mujoco_bridge 全部参数（底盘 / 机械臂 / LiDAR / 相机）
+# sensors.yaml —— mujoco_bridge 全部参数（底盘 / 机械臂 / LiDAR / D455）
 #
 # 频率说明：MuJoCo 物理步进通常是 1/timestep（默认 0.002s = 500Hz）。
 # 传感器不再跟着 500Hz 跑，而是按下面的 rate 抽帧，避免仿真卡顿。
@@ -77,21 +77,21 @@ mujoco_bridge:
       publish_static_tf: false       # TF 由 robot_state_publisher 从 URDF 发布
 
     # =================================================================
-    #  深度 / RGB 相机（MuJoCo 离屏渲染）
+    #  固定式 D455 深度 / RGB 相机（MuJoCo 离屏渲染）
     # =================================================================
     camera:
       enable: false
-      camera_name: "d435_depth"      # 必须与 XML 中 <camera name=.../> 一致
+      camera_name: "d455_depth"      # 必须与 XML 中 <camera name=.../> 一致
       width: 640
       height: 480
       fovy: 58.0                     # 垂直 FOV(度)，与 XML 的 fovy 保持一致
       rate: 30.0                    # 渲染/发布帧率(Hz)
-      color_frame_id: "camera_color_optical_frame"
-      depth_frame_id: "camera_depth_optical_frame"
-      color_topic: "/camera/color/image_raw"
-      color_info_topic: "/camera/color/camera_info"
-      depth_topic: "/camera/depth/image_raw"
-      depth_info_topic: "/camera/depth/camera_info"
+      color_frame_id: "d455_color_optical_frame"
+      depth_frame_id: "d455_depth_optical_frame"
+      color_topic: "/camera/d455/color/image_raw"
+      color_info_topic: "/camera/d455/color/camera_info"
+      depth_topic: "/camera/d455/depth/image_raw"
+      depth_info_topic: "/camera/d455/depth/camera_info"
       publish_color: true
       publish_depth: true
       publish_camera_info: true

@@ -287,17 +287,7 @@
     </visual>
   </link>
 
-  <link name="imu_link">
-    <visual>
-      <!-- The CAD origin is 45 mm above the IMU mounting plane. -->
-      <origin xyz="0 0 -0.045" rpy="0 0 -1.5708" />
-      <geometry>
-        <!-- CAD mesh is in millimetres. -->
-        <mesh filename="package://tracer_jaka_mujoco/urdf/meshes/imu.STL" scale="0.001 0.001 0.001" />
-      </geometry>
-      <material name="imu_orange"><color rgba="1 0.45 0.05 1" /></material>
-    </visual>
-  </link>
+
 
   <link name="jaka_base_link">
   </link>
@@ -554,6 +544,31 @@
   <link name="tool0">
   </link>
 
+    <link name="imu_link">
+    <visual>
+      <!-- The CAD origin is 45 mm above the IMU mounting plane. -->
+      <origin xyz="0 0 -0.045" rpy="0 0 -1.5708" />
+      <geometry>
+        <!-- CAD mesh is in millimetres. -->
+        <mesh filename="package://tracer_jaka_mujoco/urdf/meshes/imu.STL" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="silver">
+      </material>
+    </visual>
+  </link>
+
+  <link name="d455_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <!-- D455 CAD mesh is in millimetres. -->
+        <mesh filename="package://tracer_jaka_mujoco/urdf/meshes/d455.STL" scale="0.001 0.001 0.001" />
+      </geometry>
+      <material name="silver">
+      </material>
+    </visual>
+  </link>
+
 
   <joint name="inertial_joint" type="fixed">
     <parent link="base_link" />
@@ -668,6 +683,13 @@
     <parent link="base_link" />
     <child link="imu_link" />
     <origin xyz="0.185 0.185 0.23" rpy="0 0 3.1415" />
+  </joint>
+
+  <joint name="base_to_d455" type="fixed">
+    <parent link="base_link" />
+    <child link="d455_link" />
+    <!-- D455 +Z faces forward (+X base_link); D455 +Y faces upward (+Z base_link). -->
+    <origin xyz="0.25 0 0.24" rpy="1.5708 0 1.5708" />
   </joint>
 
   <joint name="base_to_jaka" type="fixed">

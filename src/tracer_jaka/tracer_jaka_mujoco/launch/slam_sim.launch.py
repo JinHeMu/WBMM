@@ -21,14 +21,22 @@ def generate_launch_description():
 
     viewer = LaunchConfiguration("viewer")
     rviz = LaunchConfiguration("rviz")
+    camera = LaunchConfiguration("camera")
+    camera_rate = LaunchConfiguration("camera_rate")
 
     return LaunchDescription([
         DeclareLaunchArgument("viewer", default_value="true"),
         DeclareLaunchArgument("rviz", default_value="true"),
+        DeclareLaunchArgument("camera", default_value="false"),
+        DeclareLaunchArgument("camera_rate", default_value="30.0"),
 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(bridge_launch),
-            launch_arguments={"viewer": viewer}.items(),
+            launch_arguments={
+                "viewer": viewer,
+                "camera": camera,
+                "camera_rate": camera_rate,
+            }.items(),
         ),
 
         Node(
