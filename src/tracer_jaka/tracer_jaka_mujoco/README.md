@@ -203,7 +203,9 @@ ros2 launch tracer_jaka_mujoco record_d455_esdf_bag.launch.py \
 ```
 
 录制开始后先静止 5 秒，再缓慢旋转和移动。结束时按 `Ctrl+C`，等待 zstd
-压缩完成并返回终端提示符。检查 bag：
+压缩完成并返回终端提示符。RGB-D 文件可能需要数分钟压缩；看到
+`Compressing file` 后不要再次按 `Ctrl+C`，也不要关闭终端或复制目录。
+检查 bag：
 
 ```bash
 ros2 bag info bags/d455_esdf_01

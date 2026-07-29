@@ -618,7 +618,9 @@ ros2 launch tracer_jaka_mujoco record_d455_esdf_bag.launch.py \
   output:=bags/d455_esdf_01
 ```
 
-先静止 5 秒，再缓慢运动。按 `Ctrl+C` 后必须等待压缩完成。检查核心话题：
+先静止 5 秒，再缓慢运动。按一次 `Ctrl+C` 后必须等待压缩完成。
+RGB-D 文件可能需要数分钟；出现 `Compressing file` 后不要再次中断，
+直到返回命令提示符且目录中出现 `metadata.yaml`。检查核心话题：
 
 ```bash
 ros2 bag info bags/d455_esdf_01

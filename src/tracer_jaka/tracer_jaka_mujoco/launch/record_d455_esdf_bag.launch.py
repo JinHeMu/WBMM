@@ -43,9 +43,15 @@ def generate_launch_description():
             "--compression-mode", "file",
             "--compression-format", "zstd",
             "--qos-profile-overrides-path", qos_file,
+            "--include-unpublished-topics",
             *topics,
         ],
         output="screen",
+        # File-mode zstd compression of several gigabytes can take minutes.
+        # The launch default would escalate SIGINT to SIGKILL after 15 s,
+        # leaving both a partial .zstd file and no metadata.yaml.
+        sigterm_timeout="600",
+        sigkill_timeout="60",
     )
 
     return LaunchDescription([
