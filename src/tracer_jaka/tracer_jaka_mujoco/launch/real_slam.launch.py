@@ -68,9 +68,12 @@ def generate_launch_description():
     ]
 
     robot_description = {
-        "robot_description": Command([
-            FindExecutable(name="xacro"), " ", urdf_file,
-        ])
+        "robot_description": ParameterValue(
+            Command([
+                FindExecutable(name="xacro"), " ", urdf_file,
+            ]),
+            value_type=str,
+        )
     }
 
     nodes = [

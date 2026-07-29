@@ -16,6 +16,7 @@ from launch import LaunchDescription
 from launch.actions import RegisterEventHandler
 from launch.event_handlers import OnProcessExit
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch.actions import ExecuteProcess, TimerAction
 
 
@@ -27,7 +28,9 @@ def generate_launch_description():
     ctrl = os.path.join(share, "config", "controllers.yaml")
 
     with open(urdf, "r") as f:
-        robot_description = {"robot_description": f.read()}
+        robot_description = {
+            "robot_description": ParameterValue(f.read(), value_type=str)
+        }
 
     rsp = Node(package="robot_state_publisher", executable="robot_state_publisher",
                output="screen",

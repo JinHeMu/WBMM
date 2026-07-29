@@ -87,7 +87,10 @@ def generate_launch_description():
     # 有 URDF 才启动 robot_state_publisher（提供机械臂各 link 的 TF；传感器不依赖它）
     if os.path.isfile(urdf):
         with open(urdf, "r") as f:
-            robot_description = {"robot_description": f.read()}
+            robot_description = {
+                "robot_description": ParameterValue(
+                    f.read(), value_type=str)
+            }
         nodes.append(
             Node(package="robot_state_publisher", executable="robot_state_publisher",
                  output="screen",
