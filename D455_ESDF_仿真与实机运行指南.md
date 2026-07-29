@@ -397,7 +397,10 @@ ros2 launch my_nvblox_bringup d455_esdf.launch.py
 
 - `map_clearing_radius_m:=-1.0`：不再删除机器人一定半径外的体素；
 - `esdf_viz_follow_robot:=false`：ESDF 显示窗口固定在启动位置；
-- 显示范围默认是 `8 m × 8 m × 3 m`，刷新率为 `0.5 Hz`。
+- 显示范围默认是 `12 m × 12 m × 3 m`，刷新率为 `0.2 Hz`，
+  抽样倍率为 3；
+- `esdf_viz_max_distance:=0.5`：只显示距离障碍物不超过 0.5 m 的体素，
+  隐藏远处自由空间。
 
 如果场地超过 8 m，可扩大固定显示范围。为避免服务响应和 RViz 数据量
 过大，同时降低刷新率并提高抽样倍率：
@@ -640,7 +643,7 @@ ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
   bag:=/workspaces/isaac_ros-dev/bags/d455_esdf_01
 ```
 
-该入口自动使用 `use_sim_time=true`、发布 `/clock`、关闭 RGB 融合并以
+该入口自动使用 `use_sim_time=true`、发布 `/clock`、开启 RGB 融合并以
 `0.5` 倍速回放。离线入口默认使用 ROS Domain 21，与实机 Domain 20
 隔离，避免实时话题和 bag 的时间戳混入同一个 nvblox。若仍然积压，增加
 `rate:=0.25`。如果离线回放稳定而实时双机运行不稳定，主要问题在

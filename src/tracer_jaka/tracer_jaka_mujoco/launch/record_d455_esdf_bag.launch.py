@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Record the minimum real-robot data needed for offline D455 ESDF mapping."""
+"""Record real-robot D455 RGB-D data for offline ESDF mapping."""
 
 import os
 
@@ -14,13 +14,15 @@ from launch.substitutions import LaunchConfiguration
 
 
 def generate_launch_description():
-    """Record depth, calibration, localization TF, and diagnostic topics."""
+    """Record RGB-D, calibration, localization TF, and diagnostic topics."""
     share = get_package_share_directory("tracer_jaka_mujoco")
     qos_file = os.path.join(share, "config", "d455_esdf_bag_qos.yaml")
 
     topics = [
         "/camera/d455/depth/image_rect_raw",
         "/camera/d455/depth/camera_info",
+        "/camera/d455/color/image_raw",
+        "/camera/d455/color/camera_info",
         "/tf",
         "/tf_static",
         "/odom",

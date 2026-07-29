@@ -190,7 +190,7 @@ only; absolute yaw remains disabled until the assembled robot is calibrated.
 ## 11. 录制 D455 离线 ESDF 数据
 
 先启动实机 SLAM 和 `d455_sensor.launch.py`，确认深度和 TF 都在发布。
-然后在 NUC 新终端录制不含 RGB 的 ESDF 数据：
+然后在 NUC 新终端录制 RGB-D ESDF 数据：
 
 ```bash
 cd ~/ocs2_ws
@@ -214,9 +214,11 @@ ros2 bag info bags/d455_esdf_01
 ```text
 /camera/d455/depth/image_rect_raw
 /camera/d455/depth/camera_info
+/camera/d455/color/image_raw
+/camera/d455/color/camera_info
 /tf
 /tf_static
 ```
 
-RGB 不参与几何 TSDF/ESDF 融合，因此默认不录制，能显著降低磁盘写入和
-传输压力。
+RGB 用于给融合 Mesh 着色，不改变几何 TSDF/ESDF 距离。640×480×30 Hz
+的深度和彩色原始流合计约 46 MB/s，必须录到本地 SSD。
