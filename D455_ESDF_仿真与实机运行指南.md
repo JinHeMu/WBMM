@@ -598,6 +598,55 @@ ros2 topic hz /nvblox_node/esdf_3d_pointcloud
 `/nvblox_node/static_esdf_pointcloud` 持续发布。当前功能包使用
 `/nvblox_node/esdf_3d_pointcloud` 显示局部三维距离场。
 
+### 8.6 NUC 录制、Docker 离线建立 ESDF
+
+这个流程可以把跨机器 DDS 延迟与 nvblox/TF 配置问题分开诊断。NUC 先
+本地录制深度、相机内参和 TF，笔记本再把数据放慢回放给 nvblox。
+
+NUC：
+
+```bash
+cd ~/ocs2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+mkdir -p bags
+
+ros2 launch tracer_jaka_mujoco record_d455_esdf_bag.launch.py \
+  output:=bags/d455_esdf_01
+```
+
+先静止 5 秒，再缓慢运动。按 `Ctrl+C` 后必须等待压缩完成。检查核心话题：
+
+```bash
+ros2 bag info bags/d455_esdf_01
+```
+
+将整个 `d455_esdf_01` 目录复制到笔记本：
+
+```bash
+mkdir -p /home/a/workspaces/isaac_ros-dev/bags
+rsync -avP ras@NUC_IP:~/ocs2_ws/bags/d455_esdf_01/ \
+  /home/a/workspaces/isaac_ros-dev/bags/d455_esdf_01/
+```
+
+Docker 内：
+
+```bash
+cd /workspaces/isaac_ros-dev
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
+  bag:=/workspaces/isaac_ros-dev/bags/d455_esdf_01
+```
+
+该入口自动使用 `use_sim_time=true`、发布 `/clock`、关闭 RGB 融合并以
+`0.5` 倍速回放。离线入口默认使用 ROS Domain 21，与实机 Domain 20
+隔离，避免实时话题和 bag 的时间戳混入同一个 nvblox。若仍然积压，增加
+`rate:=0.25`。如果离线回放稳定而实时双机运行不稳定，主要问题在
+网络/DDS；如果离线仍然丢图，应继续检查 bag 内的
+`odom -> base_footprint -> d455_depth_optical_frame` 是否跳变。
+
 ## 9. 常见问题
 
 ### 9.1 RViz 提示 `Frame [odom] does not exist`

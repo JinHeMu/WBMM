@@ -186,3 +186,37 @@ ros2 launch tracer_jaka_mujoco real_slam.launch.py
 The URDF provides `base_footprint -> laser_link` and
 `base_footprint -> imu_link`. The real EKF deliberately fuses Hipnuc yaw rate
 only; absolute yaw remains disabled until the assembled robot is calibrated.
+
+## 11. 录制 D455 离线 ESDF 数据
+
+先启动实机 SLAM 和 `d455_sensor.launch.py`，确认深度和 TF 都在发布。
+然后在 NUC 新终端录制不含 RGB 的 ESDF 数据：
+
+```bash
+cd ~/ocs2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+mkdir -p bags
+
+ros2 launch tracer_jaka_mujoco record_d455_esdf_bag.launch.py \
+  output:=bags/d455_esdf_01
+```
+
+录制开始后先静止 5 秒，再缓慢旋转和移动。结束时按 `Ctrl+C`，等待 zstd
+压缩完成并返回终端提示符。检查 bag：
+
+```bash
+ros2 bag info bags/d455_esdf_01
+```
+
+以下核心话题必须有非零消息数：
+
+```text
+/camera/d455/depth/image_rect_raw
+/camera/d455/depth/camera_info
+/tf
+/tf_static
+```
+
+RGB 不参与几何 TSDF/ESDF 融合，因此默认不录制，能显著降低磁盘写入和
+传输压力。
