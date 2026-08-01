@@ -652,6 +652,13 @@ ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
 网络/DDS；如果离线仍然丢图，应继续检查 bag 内的
 `odom -> base_footprint -> d455_depth_optical_frame` 是否跳变。
 
+录制端 `/tf` 使用 Best Effort，而回放端必须使用 Reliable。两端分别使用
+各自功能包中的 `d455_esdf_bag_qos.yaml`，不要互相覆盖；否则 TF2 会报告
+`incompatible QoS: RELIABILITY`，表现为回放后不存在 `odom`。
+
+4 GB GPU 上，离线无界持久地图默认使用 `voxel_size:=0.10`。实时滚动局部
+地图仍使用 5 cm；不要在 4 GB 显存上同时运行 MuJoCo nvblox 和 bag nvblox。
+
 ## 9. 常见问题
 
 ### 9.1 RViz 提示 `Frame [odom] does not exist`

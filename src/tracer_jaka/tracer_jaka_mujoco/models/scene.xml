@@ -45,68 +45,58 @@
     </body>
 
     <!-- ==================================================================== -->
-    <!-- 12 根圆柱体 — 5m×5m, 高 1m, 半径 0.10~0.15m                         -->
-    <!-- map->odom TF: x_odom = x_map + 2.0                                   -->
+    <!-- 低桌穿越场景                                                         -->
+    <!--                                                                      -->
+    <!-- 机器人碰撞包络（由 URDF + Pinocchio 计算）:                          -->
+    <!--   base: 0.74 x 0.68 x 0.39 m                                        -->
+    <!--   arm home height: 1.52 m                                            -->
+    <!--   arm low  height: 1.00 m                                            -->
+    <!--                                                                      -->
+    <!-- 桌面下沿 1.10 m: home 必须折叠，low 加 0.05 m 安全距离后可通过。       -->
+    <!-- 桌面横跨房间，不能从两侧绕过；四条腿保留 1.34 m 的中央通道。           -->
+    <!-- map->odom: x_odom = x_mujoco + 2.0，桌面中心位于 odom x=2.0。          -->
     <!-- ==================================================================== -->
 
-    <!-- NW 象限: 2根 -->
-    <body name="cyl_nw1" pos="-1.80  1.80 0.50">
-      <geom type="cylinder" size="0.12 0.50" contype="1" conaffinity="1"
-            rgba="0.50 0.55 0.70 1"/>
-    </body>
-    <body name="cyl_nw2" pos="-0.80  1.50 0.50">
-      <geom type="cylinder" size="0.12 0.50" contype="1" conaffinity="1"
-            rgba="0.55 0.45 0.65 1"/>
-    </body>
+    <body name="low_table" pos="0 0 0">
+      <!-- 1.70 m 行进方向长度，4.70 m 横向宽度，桌面厚 0.10 m。 -->
+      <geom name="low_table_top"
+            type="box"
+            pos="0 0 1.15"
+            size="0.85 2.35 0.05"
+            contype="1"
+            conaffinity="1"
+            friction="1.2 0.01 0.001"
+            rgba="0.58 0.34 0.16 1"/>
 
-    <!-- NE 象限: 2根 -->
-    <body name="cyl_ne1" pos=" 1.50  1.80 0.50">
-      <geom type="cylinder" size="0.12 0.50" contype="1" conaffinity="1"
-            rgba="0.50 0.55 0.70 1"/>
-    </body>
-    <body name="cyl_ne2" pos=" 2.00  0.50 0.50">
-      <geom type="cylinder" size="0.10 0.50" contype="1" conaffinity="1"
-            rgba="0.60 0.45 0.35 1"/>
-    </body>
-
-    <!-- SW 象限: 2根 -->
-    <body name="cyl_sw1" pos="-1.50 -1.80 0.50">
-      <geom type="cylinder" size="0.12 0.50" contype="1" conaffinity="1"
-            rgba="0.50 0.55 0.70 1"/>
-    </body>
-    <body name="cyl_sw2" pos="-0.80 -1.50 0.50">
-      <geom type="cylinder" size="0.10 0.50" contype="1" conaffinity="1"
-            rgba="0.60 0.40 0.30 1"/>
-    </body>
-
-    <!-- SE 象限: 2根 -->
-    <body name="cyl_se1" pos=" 1.80 -1.50 0.50">
-      <geom type="cylinder" size="0.12 0.50" contype="1" conaffinity="1"
-            rgba="0.50 0.55 0.70 1"/>
-    </body>
-    <body name="cyl_se2" pos=" 0.80 -2.00 0.50">
-      <geom type="cylinder" size="0.12 0.50" contype="1" conaffinity="1"
-            rgba="0.55 0.50 0.40 1"/>
-    </body>
-
-    <!-- 中心区域: 2根 -->
-    <body name="cyl_ct1" pos="-0.50 -0.50 0.50">
-      <geom type="cylinder" size="0.15 0.50" contype="1" conaffinity="1"
-            rgba="0.45 0.50 0.60 1"/>
-    </body>
-    <body name="cyl_ct2" pos=" 0.80 -0.20 0.50">
-      <geom type="cylinder" size="0.10 0.50" contype="1" conaffinity="1"
-            rgba="0.65 0.40 0.35 1"/>
-    </body>
-
-    <!-- 零星散布: 2根 -->
-    <body name="cyl_sc1" pos="-0.30  1.20 0.50">
-      <geom type="cylinder" size="0.10 0.50" contype="1" conaffinity="1"
-            rgba="0.50 0.55 0.65 1"/>
-    </body>
-    <body name="cyl_sc2" pos="-1.50 -0.80 0.50">
-      <geom type="cylinder" size="0.10 0.50" contype="1" conaffinity="1"
-            rgba="0.55 0.45 0.50 1"/>
+      <!-- 桌腿: 0.16 x 0.16 m，高度 1.10 m。 -->
+      <geom name="low_table_leg_front_left"
+            type="box"
+            pos="-0.68 0.75 0.55"
+            size="0.08 0.08 0.55"
+            contype="1"
+            conaffinity="1"
+            rgba="0.20 0.22 0.24 1"/>
+      <geom name="low_table_leg_front_right"
+            type="box"
+            pos="-0.68 -0.75 0.55"
+            size="0.08 0.08 0.55"
+            contype="1"
+            conaffinity="1"
+            rgba="0.20 0.22 0.24 1"/>
+      <geom name="low_table_leg_rear_left"
+            type="box"
+            pos="0.68 0.75 0.55"
+            size="0.08 0.08 0.55"
+            contype="1"
+            conaffinity="1"
+            rgba="0.20 0.22 0.24 1"/>
+      <geom name="low_table_leg_rear_right"
+            type="box"
+            pos="0.68 -0.75 0.55"
+            size="0.08 0.08 0.55"
+            contype="1"
+            conaffinity="1"
+            rgba="0.20 0.22 0.24 1"/>
     </body>
 
   </worldbody>

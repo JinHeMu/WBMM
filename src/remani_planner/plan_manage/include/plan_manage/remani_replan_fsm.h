@@ -24,6 +24,8 @@
 #include <quadrotor_msgs/msg/polynomial_traj.hpp>
 #include <traj_utils/msg/assignment.hpp>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/buffer.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -103,6 +105,7 @@ namespace remani_planner
     double mobile_base_non_singul_vel_;
     bool odom_twist_in_body_frame_;
     std::vector<std::string> manipulator_joint_names_;
+    std::string planning_frame_;
 
     /* planning data */
     bool have_trigger_, have_target_, have_odom_, have_joint_state_, have_new_target_, have_recv_pre_agent_, have_local_traj_;
@@ -143,6 +146,8 @@ namespace remani_planner
     rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr map_state_pub_;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr reached_pub_, start_pub_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr model_vis_pub_;
+    std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+    std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
 
     rclcpp::Time t_last_Astar_;
 

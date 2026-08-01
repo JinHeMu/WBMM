@@ -107,6 +107,7 @@ def generate_launch_description():
                 'grid_map.frame_id': 'odom',
                 'fsm.global_plan': True,
                 'fsm.target_type': 1,
+                'fsm.planning_frame': 'odom',
                 'fsm.tracking_error_replan_enabled': ParameterValue(
                     tracking_error_replan_enabled, value_type=bool),
                 'fsm.tracking_error_position_threshold': ParameterValue(

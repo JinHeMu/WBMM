@@ -32,9 +32,13 @@ from launch.actions import (
     OpaqueFunction,
     TimerAction,
 )
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    PythonExpression,
+)
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -80,14 +84,32 @@ def _ensure_urdf(context, *args, **kwargs):
 def generate_launch_description():
     pkg_ocs2 = FindPackageShare("tracer_jaka_ocs2")
     pkg_mujoco = FindPackageShare("tracer_jaka_mujoco")
+    pkg_remani = FindPackageShare("remani_planner")
+    pkg_grid_map = FindPackageShare("grid_map")
 
     # -------------------------------------------------------------------------
     # Launch 参数
     # -------------------------------------------------------------------------
     use_sim_time = LaunchConfiguration("use_sim_time")
+    viewer = LaunchConfiguration("viewer")
     use_rviz = LaunchConfiguration("use_rviz")
     use_joy = LaunchConfiguration("use_joy")
     use_csv_target = LaunchConfiguration("use_csv_target")
+    start_slam = LaunchConfiguration("start_slam")
+    start_remani = LaunchConfiguration("start_remani")
+    mrt_odom_topic = LaunchConfiguration("mrt_odom_topic")
+    remani_static_esdf_file = LaunchConfiguration(
+        "remani_static_esdf_file"
+    )
+    remani_static_esdf_offset_x = LaunchConfiguration(
+        "remani_static_esdf_offset_x"
+    )
+    remani_static_esdf_offset_y = LaunchConfiguration(
+        "remani_static_esdf_offset_y"
+    )
+    remani_static_esdf_offset_z = LaunchConfiguration(
+        "remani_static_esdf_offset_z"
+    )
 
     task_file = LaunchConfiguration("task_file")
     xacro_file = LaunchConfiguration("xacro_file")
@@ -98,6 +120,11 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "use_sim_time",
             default_value="true",
+        ),
+        DeclareLaunchArgument(
+            "viewer",
+            default_value="true",
+            description="Open the MuJoCo native viewer.",
         ),
         DeclareLaunchArgument(
             "use_rviz",
@@ -114,6 +141,54 @@ def generate_launch_description():
                 "Start the legacy CSV target publisher. Keep false when "
                 "using the REMANI-to-OCS2 bridge."
             ),
+        ),
+        DeclareLaunchArgument(
+            "start_slam",
+            default_value="true",
+            description=(
+                "Start robot_localization and slam_toolbox. The EKF always "
+                "provides odom -> base_footprint; when false a static "
+                "map -> odom transform is used only for visualization."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "start_remani",
+            default_value="true",
+            description=(
+                "Start REMANI whole-body planner and the REMANI-to-OCS2 "
+                "reference bridge."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "mrt_odom_topic",
+            default_value="/odometry/filtered",
+            description=(
+                "Odometry consumed by the OCS2 MRT state estimator. The "
+                "default is the wheel-odom + IMU EKF output."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "remani_static_esdf_file",
+            default_value=PathJoinSubstitution([
+                pkg_grid_map,
+                "maps",
+                "tracer_jaka_zu5_scene_esdf.npz",
+            ]),
+            description="Static ESDF NPZ consumed by REMANI GridMap.",
+        ),
+        # The current MuJoCo robot starts at world x=-2 while odometry starts
+        # at x=0, hence x_odom=x_mujoco+2 for the generated scene ESDF.
+        DeclareLaunchArgument(
+            "remani_static_esdf_offset_x",
+            default_value="2.0",
+        ),
+        DeclareLaunchArgument(
+            "remani_static_esdf_offset_y",
+            default_value="0.0",
+        ),
+        DeclareLaunchArgument(
+            "remani_static_esdf_offset_z",
+            default_value="0.0",
         ),
         DeclareLaunchArgument(
             "task_file",
@@ -160,12 +235,51 @@ def generate_launch_description():
             )
         ),
             launch_arguments={
-                "viewer": "true",
+                "viewer": viewer,
             }.items()
     )
 
     # -------------------------------------------------------------------------
-    # Step 3: OCS2 三件套
+    # Step 3: wheel odom + IMU localization and 2D SLAM
+    #
+    # TF ownership:
+    #   slam_toolbox       map  -> odom
+    #   robot_localization odom -> base_footprint
+    #   robot_state_publisher   base_footprint -> robot/sensor links
+    #
+    # The MuJoCo bridge publishes /wheel/odometry and /imu/data, but its
+    # publish_odom_tf parameter is false, so the EKF must be present.
+    # -------------------------------------------------------------------------
+    ekf_node = Node(
+        package="robot_localization",
+        executable="ekf_node",
+        name="ekf_filter_node",
+        output="screen",
+        parameters=[
+            PathJoinSubstitution([pkg_mujoco, "config", "ekf.yaml"]),
+            {"use_sim_time": use_sim_time},
+        ],
+        remappings=[
+            ("odometry/filtered", "/odometry/filtered"),
+        ],
+    )
+
+    slam_node = Node(
+        package="slam_toolbox",
+        executable="async_slam_toolbox_node",
+        name="slam_toolbox",
+        output="screen",
+        parameters=[
+            PathJoinSubstitution(
+                [pkg_mujoco, "config", "slam_toolbox.yaml"]
+            ),
+            {"use_sim_time": use_sim_time},
+        ],
+        condition=IfCondition(start_slam),
+    )
+
+    # -------------------------------------------------------------------------
+    # Step 4: OCS2 三件套
     # -------------------------------------------------------------------------
     mpc_node = Node(
         package="tracer_jaka_ocs2",
@@ -199,8 +313,8 @@ def generate_launch_description():
 
                 "use_stamped_cmd": False,
                 
-                # 来自 diff_drive_controller
-                "odom_topic": "/base_controller/odom",
+                # wheel odom + IMU 经 robot_localization 融合后的状态
+                "odom_topic": mrt_odom_topic,
 
                 # 来自 joint_state_broadcaster
                 "joint_state_topic": "/joint_states",
@@ -211,8 +325,10 @@ def generate_launch_description():
                 # 所以命令话题是 /base_controller/cmd_vel_unstamped
                 "base_cmd_topic": "/base_controller/cmd_vel",
 
-                # JointTrajectoryController 的直接命令话题
-                "arm_cmd_topic": "/arm_controller/joint_trajectory",
+                # MRT 输出 std_msgs/Float64MultiArray。JointTrajectoryController
+                # 的逐关节位置命令入口是 /commands；/joint_trajectory 需要
+                # trajectory_msgs/JointTrajectory，不能混用。
+                "arm_cmd_topic": "/arm_controller/commands",
 
                 "arm_joint_names": [
                     "joint_1",
@@ -254,7 +370,11 @@ def generate_launch_description():
             'hold_time_at_end': 3.0,
         }
         ],
-        condition=IfCondition(use_csv_target),
+        # REMANI and the CSV player must never publish OCS2 targets together.
+        condition=IfCondition(PythonExpression([
+            "'", use_csv_target, "'.lower() == 'true' and '",
+            start_remani, "'.lower() == 'false'",
+        ])),
     )
 
     target_node = Node(
@@ -371,7 +491,7 @@ def generate_launch_description():
     )
 
     # -------------------------------------------------------------------------
-    # Step 4: RViz2
+    # Step 5: RViz2
     # -------------------------------------------------------------------------
     rviz_node = Node(
         package="rviz2",
@@ -394,16 +514,18 @@ def generate_launch_description():
 
 
     map_to_odom_tf = Node(
-    package="tf2_ros",
-    executable="static_transform_publisher",
-    name="map_to_odom_static_tf",
-    arguments=[
-        "-2", "0", "0",     # x y z
-        "0", "0", "0",     # yaw pitch roll
-        "map",
-        "odom",
-    ],
-    output="screen",
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="map_to_odom_static_tf",
+        arguments=[
+            "-2", "0", "0",     # x y z
+            "0", "0", "0",      # yaw pitch roll
+            "map",
+            "odom",
+        ],
+        output="screen",
+        # slam_toolbox owns map -> odom while mapping is enabled.
+        condition=UnlessCondition(start_slam),
     )
 
     # -------------------------------------------------------------------------
@@ -429,12 +551,49 @@ def generate_launch_description():
         ],
     )
 
+    # REMANI consumes the EKF odometry and joint states, publishes
+    # /planning/trajectory, then the bridge converts it to OCS2 targets.
+    # Start it after MuJoCo, localization and OCS2 have had time to initialize.
+    remani_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                pkg_remani,
+                "launch",
+                "remani_mpc_tracking.launch.py",
+            ])
+        ),
+        launch_arguments={
+            "use_sim_time": use_sim_time,
+            "start_planner": "true",
+            "start_bridge": "true",
+            "urdf_file": urdf_file,
+            "static_esdf_file": remani_static_esdf_file,
+            "static_esdf_offset_x": remani_static_esdf_offset_x,
+            "static_esdf_offset_y": remani_static_esdf_offset_y,
+            "static_esdf_offset_z": remani_static_esdf_offset_z,
+            "odom_topic": mrt_odom_topic,
+            "joint_state_topic": "/joint_states",
+            "planner_to_ocs2_x": "0.0",
+            "planner_to_ocs2_y": "0.0",
+            "planner_to_ocs2_yaw": "0.0",
+        }.items(),
+    )
+
+    remani_delayed = TimerAction(
+        period=12.0,
+        actions=[remani_launch],
+        condition=IfCondition(start_remani),
+    )
+
     return LaunchDescription(
         declare_args
         + [
             prepare_urdf,
             mujoco_launch,
+            ekf_node,
+            slam_node,
             ocs2_delayed,
+            remani_delayed,
             map_to_odom_tf,
             rviz_delayed,
             whole_body_trajectory_node,

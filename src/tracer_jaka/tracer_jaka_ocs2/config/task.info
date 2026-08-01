@@ -123,12 +123,14 @@ initialState
 
   arm
   {
-    (0,0)  -0.515 ; joint_1
+    ; 与 MuJoCo 的 home keyframe 保持一致。该姿态高约 1.52 m，
+    ; 无法直接穿过 1.10 m 桌底，迫使 REMANI 在路径中规划折叠动作。
+    (0,0)  0.0    ; joint_1
     (1,0)  1.5707 ; joint_2
-    (2,0)  -1.5707; joint_3
+    (2,0)  0.0    ; joint_3
     (3,0)  1.5707 ; joint_4
-    (4,0)  1.5707 ; joint_5
-    (5,0)  0.254  ; joint_6
+    (4,0)  3.14159; joint_5
+    (5,0)  0.785398; joint_6
 
   }
 }
@@ -301,21 +303,107 @@ environmentCollision
   collisionLinks
   {
     [0] "base_link"
-    [1] "Link_3"
-    [2] "Link_4"
-    [3] "Link_5"
-    [4] "Link_6"
-    [5] "tool0_and_camera_link"
-    [6] "d435i_link"
+    [1] "d455_link"
+    [2] "Link_0"
+    [3] "Link_1"
+    [4] "Link_2"
+    [5] "Link_3"
+    [6] "Link_4"
+    [7] "Link_5"
+    [8] "Link_6"
+    [9] "tool0_and_camera_link"
+    [10] "d435i_link"
   }
 
-  ; ---- 静态测试障碍物 ----
+  ; ---- 低桌穿越场景（坐标均为 odom）----
   ; position:    [x, y, z]        (在 odom 世界系)
   ; orientation: [w, x, y, z]     (可选, 缺省单位四元数)
   ; box.halfExtents: [hx, hy, hz] (半边长)
-  ; 提示: 位置请按你的实际轨迹微调, 让障碍物贴近但不完全压住参考路径,
-  ;       这样既能看到明显绕行, 又不至于让软约束和跟踪 cost 打架到发散。
+  ;
+  ; MuJoCo world 与 odom 的关系为 x_odom=x_mujoco+2.0。
+  ; 桌面下沿 1.10 m，机器人 home 高约 1.52 m、low 高约 1.00 m，
+  ; 因此从 odom x=0 到 x=4 的路径必须让机械臂先折叠、穿桌、再展开。
+  ; 中央两桌腿内侧净宽 1.34 m，底盘宽约 0.68 m。
   obstacles
+  {
+    low_table_top
+    {
+      type box
+      position    { [0] 2.00 [1] 0.00 [2] 1.15 }
+      orientation { [0] 1.0  [1] 0.0  [2] 0.0  [3] 0.0 }
+      halfExtents { [0] 0.85 [1] 2.35 [2] 0.05 }
+      minimumDistance 0.05
+    }
+    low_table_leg_front_left
+    {
+      type box
+      position    { [0] 1.32 [1] 0.75 [2] 0.55 }
+      orientation { [0] 1.0  [1] 0.0  [2] 0.0  [3] 0.0 }
+      halfExtents { [0] 0.08 [1] 0.08 [2] 0.55 }
+      minimumDistance 0.05
+    }
+    low_table_leg_front_right
+    {
+      type box
+      position    { [0] 1.32 [1] -0.75 [2] 0.55 }
+      orientation { [0] 1.0  [1] 0.0   [2] 0.0  [3] 0.0 }
+      halfExtents { [0] 0.08 [1] 0.08 [2] 0.55 }
+      minimumDistance 0.05
+    }
+    low_table_leg_rear_left
+    {
+      type box
+      position    { [0] 2.68 [1] 0.75 [2] 0.55 }
+      orientation { [0] 1.0  [1] 0.0  [2] 0.0  [3] 0.0 }
+      halfExtents { [0] 0.08 [1] 0.08 [2] 0.55 }
+      minimumDistance 0.05
+    }
+    low_table_leg_rear_right
+    {
+      type box
+      position    { [0] 2.68 [1] -0.75 [2] 0.55 }
+      orientation { [0] 1.0  [1] 0.0   [2] 0.0  [3] 0.0 }
+      halfExtents { [0] 0.08 [1] 0.08 [2] 0.55 }
+      minimumDistance 0.05
+    }
+
+    ; MuJoCo 四周墙体也加入 MPC，避免 MPC 短时预测穿出 REMANI 地图边界。
+    wall_n
+    {
+      type box
+      position    { [0] 2.00 [1] 2.50 [2] 0.50 }
+      orientation { [0] 1.0  [1] 0.0  [2] 0.0  [3] 0.0 }
+      halfExtents { [0] 2.50 [1] 0.05 [2] 0.50 }
+      minimumDistance 0.05
+    }
+    wall_s
+    {
+      type box
+      position    { [0] 2.00 [1] -2.50 [2] 0.50 }
+      orientation { [0] 1.0  [1] 0.0   [2] 0.0  [3] 0.0 }
+      halfExtents { [0] 2.50 [1] 0.05 [2] 0.50 }
+      minimumDistance 0.05
+    }
+    wall_e
+    {
+      type box
+      position    { [0] 4.50 [1] 0.00 [2] 0.50 }
+      orientation { [0] 1.0  [1] 0.0  [2] 0.0  [3] 0.0 }
+      halfExtents { [0] 0.05 [1] 2.50 [2] 0.50 }
+      minimumDistance 0.05
+    }
+    wall_w
+    {
+      type box
+      position    { [0] -0.50 [1] 0.00 [2] 0.50 }
+      orientation { [0] 1.0   [1] 0.0  [2] 0.0  [3] 0.0 }
+      halfExtents { [0] 0.05 [1] 2.50 [2] 0.50 }
+      minimumDistance 0.05
+    }
+  }
+
+  ; 保留旧圆柱场景参数供回退，但该子树不会被环境约束加载。
+  legacyCylinderObstacles
   {
     cyl_nw1
     {
@@ -505,4 +593,3 @@ jointVelocityLimits
     }
   }
 }
-

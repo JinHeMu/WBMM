@@ -474,6 +474,8 @@ source install/setup.bash
 启动离线 RGB-D ESDF：
 
 ```bash
+export ISAAC_ROS_NVBLOX_PLUGIN_FORCE_FALLBACK_MATERIAL=1
+
 ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
   bag:=/workspaces/isaac_ros-dev/bags/d455_rgbd_esdf_02
 ```
@@ -485,12 +487,21 @@ ROS_DOMAIN_ID=21
 use_sim_time=true
 use_color=true
 playback rate=0.5
-ESDF 显示范围=12×12×3 m
+ESDF 显示范围=20×20×3 m
 ESDF 近障碍物显示阈值=0.5 m
+离线持久地图体素=0.10 m
 ```
 
 Domain 21 用于隔离实时机器人 Domain 20，防止实时话题和 bag 回放时间戳
 混在同一个 nvblox 中。
+
+NUC 录制端和 Docker 回放端的 `/tf` QoS 不相同：
+
+- NUC recorder 使用 Best Effort，保证能够兼容订阅实机 `/tf`；
+- Docker player 使用 Reliable，满足 TF2 监听器要求。
+
+不要把 NUC 的录制 QoS 文件直接覆盖 Docker 内的回放 QoS 文件，否则会出现
+`incompatible QoS: RELIABILITY`，导致回放后没有 `odom`。
 
 如果处理仍然滞后：
 
@@ -499,6 +510,10 @@ ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
   bag:=/workspaces/isaac_ros-dev/bags/d455_rgbd_esdf_02 \
   rate:=0.25
 ```
+
+离线 bag 持久地图默认使用 10 cm 体素。与 5 cm 相比，三维体素数量理论上
+减少约 8 倍，更适合 4 GB 显存。若使用更大显存并需要更高精度，可显式
+设置 `voxel_size:=0.05`，但无界持久地图可能再次耗尽显存。
 
 ---
 
@@ -592,4 +607,3 @@ ros2 bag info bags/d455_rgbd_esdf_新编号
 
 # 5. 验收通过后再复制到笔记本
 ```
-

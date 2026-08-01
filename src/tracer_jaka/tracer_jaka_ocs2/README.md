@@ -124,6 +124,120 @@ condition=IfCondition(use_rviz),
 ros2 launch tracer_jaka_ocs2 ocs2_sim.launch.py
 ```
 
+该入口默认同时启动 MuJoCo、wheel odom + IMU EKF、slam_toolbox、
+REMANI Planner、REMANI→OCS2 Bridge、OCS2 MPC/MRT 和 RViz2。定位与 TF
+的唯一发布关系为：
+
+```text
+slam_toolbox:       map -> odom
+robot_localization: odom -> base_footprint
+robot_state_publisher:
+                    base_footprint -> robot and sensor links
+```
+
+MuJoCo 原始里程计 `/wheel/odometry` 和 `/imu/data` 进入 EKF，MRT 默认读取
+融合结果 `/odometry/filtered`。RViz2 的 Fixed Frame 为 `map`，并显示 `/map`
+和 `/scan`。
+
+REMANI 同样读取 `/odometry/filtered` 和 `/joint_states`，在 RViz2 使用
+`2D Goal Pose` 发布 `/goal_pose` 后，数据链为：
+
+```text
+/goal_pose
+    -> REMANI front-end + MINCO trajectory optimization
+    -> /planning/trajectory
+    -> remani_to_ocs2_reference_bridge
+    -> /mobile_manipulator_mpc_target
+    -> OCS2 MPC / MRT
+```
+
+默认加载 MuJoCo 场景生成的静态 ESDF，并使用 `x=2.0 m` 的场景到 odom
+平移。替换 ESDF 时：
+
+```bash
+ros2 launch tracer_jaka_ocs2 ocs2_sim.launch.py \
+  remani_static_esdf_file:=/absolute/path/to/map.npz \
+  remani_static_esdf_offset_x:=0.0 \
+  remani_static_esdf_offset_y:=0.0 \
+  remani_static_esdf_offset_z:=0.0
+```
+
+不需要二维建图、只想运行定位和 MPC 时：
+
+```bash
+ros2 launch tracer_jaka_ocs2 ocs2_sim.launch.py start_slam:=false
+```
+
+不启动 REMANI、改用其他 OCS2 目标发布器时：
+
+```bash
+ros2 launch tracer_jaka_ocs2 ocs2_sim.launch.py start_remani:=false
+```
+
+CSV 目标与 REMANI 互斥。使用 CSV 时必须关闭 REMANI：
+
+```bash
+ros2 launch tracer_jaka_ocs2 ocs2_sim.launch.py \
+  start_remani:=false use_csv_target:=true
+```
+
+无界面运行：
+
+```bash
+ros2 launch tracer_jaka_ocs2 ocs2_sim.launch.py \
+  viewer:=false use_rviz:=false
+```
+
+联合启动后的检查命令：
+
+```bash
+ros2 topic hz /wheel/odometry
+ros2 topic hz /imu/data
+ros2 topic hz /odometry/filtered
+ros2 topic hz /scan
+ros2 topic echo /map --once
+ros2 run tf2_ros tf2_echo map odom
+ros2 run tf2_ros tf2_echo odom base_footprint
+```
+
+### 低桌穿越场景
+
+当前 `models/scene.xml`、`config/task.info` 和
+`tracer_jaka_zu5_scene_esdf.npz` 使用同一套低桌环境。尺寸来自
+`tracer_jaka_zu5.urdf` 的碰撞几何：
+
+| 项目 | 尺寸 / 高度 |
+|---|---:|
+| 底盘碰撞包络 | 约 `0.74 × 0.68 × 0.39 m` |
+| 机械臂初始 `home` 总高度 | 约 `1.52 m` |
+| 可穿越的折叠姿态总高度 | 约 `1.00 m` |
+| 桌面下沿 | `1.10 m` |
+| 桌腿中央净宽 | `1.34 m` |
+| 桌子中心 | MuJoCo `(0, 0)` / odom `(2, 0)` |
+
+启动后，机器人位于桌子西侧、机械臂处于不能直接通过的高姿态。在 RViz
+选择 **2D Goal Pose**，把目标放在桌子另一侧约 `(3.8, 0)`，箭头朝向
+`+x`。REMANI 的预期行为是：
+
+```text
+保持高姿态出发 -> 机械臂折叠 -> 从两排桌腿中间穿过 -> 机械臂恢复目标姿态
+```
+
+RViz 可以继续使用 `map` 作为 Fixed Frame；规划器会把 `/goal_pose`
+自动转换到 `odom`。如果目标附近过于靠近东墙，可将目标改为
+`(3.6, 0)`。
+
+场景尺寸变化后，需要重新生成 REMANI 使用的静态 ESDF：
+
+```bash
+ros2 run grid_map mjcf_to_esdf \
+  --xml "$(ros2 pkg prefix tracer_jaka_mujoco)/share/tracer_jaka_mujoco/models/scene.xml" \
+  --output "$(ros2 pkg prefix grid_map)/share/grid_map/maps/tracer_jaka_zu5_scene_esdf.npz" \
+  --voxel-size 0.02 \
+  --bounds-min -3 -3 0 \
+  --bounds-max 3 3 1.8
+```
+
 ### 分两个终端 (调试时方便看 log)
 
 ```bash
@@ -138,7 +252,9 @@ ros2 launch tracer_jaka_ocs2 ocs2_only.launch.py
 
 ### 用 RViz 的 "2D Goal Pose" 工具
 
-在 `tracer_jaka_ocs2.rviz` 里 `SetGoal` 工具的 topic 已经设成 `/target_pose`, 直接点击拖一下就发。注意 RViz 的 2D Goal 高度是 0, 你要让末端到 0.6m 高就需要先用脚本试:
+在 `tracer_jaka_ocs2.rviz` 里 `SetGoal` 工具的 topic 已经设成
+`/goal_pose`，直接点击拖一下即可交给 REMANI。注意这里设置的是移动底盘
+目标，并保持点击时的机械臂构型作为最终构型。
 
 ### 用脚本
 
@@ -160,7 +276,7 @@ ros2 topic hz /mobile_manipulator_mpc_policy
 
 # 输出
 ros2 topic echo /diff_drive_controller/cmd_vel
-ros2 topic echo /jaka_arm_controller/joint_trajectory
+ros2 topic echo /arm_controller/commands
 ```
 
 ## 7. 关键参数 (在 `launch/ocs2_sim.launch.py` 里改)
@@ -173,7 +289,7 @@ ros2 topic echo /jaka_arm_controller/joint_trajectory
 | `odom_topic`        | `/diff_drive_controller/odom` | 底盘位姿来源 |
 | `joint_state_topic` | `/joint_states`               | 关节读数来源 |
 | `base_cmd_topic`    | `/diff_drive_controller/cmd_vel` | TwistStamped |
-| `arm_cmd_topic`     | `/jaka_arm_controller/joint_trajectory` | JTC |
+| `arm_cmd_topic`     | `/arm_controller/commands` | MuJoCo JTC 的 `Float64MultiArray` 位置命令入口 |
 
 ## 8. 调权重
 
@@ -210,7 +326,7 @@ tracer_jaka_ocs2/
 | 之前你手动发的 | OCS2 接管后由谁发 |
 |----|----|
 | `/diff_drive_controller/cmd_vel` (TwistStamped) | `tracer_jaka_mrt_node` 自动发 |
-| `/jaka_arm_controller/joint_trajectory`         | `tracer_jaka_mrt_node` 自动发 |
+| `/arm_controller/commands`                      | `tracer_jaka_mrt_node` 自动发 |
 | (新增) 末端目标位姿                              | 你点 RViz / 调 `send_target.py` |
 
 也就是说, 一旦 OCS2 跑起来, 你就 **不要再手动 pub `cmd_vel` / `joint_trajectory`** 了, 否则会和 MRT 抢 topic。

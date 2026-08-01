@@ -57,6 +57,11 @@ namespace remani_planner
   void REMANIReplanFSM::init(rclcpp::Node::SharedPtr node)
   {
     node_ = node;
+    planning_frame_ =
+        declareAndGet<std::string>(node_, "fsm.planning_frame", "odom");
+    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(node_->get_clock());
+    tf_listener_ =
+        std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
 
     /* ---------- FSM 状态初始化 ---------- */
     exec_state_ = FSM_EXEC_STATE::INIT;
@@ -766,8 +771,30 @@ namespace remani_planner
       return;
     }
 
+    geometry_msgs::msg::PoseStamped goal = *msg;
+    const std::string source_frame =
+        goal.header.frame_id.empty() ? planning_frame_ : goal.header.frame_id;
+    if (source_frame != planning_frame_) {
+      try {
+        // 使用最新的 map->odom 关系，避免 RViz 点击时刻与低频 SLAM TF
+        // 之间出现数毫秒的 future extrapolation。
+        const auto transform = tf_buffer_->lookupTransform(
+            planning_frame_, source_frame, tf2::TimePointZero,
+            tf2::durationFromSec(0.2));
+        geometry_msgs::msg::PoseStamped transformed_goal;
+        tf2::doTransform(goal, transformed_goal, transform);
+        goal = transformed_goal;
+      } catch (const tf2::TransformException& ex) {
+        RCLCPP_WARN(
+            node_->get_logger(),
+            "Ignoring goal: cannot transform %s -> %s: %s",
+            source_frame.c_str(), planning_frame_.c_str(), ex.what());
+        return;
+      }
+    }
+
     // z < -0.1 的点击忽略 (过滤地面以下点击)
-    if(msg->pose.position.z < -0.1)
+    if(goal.pose.position.z < -0.1)
       return;
 
     init_state_ = mm_state_pos_;
@@ -776,12 +803,13 @@ namespace remani_planner
     end_pt_ = mm_state_pos_;
 
     if(target_type_ == TARGET_TYPE::MANUAL_TARGET){
-      end_pt_(0) = msg->pose.position.x;
-      end_pt_(1) = msg->pose.position.y;
-      end_yaw_ = tf2::getYaw(msg->pose.orientation);
+      end_pt_(0) = goal.pose.position.x;
+      end_pt_(1) = goal.pose.position.y;
+      end_yaw_ = tf2::getYaw(goal.pose.orientation);
       RCLCPP_INFO(
-          node_->get_logger(), "Received manual 2D goal: x=%.3f, y=%.3f, yaw=%.3f rad",
-          end_pt_(0), end_pt_(1), end_yaw_);
+          node_->get_logger(),
+          "Received manual 2D goal in %s: x=%.3f, y=%.3f, yaw=%.3f rad",
+          planning_frame_.c_str(), end_pt_(0), end_pt_(1), end_yaw_);
     }else{
       RCLCPP_ERROR(node_->get_logger(),"wrong target type: %d", target_type_);
       return;

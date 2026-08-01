@@ -141,7 +141,7 @@ def build_esdf_from_mjcf(
     xml_path,
     voxel_size=0.02,
     bounds_min=(-3.3, -3.3, 0.0),
-    bounds_max=(3.3, 3.3, 1.3),
+    bounds_max=(3.3, 3.3, 1.8),
     include_floor=False,
     output_path="scene_esdf.npz",
 ):
@@ -262,7 +262,7 @@ def main():
         "--bounds-min", type=float, nargs=3, default=(-3.0, -3.0, 0.0)
     )
     parser.add_argument(
-        "--bounds-max", type=float, nargs=3, default=(3.0, 3.0, 1.3)
+        "--bounds-max", type=float, nargs=3, default=(3.0, 3.0, 1.8)
     )
     parser.add_argument("--include-floor", action="store_true")
     arguments = parser.parse_args()
