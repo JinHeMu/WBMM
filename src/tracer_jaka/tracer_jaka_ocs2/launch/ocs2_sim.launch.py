@@ -93,6 +93,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
     viewer = LaunchConfiguration("viewer")
     use_rviz = LaunchConfiguration("use_rviz")
+    rviz_config = LaunchConfiguration("rviz_config")
     use_joy = LaunchConfiguration("use_joy")
     use_csv_target = LaunchConfiguration("use_csv_target")
     start_slam = LaunchConfiguration("start_slam")
@@ -110,6 +111,14 @@ def generate_launch_description():
     remani_static_esdf_offset_z = LaunchConfiguration(
         "remani_static_esdf_offset_z"
     )
+    mujoco_model = LaunchConfiguration("mujoco_model")
+    map_to_odom_x = LaunchConfiguration("map_to_odom_x")
+    remani_manipulator_max_vel = LaunchConfiguration(
+        "remani_manipulator_max_vel")
+    remani_manipulator_max_acc = LaunchConfiguration(
+        "remani_manipulator_max_acc")
+    remani_freeze_manipulator = LaunchConfiguration(
+        "remani_freeze_manipulator")
 
     task_file = LaunchConfiguration("task_file")
     xacro_file = LaunchConfiguration("xacro_file")
@@ -129,6 +138,13 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "use_rviz",
             default_value="true",
+        ),
+        DeclareLaunchArgument(
+            "rviz_config",
+            default_value=PathJoinSubstitution(
+                [pkg_ocs2, "rviz", "tracer_jaka_ocs2.rviz"]
+            ),
+            description="RViz configuration file.",
         ),
         DeclareLaunchArgument(
             "use_joy",
@@ -191,6 +207,34 @@ def generate_launch_description():
             default_value="0.0",
         ),
         DeclareLaunchArgument(
+            "mujoco_model",
+            default_value=PathJoinSubstitution([
+                pkg_mujoco, "models", "scene.xml",
+            ]),
+            description="MuJoCo scene XML used by the bridge.",
+        ),
+        DeclareLaunchArgument(
+            "map_to_odom_x",
+            default_value="-2.0",
+            description=(
+                "Static map->odom x translation used only when SLAM is off."),
+        ),
+        DeclareLaunchArgument(
+            "remani_manipulator_max_vel",
+            default_value="1.57",
+            description="REMANI arm velocity limit in rad/s.",
+        ),
+        DeclareLaunchArgument(
+            "remani_manipulator_max_acc",
+            default_value="3.14",
+            description="REMANI arm acceleration limit in rad/s^2.",
+        ),
+        DeclareLaunchArgument(
+            "remani_freeze_manipulator",
+            default_value="false",
+            description="Keep the measured arm posture in REMANI front-end.",
+        ),
+        DeclareLaunchArgument(
             "task_file",
             default_value=PathJoinSubstitution(
                 [pkg_ocs2, "config", "task.info"]
@@ -236,6 +280,7 @@ def generate_launch_description():
         ),
             launch_arguments={
                 "viewer": viewer,
+                "model": mujoco_model,
             }.items()
     )
 
@@ -499,9 +544,7 @@ def generate_launch_description():
         name="rviz2",
         arguments=[
             "-d",
-            PathJoinSubstitution(
-                [pkg_ocs2, "rviz", "tracer_jaka_ocs2.rviz"]
-            ),
+            rviz_config,
         ],
         parameters=[
             {
@@ -518,7 +561,7 @@ def generate_launch_description():
         executable="static_transform_publisher",
         name="map_to_odom_static_tf",
         arguments=[
-            "-2", "0", "0",     # x y z
+            map_to_odom_x, "0", "0",     # x y z
             "0", "0", "0",      # yaw pitch roll
             "map",
             "odom",
@@ -576,6 +619,9 @@ def generate_launch_description():
             "planner_to_ocs2_x": "0.0",
             "planner_to_ocs2_y": "0.0",
             "planner_to_ocs2_yaw": "0.0",
+            "manipulator_max_vel": remani_manipulator_max_vel,
+            "manipulator_max_acc": remani_manipulator_max_acc,
+            "freeze_manipulator": remani_freeze_manipulator,
         }.items(),
     )
 

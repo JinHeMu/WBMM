@@ -476,9 +476,8 @@ void GridMap::initMap(rclcpp::Node::SharedPtr node)
     {
       throw std::runtime_error(load_error);
     }
-    // The NPZ grid is expressed in the MuJoCo world frame. A fixed
-    // translation makes the same samples directly queryable in the planner
-    // frame without resampling the grid (the axes must remain aligned).
+    // An optional fixed translation makes an axis-aligned source grid
+    // directly queryable in the planner frame without resampling.
     static_esdf.origin += static_esdf_offset;
     static_esdf.bounds_max += static_esdf_offset;
     if (use_load_map_ || use_tf_cloud_transform_)
@@ -687,7 +686,7 @@ void GridMap::initMap(rclcpp::Node::SharedPtr node)
 
     RCLCPP_INFO(
         node_->get_logger(),
-        "Loaded static MuJoCo ESDF '%s': shape=%d x %d x %d, "
+        "Loaded static ESDF '%s': shape=%d x %d x %d, "
         "resolution=%.3f m, origin=[%.2f, %.2f, %.2f], "
         "frame='%s'. Point-cloud mapping is disabled.",
         static_esdf_file_.c_str(),

@@ -1,0 +1,70 @@
+<mujoco model="tracer_jaka_nvblox_remani_demo">
+  <compiler angle="radian"
+            meshdir="/home/a/mujoco_sim/tracer_jaka_zu5/tracer_jaka_zu5_mjcf/tracer_jaka_zu5/meshes"/>
+
+  <include file="tracer_jaka_zu5_robot.xml"/>
+
+  <asset>
+    <texture name="demo_floor_tex" type="2d" builtin="checker" mark="edge"
+             rgb1="0.22 0.27 0.32" rgb2="0.12 0.16 0.20"
+             markrgb="0.7 0.7 0.7" width="300" height="300"/>
+    <material name="demo_floor_mat" texture="demo_floor_tex"
+              texrepeat="5 5" texuniform="true" reflectance="0.15"/>
+  </asset>
+
+  <worldbody>
+    <light name="demo_top" pos="0 0 4" dir="0 0 -1"
+           diffuse="0.8 0.8 0.8"/>
+
+    <geom name="floor" type="plane" size="8 8 0.05" pos="0 0 0"
+          material="demo_floor_mat" contype="1" conaffinity="1"
+          condim="3" friction="2.0 0.01 0.001"/>
+
+    <!-- Room: robot starts at MuJoCo x=-2, corresponding to odom x=0. -->
+    <body name="demo_wall_n" pos="0 2.3 0.6">
+      <geom type="box" size="2.6 0.05 0.6" rgba="0.75 0.78 0.82 1"/>
+    </body>
+    <body name="demo_wall_s" pos="0 -2.3 0.6">
+      <geom type="box" size="2.6 0.05 0.6" rgba="0.75 0.78 0.82 1"/>
+    </body>
+    <body name="demo_wall_e" pos="2.6 0 0.6">
+      <geom type="box" size="0.05 2.3 0.6" rgba="0.75 0.78 0.82 1"/>
+    </body>
+    <body name="demo_wall_w" pos="-2.6 0 0.6">
+      <geom type="box" size="0.05 2.3 0.6" rgba="0.75 0.78 0.82 1"/>
+    </body>
+
+    <!-- Stage A: a large crate blocks the straight base path. -->
+    <body name="detour_crate" pos="-0.55 0 0.55">
+      <geom name="detour_crate_geom" type="box" size="0.38 0.58 0.55"
+            contype="1" conaffinity="1" friction="1.1 0.01 0.001"
+            rgba="0.82 0.42 0.12 1"/>
+    </body>
+
+    <!-- The upper-side pillar makes the lower detour the shorter route. -->
+    <body name="upper_pillar" pos="-0.05 1.05 0.75">
+      <geom name="upper_pillar_geom" type="cylinder" size="0.28 0.75"
+            contype="1" conaffinity="1" rgba="0.20 0.48 0.78 1"/>
+    </body>
+
+    <!-- Stage B: a low portal spans the room. The base fits through the
+         central opening, but the 1.52 m home arm must fold below 1.10 m. -->
+    <body name="low_portal" pos="0.85 0 0">
+      <geom name="low_portal_beam" type="box" pos="0 0 1.16"
+            size="0.18 2.18 0.06" contype="1" conaffinity="1"
+            rgba="0.42 0.22 0.62 1"/>
+      <geom name="low_portal_left_post" type="box" pos="0 1.75 0.55"
+            size="0.18 0.13 0.55" contype="1" conaffinity="1"
+            rgba="0.30 0.16 0.48 1"/>
+      <geom name="low_portal_right_post" type="box" pos="0 -1.75 0.55"
+            size="0.18 0.13 0.55" contype="1" conaffinity="1"
+            rgba="0.30 0.16 0.48 1"/>
+    </body>
+
+    <!-- Goal-side shelf gives the arm an additional 3D obstacle to avoid. -->
+    <body name="goal_shelf" pos="1.75 -0.95 0.7">
+      <geom name="goal_shelf_body" type="box" size="0.32 0.48 0.7"
+            contype="1" conaffinity="1" rgba="0.18 0.62 0.42 1"/>
+    </body>
+  </worldbody>
+</mujoco>

@@ -68,6 +68,9 @@ def generate_launch_description():
         'tracking_goal_yaw_tolerance')
     tracking_goal_joint_tolerance = LaunchConfiguration(
         'tracking_goal_joint_tolerance')
+    manipulator_max_vel = LaunchConfiguration('manipulator_max_vel')
+    manipulator_max_acc = LaunchConfiguration('manipulator_max_acc')
+    freeze_manipulator = LaunchConfiguration('freeze_manipulator')
 
     planner_parameters = _merged_planner_parameters()
 
@@ -89,6 +92,12 @@ def generate_launch_description():
                     'joint_1', 'joint_2', 'joint_3',
                     'joint_4', 'joint_5', 'joint_6',
                 ],
+                'mm.manipulator_max_vel': ParameterValue(
+                    manipulator_max_vel, value_type=float),
+                'mm.manipulator_max_acc': ParameterValue(
+                    manipulator_max_acc, value_type=float),
+                'search.freeze_manipulator': ParameterValue(
+                    freeze_manipulator, value_type=bool),
                 # Use the ESDF generated directly from the MuJoCo scene.
                 # No depth image, point cloud, occupancy fusion or EDT
                 # reconstruction is active in this mode.
@@ -206,6 +215,15 @@ def generate_launch_description():
             'tracking_goal_yaw_tolerance', default_value='0.20'),
         DeclareLaunchArgument(
             'tracking_goal_joint_tolerance', default_value='0.15'),
+        DeclareLaunchArgument(
+            'manipulator_max_vel', default_value='1.57',
+            description='Maximum REMANI joint velocity in rad/s.'),
+        DeclareLaunchArgument(
+            'manipulator_max_acc', default_value='3.14',
+            description='Maximum REMANI joint acceleration in rad/s^2.'),
+        DeclareLaunchArgument(
+            'freeze_manipulator', default_value='false',
+            description='Keep the measured arm posture during base planning.'),
         planner,
         bridge,
     ])

@@ -1,0 +1,68 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Color: 160; 160; 164
+      Cell Size: 1
+      Plane Cell Count: 20
+      Reference Frame: <Fixed Frame>
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Show Names: true
+      Marker Scale: 0.5
+    # ---- 上色后的 3D ESDF（本功能包输出，近障碍红 / 远处蓝）----
+    - Class: rviz_default_plugins/PointCloud2
+      Name: ESDF (colored)
+      Enabled: true
+      Topic:
+        Value: /nvblox/esdf_viz
+        Depth: 5
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+      Style: Boxes
+      Size (m): 0.05
+      Color Transformer: RGB8
+      Decay Time: 0
+    # ---- 原始 3D ESDF（nvblox 直接发布，用 intensity=距离 上色）----
+    - Class: rviz_default_plugins/PointCloud2
+      Name: ESDF raw (intensity)
+      Enabled: false
+      Topic:
+        Value: /nvblox_node/static_esdf_pointcloud
+        Depth: 5
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+      Style: Boxes
+      Size (m): 0.05
+      Color Transformer: Intensity
+      Channel Name: intensity
+      Decay Time: 0
+  Global Options:
+    Fixed Frame: odom
+    Background Color: 48; 48; 48
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 12
+      Pitch: 0.6
+      Yaw: 0.8
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+Window Geometry:
+  Height: 800
+  Width: 1200

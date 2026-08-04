@@ -86,6 +86,11 @@ class EsdfRvizPublisher(Node):
 
         self.esdf = data["esdf"]
         self.occ = data["occupancy"]
+        self.observed = (
+            data["observed"].astype(bool)
+            if "observed" in data.files
+            else np.ones_like(self.occ, dtype=bool)
+        )
         self.origin = data["origin"].astype(float)
         self.voxel_size = float(data["voxel_size"])
 
@@ -155,7 +160,8 @@ class EsdfRvizPublisher(Node):
 
             dd = esdf_slice
 
-            mask = np.abs(dd) <= max_distance
+            observed = self.observed[::stride, ::stride, k]
+            mask = observed & (np.abs(dd) <= max_distance)
 
             xs = origin[0] + (ii[mask] + 0.5) * voxel_size
             ys = origin[1] + (jj[mask] + 0.5) * voxel_size
@@ -175,7 +181,8 @@ class EsdfRvizPublisher(Node):
             )
 
             dd = esdf_sampled
-            mask = np.abs(dd) <= max_distance
+            observed = self.observed[::stride, ::stride, ::stride]
+            mask = observed & (np.abs(dd) <= max_distance)
 
             xs = origin[0] + (ii[mask] + 0.5) * voxel_size
             ys = origin[1] + (jj[mask] + 0.5) * voxel_size
@@ -214,7 +221,9 @@ class EsdfRvizPublisher(Node):
         k0 = max(k0, 0)
         k1 = min(k1, nz)
 
-        occ2d = occ[:, :, k0:k1].any(axis=2)
+        observed = self.observed[:, :, k0:k1]
+        observed2d = observed.any(axis=2)
+        occ2d = (occ[:, :, k0:k1] & observed).any(axis=2)
 
         grid = OccupancyGrid()
         grid.header = self.make_header()
@@ -232,7 +241,9 @@ class EsdfRvizPublisher(Node):
         # OccupancyGrid 是 row-major:
         # index = x + y * width
         # occ2d shape 是 [x, y]，所以转置成 [y, x] 再 flatten。
-        data_2d = np.where(occ2d.T, 100, 0).astype(np.int8)
+        data_2d = np.full((ny, nx), -1, dtype=np.int8)
+        data_2d[observed2d.T] = 0
+        data_2d[occ2d.T] = 100
 
         grid.data = data_2d.flatten().tolist()
         return grid
@@ -256,7 +267,8 @@ def main(args=None):
         pass
 
     node.destroy_node()
-    rclpy.shutdown()
+    if rclpy.ok():
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":

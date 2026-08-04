@@ -7,3 +7,12 @@ __pycache__/
 .idea/
 .DS_Store
 bags/
+bag_export/
+*.db3
+*.mcap
+*.nvblx
+*.npz
+*.zstd
+maps/
+.data
+.posegraph

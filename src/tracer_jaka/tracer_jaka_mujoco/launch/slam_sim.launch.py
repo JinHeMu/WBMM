@@ -23,12 +23,22 @@ def generate_launch_description():
     rviz = LaunchConfiguration("rviz")
     camera = LaunchConfiguration("camera")
     camera_rate = LaunchConfiguration("camera_rate")
+    camera_width = LaunchConfiguration("camera_width")
+    camera_height = LaunchConfiguration("camera_height")
+    model = LaunchConfiguration("model")
+    init_keyframe = LaunchConfiguration("init_keyframe")
 
     return LaunchDescription([
         DeclareLaunchArgument("viewer", default_value="true"),
         DeclareLaunchArgument("rviz", default_value="true"),
         DeclareLaunchArgument("camera", default_value="false"),
         DeclareLaunchArgument("camera_rate", default_value="30.0"),
+        DeclareLaunchArgument("camera_width", default_value="640"),
+        DeclareLaunchArgument("camera_height", default_value="480"),
+        DeclareLaunchArgument(
+            "model",
+            default_value=os.path.join(share, "models", "scene.xml")),
+        DeclareLaunchArgument("init_keyframe", default_value="home"),
 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(bridge_launch),
@@ -36,6 +46,10 @@ def generate_launch_description():
                 "viewer": viewer,
                 "camera": camera,
                 "camera_rate": camera_rate,
+                "camera_width": camera_width,
+                "camera_height": camera_height,
+                "model": model,
+                "init_keyframe": init_keyframe,
             }.items(),
         ),
 

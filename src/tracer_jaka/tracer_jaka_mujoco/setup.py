@@ -62,6 +62,8 @@ setup(
         "console_scripts": [
             "mujoco_bridge = tracer_jaka_mujoco.mujoco_bridge_node:main",
             "arm_pose_publisher = tracer_jaka_mujoco.arm_pose_publisher:main",
+            "esdf_mapping_scan = tracer_jaka_mujoco.esdf_mapping_scan:main",
+            "demo_goal_publisher = tracer_jaka_mujoco.demo_goal_publisher:main",
         ],
     },
 )

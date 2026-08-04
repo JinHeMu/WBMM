@@ -137,6 +137,9 @@ class MujocoBridge(Node):
         self.declare_parameter("camera.publish_camera_info", True)
         self.declare_parameter("camera.max_depth", 5.0)
         self.declare_parameter("camera.clip_far_to_zero", True)
+        self.declare_parameter(
+            "camera.geom_group",
+            [True, False, False, False, False, False])
 
         gp = lambda n: self.get_parameter(n).value
         self.model_path = gp("model_path")
@@ -283,6 +286,7 @@ class MujocoBridge(Node):
                 "publish_camera_info": gp("camera.publish_camera_info"),
                 "max_depth": gp("camera.max_depth"),
                 "clip_far_to_zero": gp("camera.clip_far_to_zero"),
+                "geom_group": gp("camera.geom_group"),
             })
 
         self.get_logger().info(

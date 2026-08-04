@@ -4,6 +4,20 @@ model predictive control of mobile_manipulator
 
 ## build
 
+The repository also tracks the custom Isaac ROS integration at
+`src/tracer_jaka/my_nvblox_bringup`. It is kept here so the robot, simulation,
+planner and nvblox glue code share one Git repository. CUDA nvblox is still
+built inside the Isaac ROS Docker workspace:
+
+```bash
+src/tracer_jaka/my_nvblox_bringup/scripts/sync_to_isaac_ros_ws.sh
+# Then, inside the Isaac ROS container:
+colcon build --symlink-install --packages-select my_nvblox_bringup
+```
+
+Do not edit the synchronized Docker copy; edit the package in this repository
+and run the synchronization script again.
+
 ```bash
 colcon build \
   --packages-up-to \
@@ -128,7 +142,6 @@ ros2 topic echo /scan --once
 ros2 run tf2_ros tf2_echo base_footprint laser_link
 ros2 run tf2_ros tf2_echo base_footprint imu_link
 ```
-
 
 
 

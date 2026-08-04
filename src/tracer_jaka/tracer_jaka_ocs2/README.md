@@ -188,6 +188,66 @@ ros2 launch tracer_jaka_ocs2 ocs2_sim.launch.py \
   viewer:=false use_rviz:=false
 ```
 
+### 使用真实 bag 导出的 ESDF 做纯地图验证
+
+先在 Isaac ROS 容器中完成 bag 回放和自动导出：
+
+```bash
+docker exec -it -u admin --workdir /workspaces/isaac_ros-dev \
+  isaac_ros_dev-x86_64-container bash
+source /workspaces/isaac_ros-dev/install/setup.bash
+ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
+  bag:=/workspaces/isaac_ros-dev/bags/d455_rgbd_esdf_02
+```
+
+回放期间 nvblox RViz 显示 RGB-D mesh、3D ESDF 和 bag 中的 `/map`。
+回放结束后，REMANI 使用的文件默认是：
+
+```text
+/home/a/workspaces/isaac_ros-dev/bag_export/d455_bag_remani_esdf.npz
+```
+
+然后在宿主机启动纯 ESDF 验证：
+
+```bash
+cd /home/a/ocs2_ws
+source install/setup.bash
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py
+```
+
+该入口有意隔离三种环境来源：
+
+| 环境来源 | 状态 | 用途 |
+|---|---|---|
+| MuJoCo `scene_esdf_validation.xml` | 仅机器人和地面 | 保留动力学接触，不放桌子、墙和障碍物 |
+| OCS2 `task_esdf_only.info` | `environmentCollision.activate=false` | 不再使用 info 中手工障碍物 |
+| nvblox 导出的 NPZ | 启用 | REMANI 搜索、轨迹优化和碰撞检测的唯一外部环境 |
+
+验证入口默认通过 map_server 加载
+`/home/a/ocs2_ws/maps/factory_map.yaml`。RViz 使用 `odom` 作为 Fixed Frame，
+并显示保存的 `/map`、
+`/esdf_cloud`、`/esdf_occ2d` 和机器人模型。`/esdf_cloud` 只显示已观测且靠近障碍物的
+体素；`/esdf_occ2d` 是指定高度带内的 2D ESDF 占据投影。使用 RViz 的
+**2D Goal Pose** 向 `/goal_pose` 发目标即可触发：
+
+```text
+真实场景 ESDF -> REMANI -> /planning/trajectory
+              -> REMANI-to-OCS2 bridge -> MPC/MRT -> MuJoCo 机器人
+```
+
+自定义文件或降低显示量：
+
+```bash
+ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py \
+  esdf_file:=/absolute/path/site_remani.npz \
+  map2d_yaml:=/absolute/path/site_2d.yaml \
+  esdf_display_distance:=0.35 esdf_display_stride:=3
+```
+
+这里要求导出 ESDF、仿真初始位姿和实际录包时的 `odom` 原点一致；若不
+一致，应先做刚体坐标变换后再导出，不能只在 RViz 中旋转显示。
+
 联合启动后的检查命令：
 
 ```bash

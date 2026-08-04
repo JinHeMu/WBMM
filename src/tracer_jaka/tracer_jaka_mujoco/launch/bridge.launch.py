@@ -47,6 +47,9 @@ def generate_launch_description():
     use_viewer = LaunchConfiguration("viewer")
     camera = LaunchConfiguration("camera")
     camera_rate = LaunchConfiguration("camera_rate")
+    camera_width = LaunchConfiguration("camera_width")
+    camera_height = LaunchConfiguration("camera_height")
+    init_keyframe = LaunchConfiguration("init_keyframe")
 
     nodes = [
         DeclareLaunchArgument("model", default_value=default_model,
@@ -62,6 +65,13 @@ def generate_launch_description():
             "camera_rate",
             default_value="30.0",
             description="MuJoCo RGB-D 相机发布频率 (Hz)",
+        ),
+        DeclareLaunchArgument("camera_width", default_value="640"),
+        DeclareLaunchArgument("camera_height", default_value="480"),
+        DeclareLaunchArgument(
+            "init_keyframe",
+            default_value="home",
+            description="MuJoCo keyframe used for the initial robot state.",
         ),
 
         Node(
@@ -79,6 +89,9 @@ def generate_launch_description():
                         PythonExpression(["'", camera, "'.lower() == 'true'"]),
                         value_type=bool),
                     "camera.rate": ParameterValue(camera_rate, value_type=float),
+                    "camera.width": ParameterValue(camera_width, value_type=int),
+                    "camera.height": ParameterValue(camera_height, value_type=int),
+                    "init_keyframe": init_keyframe,
                 },
             ],
         ),

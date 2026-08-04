@@ -76,6 +76,7 @@ namespace mani_sample {
     double goal_rate_;
     int max_loop_num_;
     double max_mani_search_time_;
+    bool freeze_manipulator_;
     Eigen::Matrix3d phi_; // state transit matrix
     Eigen::Matrix4d T_q_0_;
     std::vector<Eigen::Matrix4Xd> manipulator_link_pts_;

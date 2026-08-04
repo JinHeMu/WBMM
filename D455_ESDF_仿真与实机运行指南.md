@@ -459,7 +459,7 @@ D435 默认使用：
 参数文件：
 
 ```text
-/home/a/workspaces/isaac_ros-dev/src/my_nvblox_bringup/config/nvblox_3d.yaml
+/home/a/ocs2_ws/src/tracer_jaka/my_nvblox_bringup/config/nvblox_3d.yaml
 ```
 
 | 参数 | 当前值 | 作用 | 建议 |

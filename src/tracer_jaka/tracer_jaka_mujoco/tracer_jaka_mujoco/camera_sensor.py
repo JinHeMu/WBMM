@@ -44,7 +44,7 @@ from . import sensors_common as sc
 # ====================================================================== #
 #  渲染进程入口（在独立进程里运行，拥有自己的 EGL 上下文，不碰 ROS）
 # ====================================================================== #
-def _render_process(model_path, cam_name, width, height,
+def _render_process(model_path, cam_name, width, height, geom_group,
                     want_color, want_depth, gl_backend, in_q, out_q):
     # The parent owns ROS shutdown. Do not let launch SIGINT interrupt this
     # process while it is blocked in multiprocessing.Queue.get().
@@ -64,6 +64,8 @@ def _render_process(model_path, cam_name, width, height,
             out_q.put({"fatal": f"渲染进程找不到相机: {cam_name}"})
             return
         renderer = mujoco.Renderer(model, height=height, width=width)
+        scene_option = mujoco.MjvOption()
+        scene_option.geomgroup[:] = geom_group
     except Exception as e:                   # noqa
         out_q.put({"fatal": f"渲染进程初始化失败（确认 MUJOCO_GL=egl 与驱动）: {e}"})
         return
@@ -81,7 +83,8 @@ def _render_process(model_path, cam_name, width, height,
         rgb = None
         depth = None
         try:
-            renderer.update_scene(data, camera=cam_id)
+            renderer.update_scene(
+                data, camera=cam_id, scene_option=scene_option)
             if want_color:
                 renderer.disable_depth_rendering()
                 rgb = renderer.render().copy()
@@ -120,6 +123,7 @@ class CameraSensor:
         self.pub_info = bool(cfg["publish_camera_info"])
         self.max_depth = float(cfg["max_depth"])
         self.clip_far = bool(cfg["clip_far_to_zero"])
+        self.geom_group = [bool(value) for value in cfg["geom_group"]]
 
         self._ok = False
 
@@ -183,6 +187,7 @@ class CameraSensor:
         self._proc = ctx.Process(
             target=_render_process,
             args=(self.node.model_path, self.cam_name, self.width, self.height,
+                  self.geom_group,
                   self.pub_color, self.pub_depth, gl_backend,
                   self._in_q, self._out_q),
             daemon=True,

@@ -71,11 +71,36 @@ namespace mani_sample{
 
     // ---- 初始化 + 双向 RRT* 搜索机械臂构型 ----
     init(car_state_list, car_state_list_check, t_list);
-    bool mani_status = search(start_state, end_state);
+    bool mani_status = true;
+    if (freeze_manipulator_) {
+      // A straight-line/RRT fallback is allowed to change arm joints, which
+      // violates this mode's contract. Report failure and let the caller retry
+      // the base search instead.
+      if (!astar_succ)
+        return false;
+      // Deterministic base-only validation mode. Keep the measured start arm
+      // configuration along the entire base path and still reject the path if
+      // that fixed configuration collides with the ESDF. This is useful for
+      // validating mapping -> planning -> control independently of whole-body
+      // manipulator sampling.
+      mani_path.assign(car_state_list.size(), start_state);
+      for (size_t i = 0; i < car_state_list.size(); ++i) {
+        if (mm_config_->checkManicollision(
+                car_state_list[i], start_state, false)) {
+          mani_status = false;
+          break;
+        }
+      }
+      if (!mani_status)
+        return false;
+    } else {
+      mani_status = search(start_state, end_state);
+    }
 
     if(mani_status && astar_succ){
       // ---- 成功: 提取路径并按 singul 分段输出 ----
-      getTraj(mani_path);
+      if (!freeze_manipulator_)
+        getTraj(mani_path);
 
       int singul_now = singul_container[0];
       state_full.head(mobile_base_dof_) = car_state_list[0].head(mobile_base_dof_);
@@ -1104,6 +1129,7 @@ namespace mani_sample{
     getManiParam(node_, "search.goal_rate", goal_rate_, 0.4);
     getManiParam(node_, "search.max_loop_num", max_loop_num_, 500);
     getManiParam(node_, "search.max_mani_search_time", max_mani_search_time_, 0.1);
+    getManiParam(node_, "search.freeze_manipulator", freeze_manipulator_, false);
     getManiParam(node_, "optimization.self_safe_margin", self_safe_margin_, 0.1);
     getManiParam(node_, "optimization.safe_margin_mani", safe_margin_mani_, 0.1);
     getManiParam(node_, "mm.mobile_base_check_radius", mobile_base_check_radius_, 0.1);

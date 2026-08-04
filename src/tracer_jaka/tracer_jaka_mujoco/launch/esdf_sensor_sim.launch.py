@@ -18,13 +18,23 @@ def generate_launch_description():
     """Start MuJoCo, localization, SLAM and the fixed D455 RGB-D camera."""
     share = get_package_share_directory("tracer_jaka_mujoco")
     slam_launch = os.path.join(share, "launch", "slam_sim.launch.py")
+    default_model = os.path.join(share, "models", "scene.xml")
 
     return LaunchDescription([
+        DeclareLaunchArgument(
+            "viewer",
+            default_value="false",
+            description="Open the MuJoCo viewer.",
+        ),
         DeclareLaunchArgument(
             "camera_rate",
             default_value="30.0",
             description="RGB-D rate. Lower to 15 if offscreen rendering is slow.",
         ),
+        DeclareLaunchArgument("camera_width", default_value="640"),
+        DeclareLaunchArgument("camera_height", default_value="480"),
+        DeclareLaunchArgument("model", default_value=default_model),
+        DeclareLaunchArgument("init_keyframe", default_value="home"),
         DeclareLaunchArgument(
             "rviz",
             default_value="false",
@@ -49,9 +59,13 @@ def generate_launch_description():
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(slam_launch),
             launch_arguments={
-                "viewer": "false",
+                "viewer": LaunchConfiguration("viewer"),
                 "camera": "true",
                 "camera_rate": LaunchConfiguration("camera_rate"),
+                "camera_width": LaunchConfiguration("camera_width"),
+                "camera_height": LaunchConfiguration("camera_height"),
+                "model": LaunchConfiguration("model"),
+                "init_keyframe": LaunchConfiguration("init_keyframe"),
                 "rviz": LaunchConfiguration("rviz"),
             }.items(),
         ),
