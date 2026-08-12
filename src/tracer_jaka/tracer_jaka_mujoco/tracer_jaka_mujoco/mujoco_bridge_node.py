@@ -39,6 +39,7 @@ from tf2_ros import TransformBroadcaster
 from .lidar_sensor import LidarSensor
 from .camera_sensor import CameraSensor
 from .imu_sensor import ImuSensor
+from .fts_sensor import MujocoFtsBroadcaster
 
 
 ARM_JOINTS = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
@@ -118,6 +119,21 @@ class MujocoBridge(Node):
         self.declare_parameter("imu.angular_velocity_stddev", 0.005)
         self.declare_parameter("imu.linear_acceleration_stddev", 0.05)
         self.declare_parameter("imu.publish_static_tf", False)
+
+        # ---------------- 六维力/力矩传感器参数 ----------------
+        self.declare_parameter("fts.enable", True)
+        self.declare_parameter("fts.force_sensor_name", "tcp_fts_force")
+        self.declare_parameter("fts.torque_sensor_name", "tcp_fts_torque")
+        self.declare_parameter("fts.frame_id", "jk_se_vi_200_link")
+        self.declare_parameter("fts.topic", "/jaka_fts_broadcaster/wrench")
+        self.declare_parameter("fts.raw_topic", "/jaka_fts_broadcaster/wrench_raw")
+        self.declare_parameter("fts.rate", 125.0)
+        self.declare_parameter("fts.zero_on_start", True)
+        self.declare_parameter("fts.calibration_delay", 0.5)
+        self.declare_parameter("fts.calibration_samples", 50)
+        self.declare_parameter("fts.filter_alpha", 0.1)
+        self.declare_parameter("fts.force_deadband", 1.0)
+        self.declare_parameter("fts.torque_deadband", 0.0)
 
         # ---------------- 相机参数 ----------------
         self.declare_parameter("camera.enable", False)
@@ -236,6 +252,7 @@ class MujocoBridge(Node):
         # ---------------- 传感器 ----------------
         self.lidar = None
         self.imu = None
+        self.fts = None
         self.camera = None
         if bool(gp("lidar.enable")):
             self.lidar = LidarSensor(self, {
@@ -267,6 +284,21 @@ class MujocoBridge(Node):
                 "angular_velocity_stddev": gp("imu.angular_velocity_stddev"),
                 "linear_acceleration_stddev": gp("imu.linear_acceleration_stddev"),
                 "publish_static_tf": gp("imu.publish_static_tf"),
+            })
+        if bool(gp("fts.enable")):
+            self.fts = MujocoFtsBroadcaster(self, {
+                "force_sensor_name": gp("fts.force_sensor_name"),
+                "torque_sensor_name": gp("fts.torque_sensor_name"),
+                "frame_id": gp("fts.frame_id"),
+                "topic": gp("fts.topic"),
+                "raw_topic": gp("fts.raw_topic"),
+                "rate": gp("fts.rate"),
+                "zero_on_start": gp("fts.zero_on_start"),
+                "calibration_delay": gp("fts.calibration_delay"),
+                "calibration_samples": gp("fts.calibration_samples"),
+                "filter_alpha": gp("fts.filter_alpha"),
+                "force_deadband": gp("fts.force_deadband"),
+                "torque_deadband": gp("fts.torque_deadband"),
             })
         if bool(gp("camera.enable")):
             self.camera = CameraSensor(self, {
@@ -498,6 +530,8 @@ class MujocoBridge(Node):
 
         if self.imu:
             self.imu.publish_if_due()
+        if self.fts:
+            self.fts.publish_if_due()
 
         if self.publish_odom_tf:
             t = TransformStamped()

@@ -1,6 +1,6 @@
 # tracer_jaka_mujoco
 
-ROS2 ⟷ MuJoCo 自包含桥接：平面 3 自由度底盘 + JAKA Zu5 机械臂 + **2D LiDAR** + **IMU** + **深度/RGB 相机**。
+ROS2 ⟷ MuJoCo 自包含桥接：平面 3 自由度底盘 + JAKA Zu5 机械臂 + **2D LiDAR** + **IMU** + **深度/RGB 相机** + **六维 F/T**。
 传感器频率与 500Hz 物理步进**解耦**，按需抽帧，避免仿真卡顿。
 
 ## 1. 目录结构
@@ -73,6 +73,8 @@ ros2 launch tracer_jaka_mujoco bridge.launch.py model:=/abs/path/scene.xml viewe
 | `/camera/depth/image_raw` | `sensor_msgs/Image` (32FC1, m) | |
 | `/camera/{color,depth}/camera_info` | `sensor_msgs/CameraInfo` | |
 | `/joint_states` `/clock` `/tf_static` | | 底盘/臂状态 |
+| `/jaka_fts_broadcaster/wrench` | `geometry_msgs/WrenchStamped` | 与实机 broadcaster 一致的滤波、标零后六维力 |
+| `/jaka_fts_broadcaster/wrench_raw` | `geometry_msgs/WrenchStamped` | MuJoCo 原始六维力，供调试 |
 
 控制：
 
@@ -187,7 +189,58 @@ The URDF provides `base_footprint -> laser_link` and
 `base_footprint -> imu_link`. The real EKF deliberately fuses Hipnuc yaw rate
 only; absolute yaw remains disabled until the assembled robot is calibrated.
 
-## 11. 录制 D455 离线 ESDF 数据
+## 11. 六维力传感器与加工桌接触测试
+
+实机 `JakaHardwareInterface` 导出以下 ros2_control state interfaces：
+
+```text
+tcp_fts_sensor/force.x
+tcp_fts_sensor/force.y
+tcp_fts_sensor/force.z
+tcp_fts_sensor/torque.x
+tcp_fts_sensor/torque.y
+tcp_fts_sensor/torque.z
+```
+
+仿真在 `jk_se_vi_200_link` 上安装 MuJoCo 原生 force/torque sensor，并发布与
+实机 `jaka_fts_broadcaster` 相同的外部接口：
+
+```text
+/jaka_fts_broadcaster/wrench
+geometry_msgs/msg/WrenchStamped
+frame_id: jk_se_vi_200_link
+```
+
+正常任务从无接触的 `home` 启动，传感器会在 0.5 秒后自动采样标零，再应用与
+实机相同思路的低通滤波和死区：
+
+```bash
+ros2 launch tracer_jaka_mujoco task_table_sim.launch.py
+ros2 topic echo /jaka_fts_broadcaster/wrench
+```
+
+快速验证工具压桌面的六维接触力：
+
+```bash
+ros2 launch tracer_jaka_mujoco task_table_sim.launch.py \
+  init_keyframe:=task_contact \
+  fts_zero_on_start:=false
+
+ros2 topic echo /jaka_fts_broadcaster/wrench
+```
+
+`task_contact` 只用于传感器验证；它启动时已经接触桌面，因此必须关闭启动标零，
+否则接触载荷会被当作 bias 消除。正常力控实验应使用 `home` 无载标零，然后由
+轨迹/导纳控制器逐渐接近桌面。
+
+该实现直接从持有 MuJoCo 物理状态的 bridge 发布兼容话题，没有额外启动一个
+`controller_manager`。所以上层订阅接口与实机一致，但仿真 F/T publisher 不会
+出现在 `ros2 control list_controllers` 中。
+
+相关参数位于 `config/sensors.yaml` 的 `fts` 段，可调采样率、滤波系数、死区、
+标零延迟和样本数。`wrench_raw` 保留未经标零/滤波的 MuJoCo 原始值。
+
+## 12. 录制 D455 离线 ESDF 数据
 
 先启动实机 SLAM 和 `d455_sensor.launch.py`，确认深度和 TF 都在发布。
 然后在 NUC 新终端录制 RGB-D ESDF 数据：

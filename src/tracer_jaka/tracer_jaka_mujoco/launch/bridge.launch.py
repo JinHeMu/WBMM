@@ -50,6 +50,8 @@ def generate_launch_description():
     camera_width = LaunchConfiguration("camera_width")
     camera_height = LaunchConfiguration("camera_height")
     init_keyframe = LaunchConfiguration("init_keyframe")
+    fts_enable = LaunchConfiguration("fts_enable")
+    fts_zero_on_start = LaunchConfiguration("fts_zero_on_start")
 
     nodes = [
         DeclareLaunchArgument("model", default_value=default_model,
@@ -73,6 +75,12 @@ def generate_launch_description():
             default_value="home",
             description="MuJoCo keyframe used for the initial robot state.",
         ),
+        DeclareLaunchArgument(
+            "fts_enable", default_value="true",
+            description="Publish the simulated tcp_fts_sensor wrench."),
+        DeclareLaunchArgument(
+            "fts_zero_on_start", default_value="true",
+            description="Zero the F/T sensor while initially unloaded."),
 
         Node(
             package=pkg, executable="mujoco_bridge", name="mujoco_bridge",
@@ -92,6 +100,13 @@ def generate_launch_description():
                     "camera.width": ParameterValue(camera_width, value_type=int),
                     "camera.height": ParameterValue(camera_height, value_type=int),
                     "init_keyframe": init_keyframe,
+                    "fts.enable": ParameterValue(
+                        PythonExpression(["'", fts_enable, "'.lower() == 'true'"]),
+                        value_type=bool),
+                    "fts.zero_on_start": ParameterValue(
+                        PythonExpression([
+                            "'", fts_zero_on_start, "'.lower() == 'true'"
+                        ]), value_type=bool),
                 },
             ],
         ),

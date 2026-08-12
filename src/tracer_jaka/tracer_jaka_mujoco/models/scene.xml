@@ -26,77 +26,100 @@
           condim="3"
           friction="2.0 0.01 0.001" />
 
-    <!-- 四周墙体 — 5m×5m 活动区域 -->
-    <body name="wall_n" pos="0 2.5 0.5">
-      <geom type="box" size="2.5 0.05 0.5" contype="1" conaffinity="1"
+    <!-- 四周墙体 — 8 m × 6 m 活动区域，为机械臂展开、绕桌和开门留出净空。 -->
+    <body name="wall_n" pos="0 3.0 1.0">
+      <geom type="box" size="4.0 0.05 1.0" contype="1" conaffinity="1"
             rgba="0.8 0.8 0.78 1"/>
     </body>
-    <body name="wall_s" pos="0 -2.5 0.5">
-      <geom type="box" size="2.5 0.05 0.5" contype="1" conaffinity="1"
+    <body name="wall_s" pos="0 -3.0 1.0">
+      <geom type="box" size="4.0 0.05 1.0" contype="1" conaffinity="1"
             rgba="0.8 0.8 0.78 1"/>
     </body>
-    <body name="wall_e" pos="2.5 0 0.5">
-      <geom type="box" size="0.05 2.5 0.5" contype="1" conaffinity="1"
+    <!-- East wall has a 0.90 m wide, 2.00 m high doorway. The two wall
+         segments intentionally leave the opening clear for the hinged door. -->
+    <body name="wall_e_south" pos="4.0 -1.725 1.0">
+      <geom type="box" size="0.05 1.275 1.0" contype="1" conaffinity="1"
             rgba="0.8 0.8 0.78 1"/>
     </body>
-    <body name="wall_w" pos="-2.5 0 0.5">
-      <geom type="box" size="0.05 2.5 0.5" contype="1" conaffinity="1"
+    <body name="wall_e_north" pos="4.0 1.725 1.0">
+      <geom type="box" size="0.05 1.275 1.0" contype="1" conaffinity="1"
+            rgba="0.8 0.8 0.78 1"/>
+    </body>
+
+    <!-- Passive swing door: 0.90 m wide, 2.00 m high, 70 mm thick.
+         Its closed leaf is in the east-wall opening. A robot inside this room
+         pushes in +X and opens the leaf toward the exterior (negative yaw). -->
+    <body name="swing_door" pos="4.0 -0.45 0">
+      <joint name="door_hinge" type="hinge" axis="0 0 1"
+             limited="true" range="-1.5708 0"
+             damping="0.35" frictionloss="0.08" armature="0.02"/>
+      <geom name="door_leaf" type="box" pos="0 0.45 1.0"
+            size="0.035 0.45 1.0" density="300"
+            contype="1" conaffinity="1" condim="3"
+            friction="1.0 0.01 0.001" rgba="0.42 0.24 0.10 1"/>
+      <!-- A small handle gives the end effector a visible interaction target. -->
+      <geom name="door_handle" type="cylinder" pos="-0.065 0.73 1.02"
+            quat="0.70710678 0 0.70710678 0" size="0.016 0.075"
+            contype="1" conaffinity="1" rgba="0.72 0.74 0.76 1"/>
+      <site name="door_handle_site" pos="-0.12 0.73 1.02" size="0.025"
+            type="sphere" rgba="0.15 0.90 0.30 0.75"/>
+    </body>
+    <body name="wall_w" pos="-4.0 0 1.0">
+      <geom type="box" size="0.05 3.0 1.0" contype="1" conaffinity="1"
             rgba="0.8 0.8 0.78 1"/>
     </body>
 
     <!-- ==================================================================== -->
-    <!-- 低桌穿越场景                                                         -->
-    <!--                                                                      -->
-    <!-- 机器人碰撞包络（由 URDF + Pinocchio 计算）:                          -->
-    <!--   base: 0.74 x 0.68 x 0.39 m                                        -->
-    <!--   arm home height: 1.52 m                                            -->
-    <!--   arm low  height: 1.00 m                                            -->
-    <!--                                                                      -->
-    <!-- 桌面下沿 1.10 m: home 必须折叠，low 加 0.05 m 安全距离后可通过。       -->
-    <!-- 桌面横跨房间，不能从两侧绕过；四条腿保留 1.34 m 的中央通道。           -->
-    <!-- map->odom: x_odom = x_mujoco + 2.0，桌面中心位于 odom x=2.0。          -->
+    <!-- 加工任务桌：与 scene_task_table.xml 使用相同的尺寸。                -->
+    <!-- 全尺寸：长 2.40 m（X）、宽 1.20 m（Y）、台面高 0.75 m。              -->
+    <!-- 桌子偏东布置，西侧为机器人初始位姿和接近路径预留空间。                -->
     <!-- ==================================================================== -->
+    <body name="processing_table" pos="0.55 0 0">
+      <geom name="processing_table_top" type="box" pos="0 0 0.72"
+            size="1.20 0.60 0.03" contype="1" conaffinity="1"
+            friction="1.25 0.01 0.001" rgba="0.55 0.31 0.13 1"/>
+      <!-- 1.80 m x 0.90 m replaceable task surface; top z = 0.75 m. -->
+      <geom name="task_surface" type="box" pos="0 0 0.749"
+            size="0.90 0.45 0.001" contype="1" conaffinity="1"
+            friction="1.10 0.01 0.001" rgba="0.70 0.70 0.64 1"/>
+      <site name="task_surface_center" pos="0 0 0.761" size="0.025"
+            type="sphere" rgba="1 0.15 0.10 0.85"/>
 
-    <body name="low_table" pos="0 0 0">
-      <!-- 1.70 m 行进方向长度，4.70 m 横向宽度，桌面厚 0.10 m。 -->
-      <geom name="low_table_top"
-            type="box"
-            pos="0 0 1.15"
-            size="0.85 2.35 0.05"
-            contype="1"
-            conaffinity="1"
-            friction="1.2 0.01 0.001"
-            rgba="0.58 0.34 0.16 1"/>
+      <geom name="processing_table_leg_nw" type="box" pos="-1.08 0.48 0.345"
+            size="0.06 0.06 0.345" contype="1" conaffinity="1"
+            rgba="0.16 0.19 0.22 1"/>
+      <geom name="processing_table_leg_sw" type="box" pos="-1.08 -0.48 0.345"
+            size="0.06 0.06 0.345" contype="1" conaffinity="1"
+            rgba="0.16 0.19 0.22 1"/>
+      <geom name="processing_table_leg_ne" type="box" pos="1.08 0.48 0.345"
+            size="0.06 0.06 0.345" contype="1" conaffinity="1"
+            rgba="0.16 0.19 0.22 1"/>
+      <geom name="processing_table_leg_se" type="box" pos="1.08 -0.48 0.345"
+            size="0.06 0.06 0.345" contype="1" conaffinity="1"
+            rgba="0.16 0.19 0.22 1"/>
+    </body>
 
-      <!-- 桌腿: 0.16 x 0.16 m，高度 1.10 m。 -->
-      <geom name="low_table_leg_front_left"
-            type="box"
-            pos="-0.68 0.75 0.55"
-            size="0.08 0.08 0.55"
-            contype="1"
-            conaffinity="1"
-            rgba="0.20 0.22 0.24 1"/>
-      <geom name="low_table_leg_front_right"
-            type="box"
-            pos="-0.68 -0.75 0.55"
-            size="0.08 0.08 0.55"
-            contype="1"
-            conaffinity="1"
-            rgba="0.20 0.22 0.24 1"/>
-      <geom name="low_table_leg_rear_left"
-            type="box"
-            pos="0.68 0.75 0.55"
-            size="0.08 0.08 0.55"
-            contype="1"
-            conaffinity="1"
-            rgba="0.20 0.22 0.24 1"/>
-      <geom name="low_table_leg_rear_right"
-            type="box"
-            pos="0.68 -0.75 0.55"
-            size="0.08 0.08 0.55"
-            contype="1"
-            conaffinity="1"
-            rgba="0.20 0.22 0.24 1"/>
+    <!-- Two stools are placed beside the two long sides of the table.
+         Each is 0.34 m (X) x 0.24 m (Y) x 0.44 m (height), leaving only
+         30 mm clearance from the tabletop edge for a compact manipulation
+         and obstacle-avoidance test. -->
+    <body name="stool_north" pos="0.55 0.75 0">
+      <geom name="stool_north_seat" type="box" pos="0 0 0.415"
+            size="0.17 0.12 0.025" contype="1" conaffinity="1"
+            friction="1.1 0.01 0.001" rgba="0.16 0.38 0.63 1"/>
+      <geom name="stool_north_leg_nw" type="box" pos="-0.125 0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+      <geom name="stool_north_leg_sw" type="box" pos="-0.125 -0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+      <geom name="stool_north_leg_ne" type="box" pos="0.125 0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+      <geom name="stool_north_leg_se" type="box" pos="0.125 -0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+    </body>
+    <body name="stool_south" pos="0.55 -0.75 0">
+      <geom name="stool_south_seat" type="box" pos="0 0 0.415"
+            size="0.17 0.12 0.025" contype="1" conaffinity="1"
+            friction="1.1 0.01 0.001" rgba="0.16 0.38 0.63 1"/>
+      <geom name="stool_south_leg_nw" type="box" pos="-0.125 0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+      <geom name="stool_south_leg_sw" type="box" pos="-0.125 -0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+      <geom name="stool_south_leg_ne" type="box" pos="0.125 0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+      <geom name="stool_south_leg_se" type="box" pos="0.125 -0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
     </body>
 
   </worldbody>

@@ -77,6 +77,25 @@ mujoco_bridge:
       publish_static_tf: false       # TF 由 robot_state_publisher 从 URDF 发布
 
     # =================================================================
+    #  六维力/力矩传感器（对齐实机 jaka_fts_broadcaster）
+    # =================================================================
+    fts:
+      enable: true
+      force_sensor_name: "tcp_fts_force"
+      torque_sensor_name: "tcp_fts_torque"
+      frame_id: "jk_se_vi_200_link"
+      topic: "/jaka_fts_broadcaster/wrench"
+      raw_topic: "/jaka_fts_broadcaster/wrench_raw"
+      rate: 125.0
+      # 仿真实机化处理：启动时无接触标零，再做低通和死区。
+      zero_on_start: true
+      calibration_delay: 0.5
+      calibration_samples: 50
+      filter_alpha: 0.1
+      force_deadband: 1.0
+      torque_deadband: 0.0
+
+    # =================================================================
     #  固定式 D455 深度 / RGB 相机（MuJoCo 离屏渲染）
     # =================================================================
     camera:

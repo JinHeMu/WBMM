@@ -1,147 +1,287 @@
-# ocs2_ws
+# Tracer-JAKA：定位、三维建图与移动操作规划工作空间
 
-model predictive control of mobile_manipulator
+本仓库是 Tracer 移动底盘与 JAKA Zu5 机械臂的 ROS 2 Humble 工作空间。它将
+定位建图、MuJoCo 仿真、nvblox 三维 ESDF 建图、REMANI 全身规划与 OCS2 MPC
+控制整合在同一套接口下，支持先在仿真验证，再迁移至真实机器人。
 
-## build
+## 系统能力
 
-The repository also tracks the custom Isaac ROS integration at
-`src/tracer_jaka/my_nvblox_bringup`. It is kept here so the robot, simulation,
-planner and nvblox glue code share one Git repository. CUDA nvblox is still
-built inside the Isaac ROS Docker workspace:
+- **定位与二维建图**：轮式里程计 + Hipnuc IMU + Lakibeam 2D 雷达，经
+  `robot_localization` 与 `slam_toolbox` 输出稳定的 `/odometry/filtered`、`/map`
+  和标准 TF 树。
+- **MuJoCo 仿真**：Tracer + JAKA Zu5、2D LiDAR、IMU、D435 末端相机和底盘固定
+  D455 RGB-D 相机；同一 ROS 2 话题接口可复用到实机。
+- **三维环境建图**：D455 RGB-D 数据在 Isaac ROS Docker 中由 nvblox 融合为
+  TSDF、mesh 和 ESDF，并导出 REMANI 可读取的 `.npz` 地图。
+- **移动操作规划与控制**：REMANI 负责 ESDF 约束下的全身轨迹，桥接节点转换为
+  OCS2 `TargetTrajectories`，OCS2 MPC/MRT 输出底盘和机械臂控制命令。
+- **离线复现**：可录制 D455 RGB-D、TF、定位与二维地图为 rosbag，再离线建立
+  ESDF 并用于仿真规划验证。
 
-```bash
-src/tracer_jaka/my_nvblox_bringup/scripts/sync_to_isaac_ros_ws.sh
-# Then, inside the Isaac ROS container:
-colcon build --symlink-install --packages-select my_nvblox_bringup
+## 总体数据流
+
+```mermaid
+flowchart LR
+  subgraph Sensors[仿真或真实机器人]
+    Odom[轮式里程计]
+    Imu[Hipnuc IMU]
+    Laser[Lakibeam 2D LiDAR]
+    RGBD[D455 RGB-D]
+    Joint[关节状态]
+  end
+
+  Odom --> EKF[robot_localization EKF]
+  Imu --> EKF
+  EKF --> Filtered[/odometry/filtered]
+  Laser --> SLAM[slam_toolbox]
+  Filtered --> SLAM
+  SLAM --> Map[/map and map to odom]
+
+  RGBD --> NVBlox[nvblox in Isaac ROS Docker]
+  Filtered --> NVBlox
+  Joint --> REMANI
+  NVBlox --> ESDF[ESDF NPZ]
+  ESDF --> REMANI[REMANI planner]
+  Filtered --> REMANI
+  REMANI --> Traj[/planning/trajectory]
+  Traj --> Bridge[REMANI to OCS2 bridge]
+  Bridge --> MPC[OCS2 MPC and MRT]
+  Filtered --> MPC
+  Joint --> MPC
+  MPC --> Base[/base_controller/cmd_vel]
+  MPC --> Arm[/arm_controller/commands]
 ```
 
-Do not edit the synchronized Docker copy; edit the package in this repository
-and run the synchronization script again.
+TF 的发布权保持唯一，避免定位与 SLAM 阶段发生冲突：
+
+```text
+slam_toolbox:       map -> odom
+robot_localization: odom -> base_footprint
+robot_state_publisher:
+                    base_footprint -> base_link -> sensor and arm links
+```
+
+## 仓库结构
+
+| 路径 | 作用 |
+|---|---|
+| `src/tracer_jaka/tracer_jaka_mujoco` | MuJoCo 桥接、传感器仿真、SLAM、实机 SLAM、D455 rosbag 录制 |
+| `src/tracer_jaka/tracer_jaka_ocs2` | Tracer-JAKA OCS2 MPC/MRT、REMANI 桥接、ESDF 验证与控制启动文件 |
+| `src/remani_planner` | REMANI 搜索、轨迹优化、环境 ESDF 与全身重规划 |
+| `src/tracer_jaka/my_nvblox_bringup` | 自定义 nvblox bringup、ESDF/mesh 可视化、地图导出器；Git 中的唯一源码 |
+| `src/tracer_jaka/grid_map` | 静态 ESDF 读取、MuJoCo 场景 ESDF 与 RViz 可视化工具 |
+| `src/tracer_jaka/jaka_ros2` | Tracer 底盘、JAKA 机械臂、夹爪驱动与描述文件 |
+| `src/imu`、`src/lakibeam` | Hipnuc IMU 与 Lakibeam 驱动 |
+| `src/ocs2_ros2` | OCS2 ROS 2 依赖与求解器实现 |
+| `docs/` | 架构、ESDF、rosbag、REMANI 与实验记录文档 |
+
+## 环境要求
+
+主机建议使用 Ubuntu 22.04 + ROS 2 Humble，并准备：
+
+- MuJoCo Python 运行环境；无头渲染时使用 `MUJOCO_GL=egl`。
+- `robot_localization`、`slam_toolbox`、`nav2_map_server`。
+- Tracer CAN、Hipnuc IMU 与 Lakibeam 驱动（仅实机）。
+- Isaac ROS Docker + CUDA + nvblox（仅三维 ESDF 建图）。
+
+安装定位和 SLAM 依赖：
 
 ```bash
-colcon build \
-  --packages-up-to \
-  tracer_jaka_ocs2 \
+sudo apt update
+sudo apt install \
+  ros-humble-robot-localization \
+  ros-humble-slam-toolbox \
+  ros-humble-nav2-map-server
+```
+
+## 构建主工作空间
+
+```bash
+cd /home/a/ocs2_ws
+source /opt/ros/humble/setup.bash
+
+colcon build --symlink-install --packages-up-to \
   tracer_jaka_mujoco \
-  tracer_base \
+  tracer_jaka_ocs2 \
   remani_planner \
-  lakibeam1 \
+  grid_map \
   hipnuc_imu \
-  --symlink-install \
-  --parallel-workers 2 \
-  --cmake-args -DCMAKE_BUILD_TYPE=Release
-```
+  lakibeam1
 
-## run mujoco sim
-
-```bash
-ros2 launch tracer_jaka_ocs2 ocs2_sim.launch.py
-```
-
-```bash
-ros2 launch remani_planner exp0.launch.py
-```
-
-
-
-## run real robot
-
-```bash
-# start tracer
-sudo ip link set can0 up type can bitrate 500000
-candump can0
-# start imu
-sudo chmod 777 /dev/ttyUSB0
-ros2 launch hipnuc_imu imu_spec_msg.launch.py
-# start lakibeamr
-ros2 launch lakibeam1 lakibeam1_scan_view.launch.py
-```
-
-```bash
-ros2 launch tracer_jaka_ocs2 ocs2_real.launch.py
-```
-
-## real robot mapping: wheel odom + Hipnuc + Lakibeam
-
-The mapping launch uses the same public interfaces as the simulation:
-
-- wheel odometry: `/odom`, `odom -> base_footprint`
-- IMU: `/IMU_data`, frame `imu_link`
-- 2D laser: `/scan`, frame `laser_link`
-- fused local odometry: `/odometry/filtered`
-- SLAM outputs: `/map`, `/map_metadata`, `map -> odom`
-
-Build and source the relevant packages:
-
-```bash
-colcon build --packages-select \
-  hipnuc_imu lakibeam1 tracer_base tracer_jaka_mujoco \
-  --symlink-install
 source install/setup.bash
 ```
 
-Prepare CAN, IMU serial access and the Ethernet lidar interface. The host
-Ethernet interface must be in `192.168.198.0/24` (normally
-`192.168.198.1/24`) and the lidar is `192.168.198.2`.
+初次启动 OCS2 时可能触发模型自动微分代码生成，时间会明显长于后续启动。若修改
+`task.info` 中影响动力学或运动学的配置，请按 OCS2 文档清理对应的自动生成目录后
+重新生成。
+
+## 常用入口
+
+### 1. MuJoCo：定位、SLAM、REMANI 与 OCS2
+
+```bash
+cd /home/a/ocs2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 launch tracer_jaka_ocs2 ocs2_sim.launch.py
+```
+
+该入口启动 MuJoCo、EKF、slam_toolbox、REMANI、REMANI→OCS2 bridge、MPC/MRT
+与 RViz。用 RViz 的 `2D Goal Pose` 向 `/goal_pose` 发送目标。
+
+只验证定位与二维建图：
+
+```bash
+ros2 launch tracer_jaka_mujoco slam_sim.launch.py
+```
+
+### 2. MuJoCo：RGB-D 建图、ESDF 导出、规划控制
+
+完整流程分为“Docker 建图”和“主机控制”两个阶段。详细步骤见
+[MuJoCo → nvblox → REMANI → OCS2 教程](docs/MUJOCO_NVBLOX_REMANI_PIPELINE.md)。
+
+在 Isaac ROS Docker 中先等待 nvblox：
+
+```bash
+ros2 launch my_nvblox_bringup mujoco_mapping_export.launch.py \
+  ros_domain_id:=20 rviz:=true
+```
+
+在主机启动自动覆盖扫描：
+
+```bash
+ros2 launch tracer_jaka_mujoco mujoco_nvblox_mapping.launch.py \
+  viewer:=false ros_domain_id:=20
+```
+
+导出后，使用保存的 ESDF 运行控制闭环：
+
+```bash
+ros2 launch tracer_jaka_ocs2 mujoco_mapped_esdf_control.launch.py
+```
+
+### 3. MuJoCo：打磨/加工任务桌
+
+加工桌场景包含一张 `2.40 × 1.20 × 0.75 m` 的桌子和两张
+`0.34 × 0.24 × 0.44 m` 的板凳；桌面任务面带有 3×3 命名采样点，可作为
+三维重建、覆盖轨迹生成和末端接触约束的公共基准。
+
+```bash
+ros2 launch tracer_jaka_mujoco task_table_sim.launch.py
+```
+
+场景文件是
+[`scene_task_table.xml`](src/tracer_jaka/tracer_jaka_mujoco/models/scene_task_table.xml)。
+后续若接入 REMANI/OCS2，应先用 D455/nvblox 将该场景建立为 ESDF，再以
+`task_surface_*` sites 生成末端任务轨迹。
+
+场景还提供与实机 `jaka_fts_broadcaster` 兼容的六维力接口。快速查看工具与桌面
+接触产生的力和力矩：
+
+```bash
+ros2 launch tracer_jaka_mujoco task_table_sim.launch.py \
+  init_keyframe:=task_contact fts_zero_on_start:=false
+ros2 topic echo /jaka_fts_broadcaster/wrench
+```
+
+### 4. 真实机器人：定位与二维 SLAM
+
+将 CAN、IMU 和 Lakibeam 接好后，集成启动：
 
 ```bash
 sudo ip link set can0 up type can bitrate 500000
 sudo chmod 777 /dev/ttyUSB0
-ping 192.168.198.2
-```
 
-For mapping only, one launch starts the Tracer base, Hipnuc, Lakibeam,
-robot_localization, slam_toolbox and RViz:
-
-```bash
+source /home/a/ocs2_ws/install/setup.bash
 ros2 launch tracer_jaka_mujoco real_slam.launch.py
 ```
 
-This applies the Lakibeam settings `30 Hz`, `filter=3`, `45°..315°` by HTTP.
-To keep settings already stored in the lidar, use:
+硬件接口约定如下：
+
+| 数据 | 话题 | 坐标系 |
+|---|---|---|
+| 底盘里程计 | `/odom` | `odom -> base_footprint` |
+| IMU | `/IMU_data` | `imu_link` |
+| 2D 雷达 | `/scan` | `laser_link` |
+| 融合定位 | `/odometry/filtered` | `odom -> base_footprint` |
+| SLAM 地图 | `/map` | `map` |
+
+如果驱动已在其他终端启动，请让 `real_slam.launch.py` 关闭对应重复驱动，避免重复
+发布 TF。例如：
 
 ```bash
-ros2 launch tracer_jaka_mujoco real_slam.launch.py configure_lidar:=false
-```
-
-For a USB/RNDIS-connected Lakibeam, use its USB address:
-
-```bash
-ros2 launch tracer_jaka_mujoco real_slam.launch.py \
-  lidar_sensor_ip:=192.168.8.2
-```
-
-If the three hardware drivers are started separately, do not use the
-Lakibeam `_view` launch because the SLAM launch already starts RViz:
-
-```bash
-ros2 launch hipnuc_imu imu_spec_msg.launch.py
-ros2 launch lakibeam1 lakibeam1_scan.launch.py \
-  frame_id:=laser_link output_topic0:=/scan configure_sensor:=true
 ros2 launch tracer_jaka_mujoco real_slam.launch.py \
   start_imu:=false start_lidar:=false
 ```
 
-When OCS2 already owns the base driver and robot state publisher, disable
-their duplicate `odom -> base_footprint` TF and do not start them again:
+### 5. 实机或 rosbag：D455 nvblox ESDF
+
+`my_nvblox_bringup` 在本仓库维护源码，但因 nvblox/CUDA 依赖 Isaac ROS Docker，
+需要先同步到 Docker 共享工作空间：
 
 ```bash
-ros2 launch tracer_jaka_ocs2 ocs2_real.launch.py publish_odom_tf:=false
-ros2 launch tracer_jaka_mujoco real_slam.launch.py \
-  start_base:=false start_robot_state_publisher:=false \
-  start_imu:=false start_lidar:=false
+cd /home/a/ocs2_ws
+src/tracer_jaka/my_nvblox_bringup/scripts/sync_to_isaac_ros_ws.sh
 ```
 
-Before moving, verify timestamps, frames and rates:
+进入 Docker 后构建：
 
 ```bash
-ros2 topic hz /odom
-ros2 topic hz /IMU_data
-ros2 topic hz /scan
-ros2 topic echo /scan --once
-ros2 run tf2_ros tf2_echo base_footprint laser_link
-ros2 run tf2_ros tf2_echo base_footprint imu_link
+cd /workspaces/isaac_ros-dev
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install --packages-select my_nvblox_bringup
+source install/setup.bash
 ```
 
+真实机器人在线建图：
 
+```bash
+ros2 launch my_nvblox_bringup d455_esdf.launch.py
+```
 
+离线 rosbag 建图与导出：
+
+```bash
+ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
+  bag:=/workspaces/isaac_ros-dev/bags/d455_esdf_01
+```
+
+## 关键接口
+
+| 目的 | 接口 |
+|---|---|
+| REMANI 目标输入 | `/goal_pose` |
+| REMANI 轨迹输出 | `/planning/trajectory` |
+| OCS2 参考输入 | `/mobile_manipulator_mpc_target` |
+| 底盘控制输出 | `/base_controller/cmd_vel` |
+| 机械臂控制输出 | `/arm_controller/commands` |
+| nvblox 原生地图 | `.nvblx` |
+| REMANI 静态距离场 | `.npz`（ESDF、occupancy、observed、origin、voxel_size） |
+
+## 文档导航
+
+- [MuJoCo → nvblox → REMANI → OCS2 完整通道](docs/MUJOCO_NVBLOX_REMANI_PIPELINE.md)
+- [D455 ESDF 仿真与实机运行指南](docs/D455_ESDF_仿真与实机运行指南.md)
+- [D455 RGB-D ESDF rosbag 录制教程](docs/D455_RGBD_ESDF_ROSBAG_录制教程.md)
+- [REMANI 与 OCS2 集成说明](docs/REMANI_OCS2_INTEGRATION.md)
+- [仓库总体 Pipeline](docs/总体%20Pipeline.md)
+- [周报与实验整理](docs/WEEKLY_REPORT_2026-07-25_to_2026-07-31.md)
+
+各功能包还提供更具体的说明：
+
+- [MuJoCo 包 README](src/tracer_jaka/tracer_jaka_mujoco/README.md)
+- [OCS2 包 README](src/tracer_jaka/tracer_jaka_ocs2/README.md)
+- [nvblox bringup README](src/tracer_jaka/my_nvblox_bringup/README.md)
+
+## Git 约定
+
+仓库只保存源码、配置、场景、URDF 和可复现实验文档。以下生成数据默认不提交：
+
+- `build/`、`install/`、`log/`；
+- rosbag、SQLite 数据库、压缩文件；
+- nvblox `.nvblx`、REMANI `.npz`、导出地图和临时快照；
+- Python 缓存与 IDE 配置。
+
+这样克隆仓库后只需准备依赖与传感器数据即可重建地图，而不会把大体积实验数据混入
+Git 历史。
