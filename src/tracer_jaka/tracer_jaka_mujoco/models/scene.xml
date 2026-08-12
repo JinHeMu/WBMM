@@ -11,6 +11,10 @@
              width="300" height="300"/>
     <material name="groundplane" texture="groundplane" texrepeat="4 4"
               texuniform="true" reflectance="0.2"/>
+    <material name="cleaning_wall_mat" rgba="0.97 0.97 0.95 1"
+              specular="0.08" shininess="0.12"/>
+    <material name="cleaning_obstacle_mat" rgba="0.82 0.34 0.12 1"
+              specular="0.15" shininess="0.20"/>
   </asset>
 
   <worldbody>
@@ -29,7 +33,7 @@
     <!-- 四周墙体 — 8 m × 6 m 活动区域，为机械臂展开、绕桌和开门留出净空。 -->
     <body name="wall_n" pos="0 3.0 1.0">
       <geom type="box" size="4.0 0.05 1.0" contype="1" conaffinity="1"
-            rgba="0.8 0.8 0.78 1"/>
+            rgba="0.97 0.97 0.95 1"/>
     </body>
     <body name="wall_s" pos="0 -3.0 1.0">
       <geom type="box" size="4.0 0.05 1.0" contype="1" conaffinity="1"
@@ -67,6 +71,59 @@
     <body name="wall_w" pos="-4.0 0 1.0">
       <geom type="box" size="0.05 3.0 1.0" contype="1" conaffinity="1"
             rgba="0.8 0.8 0.78 1"/>
+    </body>
+
+    <!-- ==================================================================== -->
+    <!-- 大范围墙面清洁任务区                                                 -->
+    <!--                                                                      -->
+    <!-- 白色作业面：3.00 m (X) x 0.80 m (Z)，有效高度 0.50..1.30 m。         -->
+    <!-- home 状态工具高度约 1.40 m，最高轨迹点 1.26 m，保留 0.14 m 余量。     -->
+    <!-- 表面法向朝向房间内部 -Y；工具接触目标平面为 MuJoCo y = 2.90 m。       -->
+    <!-- 20 个 wall_clean_path_* site 按蛇形顺序排列，可作为表面轨迹采样点。   -->
+    <!-- ==================================================================== -->
+    <body name="wall_cleaning_station" pos="0 2.925 0">
+      <geom name="wall_cleaning_surface" type="box" pos="0 0 0.90"
+            size="1.50 0.025 0.40" material="cleaning_wall_mat"
+            contype="1" conaffinity="1" condim="3"
+            friction="0.85 0.01 0.001"/>
+
+      <!-- Raster row 1: left to right. All sites sit 6 mm in front of wall. -->
+      <site name="wall_clean_path_00" pos="-1.25 -0.031 0.60" size="0.018" rgba="0.10 0.75 1.00 0.85"/>
+      <site name="wall_clean_path_01" pos="-0.625 -0.031 0.60" size="0.018" rgba="0.10 0.75 1.00 0.85"/>
+      <site name="wall_clean_path_02" pos="0 -0.031 0.60" size="0.018" rgba="0.10 0.75 1.00 0.85"/>
+      <site name="wall_clean_path_03" pos="0.625 -0.031 0.60" size="0.018" rgba="0.10 0.75 1.00 0.85"/>
+      <site name="wall_clean_path_04" pos="1.25 -0.031 0.60" size="0.018" rgba="0.10 0.75 1.00 0.85"/>
+      <!-- Raster row 2: right to left. -->
+      <site name="wall_clean_path_05" pos="1.25 -0.031 0.82" size="0.018" rgba="0.20 0.95 0.45 0.85"/>
+      <site name="wall_clean_path_06" pos="0.625 -0.031 0.82" size="0.018" rgba="0.20 0.95 0.45 0.85"/>
+      <site name="wall_clean_path_07" pos="0 -0.031 0.82" size="0.018" rgba="0.20 0.95 0.45 0.85"/>
+      <site name="wall_clean_path_08" pos="-0.625 -0.031 0.82" size="0.018" rgba="0.20 0.95 0.45 0.85"/>
+      <site name="wall_clean_path_09" pos="-1.25 -0.031 0.82" size="0.018" rgba="0.20 0.95 0.45 0.85"/>
+      <!-- Raster row 3: left to right. -->
+      <site name="wall_clean_path_10" pos="-1.25 -0.031 1.04" size="0.018" rgba="1.00 0.75 0.10 0.85"/>
+      <site name="wall_clean_path_11" pos="-0.625 -0.031 1.04" size="0.018" rgba="1.00 0.75 0.10 0.85"/>
+      <site name="wall_clean_path_12" pos="0 -0.031 1.04" size="0.018" rgba="1.00 0.75 0.10 0.85"/>
+      <site name="wall_clean_path_13" pos="0.625 -0.031 1.04" size="0.018" rgba="1.00 0.75 0.10 0.85"/>
+      <site name="wall_clean_path_14" pos="1.25 -0.031 1.04" size="0.018" rgba="1.00 0.75 0.10 0.85"/>
+      <!-- Raster row 4: right to left. -->
+      <site name="wall_clean_path_15" pos="1.25 -0.031 1.26" size="0.018" rgba="1.00 0.25 0.25 0.85"/>
+      <site name="wall_clean_path_16" pos="0.625 -0.031 1.26" size="0.018" rgba="1.00 0.25 0.25 0.85"/>
+      <site name="wall_clean_path_17" pos="0 -0.031 1.26" size="0.018" rgba="1.00 0.25 0.25 0.85"/>
+      <site name="wall_clean_path_18" pos="-0.625 -0.031 1.26" size="0.018" rgba="1.00 0.25 0.25 0.85"/>
+      <site name="wall_clean_path_19" pos="-1.25 -0.031 1.26" size="0.018" rgba="1.00 0.25 0.25 0.85"/>
+      <site name="wall_cleaning_center" pos="0 -0.031 0.90" size="0.025"
+            rgba="0.70 0.10 0.95 0.90"/>
+    </body>
+
+    <!-- Only two compact obstacles remain. They slightly protrude into the
+         preferred base corridor without occluding most of the work surface. -->
+    <body name="wall_obstacle_left_crate" pos="-0.78 2.68 0.18">
+      <geom type="box" size="0.14 0.20 0.18" material="cleaning_obstacle_mat"
+            contype="1" conaffinity="1" friction="1.2 0.01 0.001"/>
+    </body>
+    <body name="wall_obstacle_right_crate" pos="0.78 2.68 0.20">
+      <geom type="box" size="0.16 0.20 0.20" material="cleaning_obstacle_mat"
+            contype="1" conaffinity="1" friction="1.2 0.01 0.001"/>
     </body>
 
     <!-- ==================================================================== -->

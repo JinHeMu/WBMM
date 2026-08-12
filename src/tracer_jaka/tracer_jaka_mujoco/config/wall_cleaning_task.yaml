@@ -1,0 +1,43 @@
+# Wall-cleaning task geometry and nominal process settings.
+# This file is intentionally independent of the controller implementation so
+# the same task definition can be consumed by a future surface-path generator,
+# REMANI bridge, or experiment logger.
+wall_cleaning_task:
+  world_frame: "odom"
+
+  # MuJoCo base starts at x=-2 while odom starts at x=0.
+  mujoco_to_odom_translation: [2.0, 0.0, 0.0]
+
+  surface:
+    name: "wall_cleaning_surface"
+    frame: "odom"
+    center: [2.0, 2.90, 0.90]
+    normal_into_room: [0.0, -1.0, 0.0]
+    width: 3.0
+    height: 0.8
+    x_limits: [0.5, 3.5]
+    z_limits: [0.50, 1.30]
+
+  raster_path:
+    first_site: "wall_clean_path_00"
+    last_site: "wall_clean_path_19"
+    rows: 4
+    columns: 5
+    row_spacing: 0.22
+    nominal_tangential_speed: 0.06
+    corner_speed: 0.025
+
+  contact:
+    desired_normal_force: 12.0
+    force_tolerance: 3.0
+    approach_standoff: 0.08
+    contact_offset: 0.006
+
+  whole_body:
+    preferred_base_standoff: 0.85
+    base_standoff_limits: [0.70, 1.05]
+    preferred_base_yaw: 1.57079632679
+    minimum_obstacle_clearance: 0.10
+    manipulability_weight: 1.0
+    base_motion_weight: 0.35
+    end_effector_tracking_weight: 8.0
