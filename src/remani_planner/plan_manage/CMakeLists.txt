@@ -12,6 +12,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -68,6 +69,7 @@ target_include_directories(remani_planner_node PRIVATE
 ament_target_dependencies(remani_planner_node
   rclcpp
   std_msgs
+  std_srvs
   geometry_msgs
   nav_msgs
   sensor_msgs

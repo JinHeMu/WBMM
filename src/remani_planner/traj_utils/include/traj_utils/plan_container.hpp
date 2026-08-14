@@ -185,7 +185,7 @@ namespace remani_planner
   {
     /* planning algorithm parameters */
     double max_vel_, max_acc_;     // physical limits
-    double max_mani_vel_;
+    double max_mani_vel_, max_mani_acc_;
     double polyTraj_piece_length;  // 
     double polyTraj_piece_time;
     double feasibility_tolerance_; // permitted ratio of vel/acc exceeding limits

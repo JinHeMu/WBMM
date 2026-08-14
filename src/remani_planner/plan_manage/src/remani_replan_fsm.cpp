@@ -74,6 +74,7 @@ namespace remani_planner
     flag_relan_astar_ = false;
     have_local_traj_ = false;
     replan_fail_time_ = 0;
+    planning_enabled_ = true;
 
     /* ---------- FSM 参数 ---------- */
     target_type_ = declareAndGet<int>(node_, "fsm.target_type", -1);
@@ -278,6 +279,79 @@ namespace remani_planner
     nav2_goal_sub_ = node_->create_subscription<geometry_msgs::msg::PoseStamped>(
         "/goal_pose", 1,
         std::bind(&REMANIReplanFSM::waypointCallback, this, std::placeholders::_1));
+    whole_body_goal_sub_ =
+        node_->create_subscription<traj_utils::msg::WholeBodyGoal>(
+        "/remani_planner/whole_body_goal", rclcpp::QoS(1).reliable(),
+        std::bind(
+            &REMANIReplanFSM::wholeBodyGoalCallback, this,
+            std::placeholders::_1));
+
+    // The downstream constrained planner takes exclusive ownership of the
+    // OCS2 reference after navigation. This service lets it stop REMANI's
+    // tracking-error replans without terminating localization or visualization.
+    planning_enable_service_ = node_->create_service<std_srvs::srv::SetBool>(
+        "/remani_planner/set_planning_enabled",
+        std::bind(
+            &REMANIReplanFSM::setPlanningEnabled, this,
+            std::placeholders::_1, std::placeholders::_2));
+    task_execution_service_ = node_->create_service<std_srvs::srv::SetBool>(
+        "/remani_planner/set_task_execution",
+        std::bind(
+            &REMANIReplanFSM::setTaskExecution, this,
+            std::placeholders::_1, std::placeholders::_2));
+    fsm_state_pub_ = node_->create_publisher<std_msgs::msg::String>(
+        "/remani_planner/fsm_state", rclcpp::QoS(1).reliable().transient_local());
+  }
+
+  void REMANIReplanFSM::setTaskExecution(
+      const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+      std::shared_ptr<std_srvs::srv::SetBool::Response> response)
+  {
+    tracking_error_since_sec_ = -1.0;
+    if (request->data)
+    {
+      // Explicit reference-owner handoff. Localization, joint feedback and
+      // visualization remain alive, but REMANI neither plans nor navigates.
+      planning_enabled_ = true;
+      have_target_ = false;
+      have_trigger_ = false;
+      have_new_target_ = false;
+      have_local_traj_ = false;
+      replan_fail_time_ = 0;
+      changeFSMExecState(TASK_EXEC, "TASK");
+      response->message =
+          "REMANI entered TASK_EXEC; MPC task tracker owns the reference";
+    }
+    else
+    {
+      if (exec_state_ == TASK_EXEC)
+        changeFSMExecState(WAIT_TARGET, "TASK");
+      response->message = "REMANI left TASK_EXEC and is waiting for a target";
+    }
+    response->success = true;
+    RCLCPP_INFO(node_->get_logger(), "%s", response->message.c_str());
+  }
+
+  void REMANIReplanFSM::setPlanningEnabled(
+      const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+      std::shared_ptr<std_srvs::srv::SetBool::Response> response)
+  {
+    planning_enabled_ = request->data;
+    tracking_error_since_sec_ = -1.0;
+    if (!planning_enabled_)
+    {
+      have_target_ = false;
+      have_trigger_ = false;
+      have_new_target_ = false;
+      have_local_traj_ = false;
+      replan_fail_time_ = 0;
+      changeFSMExecState(WAIT_TARGET, "OWNER");
+    }
+    response->success = true;
+    response->message = planning_enabled_
+        ? "REMANI navigation planning enabled"
+        : "REMANI navigation planning paused; downstream planner owns reference";
+    RCLCPP_INFO(node_->get_logger(), "%s", response->message.c_str());
   }
 
   /**
@@ -287,6 +361,12 @@ namespace remani_planner
   void REMANIReplanFSM::execFSMCallback()
   {
     exec_timer_->cancel(); // 防止重入: 执行期间暂停定时器
+
+    if (!planning_enabled_)
+    {
+      exec_timer_->reset();
+      return;
+    }
 
     static int fsm_num = 0;
     fsm_num++;
@@ -545,9 +625,8 @@ namespace remani_planner
           map_state.data = map_state_;
           gripper_flag_ = false;
         }
-      // --- 到达终点: 任务完成 ---
-      }else if(trajectory_finished && touch_the_goal &&
-               (!tracking_error_replan_enabled_ || measured_goal_reached)){
+      // --- 到达终点: 任务完成 (实测必须真正到达, 含关节) ---
+      }else if(trajectory_finished && touch_the_goal && measured_goal_reached){
         if(target_type_ != TARGET_TYPE::PRESET_TARGET && wpt_id_ >= waypoint_num_ - 1){
           have_target_ = false;
           have_trigger_ = false;
@@ -559,11 +638,45 @@ namespace remani_planner
           reached_pub_->publish(msg);  // 通知外部: 导航完成
           goto force_return;
         }
+      // --- 轨迹播完但实测未达目标 (基座/yaw/关节任一项未达标) ---
+      // 独立于 tracking_error_replan_enabled_: 否则关闭该开关时, 关节尚未
+      // 对齐就会被误判为"到达", 机械臂停留在垂头姿态。
+      }else if(trajectory_finished && touch_the_goal && !measured_goal_reached){
+        if (now_sec - last_tracking_replan_sec_ >= tracking_error_min_interval_)
+        {
+          last_tracking_replan_sec_ = now_sec;
+          RCLCPP_WARN(
+              node_->get_logger(),
+              "Trajectory finished but goal not reached (position=%.3f m, "
+              "yaw=%.3f rad, max_joint=%.3f rad); replanning from measured "
+              "state to the original target.",
+              goal_position_error, goal_yaw_error, goal_joint_error);
+          if (!planNextWaypoint(end_pt_, end_yaw_))
+          {
+            RCLCPP_ERROR(
+                node_->get_logger(),
+                "Goal-arrival replanning could not rebuild the global "
+                "trajectory; keeping the current trajectory until the next "
+                "cooldown window.");
+          }
+          goto force_return;
+        }
       // --- 需要重规划: 超过时间阈值且未接近终点 ---
       }else if(!close_to_no_replan_thresh && t_cur > replan_thresh_ && (!global_plan_)){
         changeFSMExecState(REPLAN_TRAJ, "FSM");
       }
 
+      break;
+    }
+
+    /**
+     * @brief TASK_EXEC — 下游任务控制器独占参考轨迹
+     * REMANI 保持里程计、关节反馈和可视化，但不规划、不重规划、
+     * 不发送导航轨迹。退出只能通过 set_task_execution 服务。
+     */
+    case TASK_EXEC:
+    {
+      tracking_error_since_sec_ = -1.0;
       break;
     }
 
@@ -607,6 +720,11 @@ namespace remani_planner
    *   - 若碰撞剩余时间 ≥ emergency_time_ → 尝试重规划
    */
   void REMANIReplanFSM::checkCollisionCallback(){
+    if (!planning_enabled_)
+      return;
+    if (exec_state_ == TASK_EXEC)
+      return;
+
     SingulTrajData *info = &planner_manager_->traj_container_.singul_traj_data;
     auto map = planner_manager_->grid_map_;
 
@@ -744,6 +862,98 @@ namespace remani_planner
     return success;
   }
 
+  void REMANIReplanFSM::wholeBodyGoalCallback(
+      const traj_utils::msg::WholeBodyGoal::SharedPtr msg)
+  {
+    if (!planning_enabled_ || exec_state_ == TASK_EXEC)
+    {
+      RCLCPP_WARN(node_->get_logger(),
+                  "Ignoring whole-body goal while REMANI does not own planning");
+      return;
+    }
+    if (!have_odom_ || !have_joint_state_)
+    {
+      RCLCPP_WARN(node_->get_logger(),
+                  "Ignoring whole-body goal until odometry and joints are ready");
+      return;
+    }
+    if (msg->joint_names.size() != msg->joint_positions.size())
+    {
+      RCLCPP_ERROR(node_->get_logger(),
+                   "Rejected whole-body goal: joint name/position size mismatch");
+      return;
+    }
+
+    geometry_msgs::msg::PoseStamped base_goal;
+    base_goal.header = msg->header;
+    base_goal.pose = msg->base_pose;
+    const std::string source_frame = base_goal.header.frame_id.empty() ?
+        planning_frame_ : base_goal.header.frame_id;
+    if (source_frame != planning_frame_)
+    {
+      try
+      {
+        const auto transform = tf_buffer_->lookupTransform(
+            planning_frame_, source_frame, tf2::TimePointZero,
+            tf2::durationFromSec(0.2));
+        geometry_msgs::msg::PoseStamped transformed;
+        tf2::doTransform(base_goal, transformed, transform);
+        base_goal = transformed;
+      }
+      catch (const tf2::TransformException & ex)
+      {
+        RCLCPP_WARN(node_->get_logger(),
+                    "Ignoring whole-body goal: cannot transform %s -> %s: %s",
+                    source_frame.c_str(), planning_frame_.c_str(), ex.what());
+        return;
+      }
+    }
+
+    Eigen::VectorXd goal = mm_state_pos_;
+    goal[0] = base_goal.pose.position.x;
+    goal[1] = base_goal.pose.position.y;
+    for (int joint = 0; joint < manipulator_dim_; ++joint)
+    {
+      const auto found = std::find(
+          msg->joint_names.begin(), msg->joint_names.end(),
+          manipulator_joint_names_[joint]);
+      if (found == msg->joint_names.end())
+      {
+        RCLCPP_ERROR(node_->get_logger(),
+                     "Rejected whole-body goal: missing joint %s",
+                     manipulator_joint_names_[joint].c_str());
+        return;
+      }
+      const auto index = static_cast<std::size_t>(
+          std::distance(msg->joint_names.begin(), found));
+      if (!std::isfinite(msg->joint_positions[index]))
+      {
+        RCLCPP_ERROR(node_->get_logger(),
+                     "Rejected whole-body goal: non-finite joint position");
+        return;
+      }
+      goal[mobile_base_dim_ + joint] = msg->joint_positions[index];
+    }
+    const double yaw = tf2::getYaw(base_goal.pose.orientation);
+    if (!std::isfinite(goal[0]) || !std::isfinite(goal[1]) || !std::isfinite(yaw))
+    {
+      RCLCPP_ERROR(node_->get_logger(),
+                   "Rejected whole-body goal: non-finite base pose");
+      return;
+    }
+
+    init_state_ = mm_state_pos_;
+    RCLCPP_INFO(
+        node_->get_logger(),
+        "Received whole-body goal in %s: base=(%.3f, %.3f, %.3f), "
+        "max arm displacement=%.3f rad",
+        planning_frame_.c_str(), goal[0], goal[1], yaw,
+        (goal.segment(mobile_base_dim_, manipulator_dim_) -
+         mm_state_pos_.segment(mobile_base_dim_, manipulator_dim_))
+            .cwiseAbs().maxCoeff());
+    planNextWaypoint(goal, yaw);
+  }
+
   /**
    * @brief 2D Nav Goal 目标点回调 (RViz 点击 / 外部发送)
    *
@@ -752,6 +962,18 @@ namespace remani_planner
    *   MANUAL_TARGET: 从消息中解析 (x, y, yaw) 作为目标
    */
   void REMANIReplanFSM::waypointCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg){
+    if (!planning_enabled_){
+      RCLCPP_WARN(
+          node_->get_logger(),
+          "Ignoring navigation goal while constrained planner owns the reference");
+      return;
+    }
+    if (exec_state_ == TASK_EXEC){
+      RCLCPP_WARN(
+          node_->get_logger(),
+          "Ignoring navigation goal while FSM is in TASK_EXEC");
+      return;
+    }
     if(!have_odom_ || !have_joint_state_){
       RCLCPP_WARN(node_->get_logger(), "Ignoring goal until odometry and joint state are ready");
       return;
@@ -966,17 +1188,27 @@ namespace remani_planner
     else
       continously_called_times_ = 1;
 
-    static string state_str[8] = {"INIT", "WAIT_TARGET", "GEN_NEW_TRAJ", "REPLAN_TRAJ", "EXEC_TRAJ", "EMERGENCY_STOP"};
+    static const std::array<string, 7> state_str = {
+      "INIT", "WAIT_TARGET", "GEN_NEW_TRAJ", "REPLAN_TRAJ",
+      "EXEC_TRAJ", "TASK_EXEC", "EMERGENCY_STOP"};
     int pre_s = int(exec_state_);
     exec_state_ = new_state;
     cout << "[" + pos_call + "]: from " + state_str[pre_s] + " to " + state_str[int(new_state)] << endl;
+    if (fsm_state_pub_)
+    {
+      std_msgs::msg::String message;
+      message.data = state_str[int(new_state)];
+      fsm_state_pub_->publish(message);
+    }
   }
 
   /**
    * @brief 打印 FSM 当前状态 (调试用, 默认关闭)
    */
   void REMANIReplanFSM::printFSMExecState(){
-    static string state_str[8] = {"INIT", "WAIT_TARGET", "GEN_NEW_TRAJ", "REPLAN_TRAJ", "EXEC_TRAJ", "EMERGENCY_STOP"};
+    static const std::array<string, 7> state_str = {
+      "INIT", "WAIT_TARGET", "GEN_NEW_TRAJ", "REPLAN_TRAJ",
+      "EXEC_TRAJ", "TASK_EXEC", "EMERGENCY_STOP"};
     static int last_printed_state = -1, dot_nums = 0;
 
     if (exec_state_ != last_printed_state)

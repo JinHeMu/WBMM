@@ -13,8 +13,6 @@
               texuniform="true" reflectance="0.2"/>
     <material name="cleaning_wall_mat" rgba="0.97 0.97 0.95 1"
               specular="0.08" shininess="0.12"/>
-    <material name="cleaning_obstacle_mat" rgba="0.82 0.34 0.12 1"
-              specular="0.15" shininess="0.20"/>
   </asset>
 
   <worldbody>
@@ -113,17 +111,6 @@
       <site name="wall_clean_path_19" pos="-1.25 -0.031 1.26" size="0.018" rgba="1.00 0.25 0.25 0.85"/>
       <site name="wall_cleaning_center" pos="0 -0.031 0.90" size="0.025"
             rgba="0.70 0.10 0.95 0.90"/>
-    </body>
-
-    <!-- Only two compact obstacles remain. They slightly protrude into the
-         preferred base corridor without occluding most of the work surface. -->
-    <body name="wall_obstacle_left_crate" pos="-0.78 2.68 0.18">
-      <geom type="box" size="0.14 0.20 0.18" material="cleaning_obstacle_mat"
-            contype="1" conaffinity="1" friction="1.2 0.01 0.001"/>
-    </body>
-    <body name="wall_obstacle_right_crate" pos="0.78 2.68 0.20">
-      <geom type="box" size="0.16 0.20 0.20" material="cleaning_obstacle_mat"
-            contype="1" conaffinity="1" friction="1.2 0.01 0.001"/>
     </body>
 
     <!-- ==================================================================== -->

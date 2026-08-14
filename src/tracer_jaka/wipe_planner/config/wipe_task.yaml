@@ -1,0 +1,99 @@
+# Static wall geometry is expressed in odom (x_odom = x_mujoco + 2.0).
+wipe_task:
+  surface:
+    center: [2.0, 2.90, 0.90]
+    normal_into_room: [0.0, -1.0, 0.0]
+    x_limits: [0.75, 3.25]
+    z_limits: [0.60, 1.26]
+
+  raster:
+    rows: 4
+    columns: 5
+    # First discretize the geometric coverage path. Hybrid A* and continuous
+    # IK operate on these task samples; 3 cm keeps joint interpolation smooth
+    # without making the base search unnecessarily large.
+    solver_spacing: 0.03
+    # Fast non-contact validation profile.  The active virtual-progress manager
+    # will still slow these nominal speeds if whole-body tracking falls behind.
+    tangential_speed: 0.10
+    corner_speed: 0.04
+
+  contact:
+    desired_normal_force: 12.0
+    # Negative moves the nominal wiping plane along normal_into_room.  Keep the
+    # tool 5 cm on the room side of the physical wall for non-contact testing.
+    offset: -0.05
+
+  approach:
+    # REMANI navigates to this wall-normal pose on the room side of the wall.
+    # WipePlanner then holds the base and advances only the arm along the wall
+    # normal. This keeps contact out of the navigation optimizer.
+    clearance: 0.12
+    speed: 0.04
+    precontact_hold_duration: 0.5
+
+  whole_body:
+    # Base faces along the wall. Increasing rows use v>0 and decreasing rows
+    # use v<0 with identical yaw, so the differential base never moves sideways.
+    cleaning_yaw: 0.0
+    # Keep the reachable tube deterministic. REMANI navigates to this exact
+    # base pose, so the contact planner must not choose a different standoff
+    # from the measured arm posture and then command another base maneuver.
+    preferred_standoff: 0.84
+    standoff_limits: [0.84, 0.84]
+    candidate_lateral_step: 0.04
+    candidate_longitudinal_range: 0.0
+    candidate_longitudinal_step: 0.08
+    # Matrix columns are desired tool x/y/z axes in odom; tool +Z points at wall.
+    desired_tool_rotation:
+      [1.0, 0.0, 0.0,
+       0.0, 0.0, 1.0,
+       0.0, -1.0, 0.0]
+
+  # Adapted from REMANI's KinoAstar front end. The search state is the
+  # differential-drive base (x,y,yaw); each expanded node is accepted only if
+  # the associated coverage sample has a continuous collision-free IK result.
+  hybrid_astar:
+    xy_resolution: 0.02
+    yaw_resolution: 0.12
+    primitive_length: 0.03
+    collision_check_step: 0.02
+    goal_position_tolerance: 0.012
+    goal_yaw_tolerance: 0.06
+    max_curvature: 2.0
+    heuristic_weight: 4.0
+    reverse_penalty: 1.05
+    gear_switch_penalty: 3.0
+    curvature_penalty: 0.15
+    curvature_change_penalty: 0.08
+    joint_motion_penalty: 0.20
+    search_margin: 0.30
+    # Keep the base inside a narrow wall-parallel tube. With yaw_samples=0 the
+    # planner strongly prefers continuous forward/reverse wiping without
+    # leaving the wall to turn around.
+    standoff_margin: 0.05
+    yaw_samples: 0
+    yaw_sample_step: 0.08
+    collision_joint_step: 0.04
+    max_nodes: 8000
+
+  limits:
+    # Same wheel geometry and conservative limits as REMANI mm_param.yaml.
+    wheel_separation: 0.34
+    wheel_radius: 0.07
+    wheel_angular_speed: 10.0
+    base_speed: 0.25
+    base_acceleration: 0.35
+    angular_speed: 0.55
+    angular_acceleration: 0.80
+    # Faster non-contact nominal path; MPC retains a 0.55 rad/s correction limit.
+    joint_speed: 0.08
+
+  solver:
+    position_tolerance: 0.012
+    axis_tolerance: 0.12
+    max_iterations: 60
+    nominal_arm_seed: [0.891, 0.447, -0.973, 3.662, 2.245, 0.541]
+    # Deterministic collision-free basin used for first-keypoint multi-start
+    # IK. Encoder noise at task handoff must not select a different IK branch.
+    search_arm_seed: [0.0, 1.5707, 0.0, 1.5707, 3.14159, 0.7854]

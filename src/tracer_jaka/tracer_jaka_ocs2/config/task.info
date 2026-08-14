@@ -270,9 +270,10 @@ selfCollision
     [27] "Link_5, d435i_link"
   }
 
-  minimumDistance 0.02
-  mu               1e-2
-  delta            1e-3
+  minimumDistance    0.02
+  activationDistance 0.05  ; 距离小于 5 cm 时才激活自碰撞惩罚
+  mu                  1e-2
+  delta               1e-3
 }
 
 ; ============================================================================

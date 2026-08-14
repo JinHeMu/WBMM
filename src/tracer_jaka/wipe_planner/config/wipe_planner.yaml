@@ -1,0 +1,77 @@
+wipe_planner:
+  ros__parameters:
+    robot_name: "mobile_manipulator"
+    trajectory_topic: "/planning/trajectory"
+    wrench_topic: "/jaka_fts_broadcaster/wrench"
+    remani_task_service: "/remani_planner/set_task_execution"
+    world_frame: "odom"
+    ee_frame: "tool0"
+    urdf_file: ""
+    task_file: ""
+
+    publish_rate: 20.0
+    reference_horizon: 3.0
+    reference_dt: 0.08
+    assembly_timeout: 0.08
+    start_lead: 0.15
+    contact_start_lead: 0.30
+    append_wipe_task: true
+    auto_navigation_goal: true
+    whole_body_goal_topic: "/remani_planner/whole_body_goal"
+    joint_names: ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
+
+    # REMANI targets the safe wall-normal pre-contact state. A complete 9D
+    # arrival uses the squared tolerance below. If its base/yaw have reached the
+    # end of the navigation trajectory but the arm still lags, WipePlanner takes
+    # ownership and inserts a collision-checked base-hold arm alignment instead
+    # of asking REMANI to plan a zero-base-speed manipulator-only residual.
+    navigation_whole_body_squared_tolerance: 0.20
+    navigation_arrival_hold: 0.35
+    navigation_base_tolerance: 0.08
+    navigation_yaw_tolerance: 0.25
+    navigation_partial_remaining: 1.50
+    navigation_partial_arrival_hold: 0.0
+    # Fast non-contact validation profile.  The physical wiping plane is kept
+    # 5 cm off the wall by wipe_task.yaml, so no normal force is requested.
+    alignment_joint_speed: 0.08
+    task_settle_duration: 0.5
+
+    # Briefly hold the first offset-plane state before starting coverage.
+
+    # Adaptive virtual time tau. Nominal trajectory seconds parameterize the
+    # path, while tau_dot is slowed/stopped when the whole robot falls behind.
+    progress_min_rate: 0.0
+    progress_max_rate: 1.15
+    progress_rate_filter: 0.20
+    progress_lag_gain: 0.70
+    progress_ahead_gain: 0.20
+    progress_projection_backtrack: 2.0
+    progress_projection_lookahead: 4.0
+    progress_projection_dt: 0.10
+    progress_base_scale: 0.20
+    progress_yaw_scale: 0.45
+    progress_joint_scale: 0.30
+    progress_ee_scale: 0.08
+    progress_error_soft: 0.70
+    progress_error_hard: 1.80
+
+    # Continuous normal-force control. It only changes arm joints; the planned
+    # differential-drive base state and its no-slip constraint remain intact.
+    # Keep force control disabled while validating geometric MPC tracking.
+    force_control_enabled: false
+    force_axis: "z"
+    force_use_absolute: true
+    force_filter_alpha: 0.20
+    admittance_gain: 0.00045
+    admittance_leak: 1.5
+    admittance_max_offset: 0.025
+    max_joint_force_correction: 0.10
+    force_hard_limit: 35.0
+    force_recovery_limit: 25.0
+
+    # RViz performance: complete meshes at only six evenly-spaced contact
+    # instants. The trajectory lines are one Marker each and are published once.
+    visualization_snapshots: 6
+    visualization_alpha: 0.16
+    active_visualization_rate: 4.0
+    active_visualization_snapshots: 3

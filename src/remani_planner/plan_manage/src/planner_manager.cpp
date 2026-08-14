@@ -65,6 +65,8 @@ namespace remani_planner
 
     pp_.max_mani_vel_ =
         declareAndGetManagerParam<double>(node_, "mm.manipulator_max_vel", -1.0);
+    pp_.max_mani_acc_ =
+        declareAndGetManagerParam<double>(node_, "mm.manipulator_max_acc", -1.0);
     pp_.feasibility_tolerance_ =
         declareAndGetManagerParam<double>(node_, "manager.feasibility_tolerance", 0.0);
     pp_.polyTraj_piece_length =
@@ -707,32 +709,67 @@ namespace remani_planner
 
     globalMJO.reset(headState, tailState, waypoints.size());
 
-    // 时间分配: 迭代降低期望速度直到满足最大速度约束
-    double des_vel = pp_.max_vel_ / 1.5;        // 初始期望速度 = max_vel / 1.5
+    // 时间分配先按位移估计，再对生成的多项式进行全维度密集采样。
+    // 旧实现只降低底盘 des_vel；当关节峰值超限时，机械臂段时长完全不变，
+    // 因而会重复生成同一条不可行轨迹。
+    const double des_vel = pp_.max_vel_ / 1.5;
+    constexpr double kLimitReserve = 0.90;
     Eigen::VectorXd time_vec(waypoints.size());
-    int try_num = 0;
-    do
+    for (size_t i = 0; i < waypoints.size(); ++i)
     {
-      for (size_t i = 0; i < waypoints.size(); ++i)
-      {
-        // 基底时间: 距离 / 期望速度
-        time_vec(i) = (i == 0) ? (waypoints[0] - start_pos).head(pp_.mobile_base_dim_).norm() / des_vel
-                               : (waypoints[i] - waypoints[i - 1]).head(pp_.mobile_base_dim_).norm() / des_vel;
-        // 机械臂时间: 关节角变化 / 关节最大速度 (取最大值)
-        for(int j = 0; j < pp_.manipulator_dim_; ++j){
-          double t_temp;
-          if(i == 0){
-            t_temp = fabs((waypoints[0] - start_pos)[pp_.mobile_base_dim_ + j]) / pp_.max_mani_vel_;
-          }else{
-            t_temp = fabs((waypoints[i] - waypoints[i - 1])[pp_.mobile_base_dim_ + j]) / pp_.max_mani_vel_;
-          }
-          time_vec(i) = max(time_vec(i), t_temp);
-        }
+      const Eigen::VectorXd delta = i == 0 ?
+        waypoints[0] - start_pos : waypoints[i] - waypoints[i - 1];
+      time_vec(i) = delta.head(pp_.mobile_base_dim_).norm() / des_vel;
+      for(int j = 0; j < pp_.manipulator_dim_; ++j){
+        // Cubic/quintic trajectories peak above their average velocity. Start
+        // with a 1.5 factor and let dense sampling below add any extra scaling.
+        const double t_temp = 1.5 * std::abs(
+          delta[pp_.mobile_base_dim_ + j]) /
+          std::max(1.0e-3, kLimitReserve * pp_.max_mani_vel_);
+        time_vec(i) = std::max(time_vec(i), t_temp);
       }
+      time_vec(i) = std::max(time_vec(i), 0.20);
+    }
+
+    double sampled_base_vel = 0.0;
+    double sampled_joint_vel = 0.0;
+    double sampled_joint_acc = 0.0;
+    for (int attempt = 0; attempt < 8; ++attempt)
+    {
       globalMJO.generate(innerPts, time_vec);
-      des_vel /= 1.5;   // 减速重试
-      try_num++;
-    } while (globalMJO.getTraj(start_singul).getMaxVelRate() > pp_.max_vel_ && try_num <= 5);
+      const auto candidate = globalMJO.getTraj(start_singul);
+      const double duration = candidate.getTotalDuration();
+      sampled_base_vel = sampled_joint_vel = sampled_joint_acc = 0.0;
+      const int samples = std::max(100, static_cast<int>(std::ceil(duration / 0.01)));
+      for (int sample = 0; sample <= samples; ++sample)
+      {
+        const double t = duration * static_cast<double>(sample) /
+          static_cast<double>(samples);
+        const Eigen::VectorXd vel = candidate.getVel(t);
+        const Eigen::VectorXd acc = candidate.getAcc(t);
+        sampled_base_vel = std::max(sampled_base_vel,
+          vel.head(pp_.mobile_base_dim_).norm());
+        sampled_joint_vel = std::max(sampled_joint_vel,
+          vel.tail(pp_.manipulator_dim_).cwiseAbs().maxCoeff());
+        sampled_joint_acc = std::max(sampled_joint_acc,
+          acc.tail(pp_.manipulator_dim_).cwiseAbs().maxCoeff());
+      }
+      const double scale = std::max({
+        1.0,
+        sampled_base_vel / std::max(1.0e-3, kLimitReserve * pp_.max_vel_),
+        sampled_joint_vel /
+          std::max(1.0e-3, kLimitReserve * pp_.max_mani_vel_),
+        std::sqrt(sampled_joint_acc /
+          std::max(1.0e-3, kLimitReserve * pp_.max_mani_acc_))});
+      if (scale <= 1.001)
+        break;
+      time_vec *= 1.05 * scale;
+    }
+
+    RCLCPP_INFO(node_->get_logger(),
+      "Global reference time-scaled: duration=%.2f s, sampled base=%.3f m/s, "
+      "joint=%.3f rad/s, joint_acc=%.3f rad/s^2",
+      time_vec.sum(), sampled_base_vel, sampled_joint_vel, sampled_joint_acc);
 
     auto time_now = node_->now();
     traj_container_.setGlobalTraj(globalMJO.getTraj(start_singul), time_now.seconds());

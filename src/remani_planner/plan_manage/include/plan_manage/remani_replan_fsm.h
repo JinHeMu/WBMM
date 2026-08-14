@@ -2,6 +2,7 @@
 #define _REBO_REPLAN_FSM_H_
 
 #include <fstream>
+#include <array>
 #include <Eigen/Eigen>
 #include <algorithm>
 #include <iostream>
@@ -11,6 +12,8 @@
 #include <std_msgs/msg/empty.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/int32.hpp>
+#include <std_msgs/msg/string.hpp>
+#include <std_srvs/srv/set_bool.hpp>
 #include <vector>
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
@@ -23,6 +26,7 @@
 #include <plan_manage/planning_visualization.h>
 #include <quadrotor_msgs/msg/polynomial_traj.hpp>
 #include <traj_utils/msg/assignment.hpp>
+#include <traj_utils/msg/whole_body_goal.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
@@ -57,6 +61,7 @@ namespace remani_planner
       GEN_NEW_TRAJ,
       REPLAN_TRAJ,
       EXEC_TRAJ,
+      TASK_EXEC,
       // WAIT_GRIPPER,
       EMERGENCY_STOP,
     };
@@ -89,6 +94,7 @@ namespace remani_planner
     double time_for_gripper_;
     bool global_plan_;
     bool tracking_error_replan_enabled_;
+    bool planning_enabled_;
     double tracking_error_position_threshold_;
     double tracking_error_yaw_threshold_;
     double tracking_error_joint_threshold_;
@@ -139,6 +145,7 @@ namespace remani_planner
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr gripper_state_sub_;
     rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr trigger_sub_;
     rclcpp::Subscription<traj_utils::msg::Assignment>::SharedPtr assignment_sub_;
+    rclcpp::Subscription<traj_utils::msg::WholeBodyGoal>::SharedPtr whole_body_goal_sub_;
     rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr replan_pub_, new_pub_;
     rclcpp::Publisher<quadrotor_msgs::msg::PolynomialTraj>::SharedPtr poly_traj_pub_;
     rclcpp::Publisher<traj_utils::msg::DataDisp>::SharedPtr data_disp_pub_;
@@ -146,6 +153,9 @@ namespace remani_planner
     rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr map_state_pub_;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr reached_pub_, start_pub_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr model_vis_pub_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr fsm_state_pub_;
+    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr planning_enable_service_;
+    rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr task_execution_service_;
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
 
@@ -172,11 +182,18 @@ namespace remani_planner
     void checkCollisionCallback();
     bool planNextWaypoint(const Eigen::VectorXd next_wp, const double nect_yaw);
     void waypointCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
+    void wholeBodyGoalCallback(const traj_utils::msg::WholeBodyGoal::SharedPtr msg);
     void mmCarOdomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
     void mmManiOdomCallback(const sensor_msgs::msg::JointState::SharedPtr msg);
     void gripperCallback(const std_msgs::msg::Bool::SharedPtr msg);
     void publishRobotModel();
     void sendPolyTrajROSMsg();
+    void setPlanningEnabled(
+        const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+        std::shared_ptr<std_srvs::srv::SetBool::Response> response);
+    void setTaskExecution(
+        const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+        std::shared_ptr<std_srvs::srv::SetBool::Response> response);
     bool frontEndPathSearching();
     bool checkCollision();
 

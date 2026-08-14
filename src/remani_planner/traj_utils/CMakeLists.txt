@@ -22,6 +22,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   msg/DataDisp.msg
   msg/PolyTraj.msg
   msg/Assignment.msg
+  msg/WholeBodyGoal.msg
   DEPENDENCIES std_msgs geometry_msgs builtin_interfaces
 )
 

@@ -40,6 +40,7 @@ from launch.substitutions import (
     PythonExpression,
 )
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -98,6 +99,8 @@ def generate_launch_description():
     use_csv_target = LaunchConfiguration("use_csv_target")
     start_slam = LaunchConfiguration("start_slam")
     start_remani = LaunchConfiguration("start_remani")
+    start_remani_bridge = LaunchConfiguration("start_remani_bridge")
+    remani_launch_file = LaunchConfiguration("remani_launch_file")
     mrt_odom_topic = LaunchConfiguration("mrt_odom_topic")
     remani_static_esdf_file = LaunchConfiguration(
         "remani_static_esdf_file"
@@ -119,6 +122,9 @@ def generate_launch_description():
         "remani_manipulator_max_acc")
     remani_freeze_manipulator = LaunchConfiguration(
         "remani_freeze_manipulator")
+    remani_tracking_error_replan_enabled = LaunchConfiguration(
+        "remani_tracking_error_replan_enabled")
+    mrt_traj_horizon = LaunchConfiguration("mrt_traj_horizon")
 
     task_file = LaunchConfiguration("task_file")
     xacro_file = LaunchConfiguration("xacro_file")
@@ -138,6 +144,14 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "use_rviz",
             default_value="true",
+        ),
+        DeclareLaunchArgument(
+            "mrt_traj_horizon",
+            default_value="1.0",
+            description=(
+                "Seconds ahead in the MPC policy used for arm position "
+                "commands. Contact tasks should use a short horizon."
+            ),
         ),
         DeclareLaunchArgument(
             "rviz_config",
@@ -173,6 +187,27 @@ def generate_launch_description():
             description=(
                 "Start REMANI whole-body planner and the REMANI-to-OCS2 "
                 "reference bridge."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "start_remani_bridge",
+            default_value="true",
+            description=(
+                "Start the legacy direct REMANI-to-OCS2 bridge. Set false "
+                "when another planner such as wipe_planner owns the MPC target."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "remani_launch_file",
+            default_value=PathJoinSubstitution([
+                pkg_remani,
+                "launch",
+                "remani_mpc_tracking.launch.py",
+            ]),
+            description=(
+                "Absolute REMANI launch file. Pipelines can override this "
+                "to prevent an older AMENT overlay from selecting a stale "
+                "remani_planner installation."
             ),
         ),
         DeclareLaunchArgument(
@@ -233,6 +268,11 @@ def generate_launch_description():
             "remani_freeze_manipulator",
             default_value="false",
             description="Keep the measured arm posture in REMANI front-end.",
+        ),
+        DeclareLaunchArgument(
+            "remani_tracking_error_replan_enabled",
+            default_value="true",
+            description="Enable REMANI tracking-error replans.",
         ),
         DeclareLaunchArgument(
             "task_file",
@@ -353,7 +393,8 @@ def generate_launch_description():
                 "libFolder": lib_folder,
 
                 "mrt_loop_rate": 125.0,
-                "traj_horizon": 1.0,
+                "traj_horizon": ParameterValue(
+                    mrt_traj_horizon, value_type=float),
                 "traj_num_points": 5,
 
                 "use_stamped_cmd": False,
@@ -599,16 +640,12 @@ def generate_launch_description():
     # Start it after MuJoCo, localization and OCS2 have had time to initialize.
     remani_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            PathJoinSubstitution([
-                pkg_remani,
-                "launch",
-                "remani_mpc_tracking.launch.py",
-            ])
+            remani_launch_file
         ),
         launch_arguments={
             "use_sim_time": use_sim_time,
             "start_planner": "true",
-            "start_bridge": "true",
+            "start_bridge": start_remani_bridge,
             "urdf_file": urdf_file,
             "static_esdf_file": remani_static_esdf_file,
             "static_esdf_offset_x": remani_static_esdf_offset_x,
@@ -622,6 +659,8 @@ def generate_launch_description():
             "manipulator_max_vel": remani_manipulator_max_vel,
             "manipulator_max_acc": remani_manipulator_max_acc,
             "freeze_manipulator": remani_freeze_manipulator,
+            "tracking_error_replan_enabled":
+                remani_tracking_error_replan_enabled,
         }.items(),
     )
 
