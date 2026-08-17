@@ -154,6 +154,46 @@ def generate_launch_description():
             ),
         ),
         DeclareLaunchArgument(
+            "arm_use_velocity_integrator",
+            default_value="false",
+            description="Integrate MPC joint velocity into bounded position commands.",
+        ),
+        DeclareLaunchArgument(
+            "arm_max_command_velocity",
+            default_value="0.5",
+            description="Per-joint velocity limit for the position-command integrator.",
+        ),
+        DeclareLaunchArgument(
+            "arm_max_delta_per_step",
+            default_value="0.50",
+            description=(
+                "Maximum position-command lead relative to the measured joint "
+                "state. Contact pipelines should keep this small."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "arm_contact_max_delta_per_step",
+            default_value="0.10",
+            description=(
+                "Maximum position-command lead while force contact is active."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "force_control_state_topic",
+            default_value="",
+            description=(
+                "Optional std_msgs/String state used to enable the contact "
+                "command-lead limit."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "contact_arm_reference_topic",
+            default_value="",
+            description=(
+                "Optional six-joint reference used while force contact is active."
+            ),
+        ),
+        DeclareLaunchArgument(
             "rviz_config",
             default_value=PathJoinSubstitution(
                 [pkg_ocs2, "rviz", "tracer_jaka_ocs2.rviz"]
@@ -395,6 +435,22 @@ def generate_launch_description():
                 "mrt_loop_rate": 125.0,
                 "traj_horizon": ParameterValue(
                     mrt_traj_horizon, value_type=float),
+                "arm_use_velocity_integrator": ParameterValue(
+                    LaunchConfiguration("arm_use_velocity_integrator"),
+                    value_type=bool),
+                "arm_max_command_velocity": ParameterValue(
+                    LaunchConfiguration("arm_max_command_velocity"),
+                    value_type=float),
+                "arm_max_delta_per_step": ParameterValue(
+                    LaunchConfiguration("arm_max_delta_per_step"),
+                    value_type=float),
+                "arm_contact_max_delta_per_step": ParameterValue(
+                    LaunchConfiguration("arm_contact_max_delta_per_step"),
+                    value_type=float),
+                "force_control_state_topic": LaunchConfiguration(
+                    "force_control_state_topic"),
+                "contact_arm_reference_topic": LaunchConfiguration(
+                    "contact_arm_reference_topic"),
                 "traj_num_points": 5,
 
                 "use_stamped_cmd": False,

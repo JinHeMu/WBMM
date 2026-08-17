@@ -58,20 +58,26 @@ struct VisualGeometry
 class ForceAdmittance
 {
 public:
-  ForceAdmittance(double desired_force, double gain, double leak,
-                  double max_offset, double filter_alpha);
+  ForceAdmittance(double desired_force, double mass, double damping,
+                  double stiffness, double max_offset, double max_velocity,
+                  double filter_alpha);
   double update(double measured_force, double dt);
+  void reset(double measured_force = 0.0);
   double offset() const {return offset_;}
+  double velocity() const {return velocity_;}
   double measuredForce() const {return filtered_force_;}
 
 private:
   double desired_force_;
-  double gain_;
-  double leak_;
+  double mass_;
+  double damping_;
+  double stiffness_;
   double max_offset_;
+  double max_velocity_;
   double alpha_;
   double filtered_force_{0.0};
   double offset_{0.0};
+  double velocity_{0.0};
   bool initialized_{false};
 };
 
@@ -195,6 +201,8 @@ private:
   double desired_force_{12.0};
   double approach_clearance_{0.12};
   double approach_speed_{0.02};
+  double approach_touch_distance_{0.02};
+  double approach_touch_speed_{0.001};
   double precontact_hold_duration_{1.0};
   double preferred_standoff_{0.80};
   Eigen::Vector2d standoff_limits_{0.72, 0.88};

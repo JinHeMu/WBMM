@@ -217,6 +217,7 @@ class MujocoBridge(Node):
             [self.data.qpos[self.qadr[j]] for j in ARM_JOINTS], dtype=float)
         self.arm_traj = None
         self.traj_start = 0.0
+        self.next_arm_contact_diagnostic = 0.0
 
         self.base_x = float(self.data.qpos[self.qadr[self.bx_name]])
         self.base_y = float(self.data.qpos[self.qadr[self.by_name]])
@@ -493,6 +494,29 @@ class MujocoBridge(Node):
         js.position = [float(self.data.qpos[self.qadr[j]]) for j in names]
         js.velocity = [float(self.data.qvel[self.dadr[j]]) for j in names]
         self.js_pub.publish(js)
+
+        if self.sim_time >= self.next_arm_contact_diagnostic:
+            self.next_arm_contact_diagnostic = self.sim_time + 1.0
+            with self.lock:
+                arm_target = self.arm_target.copy()
+            arm_position = np.array(
+                [self.data.qpos[self.qadr[j]] for j in ARM_JOINTS],
+                dtype=float)
+            arm_error = arm_target - arm_position
+            if np.max(np.abs(arm_error)) > 0.01:
+                actuator_force = np.array([
+                    self.data.actuator_force[aid] if aid >= 0 else 0.0
+                    for aid in self.a_arm], dtype=float)
+                constraint_force = np.array([
+                    self.data.qfrc_constraint[self.dadr[j]]
+                    for j in ARM_JOINTS], dtype=float)
+                self.get_logger().info(
+                    '[arm-command] error=' +
+                    np.array2string(arm_error, precision=3) +
+                    ' actuator=' +
+                    np.array2string(actuator_force, precision=1) +
+                    ' constraint=' +
+                    np.array2string(constraint_force, precision=1))
 
         x = float(self.data.qpos[self.qadr[self.bx_name]])
         y = float(self.data.qpos[self.qadr[self.by_name]])

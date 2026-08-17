@@ -109,6 +109,10 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'contact_task_file',
             default_value='/tmp/ocs2_tracer_jaka/wipe_task.info'),
+        DeclareLaunchArgument(
+            'wipe_task_file',
+            default_value=os.path.join(
+                planner_share, 'config', 'wipe_task.yaml')),
         OpaqueFunction(function=_prepare_contact_task),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(base_launch),
@@ -124,8 +128,6 @@ def generate_launch_description():
                 # The wall-normal pre-contact frame (base + all six joints) is
                 # sent to REMANI. WipePlanner owns final alignment and approach.
                 'remani_freeze_manipulator': 'false',
-                # These are REMANI's *planning* (trajectory-feasibility) limits
-                # toward the whole-body goal, NOT the actuation limits: the real
                 # These are REMANI's collision-aware navigation feasibility
                 # limits.  The global reference allocator now reserves margin
                 # and scales against both joint velocity and acceleration, so
@@ -137,10 +139,21 @@ def generate_launch_description():
                 'remani_manipulator_max_acc': '1.00',
                 'remani_tracking_error_replan_enabled': 'false',
                 'use_csv_target': 'false',
-                # The arm controller accepts absolute joint positions.  A
-                # 100-ms policy look-ahead gives it a useful position step while
-                # the WipePlanner reference itself remains limited to 0.05 rad/s.
-                'mrt_traj_horizon': '0.10',
+                # The arm controller accepts absolute joint positions. Contact
+                # execution must not send a far-future state to a stiff
+                # position controller, so keep only a 20-ms policy lead. The
+                # free-space velocity integrator supplies command continuity.
+                'mrt_traj_horizon': '0.02',
+                'arm_use_velocity_integrator': 'true',
+                'arm_max_command_velocity': '0.25',
+                # Keep the free-space adapter responsive, then prevent it from
+                # winding up a large lead while the tool is wall-constrained.
+                'arm_max_delta_per_step': '0.50',
+                'arm_contact_max_delta_per_step': '0.10',
+                'force_control_state_topic':
+                    '/wipe_planner/force_control_state',
+                'contact_arm_reference_topic':
+                    '/wipe_planner/contact_arm_reference',
                 'task_file': LaunchConfiguration('contact_task_file'),
             }.items()),
         TimerAction(period=12.0, actions=[Node(
@@ -154,8 +167,7 @@ def generate_launch_description():
                     'use_sim_time': True,
                     'urdf_file': os.path.join(
                         mujoco_share, 'urdf', 'tracer_jaka_zu5.urdf'),
-                    'task_file': os.path.join(
-                        planner_share, 'config', 'wipe_task.yaml'),
+                    'task_file': LaunchConfiguration('wipe_task_file'),
                     'auto_navigation_goal': ParameterValue(
                         LaunchConfiguration('auto_goal'), value_type=bool),
                 },

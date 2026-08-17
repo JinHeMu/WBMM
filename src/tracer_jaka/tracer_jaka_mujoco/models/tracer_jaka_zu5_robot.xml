@@ -563,14 +563,18 @@
                           <body name="jk_se_vi_200_link" pos="0 0 0.0315" quat="0.3826834 0 0 -0.9238795">
                             <inertial pos="0 0 0.0051933" mass="0.1139765" diaginertia="0.0000565 0.0000549 0.0000865"/>
                             <geom pos="0 0 -0.0315" group="1" contype="0" conaffinity="0" material="jk_se_vi_200_link_mat" type="mesh" mesh="jk_se_vi_200_link" />
-                            <!-- Six-axis F/T measurement frame. MuJoCo force
-                                 and torque sensors report the wrench crossing
-                                 this body-parent interface in site coordinates. -->
-                            <site name="tcp_fts_site" pos="0 0 0"
-                                  quat="1 0 0 0" size="0.012"
-                                  rgba="0.95 0.15 0.15 0.75"/>
                             <body name="tool0_and_camera_link" pos="0 0 0" quat="0.3826834 0 0 0.9238795">
                               <inertial pos="0 0 0" mass="0.7" diaginertia="0.001 0.001 0.001"/>
+                              <!-- MuJoCo force/torque sensors measure the
+                                   wrench transmitted between the site's body
+                                   and its parent.  The site therefore belongs
+                                   to the tool-side body, not the sensor-side
+                                   parent, so tool contact is included.  The
+                                   local quaternion cancels this fixed child's
+                                   yaw and preserves jk_se_vi_200_link axes. -->
+                              <site name="tcp_fts_site" pos="0 0 0"
+                                    quat="0.3826834 0 0 -0.9238795" size="0.012"
+                                    rgba="0.95 0.15 0.15 0.75"/>
                               <geom pos="0 0 0" group="1" contype="0" conaffinity="0" material="tool0_and_camera_link_mat" type="mesh" mesh="tool0" />
                               <geom name="tool_contact_geom" pos="0 -0.04 0.135"
                                     rgba="0.9373 0.2667 0.2667 1" group="3"

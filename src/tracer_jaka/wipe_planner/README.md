@@ -20,8 +20,22 @@ than a base path patched to an independent pointwise IK result.
 During each horizontal wipe the base faces along the wall and drives forward or
 backward; row changes keep the base stationary while dense continuation IK moves
 the arm. Joint-space collision checks are interpolated between task samples so
-the output is continuous, not merely collision-free at isolated endpoints. A
-normal admittance correction can maintain force without changing the base path.
+the output is continuous, not merely collision-free at isolated endpoints. The
+normal reference uses a velocity-limited second-order admittance correction
+without changing the base path. It is reset outside contact, so an unloaded
+sensor cannot preload a wall-penetrating reference during navigation.
+During the final approach, the wallward reference is kept within 0.1 mm of the
+measured tool. Contact detection opens five nominal seconds before the planned
+contact. The first 0.5 N sample captures the actual normal contact plane, enables
+force-control ownership, and skips the remaining open-loop approach distance;
+path time then freezes while force settles. A
+missing wrench stream freezes virtual progress and commands a bounded retreat.
+The MuJoCo cleaning surface uses a compliant contact profile to represent the
+foam/eraser layer expected on the real tool; rigid-wall contact is not a valid
+plant model for this reference-level force loop.
+The 35 N hard limit is latched; after inspection,
+reset it explicitly through `/wipe_planner/enable_force_control`
+(`std_srvs/srv/SetBool`, `data: true`).
 
 ```bash
 colcon build --symlink-install --packages-select wipe_planner
@@ -66,9 +80,20 @@ Every reference sample sent to OCS2 is a full-body reference. Its state is
 Every precomputed contact state, including all six arm joint angles and the
 wall-normal `tool0` +Z orientation, is preserved exactly. After handoff the arm
 first completes its collision-checked alignment at the pre-contact clearance,
-settles for one second, and approaches the wall at 0.02 m/s. The first contact
+settles for one second, and uses a guarded two-stage approach whose final 20 mm
+runs at 0.001 m/s. The first contact
 reference is then held for four nominal seconds, and adaptive progress slows
 further whenever whole-body tracking lags.
+
+The OCS2 model does not contain wall-contact dynamics, so the MRT arm adapter
+changes ownership only while a force-control state is active. In free space it
+keeps consuming the OCS2 policy. During contact it clears the velocity
+integrator and tracks WipePlanner's force-corrected six-joint reference from
+`/wipe_planner/contact_arm_reference`, with a 0.10 rad measured-state command
+bound. OCS2 continues to control the mobile base. The validated nominal contact
+tuning is 12 N, `M=2`, `D=200`, `K=50`, and a 0.001 m/s admittance velocity
+limit. Coverage runs at 0.015 m/s on horizontal strokes and 0.008 m/s at row
+changes.
 
 The waypoint timestamps are nominal path time, not deadlines in wall-clock
 time. A reference manager maintains a monotonic virtual time `tau`, projects
@@ -106,6 +131,10 @@ Useful topics:
 - `/wipe_planner/active_whole_body_reference`: current rolling MPC reference
 - `/wipe_planner/phase`: current reference owner/phase
 - `/wipe_planner/normal_force`: filtered simulated force
+- `/wipe_planner/admittance_offset`: bounded normal reference correction
+- `/wipe_planner/contact_arm_reference`: force-corrected six-joint contact command
+- `/wipe_planner/force_control_state`: armed/active/timeout/over-force state
+- `/wipe_planner/enable_force_control`: runtime `std_srvs/SetBool` switch
 - `/wipe_planner/{base,joint,ee}_tracking_error`: MPC diagnostics
 - `/wipe_planner/virtual_progress`: current path time `tau` in nominal seconds
 - `/wipe_planner/virtual_progress_rate`: current `tau_dot`

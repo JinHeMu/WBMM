@@ -50,6 +50,42 @@ TEST(VirtualProgress, SlowsForLagAndStopsForLargeTrackingError)
   EXPECT_DOUBLE_EQ(rate(2.0, 0.0), 0.0);
 }
 
+TEST(ForceAdmittance, IsResettableBoundedAndVelocityLimited)
+{
+  wipe_planner::ForceAdmittance admittance(
+    12.0, 2.0, 80.0, 300.0, 0.015, 0.010, 1.0);
+  admittance.reset(0.0);
+  EXPECT_DOUBLE_EQ(admittance.offset(), 0.0);
+  EXPECT_DOUBLE_EQ(admittance.velocity(), 0.0);
+
+  double previous = admittance.offset();
+  for (int sample = 0; sample < 300; ++sample) {
+    const double offset = admittance.update(0.0, 0.008);
+    EXPECT_LE(std::abs(offset - previous), 0.010 * 0.008 + 1.0e-12);
+    EXPECT_GE(offset, -0.015 - 1.0e-12);
+    EXPECT_LE(offset, 0.015 + 1.0e-12);
+    previous = offset;
+  }
+  EXPECT_LT(admittance.offset(), -0.010);
+
+  admittance.reset(12.0);
+  EXPECT_DOUBLE_EQ(admittance.offset(), 0.0);
+  EXPECT_DOUBLE_EQ(admittance.velocity(), 0.0);
+  EXPECT_NEAR(admittance.measuredForce(), 12.0, 1.0e-12);
+}
+
+TEST(ForceAdmittance, HighForceMovesReferenceAwayFromSurface)
+{
+  wipe_planner::ForceAdmittance admittance(
+    12.0, 2.0, 80.0, 300.0, 0.015, 0.010, 1.0);
+  admittance.reset(12.0);
+  for (int sample = 0; sample < 100; ++sample) {
+    admittance.update(25.0, 0.008);
+  }
+  EXPECT_GT(admittance.offset(), 0.0);
+  EXPECT_LE(admittance.offset(), 0.015);
+}
+
 TEST(WholeBodyPlan, ContactTrajectoryIsReachableAndNonholonomic)
 {
   const std::string source = WIPE_PLANNER_SOURCE_DIR;
@@ -82,7 +118,7 @@ TEST(WholeBodyPlan, ContactTrajectoryIsReachableAndNonholonomic)
   }
 }
 
-TEST(WholeBodyPlan, StartsAtWallNormalPrecontactAndStaysOffWall)
+TEST(WholeBodyPlan, StartsAtWallNormalPrecontactAndReachesWall)
 {
   const std::string source = WIPE_PLANNER_SOURCE_DIR;
   const std::string workspace = WIPE_PLANNER_WORKSPACE_DIR;
@@ -106,14 +142,14 @@ TEST(WholeBodyPlan, StartsAtWallNormalPrecontactAndStaysOffWall)
   EXPECT_TRUE(std::all_of(first_contact, trajectory.end(),
     [](const auto & point) {return point.in_contact;}));
   EXPECT_NEAR(first_contact->contact_target.x(), 0.75, 1.0e-9);
-  // The physical wall is at y=2.90 m. This fast non-contact profile keeps the
-  // contact-tagged reference plane 5 cm on the room side of the wall.
-  EXPECT_NEAR(first_contact->contact_target.y(), 2.85, 1.0e-9);
+  // The nominal tool-tip plane is the physical wall face. Force admittance
+  // supplies bounded, velocity-limited penetration online.
+  EXPECT_NEAR(first_contact->contact_target.y(), 2.90, 1.0e-9);
   EXPECT_NEAR(first_contact->contact_target.z(), 0.60, 1.0e-9);
   EXPECT_GE(first_contact->time, 3.49);
   const Eigen::Vector3d precontact_ee =
     planner.framePosition(trajectory.front().state, "tool0");
-  EXPECT_NEAR(precontact_ee.y(), 2.73, 0.0121);
+  EXPECT_NEAR(precontact_ee.y(), 2.78, 0.0121);
   double max_arm_speed = 0.0;
   double max_arm_step = 0.0;
   for (auto point = trajectory.begin(); std::next(point) != trajectory.end(); ++point) {
@@ -147,6 +183,34 @@ TEST(WholeBodyPlan, FirstFrameIsACompleteWallNormalPrecontactGoal)
   const Eigen::Vector3d tool_z =
     planner.frameRotation(planned.front().state, "tool0").col(2);
   EXPECT_GT(tool_z.dot(-planner.surfaceNormal()), std::cos(0.121));
+}
+
+TEST(WholeBodyPlan, ForceCorrectionMovesOnlyArmAlongSurfaceNormal)
+{
+  const std::string source = WIPE_PLANNER_SOURCE_DIR;
+  const std::string workspace = WIPE_PLANNER_WORKSPACE_DIR;
+  wipe_planner::Planner planner(
+    workspace + "/src/tracer_jaka/tracer_jaka_mujoco/urdf/tracer_jaka_zu5.urdf",
+    "tool0", source + "/config/wipe_task.yaml");
+  Eigen::VectorXd seed(9);
+  seed << 0.75, 2.06, 0.0, 0.0, 1.5707, 0.0, 1.5707, 3.14159, 0.7854;
+  wipe_planner::PlanReport report;
+  const auto trajectory = planner.plan(seed, report);
+  const auto contact = std::find_if(trajectory.begin(), trajectory.end(),
+    [](const auto & point) {return point.in_contact;});
+  ASSERT_NE(contact, trajectory.end());
+
+  const Eigen::VectorXd corrected = planner.forceCorrectedState(
+    contact->state, 0.010, 0.10);
+  EXPECT_TRUE(corrected.head<3>().isApprox(contact->state.head<3>(), 1.0e-12));
+  EXPECT_LE((corrected.tail<6>() - contact->state.tail<6>())
+    .cwiseAbs().maxCoeff(), 0.100001);
+  const Eigen::Vector3d displacement =
+    planner.framePosition(corrected, "tool0") -
+    planner.framePosition(contact->state, "tool0");
+  EXPECT_NEAR(displacement.dot(planner.surfaceNormal()), 0.010, 5.0e-4);
+  EXPECT_LT((displacement - planner.surfaceNormal() *
+    displacement.dot(planner.surfaceNormal())).norm(), 5.0e-4);
 }
 
 TEST(WholeBodyPlan, MeasuredArmAlignmentHoldsBaseAndRespectsJointSpeed)

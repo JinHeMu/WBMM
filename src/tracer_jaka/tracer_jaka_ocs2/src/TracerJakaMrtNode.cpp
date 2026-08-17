@@ -36,6 +36,7 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
+#include <std_msgs/msg/string.hpp>
 
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -98,6 +99,13 @@ public:
 
     // 每次命令相对当前实测位置允许的最大变化
     declare_parameter<double>("arm_max_delta_per_step", 0.50);
+    declare_parameter<double>("arm_contact_max_delta_per_step", 0.10);
+    declare_parameter<std::string>(
+        "force_control_state_topic", "");
+    declare_parameter<std::string>(
+        "contact_arm_reference_topic", "");
+    declare_parameter<bool>("arm_use_velocity_integrator", false);
+    declare_parameter<double>("arm_max_command_velocity", 0.50);
 
     // 可视化
     declare_parameter<bool>("enable_visualization", true);
@@ -126,6 +134,12 @@ public:
 
     armMaxDeltaPerStep_ =
         get_parameter("arm_max_delta_per_step").as_double();
+    armContactMaxDeltaPerStep_ =
+        get_parameter("arm_contact_max_delta_per_step").as_double();
+    armUseVelocityIntegrator_ =
+        get_parameter("arm_use_velocity_integrator").as_bool();
+    armMaxCommandVelocity_ =
+        get_parameter("arm_max_command_velocity").as_double();
 
     enableViz_ =
         get_parameter("enable_visualization").as_bool();
@@ -160,6 +174,18 @@ public:
     {
       throw std::runtime_error(
           "arm_max_delta_per_step must be positive.");
+    }
+
+    if (armContactMaxDeltaPerStep_ <= 0.0)
+    {
+      throw std::runtime_error(
+          "arm_contact_max_delta_per_step must be positive.");
+    }
+
+    if (armMaxCommandVelocity_ <= 0.0)
+    {
+      throw std::runtime_error(
+          "arm_max_command_velocity must be positive.");
     }
 
     // -------------------------------------------------------------------------
@@ -297,6 +323,43 @@ public:
                 &TracerJakaMrtBridge::jsCallback,
                 this,
                 std::placeholders::_1));
+
+    const std::string forceControlStateTopic =
+        get_parameter("force_control_state_topic").as_string();
+    if (!forceControlStateTopic.empty())
+    {
+      force_state_sub_ =
+          create_subscription<std_msgs::msg::String>(
+              forceControlStateTopic,
+              rclcpp::QoS(10).reliable(),
+              std::bind(
+                  &TracerJakaMrtBridge::forceStateCallback,
+                  this,
+                  std::placeholders::_1));
+      RCLCPP_INFO(
+          get_logger(),
+          "Contact-aware arm command lead enabled from %s: %.3f rad",
+          forceControlStateTopic.c_str(),
+          armContactMaxDeltaPerStep_);
+    }
+
+    const std::string contactArmReferenceTopic =
+        get_parameter("contact_arm_reference_topic").as_string();
+    if (!contactArmReferenceTopic.empty())
+    {
+      contact_arm_reference_sub_ =
+          create_subscription<std_msgs::msg::Float64MultiArray>(
+              contactArmReferenceTopic,
+              rclcpp::QoS(10).reliable(),
+              std::bind(
+                  &TracerJakaMrtBridge::contactArmReferenceCallback,
+                  this,
+                  std::placeholders::_1));
+      RCLCPP_INFO(
+          get_logger(),
+          "Contact arm reference subscribed from %s",
+          contactArmReferenceTopic.c_str());
+    }
   }
 
   void initMrt()
@@ -851,6 +914,36 @@ private:
     }
   }
 
+  void forceStateCallback(
+      const std_msgs::msg::String::SharedPtr msg)
+  {
+    const bool contactConstrained =
+        msg->data == "active_force_settling" ||
+        msg->data == "active" ||
+        msg->data == "over_force_retreat" ||
+        msg->data == "sensor_timeout_retreat";
+    contactConstrained_.store(contactConstrained);
+  }
+
+  void contactArmReferenceCallback(
+      const std_msgs::msg::Float64MultiArray::SharedPtr msg)
+  {
+    if (msg->data.size() != armDim_ ||
+        !std::all_of(
+            msg->data.begin(), msg->data.end(),
+            [](double value) {return std::isfinite(value);}))
+    {
+      RCLCPP_ERROR_THROTTLE(
+          get_logger(), *get_clock(), 1000,
+          "Ignoring invalid contact arm reference of size %zu",
+          msg->data.size());
+      return;
+    }
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    contactArmReference_ = msg->data;
+    gotContactArmReference_.store(true);
+  }
+
   // ---------------------------------------------------------------------------
   // 状态构造
   // ---------------------------------------------------------------------------
@@ -1055,10 +1148,12 @@ private:
       }
 
       std::vector<double> currentArmQ;
+      std::vector<double> contactArmReference;
 
       {
         std::lock_guard<std::mutex> lock(stateMutex_);
         currentArmQ = armQ_;
+        contactArmReference = contactArmReference_;
       }
 
       if (currentArmQ.size() != armDim_)
@@ -1068,14 +1163,77 @@ private:
 
       armCommand.resize(armDim_);
 
+      const bool contactConstrained = contactConstrained_.load();
+
+      if (armUseVelocityIntegrator_ && !contactConstrained)
+      {
+        if (predictedInput.size() <
+            static_cast<Eigen::Index>(2 + armDim_))
+        {
+          RCLCPP_ERROR(
+              get_logger(),
+              "[SAFETY] Predicted input dimension is %ld, expected >= %zu",
+              static_cast<long>(predictedInput.size()),
+              2 + armDim_);
+          armCommand.clear();
+          return false;
+        }
+
+        // Position controllers need an absolute command with enough continuity
+        // to accumulate motion.  Sending x(t+h) directly makes the lead depend
+        // on the prediction horizon and can retain a stale wallward target
+        // during force-contact transients.  Integrating the MPC joint velocity
+        // produces a stateful command and gives us an explicit velocity bound.
+        if (integratedArmCommand_.size() != armDim_)
+        {
+          integratedArmCommand_ = currentArmQ;
+          lastArmCommandTime_ = currentTime;
+        }
+        const double dt = std::clamp(
+            currentTime - lastArmCommandTime_, 0.0, 0.05);
+        lastArmCommandTime_ = currentTime;
+
+        for (size_t i = 0; i < armDim_; ++i)
+        {
+          const double measured = currentArmQ[i];
+          const double velocity = std::clamp(
+              predictedInput(static_cast<Eigen::Index>(2 + i)),
+              -armMaxCommandVelocity_, armMaxCommandVelocity_);
+          double command = integratedArmCommand_[i] + dt * velocity;
+          command = std::clamp(
+              command,
+              measured - armMaxDeltaPerStep_,
+              measured + armMaxDeltaPerStep_);
+          if (!std::isfinite(command))
+          {
+            armCommand.clear();
+            return false;
+          }
+          armCommand[i] = command;
+        }
+        integratedArmCommand_ = armCommand;
+        return true;
+      }
+
+      if (contactConstrained)
+      {
+        // Do not integrate MPC velocity while the end effector is constrained
+        // by the wall. A small persistent velocity can otherwise wind the
+        // absolute position command away from the contact equilibrium. The
+        // predicted state already contains the MPC feedback correction.
+        integratedArmCommand_.clear();
+      }
+
       for (size_t i = 0;
            i < armDim_;
            ++i)
       {
-        const double command =
-            predictedState(
-                static_cast<Eigen::Index>(
-                    3 + i));
+        double command = contactConstrained &&
+            gotContactArmReference_.load() &&
+            contactArmReference.size() == armDim_
+            ? contactArmReference[i]
+            : predictedState(
+                static_cast<Eigen::Index>(3 + i));
 
         const double measured =
             currentArmQ[i];
@@ -1093,6 +1251,17 @@ private:
 
           armCommand.clear();
           return false;
+        }
+
+        if (contactConstrained)
+        {
+          const double maxLead = std::min(
+              armMaxDeltaPerStep_,
+              armContactMaxDeltaPerStep_);
+          command = std::clamp(
+              command,
+              measured - maxLead,
+              measured + maxLead);
         }
 
         const double delta =
@@ -1309,6 +1478,10 @@ private:
   bool useWholeBodyTarget_{true};
 
   double armMaxDeltaPerStep_{0.50};
+  double armContactMaxDeltaPerStep_{0.10};
+  bool armUseVelocityIntegrator_{false};
+  double armMaxCommandVelocity_{0.50};
+  double lastArmCommandTime_{0.0};
 
   std::vector<std::string> armJointNames_;
 
@@ -1375,10 +1548,20 @@ private:
       sensor_msgs::msg::JointState>::SharedPtr
       js_sub_;
 
+  rclcpp::Subscription<
+      std_msgs::msg::String>::SharedPtr
+      force_state_sub_;
+
+  rclcpp::Subscription<
+      std_msgs::msg::Float64MultiArray>::SharedPtr
+      contact_arm_reference_sub_;
+
   std::mutex stateMutex_;
 
   std::atomic<bool> gotOdom_{false};
   std::atomic<bool> gotJs_{false};
+  std::atomic<bool> contactConstrained_{false};
+  std::atomic<bool> gotContactArmReference_{false};
 
   double baseX_{0.0};
   double baseY_{0.0};
@@ -1386,6 +1569,8 @@ private:
 
   std::vector<double> armQ_;
   std::vector<double> lastGoodArmQ_;
+  std::vector<double> integratedArmCommand_;
+  std::vector<double> contactArmReference_;
 };
 
 int main(

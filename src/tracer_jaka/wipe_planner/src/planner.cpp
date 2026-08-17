@@ -69,10 +69,13 @@ double adaptiveProgressRate(double tracking_error, double lag_error,
   return (1.0 - filter) * previous_rate + filter * raw_rate;
 }
 
-ForceAdmittance::ForceAdmittance(double desired_force, double gain, double leak,
-                                 double max_offset, double filter_alpha)
-: desired_force_(desired_force), gain_(gain), leak_(leak),
-  max_offset_(std::abs(max_offset)), alpha_(std::clamp(filter_alpha, 0.0, 1.0))
+ForceAdmittance::ForceAdmittance(
+  double desired_force, double mass, double damping, double stiffness,
+  double max_offset, double max_velocity, double filter_alpha)
+: desired_force_(std::max(0.0, desired_force)), mass_(std::max(1.0e-6, mass)),
+  damping_(std::max(0.0, damping)), stiffness_(std::max(0.0, stiffness)),
+  max_offset_(std::abs(max_offset)), max_velocity_(std::abs(max_velocity)),
+  alpha_(std::clamp(filter_alpha, 0.0, 1.0))
 {}
 
 double ForceAdmittance::update(double measured_force, double dt)
@@ -84,10 +87,31 @@ double ForceAdmittance::update(double measured_force, double dt)
   } else {
     filtered_force_ = alpha_ * measured_force + (1.0 - alpha_) * filtered_force_;
   }
-  const double velocity = gain_ * (filtered_force_ - desired_force_) - leak_ * offset_;
-  offset_ = std::clamp(offset_ + std::clamp(dt, 0.0, 0.1) * velocity,
-                       -max_offset_, max_offset_);
+  dt = std::clamp(dt, 0.0, 0.05);
+  const double acceleration =
+    (filtered_force_ - desired_force_ - damping_ * velocity_ -
+     stiffness_ * offset_) / mass_;
+  velocity_ = std::clamp(
+    velocity_ + dt * acceleration, -max_velocity_, max_velocity_);
+  const double previous_offset = offset_;
+  offset_ = std::clamp(offset_ + dt * velocity_, -max_offset_, max_offset_);
+  if ((offset_ >= max_offset_ && velocity_ > 0.0) ||
+      (offset_ <= -max_offset_ && velocity_ < 0.0))
+  {
+    velocity_ = 0.0;
+  }
+  if (dt <= 0.0) {
+    offset_ = previous_offset;
+  }
   return offset_;
+}
+
+void ForceAdmittance::reset(double measured_force)
+{
+  filtered_force_ = std::max(0.0, measured_force);
+  offset_ = 0.0;
+  velocity_ = 0.0;
+  initialized_ = true;
 }
 
 Planner::Planner(const std::string & urdf_file, const std::string & ee_frame,
@@ -147,9 +171,16 @@ Planner::Planner(const std::string & urdf_file, const std::string & ee_frame,
   if (approach) {
     approach_clearance_ = approach["clearance"].as<double>();
     approach_speed_ = approach["speed"].as<double>();
+    if (approach["touch_distance"]) {
+      approach_touch_distance_ = approach["touch_distance"].as<double>();
+    }
+    if (approach["touch_speed"]) {
+      approach_touch_speed_ = approach["touch_speed"].as<double>();
+    }
     precontact_hold_duration_ = approach["precontact_hold_duration"].as<double>();
   }
   if (approach_clearance_ <= 0.0 || approach_speed_ <= 0.0 ||
+      approach_touch_distance_ < 0.0 || approach_touch_speed_ <= 0.0 ||
       precontact_hold_duration_ < 0.0)
   {
     throw std::runtime_error(
@@ -983,8 +1014,13 @@ std::vector<Waypoint> Planner::prependNormalApproach(
 
   std::vector<Waypoint> result;
   result.reserve(contact_trajectory.size() + outward_joints.size() + 1);
-  const double cartesian_segment_duration = approach_clearance_ /
-    (static_cast<double>(steps) * approach_speed_);
+  const double cartesian_segment_length = approach_clearance_ /
+    static_cast<double>(steps);
+  const auto segmentDuration = [this, cartesian_segment_length](double end_distance) {
+      const bool touch_segment = end_distance < approach_touch_distance_ - 1.0e-9;
+      const double speed = touch_segment ? approach_touch_speed_ : approach_speed_;
+      return cartesian_segment_length / speed;
+    };
   double approach_time = 0.0;
   for (int index = steps; index >= 1; --index) {
     if (index < steps) {
@@ -992,7 +1028,9 @@ std::vector<Waypoint> Planner::prependNormalApproach(
         (outward_joints[static_cast<std::size_t>(index + 1)] -
          outward_joints[static_cast<std::size_t>(index)])
         .cwiseAbs().maxCoeff() / std::max(1.0e-3, max_joint_speed_);
-      approach_time += std::max(cartesian_segment_duration, joint_duration);
+      const double end_distance = approach_clearance_ *
+        static_cast<double>(index) / static_cast<double>(steps);
+      approach_time += std::max(segmentDuration(end_distance), joint_duration);
     }
     Waypoint point;
     point.time = index == steps ? 0.0 :
@@ -1019,7 +1057,7 @@ std::vector<Waypoint> Planner::prependNormalApproach(
     (outward_joints[1] - outward_joints[0]).cwiseAbs().maxCoeff() /
     std::max(1.0e-3, max_joint_speed_);
   const double contact_start_time = precontact_hold_duration_ + approach_time +
-    std::max(cartesian_segment_duration, final_joint_duration);
+    std::max(segmentDuration(0.0), final_joint_duration);
   for (const Waypoint & contact : contact_trajectory) {
     Waypoint shifted = contact;
     shifted.time += contact_start_time;
@@ -1167,21 +1205,41 @@ Eigen::VectorXd Planner::forceCorrectedState(const Eigen::VectorXd & state,
 {
   Eigen::VectorXd corrected = state;
   pinocchio::Data data(model_);
-  const Eigen::VectorXd q = state.tail(model_.nq);
-  pinocchio::forwardKinematics(model_, data, q);
+  const Eigen::VectorXd nominal_q = state.tail(model_.nq);
+  Eigen::VectorXd q = nominal_q;
+  pinocchio::forwardKinematics(model_, data, nominal_q);
   pinocchio::updateFramePlacements(model_, data);
-  Eigen::MatrixXd jacobian = Eigen::MatrixXd::Zero(6, model_.nv);
-  pinocchio::computeFrameJacobian(model_, data, q, ee_frame_id_,
-    pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, jacobian);
   const Eigen::Vector3d local_displacement =
     rotationZ(-state[2]) * (normal_ * normal_offset);
-  const Eigen::MatrixXd position_jacobian = jacobian.topRows(3);
-  const Eigen::VectorXd delta = position_jacobian.transpose() *
-    (position_jacobian * position_jacobian.transpose() +
-     1.0e-4 * Eigen::Matrix3d::Identity()).ldlt().solve(local_displacement);
-  corrected.tail(model_.nq) = (q + delta.cwiseMax(-std::abs(max_joint_delta))
-    .cwiseMin(std::abs(max_joint_delta)))
-    .cwiseMax(model_.lowerPositionLimit).cwiseMin(model_.upperPositionLimit);
+  const Eigen::Vector3d target_position =
+    data.oMf[ee_frame_id_].translation() + local_displacement;
+
+  // A single damped-Jacobian step noticeably under-shoots centimetre-scale
+  // force offsets. Iterate in Cartesian space so the commanded normal offset
+  // remains meaningful while still bounding the total joint correction.
+  for (int iteration = 0; iteration < 8; ++iteration) {
+    pinocchio::forwardKinematics(model_, data, q);
+    pinocchio::updateFramePlacements(model_, data);
+    const Eigen::Vector3d error =
+      target_position - data.oMf[ee_frame_id_].translation();
+    if (error.norm() < 1.0e-5) {
+      break;
+    }
+
+    Eigen::MatrixXd jacobian = Eigen::MatrixXd::Zero(6, model_.nv);
+    pinocchio::computeFrameJacobian(model_, data, q, ee_frame_id_,
+      pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, jacobian);
+    const Eigen::MatrixXd position_jacobian = jacobian.topRows(3);
+    const Eigen::VectorXd delta = position_jacobian.transpose() *
+      (position_jacobian * position_jacobian.transpose() +
+       1.0e-5 * Eigen::Matrix3d::Identity()).ldlt().solve(error);
+    const Eigen::VectorXd bounded_delta =
+      (q + delta - nominal_q).cwiseMax(-std::abs(max_joint_delta))
+      .cwiseMin(std::abs(max_joint_delta));
+    q = (nominal_q + bounded_delta)
+      .cwiseMax(model_.lowerPositionLimit).cwiseMin(model_.upperPositionLimit);
+  }
+  corrected.tail(model_.nq) = q;
   return corrected;
 }
 

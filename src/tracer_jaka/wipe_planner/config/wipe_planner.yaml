@@ -31,10 +31,10 @@ wipe_planner:
     navigation_yaw_tolerance: 0.25
     navigation_partial_remaining: 1.50
     navigation_partial_arrival_hold: 0.0
-    # Fast non-contact validation profile.  The physical wiping plane is kept
-    # 5 cm off the wall by wipe_task.yaml, so no normal force is requested.
+    # The geometric path is nominal; virtual progress and force safety can
+    # independently slow or stop its execution.
     alignment_joint_speed: 0.08
-    task_settle_duration: 0.5
+    task_settle_duration: 4.0
 
     # Briefly hold the first offset-plane state before starting coverage.
 
@@ -57,17 +57,39 @@ wipe_planner:
 
     # Continuous normal-force control. It only changes arm joints; the planned
     # differential-drive base state and its no-slip constraint remain intact.
-    # Keep force control disabled while validating geometric MPC tracking.
-    force_control_enabled: false
+    force_control_enabled: true
     force_axis: "z"
     force_use_absolute: true
     force_filter_alpha: 0.20
-    admittance_gain: 0.00045
-    admittance_leak: 1.5
-    admittance_max_offset: 0.025
+    # Capture the actual contact plane as soon as force appears near the end of
+    # the normal approach; then skip the remaining geometric approach samples.
+    force_contact_threshold: 0.5
+    # The final approach is 1 mm/s, so open contact detection 5 s before the
+    # geometric plane to cover collision-shape and calibration uncertainty.
+    # Admittance itself remains inactive until force is actually detected.
+    force_contact_detection_window: 5.0
+    force_contact_plane_max_offset: 0.030
+    # Bound the pre-contact reference to 0.1 mm beyond the measured tool. This
+    # prevents queued MPC position error from becoming a stiff-wall impact.
+    force_precontact_max_lead: 0.0001
+    force_progress_tolerance: 3.0
+    # Do not start tangential wiping on a single in-band sample.  Contact force
+    # must remain settled continuously before virtual time can advance.
+    force_settle_hold: 2.0
+    # M*d_ddot + D*d_dot + K*d = measured_force - desired_force.
+    # Positive d follows normal_into_room (retreat); negative d presses in.
+    admittance_mass: 2.0
+    admittance_damping: 200.0
+    admittance_stiffness: 50.0
+    admittance_max_offset: 0.015
+    # The contact model needs millimetre-per-second authority to reach 12 N in
+    # a reasonable time and, more importantly, to release an overshoot before
+    # the hard limit. The second-order damping still smooths direction changes.
+    admittance_max_velocity: 0.001
     max_joint_force_correction: 0.10
     force_hard_limit: 35.0
-    force_recovery_limit: 25.0
+    force_sensor_timeout: 0.20
+    force_safety_retreat: 0.020
 
     # RViz performance: complete meshes at only six evenly-spaced contact
     # instants. The trajectory lines are one Marker each and are published once.

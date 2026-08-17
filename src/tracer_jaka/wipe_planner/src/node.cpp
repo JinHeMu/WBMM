@@ -11,6 +11,7 @@
 #include <quadrotor_msgs/msg/polynomial_traj.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_srvs/srv/set_bool.hpp>
 #include <traj_utils/msg/whole_body_goal.hpp>
@@ -148,9 +149,11 @@ public:
     planner_ = std::make_unique<Planner>(
       urdf_file, get_parameter("ee_frame").as_string(), task_file);
     admittance_ = std::make_unique<ForceAdmittance>(
-      planner_->desiredForce(), get_parameter("admittance_gain").as_double(),
-      get_parameter("admittance_leak").as_double(),
+      planner_->desiredForce(), get_parameter("admittance_mass").as_double(),
+      get_parameter("admittance_damping").as_double(),
+      get_parameter("admittance_stiffness").as_double(),
       get_parameter("admittance_max_offset").as_double(),
+      get_parameter("admittance_max_velocity").as_double(),
       get_parameter("force_filter_alpha").as_double());
 
     const std::string robot_name = get_parameter("robot_name").as_string();
@@ -167,11 +170,9 @@ public:
       std::bind(&WipePlannerNode::trajectoryCallback, this, std::placeholders::_1));
 
     force_control_enabled_ = get_parameter("force_control_enabled").as_bool();
-    if (force_control_enabled_) {
-      wrench_subscription_ = create_subscription<geometry_msgs::msg::WrenchStamped>(
-        get_parameter("wrench_topic").as_string(), rclcpp::QoS(10),
-        std::bind(&WipePlannerNode::wrenchCallback, this, std::placeholders::_1));
-    }
+    wrench_subscription_ = create_subscription<geometry_msgs::msg::WrenchStamped>(
+      get_parameter("wrench_topic").as_string(), rclcpp::SensorDataQoS(),
+      std::bind(&WipePlannerNode::wrenchCallback, this, std::placeholders::_1));
     const auto transient = rclcpp::QoS(1).reliable().transient_local();
     path_publisher_ = create_publisher<nav_msgs::msg::Path>(
       "/wipe_planner/base_path", transient);
@@ -188,6 +189,11 @@ public:
       "/wipe_planner/normal_force", 10);
     offset_publisher_ = create_publisher<std_msgs::msg::Float64>(
       "/wipe_planner/admittance_offset", 10);
+    force_state_publisher_ = create_publisher<std_msgs::msg::String>(
+      "/wipe_planner/force_control_state", 10);
+    contact_arm_reference_publisher_ =
+      create_publisher<std_msgs::msg::Float64MultiArray>(
+      "/wipe_planner/contact_arm_reference", 10);
     base_error_publisher_ = create_publisher<std_msgs::msg::Float64>(
       "/wipe_planner/base_tracking_error", 10);
     joint_error_publisher_ = create_publisher<std_msgs::msg::Float64>(
@@ -204,11 +210,14 @@ public:
       "/wipe_planner/contouring_error", 10);
     remani_task_client_ = create_client<std_srvs::srv::SetBool>(
       get_parameter("remani_task_service").as_string());
+    force_control_service_ = create_service<std_srvs::srv::SetBool>(
+      "/wipe_planner/enable_force_control",
+      std::bind(&WipePlannerNode::forceControlService, this,
+        std::placeholders::_1, std::placeholders::_2));
 
     const double rate = std::max(1.0, get_parameter("publish_rate").as_double());
     timer_ = create_wall_timer(std::chrono::duration<double>(1.0 / rate),
       std::bind(&WipePlannerNode::timerCallback, this));
-    last_force_time_ = now();
     RCLCPP_INFO(get_logger(),
       "REMANI -> WipePlanner(C++ differential drive) -> MPC ready; "
       "state=[base_x base_y base_yaw joint_1..joint_6] (9D), "
@@ -276,12 +285,21 @@ private:
     declare_parameter("force_axis", "z");
     declare_parameter("force_use_absolute", true);
     declare_parameter("force_filter_alpha", 0.20);
-    declare_parameter("admittance_gain", 0.00045);
-    declare_parameter("admittance_leak", 1.5);
-    declare_parameter("admittance_max_offset", 0.025);
+    declare_parameter("force_contact_threshold", 0.5);
+    declare_parameter("force_contact_detection_window", 1.0);
+    declare_parameter("force_contact_plane_max_offset", 0.030);
+    declare_parameter("force_precontact_max_lead", 0.0001);
+    declare_parameter("force_progress_tolerance", 5.0);
+    declare_parameter("force_settle_hold", 2.0);
+    declare_parameter("admittance_mass", 2.0);
+    declare_parameter("admittance_damping", 200.0);
+    declare_parameter("admittance_stiffness", 50.0);
+    declare_parameter("admittance_max_offset", 0.015);
+    declare_parameter("admittance_max_velocity", 0.001);
     declare_parameter("max_joint_force_correction", 0.10);
     declare_parameter("force_hard_limit", 35.0);
-    declare_parameter("force_recovery_limit", 25.0);
+    declare_parameter("force_sensor_timeout", 0.20);
+    declare_parameter("force_safety_retreat", 0.020);
     declare_parameter("visualization_snapshots", 6);
     declare_parameter("visualization_alpha", 0.16);
   }
@@ -314,6 +332,66 @@ private:
     observation_ros_time_ = now();
   }
 
+  bool forceContactActiveLocked() const
+  {
+    return force_control_enabled_ && phase_ == Phase::WIPING &&
+      (force_contact_detected_ ||
+      virtual_progress_ >= wipe_contact_start_time_);
+  }
+
+  bool forceSafetyStopLocked() const
+  {
+    return force_hard_stop_ || force_sensor_stale_;
+  }
+
+  bool forceReadyForProgressLocked() const
+  {
+    if (!force_control_enabled_) {
+      return true;
+    }
+    if (!force_in_tolerance_since_ || forceSafetyStopLocked()) {
+      return false;
+    }
+    return (last_force_time_ - *force_in_tolerance_since_).seconds() >=
+      std::max(0.0, get_parameter("force_settle_hold").as_double());
+  }
+
+  void captureForceSafetyAnchorLocked()
+  {
+    if (!force_safety_anchor_ && observation_) {
+      force_safety_anchor_ = toEigen(observation_->state.value);
+    }
+  }
+
+  void refreshForceSafetyAnchorLocked()
+  {
+    if (forceSafetyStopLocked()) {
+      captureForceSafetyAnchorLocked();
+    } else {
+      force_safety_anchor_.reset();
+    }
+  }
+
+  void forceControlService(
+    const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+    std::shared_ptr<std_srvs::srv::SetBool::Response> response)
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    force_control_enabled_ = request->data;
+    admittance_->reset(admittance_->measuredForce());
+    force_hard_stop_ = false;
+    force_sensor_stale_ = false;
+    force_contact_detected_ = false;
+    force_contact_plane_offset_ = 0.0;
+    force_in_tolerance_since_.reset();
+    force_safety_anchor_.reset();
+    response->success = true;
+    response->message = force_control_enabled_ ?
+      "force admittance enabled and safety latch reset" :
+      "force admittance disabled";
+    RCLCPP_WARN(get_logger(), "%s", response->message.c_str());
+  }
+
   void wrenchCallback(const geometry_msgs::msg::WrenchStamped::SharedPtr message)
   {
     const std::string axis = get_parameter("force_axis").as_string();
@@ -323,21 +401,87 @@ private:
       force = std::abs(force);
     }
     const rclcpp::Time current = now();
-    const double dt = std::max(0.0, (current - last_force_time_).seconds());
-    last_force_time_ = current;
     double offset = 0.0;
     double filtered_force = 0.0;
     {
       std::lock_guard<std::mutex> lock(mutex_);
-      offset = admittance_->update(force, dt);
-      filtered_force = admittance_->measuredForce();
-      if (filtered_force >= get_parameter("force_hard_limit").as_double()) {
-        force_hard_stop_.store(true);
-      } else if (force_hard_stop_.load() &&
-                 filtered_force <= get_parameter("force_recovery_limit").as_double())
+      const double dt = force_message_received_ ?
+        std::max(0.0, (current - last_force_time_).seconds()) : 0.0;
+      last_force_time_ = current;
+      last_force_wall_time_ = std::chrono::steady_clock::now();
+      force_message_received_ = true;
+      force_sensor_stale_ = false;
+      const double detection_window = std::max(
+        0.0, get_parameter("force_contact_detection_window").as_double());
+      if (force_control_enabled_ && phase_ == Phase::WIPING &&
+          !force_contact_detected_ && !wipe_trajectory_.empty() &&
+          virtual_progress_ >= wipe_contact_start_time_ - detection_window &&
+          force >= get_parameter("force_contact_threshold").as_double())
       {
-        force_hard_stop_.store(false);
+        force_contact_detected_ = true;
+        if (observation_) {
+          const Eigen::VectorXd measured = toEigen(observation_->state.value);
+          const Eigen::VectorXd nominal_contact =
+            interpolate(wipe_trajectory_, wipe_contact_start_time_).first;
+          const Eigen::Vector3d measured_ee = planner_->framePosition(
+            measured, get_parameter("ee_frame").as_string());
+          const Eigen::Vector3d nominal_ee = planner_->framePosition(
+            nominal_contact, get_parameter("ee_frame").as_string());
+          const double maximum = std::abs(
+            get_parameter("force_contact_plane_max_offset").as_double());
+          force_contact_plane_offset_ = std::clamp(
+            planner_->surfaceNormal().dot(measured_ee - nominal_ee),
+            -maximum, maximum);
+        }
+        // The first real contact defines the normal plane. Skip the remaining
+        // geometric approach; adding the captured normal offset to the nominal
+        // contact state makes this transition continuous.
+        virtual_progress_ = std::max(virtual_progress_, wipe_contact_start_time_);
+        projected_progress_ = virtual_progress_;
+        admittance_->reset(force);
+        force_in_tolerance_since_.reset();
+        RCLCPP_INFO(get_logger(),
+          "Force contact captured at %.2f N with plane offset %.2f mm",
+          force, 1000.0 * force_contact_plane_offset_);
       }
+      if (forceContactActiveLocked() && !force_hard_stop_) {
+        offset = admittance_->update(force, dt);
+      } else {
+        // Never preload the controller while navigating or approaching. A
+        // missing contact force must not accumulate a maximum wall penetration
+        // before the first contact sample arrives.
+        admittance_->reset(force);
+        offset = 0.0;
+      }
+      filtered_force = admittance_->measuredForce();
+      if (force_control_enabled_ &&
+          filtered_force >= get_parameter("force_hard_limit").as_double())
+      {
+        if (!force_hard_stop_) {
+          RCLCPP_ERROR(get_logger(),
+            "Force hard limit reached: %.2f N; stopping progress and retreating",
+            filtered_force);
+        }
+        force_hard_stop_ = true;
+      }
+      const double force_error = std::abs(
+        filtered_force - planner_->desiredForce());
+      const double force_tolerance = std::max(
+        0.0, get_parameter("force_progress_tolerance").as_double());
+      if (forceContactActiveLocked() && !forceSafetyStopLocked() &&
+          force_error <= force_tolerance)
+      {
+        if (!force_in_tolerance_since_) {
+          force_in_tolerance_since_ = current;
+        }
+      } else {
+        force_in_tolerance_since_.reset();
+      }
+      // An over-force event is latched. Automatic recovery caused a repeated
+      // nominal-reference -> impact -> retreat cycle in contact testing. The
+      // operator must explicitly reset it through enable_force_control.
+      refreshForceSafetyAnchorLocked();
+      offset += force_contact_plane_offset_;
     }
     std_msgs::msg::Float64 force_message;
     force_message.data = filtered_force;
@@ -690,6 +834,12 @@ private:
           contouring_error_ = 0.0;
           virtual_progress_rate_ = 0.0;
           last_wipe_clock_time_ = observation_time;
+          admittance_->reset(admittance_->measuredForce());
+          force_sensor_stale_ = false;
+          force_contact_detected_ = false;
+          force_contact_plane_offset_ = 0.0;
+          force_in_tolerance_since_.reset();
+          force_safety_anchor_.reset();
           phase_ = Phase::WIPING;
         }
         RCLCPP_INFO(get_logger(),
@@ -728,6 +878,64 @@ private:
     return {state, input};
   }
 
+  void updateForceSensorSafetyLocked()
+  {
+    const bool was_stale = force_sensor_stale_;
+    if (!forceContactActiveLocked()) {
+      force_sensor_stale_ = false;
+    } else {
+      const double timeout = std::max(
+        0.01, get_parameter("force_sensor_timeout").as_double());
+      force_sensor_stale_ = !force_message_received_ ||
+        std::chrono::duration<double>(
+          std::chrono::steady_clock::now() - last_force_wall_time_).count() >
+        timeout;
+    }
+    if (force_sensor_stale_ && !was_stale) {
+      RCLCPP_ERROR(get_logger(),
+        "Force sensor timed out during contact; stopping progress and retreating");
+    } else if (!force_sensor_stale_ && was_stale) {
+      RCLCPP_WARN(get_logger(), "Force sensor data recovered");
+    }
+    refreshForceSafetyAnchorLocked();
+  }
+
+  Eigen::VectorXd forceCorrectedReferenceLocked(const Eigen::VectorXd & state) const
+  {
+    if (!forceContactActiveLocked() || forceSafetyStopLocked()) {
+      return state;
+    }
+    const double max_joint_correction =
+      get_parameter("max_joint_force_correction").as_double();
+    double total_offset = force_contact_plane_offset_ + admittance_->offset();
+    Eigen::VectorXd corrected = planner_->forceCorrectedState(
+      state, total_offset, max_joint_correction);
+
+    // Before the first force sample, never let the OCS2 reference get far
+    // ahead of the measured tool along the wall normal.  The admittance keeps
+    // integrating toward contact, but this position-error guard turns the
+    // final approach into a compliant crawl.  Without it, several millimetres
+    // of queued position error can still be executed while a newly captured
+    // contact reference propagates through MPC, producing a stiff-wall impact.
+    if (!force_contact_detected_ && observation_) {
+      const Eigen::VectorXd measured = toEigen(observation_->state.value);
+      const Eigen::Vector3d measured_ee = planner_->framePosition(
+        measured, get_parameter("ee_frame").as_string());
+      const Eigen::Vector3d corrected_ee = planner_->framePosition(
+        corrected, get_parameter("ee_frame").as_string());
+      const Eigen::Vector3d normal = planner_->surfaceNormal();
+      const double normal_lead = normal.dot(corrected_ee - measured_ee);
+      const double max_wallward_lead = std::max(
+        0.0, get_parameter("force_precontact_max_lead").as_double());
+      if (normal_lead < -max_wallward_lead) {
+        total_offset += -max_wallward_lead - normal_lead;
+        corrected = planner_->forceCorrectedState(
+          state, total_offset, max_joint_correction);
+      }
+    }
+    return corrected;
+  }
+
   std::pair<Eigen::VectorXd, Eigen::VectorXd> sampleReferenceLocked(
     double sample_time, double yaw_reference) const
   {
@@ -749,14 +957,16 @@ private:
     }
     const double preview_dt = std::max(0.0, sample_time - progress_anchor_time_);
     double relative_time = virtual_progress_ + virtual_progress_rate_ * preview_dt;
-    if (force_hard_stop_.load() && relative_time >= wipe_contact_start_time_) {
-      return {hold, Eigen::VectorXd::Zero(8)};
+    if (forceSafetyStopLocked() && forceContactActiveLocked()) {
+      Eigen::VectorXd retreat = force_safety_anchor_.value_or(hold);
+      retreat = planner_->forceCorrectedState(
+        retreat, std::abs(get_parameter("force_safety_retreat").as_double()),
+        get_parameter("max_joint_force_correction").as_double());
+      return {retreat, Eigen::VectorXd::Zero(8)};
     }
     auto result = interpolate(wipe_trajectory_, relative_time);
-    if (force_control_enabled_ && relative_time >= wipe_contact_start_time_) {
-      result.first = planner_->forceCorrectedState(
-        result.first, admittance_->offset(),
-        get_parameter("max_joint_force_correction").as_double());
+    if (forceContactActiveLocked()) {
+      result.first = forceCorrectedReferenceLocked(result.first);
     }
     return result;
   }
@@ -793,8 +1003,10 @@ private:
     double best_metric = std::numeric_limits<double>::infinity();
     for (double candidate = begin; candidate <= end + 0.5 * step; candidate += step) {
       const double tau = std::min(candidate, end);
+      const Eigen::VectorXd reference = forceCorrectedReferenceLocked(
+        interpolate(wipe_trajectory_, tau).first);
       const double metric = progressMetric(
-        measured, interpolate(wipe_trajectory_, tau).first, false);
+        measured, reference, false);
       const double metric_tie_tolerance = 1.0e-6;
       const bool nearer_virtual_progress =
         std::abs(tau - virtual_progress_) <
@@ -824,8 +1036,24 @@ private:
     }
 
     const Eigen::VectorXd measured = toEigen(observation_->state.value);
-    const Eigen::VectorXd current_reference =
-      interpolate(wipe_trajectory_, virtual_progress_).first;
+    if (forceSafetyStopLocked() && forceContactActiveLocked())
+    {
+      virtual_progress_rate_ = 0.0;
+      return;
+    }
+    if (force_control_enabled_ && (force_contact_detected_ ||
+        virtual_progress_ >= wipe_contact_start_time_) &&
+        !forceReadyForProgressLocked())
+    {
+      // The pre-contact guard is already active during the detection window,
+      // but nominal time may advance to the planned contact point.  Only then
+      // pause path progress, decoupling normal force establishment from
+      // tangential wiping motion.
+      virtual_progress_rate_ = 0.0;
+      return;
+    }
+    const Eigen::VectorXd current_reference = forceCorrectedReferenceLocked(
+      interpolate(wipe_trajectory_, virtual_progress_).first);
     const bool contact_phase = virtual_progress_ >= wipe_contact_start_time_;
     const bool contact_settle_phase = contact_phase &&
       virtual_progress_ < wipe_contact_start_time_ +
@@ -838,11 +1066,13 @@ private:
       // timestamps as hard deadlines.
       projected_progress_ = projectProgress(measured);
       progress_lag_error_ = virtual_progress_ - projected_progress_;
-      const Eigen::VectorXd projected_reference =
-        interpolate(wipe_trajectory_, projected_progress_).first;
-      contouring_error_ = (planner_->framePosition(measured,
+      const Eigen::VectorXd projected_reference = forceCorrectedReferenceLocked(
+        interpolate(wipe_trajectory_, projected_progress_).first);
+      const Eigen::Vector3d ee_error = planner_->framePosition(measured,
         get_parameter("ee_frame").as_string()) - planner_->framePosition(
-        projected_reference, get_parameter("ee_frame").as_string())).norm();
+        projected_reference, get_parameter("ee_frame").as_string());
+      const Eigen::Vector3d normal = planner_->surfaceNormal();
+      contouring_error_ = (ee_error - normal * normal.dot(ee_error)).norm();
       tracking_error = progressMetric(measured, current_reference);
     } else {
       // The alignment prefix is a collision-free joint-space path; the normal
@@ -886,6 +1116,27 @@ private:
     return "unknown";
   }
 
+  std::string forceStateLocked() const
+  {
+    if (!force_control_enabled_) {
+      return "disabled";
+    }
+    if (force_hard_stop_) {
+      return "over_force_retreat";
+    }
+    if (force_sensor_stale_) {
+      return "sensor_timeout_retreat";
+    }
+    if (!forceContactActiveLocked()) {
+      return "armed_waiting_for_contact";
+    }
+    if (!forceReadyForProgressLocked())
+    {
+      return "active_force_settling";
+    }
+    return "active";
+  }
+
   void timerCallback()
   {
     bool assembly_ready = false;
@@ -922,11 +1173,15 @@ private:
     double current_progress_rate = 0.0;
     double current_lag_error = 0.0;
     double current_contouring_error = 0.0;
+    double current_force = 0.0;
+    double current_force_offset = 0.0;
+    std::string current_force_state;
     {
       std::lock_guard<std::mutex> lock(mutex_);
       if (!observation_) {
         return;
       }
+      updateForceSensorSafetyLocked();
       updateVirtualProgressLocked(current_time);
       const double horizon = get_parameter("reference_horizon").as_double();
       const double step = get_parameter("reference_dt").as_double();
@@ -957,11 +1212,25 @@ private:
       current_progress_rate = virtual_progress_rate_;
       current_lag_error = progress_lag_error_;
       current_contouring_error = contouring_error_;
+      current_force = admittance_->measuredForce();
+      current_force_offset = force_contact_plane_offset_ + admittance_->offset();
+      current_force_state = forceStateLocked();
     }
     target_publisher_->publish(target);
+    if (current_reference.size() >= 9) {
+      std_msgs::msg::Float64MultiArray arm_reference_message;
+      arm_reference_message.data.reserve(6);
+      for (Eigen::Index index = 3; index < 9; ++index) {
+        arm_reference_message.data.push_back(current_reference[index]);
+      }
+      contact_arm_reference_publisher_->publish(arm_reference_message);
+    }
     std_msgs::msg::String phase_message;
     phase_message.data = phaseName(current_phase);
     phase_publisher_->publish(phase_message);
+    std_msgs::msg::String force_state_message;
+    force_state_message.data = current_force_state;
+    force_state_publisher_->publish(force_state_message);
     if (current_phase == Phase::WIPING) {
       for (const auto & item : std::vector<std::pair<
         rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr, double>>{
@@ -978,10 +1247,11 @@ private:
         last_progress_log_ = current_time;
         RCLCPP_INFO(get_logger(),
           "Path progress: tau=%.2f s, tau_dot=%.2f, projected_tau=%.2f s, "
-          "lag=%.2f s, contour=%.3f m",
+          "lag=%.2f s, contour=%.3f m, force=%.2f N, offset=%.2f mm, force_state=%s",
           current_progress, current_progress_rate,
           current_progress - current_lag_error,
-          current_lag_error, current_contouring_error);
+          current_lag_error, current_contouring_error, current_force,
+          1000.0 * current_force_offset, current_force_state.c_str());
       }
       publishActiveReference(active_reference_states, current_time);
     }
@@ -1020,6 +1290,8 @@ private:
         planner_->frameRotation(reference, ee_frame).col(2);
       const Eigen::Vector3d measured_tool_z =
         planner_->frameRotation(measured, ee_frame).col(2);
+      const Eigen::Vector3d reference_ee = planner_->framePosition(reference, ee_frame);
+      const Eigen::Vector3d measured_ee = planner_->framePosition(measured, ee_frame);
       const Eigen::Vector3d wall_direction = -planner_->surfaceNormal();
       RCLCPP_INFO(get_logger(), "MPC tracking: base=%.3f m, joint=%.3f rad, EE=%.3f m",
                   base_error, joint_error, ee_error);
@@ -1034,6 +1306,13 @@ private:
         reference_tool_z.x(), reference_tool_z.y(), reference_tool_z.z(),
         measured_tool_z.x(), measured_tool_z.y(), measured_tool_z.z(),
         wall_direction.x(), wall_direction.y(), wall_direction.z());
+      RCLCPP_INFO(get_logger(),
+        "tool0 position ref=[%.3f %.3f %.3f] meas=[%.3f %.3f %.3f], "
+        "surface-normal gap=%.2f mm",
+        reference_ee.x(), reference_ee.y(), reference_ee.z(),
+        measured_ee.x(), measured_ee.y(), measured_ee.z(),
+        1000.0 * planner_->surfaceNormal().dot(
+          measured_ee - planner_->surfaceCenter()));
     }
   }
 
@@ -1319,9 +1598,16 @@ private:
   std::atomic_bool shutting_down_{false};
   std::atomic_bool remani_task_requested_{false};
   std::atomic_bool remani_task_confirmed_{false};
-  std::atomic_bool force_hard_stop_{false};
+  bool force_hard_stop_{false};
+  bool force_sensor_stale_{false};
+  bool force_message_received_{false};
+  bool force_contact_detected_{false};
   bool force_control_enabled_{true};
+  double force_contact_plane_offset_{0.0};
   rclcpp::Time last_force_time_{0, 0, RCL_ROS_TIME};
+  std::chrono::steady_clock::time_point last_force_wall_time_{};
+  std::optional<rclcpp::Time> force_in_tolerance_since_;
+  std::optional<Eigen::VectorXd> force_safety_anchor_;
   double last_tracking_log_{-1.0e9};
   double last_navigation_log_{-1.0e9};
 
@@ -1338,6 +1624,9 @@ private:
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr phase_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr force_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr offset_publisher_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr force_state_publisher_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
+    contact_arm_reference_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr base_error_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr joint_error_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr ee_error_publisher_;
@@ -1346,6 +1635,7 @@ private:
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr lag_error_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr contouring_error_publisher_;
   rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr remani_task_client_;
+  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr force_control_service_;
   rclcpp::TimerBase::SharedPtr timer_;
 };
 }  // namespace wipe_planner

@@ -13,23 +13,29 @@ wipe_task:
     # IK operate on these task samples; 3 cm keeps joint interpolation smooth
     # without making the base search unnecessarily large.
     solver_spacing: 0.03
-    # Fast non-contact validation profile.  The active virtual-progress manager
-    # will still slow these nominal speeds if whole-body tracking falls behind.
-    tangential_speed: 0.10
-    corner_speed: 0.04
+    # Contact wiping profile.  The earlier 0.10 m/s non-contact validation
+    # speed produced unacceptable normal-force transients once the pad touched
+    # the wall, so contact operation deliberately uses a conservative rate.
+    tangential_speed: 0.015
+    corner_speed: 0.008
 
   contact:
     desired_normal_force: 12.0
-    # Negative moves the nominal wiping plane along normal_into_room.  Keep the
-    # tool 5 cm on the room side of the physical wall for non-contact testing.
-    offset: -0.05
+    # tool0 is the pad tip. Start on the MuJoCo wall face; the admittance outer
+    # loop creates only the small penetration needed to reach the desired force.
+    offset: 0.0
 
   approach:
     # REMANI navigates to this wall-normal pose on the room side of the wall.
     # WipePlanner then holds the base and advances only the arm along the wall
     # normal. This keeps contact out of the navigation optimizer.
     clearance: 0.12
-    speed: 0.04
+    # Traverse open clearance efficiently, then reduce the last 20 mm to a
+    # true contact-search speed.  This avoids converting the wall/contact
+    # damping into a force impulse at first touch.
+    speed: 0.01
+    touch_distance: 0.02
+    touch_speed: 0.001
     precontact_hold_duration: 0.5
 
   whole_body:
@@ -86,8 +92,7 @@ wipe_task:
     base_acceleration: 0.35
     angular_speed: 0.55
     angular_acceleration: 0.80
-    # Faster non-contact nominal path; MPC retains a 0.55 rad/s correction limit.
-    joint_speed: 0.08
+    joint_speed: 0.05
 
   solver:
     position_tolerance: 0.012
