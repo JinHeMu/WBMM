@@ -32,8 +32,7 @@ def generate_launch_description():
                 mujoco_share, 'urdf', 'tracer_jaka_zu5.urdf'),
             'task_file': os.path.join(
                 wipe_share, 'config', 'wipe_task.yaml'),
-            # Planning seed only; the returned trajectory starts at contact.
-            # This is a planning seed only; no simulated or real robot starts.
+            # Planning seed only; no simulated or real robot starts.
             'initial_state': [
                 0.75, 2.06, 0.0,
                 0.0, 1.5707, 0.0, 1.5707, 3.14159, 0.785398,

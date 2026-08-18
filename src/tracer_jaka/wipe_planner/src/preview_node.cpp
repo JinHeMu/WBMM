@@ -141,52 +141,67 @@ private:
     result.markers.push_back(clear);
     int marker_id = 100;
     for (const std::size_t index : indices) {
-      for (const auto & geometry : planner_->visualGeometry(trajectory[index].state)) {
-        visualization_msgs::msg::Marker marker;
-        marker.header = clear.header;
-        marker.ns = marker_namespace;
-        marker.id = marker_id++;
-        marker.type = visualization_msgs::msg::Marker::MESH_RESOURCE;
-        marker.action = visualization_msgs::msg::Marker::ADD;
-        marker.mesh_resource = geometry.mesh_path;
-        marker.mesh_use_embedded_materials = false;
-        marker.pose.position = point(geometry.position);
-        marker.pose.orientation.x = geometry.orientation.x();
-        marker.pose.orientation.y = geometry.orientation.y();
-        marker.pose.orientation.z = geometry.orientation.z();
-        marker.pose.orientation.w = geometry.orientation.w();
-        marker.scale.x = geometry.mesh_scale.x();
-        marker.scale.y = geometry.mesh_scale.y();
-        marker.scale.z = geometry.mesh_scale.z();
-        marker.color.r = static_cast<float>(color.x());
-        marker.color.g = static_cast<float>(color.y());
-        marker.color.b = static_cast<float>(color.z());
-        marker.color.a = static_cast<float>(alpha);
-        result.markers.push_back(std::move(marker));
-      }
-
-      const Eigen::Vector3d tool_position = planner_->framePosition(
-        trajectory[index].state, get_parameter("ee_frame").as_string());
-      const Eigen::Vector3d tool_axis = planner_->frameRotation(
-        trajectory[index].state, get_parameter("ee_frame").as_string()).col(2);
-      visualization_msgs::msg::Marker axis;
-      axis.header = clear.header;
-      axis.ns = marker_namespace + "_tool0_z";
-      axis.id = marker_id++;
-      axis.type = visualization_msgs::msg::Marker::ARROW;
-      axis.action = visualization_msgs::msg::Marker::ADD;
-      axis.points.push_back(point(tool_position));
-      axis.points.push_back(point(tool_position + 0.18 * tool_axis));
-      axis.scale.x = 0.014;
-      axis.scale.y = 0.032;
-      axis.scale.z = 0.045;
-      axis.color.r = 0.05F;
-      axis.color.g = 0.25F;
-      axis.color.b = 1.0F;
-      axis.color.a = 1.0F;
-      result.markers.push_back(std::move(axis));
+      appendRobotSnapshot(
+        result, trajectory[index].state, clear.header, marker_namespace,
+        marker_id, color, alpha, Eigen::Vector3d(0.05, 0.25, 1.0));
     }
     return result;
+  }
+
+  void appendRobotSnapshot(
+    visualization_msgs::msg::MarkerArray & result,
+    const Eigen::VectorXd & state,
+    const std_msgs::msg::Header & marker_header,
+    const std::string & marker_namespace,
+    int & marker_id,
+    const Eigen::Vector3d & color,
+    double alpha,
+    const Eigen::Vector3d & axis_color) const
+  {
+    for (const auto & geometry : planner_->visualGeometry(state)) {
+      visualization_msgs::msg::Marker marker;
+      marker.header = marker_header;
+      marker.ns = marker_namespace;
+      marker.id = marker_id++;
+      marker.type = visualization_msgs::msg::Marker::MESH_RESOURCE;
+      marker.action = visualization_msgs::msg::Marker::ADD;
+      marker.mesh_resource = geometry.mesh_path;
+      marker.mesh_use_embedded_materials = false;
+      marker.pose.position = point(geometry.position);
+      marker.pose.orientation.x = geometry.orientation.x();
+      marker.pose.orientation.y = geometry.orientation.y();
+      marker.pose.orientation.z = geometry.orientation.z();
+      marker.pose.orientation.w = geometry.orientation.w();
+      marker.scale.x = geometry.mesh_scale.x();
+      marker.scale.y = geometry.mesh_scale.y();
+      marker.scale.z = geometry.mesh_scale.z();
+      marker.color.r = static_cast<float>(color.x());
+      marker.color.g = static_cast<float>(color.y());
+      marker.color.b = static_cast<float>(color.z());
+      marker.color.a = static_cast<float>(alpha);
+      result.markers.push_back(std::move(marker));
+    }
+
+    const Eigen::Vector3d tool_position = planner_->framePosition(
+      state, get_parameter("ee_frame").as_string());
+    const Eigen::Vector3d tool_axis = planner_->frameRotation(
+      state, get_parameter("ee_frame").as_string()).col(2);
+    visualization_msgs::msg::Marker axis;
+    axis.header = marker_header;
+    axis.ns = marker_namespace + "_tool0_z";
+    axis.id = marker_id++;
+    axis.type = visualization_msgs::msg::Marker::ARROW;
+    axis.action = visualization_msgs::msg::Marker::ADD;
+    axis.points.push_back(point(tool_position));
+    axis.points.push_back(point(tool_position + 0.18 * tool_axis));
+    axis.scale.x = 0.014;
+    axis.scale.y = 0.032;
+    axis.scale.z = 0.045;
+    axis.color.r = static_cast<float>(axis_color.x());
+    axis.color.g = static_cast<float>(axis_color.y());
+    axis.color.b = static_cast<float>(axis_color.z());
+    axis.color.a = 1.0F;
+    result.markers.push_back(std::move(axis));
   }
 
   void publishScene(
@@ -313,10 +328,17 @@ private:
 
     const auto selected_coverage = evenlySpaced(
       contact_indices, get_parameter("coverage_snapshots").as_int());
-    coverage_publisher_->publish(robotSnapshots(
+    auto robot_markers = robotSnapshots(
       trajectory, selected_coverage, "wipe_back_end_robot",
       Eigen::Vector3d(0.10, 0.55, 1.0),
-      get_parameter("coverage_alpha").as_double()));
+      get_parameter("coverage_alpha").as_double());
+    int precontact_marker_id = 100;
+    appendRobotSnapshot(
+      robot_markers, trajectory.front().state, marker_header,
+      "wipe_precontact_robot", precontact_marker_id,
+      Eigen::Vector3d(1.0, 0.82, 0.05), 0.82,
+      Eigen::Vector3d(1.0, 0.82, 0.05));
+    coverage_publisher_->publish(robot_markers);
 
     std_msgs::msg::String status;
     status.data = summary.str();
@@ -324,7 +346,7 @@ private:
     RCLCPP_INFO(
       get_logger(),
       "Plan published: %zu waypoints, %.1f s, %zu EE poses, "
-      "%zu constrained whole-body ghosts; "
+      "%zu constrained whole-body ghosts plus one yellow pre-contact pose; "
       "Hybrid A* expanded=%d, IK rejected=%d, collision rejected=%d",
       trajectory.size(), report.duration, ee_path.poses.size(),
       selected_coverage.size(),

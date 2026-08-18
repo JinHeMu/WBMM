@@ -86,6 +86,30 @@ TEST(ForceAdmittance, HighForceMovesReferenceAwayFromSurface)
   EXPECT_LE(admittance.offset(), 0.015);
 }
 
+TEST(SafetyRetreat, IsRateLimitedAndDoesNotJump)
+{
+  double retreat = 0.0;
+  retreat = wipe_planner::rateLimitedStep(retreat, 0.020, 0.010, 0.008);
+  EXPECT_NEAR(retreat, 0.00008, 1.0e-12);
+  for (int sample = 0; sample < 249; ++sample) {
+    retreat = wipe_planner::rateLimitedStep(retreat, 0.020, 0.010, 0.008);
+  }
+  EXPECT_NEAR(retreat, 0.020, 1.0e-12);
+  EXPECT_NEAR(
+    wipe_planner::rateLimitedStep(retreat, 0.0, 0.005, 0.10),
+    0.0195, 1.0e-12);
+}
+
+TEST(ForceProgress, UsesContinuousThrottleBeforePauseBand)
+{
+  EXPECT_DOUBLE_EQ(wipe_planner::forceProgressScale(0.0, 3.0, 8.0, 0.15), 1.0);
+  EXPECT_DOUBLE_EQ(wipe_planner::forceProgressScale(3.0, 3.0, 8.0, 0.15), 1.0);
+  EXPECT_NEAR(
+    wipe_planner::forceProgressScale(5.5, 3.0, 8.0, 0.15), 0.575, 1.0e-12);
+  EXPECT_DOUBLE_EQ(wipe_planner::forceProgressScale(8.0, 3.0, 8.0, 0.15), 0.15);
+  EXPECT_DOUBLE_EQ(wipe_planner::forceProgressScale(20.0, 3.0, 8.0, 0.15), 0.15);
+}
+
 TEST(WholeBodyPlan, ContactTrajectoryIsReachableAndNonholonomic)
 {
   const std::string source = WIPE_PLANNER_SOURCE_DIR;

@@ -146,6 +146,10 @@ def generate_launch_description():
                 'mrt_traj_horizon': '0.02',
                 'arm_use_velocity_integrator': 'true',
                 'arm_max_command_velocity': '0.25',
+                # Final approach, force correction, and safety retreat all use
+                # a direct position reference. Bound the handover/output slew
+                # so none of those modes can create a one-cycle arm step.
+                'arm_contact_command_velocity': '0.10',
                 # Keep the free-space adapter responsive, then prevent it from
                 # winding up a large lead while the tool is wall-constrained.
                 'arm_max_delta_per_step': '0.50',

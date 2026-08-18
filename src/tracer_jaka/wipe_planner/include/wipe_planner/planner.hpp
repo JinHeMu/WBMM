@@ -21,6 +21,10 @@ double adaptiveProgressRate(double tracking_error, double lag_error,
                             double max_rate, double filter,
                             double lag_gain, double ahead_gain,
                             double soft_error, double hard_error);
+double rateLimitedStep(double current, double target, double max_rate,
+                       double dt);
+double forceProgressScale(double force_error, double full_speed_error,
+                          double pause_error, double minimum_scale);
 
 struct Waypoint
 {

@@ -191,6 +191,8 @@ public:
       "/wipe_planner/admittance_offset", 10);
     force_state_publisher_ = create_publisher<std_msgs::msg::String>(
       "/wipe_planner/force_control_state", 10);
+    force_progress_scale_publisher_ = create_publisher<std_msgs::msg::Float64>(
+      "/wipe_planner/force_progress_scale", 10);
     contact_arm_reference_publisher_ =
       create_publisher<std_msgs::msg::Float64MultiArray>(
       "/wipe_planner/contact_arm_reference", 10);
@@ -291,6 +293,12 @@ private:
     declare_parameter("force_precontact_max_lead", 0.0001);
     declare_parameter("force_progress_tolerance", 5.0);
     declare_parameter("force_settle_hold", 2.0);
+    declare_parameter("force_progress_pause_error", 8.0);
+    declare_parameter("force_progress_resume_error", 5.0);
+    declare_parameter("force_progress_pause_hold", 0.25);
+    declare_parameter("force_progress_resume_hold", 0.50);
+    declare_parameter("force_progress_min_scale", 0.15);
+    declare_parameter("force_progress_scale_filter", 0.08);
     declare_parameter("admittance_mass", 2.0);
     declare_parameter("admittance_damping", 200.0);
     declare_parameter("admittance_stiffness", 50.0);
@@ -300,6 +308,7 @@ private:
     declare_parameter("force_hard_limit", 35.0);
     declare_parameter("force_sensor_timeout", 0.20);
     declare_parameter("force_safety_retreat", 0.020);
+    declare_parameter("force_safety_retreat_speed", 0.010);
     declare_parameter("visualization_snapshots", 6);
     declare_parameter("visualization_alpha", 0.16);
   }
@@ -349,18 +358,27 @@ private:
     if (!force_control_enabled_) {
       return true;
     }
-    if (!force_in_tolerance_since_ || forceSafetyStopLocked()) {
-      return false;
-    }
-    return (last_force_time_ - *force_in_tolerance_since_).seconds() >=
-      std::max(0.0, get_parameter("force_settle_hold").as_double());
+    return initial_force_settled_ && !forceSafetyStopLocked();
   }
 
   void captureForceSafetyAnchorLocked()
   {
-    if (!force_safety_anchor_ && observation_) {
-      force_safety_anchor_ = toEigen(observation_->state.value);
+    if (!force_safety_anchor_) {
+      if (last_commanded_reference_) {
+        // Start the retreat from the exact reference sent on the preceding
+        // cycle.  Anchoring at the measured state can itself introduce a
+        // discontinuity whenever the position controller has normal lag.
+        force_safety_anchor_ = *last_commanded_reference_;
+      } else if (observation_) {
+        force_safety_anchor_ = toEigen(observation_->state.value);
+      }
     }
+  }
+
+  void resetForceSafetyRetreatLocked()
+  {
+    force_safety_retreat_offset_ = 0.0;
+    force_safety_retreat_initialized_ = false;
   }
 
   void refreshForceSafetyAnchorLocked()
@@ -369,7 +387,135 @@ private:
       captureForceSafetyAnchorLocked();
     } else {
       force_safety_anchor_.reset();
+      resetForceSafetyRetreatLocked();
     }
+  }
+
+  void updateForceSafetyRetreatLocked()
+  {
+    if (!forceSafetyStopLocked() || !forceContactActiveLocked()) {
+      resetForceSafetyRetreatLocked();
+      return;
+    }
+    captureForceSafetyAnchorLocked();
+    const auto current = std::chrono::steady_clock::now();
+    if (!force_safety_retreat_initialized_) {
+      force_safety_retreat_wall_time_ = current;
+      force_safety_retreat_initialized_ = true;
+      return;
+    }
+    const double dt = std::clamp(
+      std::chrono::duration<double>(
+        current - force_safety_retreat_wall_time_).count(), 0.0, 0.10);
+    force_safety_retreat_wall_time_ = current;
+    force_safety_retreat_offset_ = rateLimitedStep(
+      force_safety_retreat_offset_,
+      std::abs(get_parameter("force_safety_retreat").as_double()),
+      std::abs(get_parameter("force_safety_retreat_speed").as_double()), dt);
+  }
+
+  void resetForceProgressSupervisorLocked()
+  {
+    initial_force_settled_ = false;
+    force_motion_paused_ = false;
+    force_progress_scale_ = 0.0;
+    force_in_tolerance_since_.reset();
+    force_pause_since_.reset();
+    force_resume_since_.reset();
+  }
+
+  void updateForceProgressSupervisorLocked(
+    const rclcpp::Time & current, double force_error)
+  {
+    if (!forceContactActiveLocked()) {
+      resetForceProgressSupervisorLocked();
+      return;
+    }
+    if (forceSafetyStopLocked()) {
+      // Safety stop ownership is handled separately and must remain immediate.
+      force_progress_scale_ = 0.0;
+      force_pause_since_.reset();
+      force_resume_since_.reset();
+      return;
+    }
+
+    const double full_speed_error = std::max(
+      0.0, get_parameter("force_progress_tolerance").as_double());
+    if (!initial_force_settled_) {
+      if (force_error <= full_speed_error) {
+        if (!force_in_tolerance_since_) {
+          force_in_tolerance_since_ = current;
+        }
+        const double settle_hold = std::max(
+          0.0, get_parameter("force_settle_hold").as_double());
+        if ((current - *force_in_tolerance_since_).seconds() >= settle_hold) {
+          initial_force_settled_ = true;
+          force_progress_scale_ = 1.0;
+          RCLCPP_INFO(get_logger(),
+            "Initial contact force settled; continuous wiping supervisor enabled");
+        }
+      } else {
+        force_in_tolerance_since_.reset();
+      }
+      return;
+    }
+
+    // After the initial contact has settled, ordinary force ripple must not
+    // restart the two-second contact-establishment hold.  Only a sustained,
+    // much larger error enters a hysteretic pause; moderate error continuously
+    // throttles path time while admittance restores the normal force.
+    const double pause_error = std::max(
+      full_speed_error + 1.0e-6,
+      get_parameter("force_progress_pause_error").as_double());
+    const double resume_error = std::clamp(
+      get_parameter("force_progress_resume_error").as_double(),
+      full_speed_error, pause_error);
+    if (!force_motion_paused_) {
+      force_resume_since_.reset();
+      if (force_error >= pause_error) {
+        if (!force_pause_since_) {
+          force_pause_since_ = current;
+        }
+        const double pause_hold = std::max(
+          0.0, get_parameter("force_progress_pause_hold").as_double());
+        if ((current - *force_pause_since_).seconds() >= pause_hold) {
+          force_motion_paused_ = true;
+          force_pause_since_.reset();
+          RCLCPP_WARN(get_logger(),
+            "Sustained force error %.2f N; smoothly pausing path progress",
+            force_error);
+        }
+      } else {
+        force_pause_since_.reset();
+      }
+    } else {
+      force_pause_since_.reset();
+      if (force_error <= resume_error) {
+        if (!force_resume_since_) {
+          force_resume_since_ = current;
+        }
+        const double resume_hold = std::max(
+          0.0, get_parameter("force_progress_resume_hold").as_double());
+        if ((current - *force_resume_since_).seconds() >= resume_hold) {
+          force_motion_paused_ = false;
+          force_resume_since_.reset();
+          RCLCPP_INFO(get_logger(),
+            "Force error recovered to %.2f N; resuming path progress",
+            force_error);
+        }
+      } else {
+        force_resume_since_.reset();
+      }
+    }
+
+    const double target_scale = force_motion_paused_ ? 0.0 : forceProgressScale(
+      force_error, full_speed_error, pause_error,
+      get_parameter("force_progress_min_scale").as_double());
+    const double filter = std::clamp(
+      get_parameter("force_progress_scale_filter").as_double(), 0.0, 1.0);
+    force_progress_scale_ = std::clamp(
+      (1.0 - filter) * force_progress_scale_ + filter * target_scale,
+      0.0, 1.0);
   }
 
   void forceControlService(
@@ -383,8 +529,9 @@ private:
     force_sensor_stale_ = false;
     force_contact_detected_ = false;
     force_contact_plane_offset_ = 0.0;
-    force_in_tolerance_since_.reset();
+    resetForceProgressSupervisorLocked();
     force_safety_anchor_.reset();
+    resetForceSafetyRetreatLocked();
     response->success = true;
     response->message = force_control_enabled_ ?
       "force admittance enabled and safety latch reset" :
@@ -439,7 +586,7 @@ private:
         virtual_progress_ = std::max(virtual_progress_, wipe_contact_start_time_);
         projected_progress_ = virtual_progress_;
         admittance_->reset(force);
-        force_in_tolerance_since_.reset();
+        resetForceProgressSupervisorLocked();
         RCLCPP_INFO(get_logger(),
           "Force contact captured at %.2f N with plane offset %.2f mm",
           force, 1000.0 * force_contact_plane_offset_);
@@ -466,17 +613,7 @@ private:
       }
       const double force_error = std::abs(
         filtered_force - planner_->desiredForce());
-      const double force_tolerance = std::max(
-        0.0, get_parameter("force_progress_tolerance").as_double());
-      if (forceContactActiveLocked() && !forceSafetyStopLocked() &&
-          force_error <= force_tolerance)
-      {
-        if (!force_in_tolerance_since_) {
-          force_in_tolerance_since_ = current;
-        }
-      } else {
-        force_in_tolerance_since_.reset();
-      }
+      updateForceProgressSupervisorLocked(current, force_error);
       // An over-force event is latched. Automatic recovery caused a repeated
       // nominal-reference -> impact -> retreat cycle in contact testing. The
       // operator must explicitly reset it through enable_force_control.
@@ -838,8 +975,9 @@ private:
           force_sensor_stale_ = false;
           force_contact_detected_ = false;
           force_contact_plane_offset_ = 0.0;
-          force_in_tolerance_since_.reset();
+          resetForceProgressSupervisorLocked();
           force_safety_anchor_.reset();
+          resetForceSafetyRetreatLocked();
           phase_ = Phase::WIPING;
         }
         RCLCPP_INFO(get_logger(),
@@ -960,7 +1098,7 @@ private:
     if (forceSafetyStopLocked() && forceContactActiveLocked()) {
       Eigen::VectorXd retreat = force_safety_anchor_.value_or(hold);
       retreat = planner_->forceCorrectedState(
-        retreat, std::abs(get_parameter("force_safety_retreat").as_double()),
+        retreat, force_safety_retreat_offset_,
         get_parameter("max_joint_force_correction").as_double());
       return {retreat, Eigen::VectorXd::Zero(8)};
     }
@@ -1088,10 +1226,13 @@ private:
         current_reference, get_parameter("ee_frame").as_string())).norm();
       tracking_error = progressMetric(measured, current_reference, false);
     }
+    const double progress_force_scale =
+      force_control_enabled_ && forceContactActiveLocked() ?
+      force_progress_scale_ : 1.0;
     virtual_progress_rate_ = adaptiveProgressRate(
       tracking_error, progress_lag_error_, virtual_progress_rate_,
-      get_parameter("progress_min_rate").as_double(),
-      get_parameter("progress_max_rate").as_double(),
+      get_parameter("progress_min_rate").as_double() * progress_force_scale,
+      get_parameter("progress_max_rate").as_double() * progress_force_scale,
       get_parameter("progress_rate_filter").as_double(),
       get_parameter("progress_lag_gain").as_double(),
       get_parameter("progress_ahead_gain").as_double(),
@@ -1128,11 +1269,28 @@ private:
       return "sensor_timeout_retreat";
     }
     if (!forceContactActiveLocked()) {
+      const double guard_window = std::max(
+        0.0, get_parameter("force_contact_detection_window").as_double());
+      if (phase_ == Phase::WIPING && !wipe_trajectory_.empty() &&
+          virtual_progress_ >= wipe_contact_start_time_ - guard_window)
+      {
+        // During the final slow contact search, publish the planner's smooth
+        // absolute arm reference directly instead of integrating noisy MPC
+        // joint velocities.  The same command path remains active after force
+        // appears, so first contact no longer changes controller ownership.
+        return "guarded_approach";
+      }
       return "armed_waiting_for_contact";
     }
     if (!forceReadyForProgressLocked())
     {
       return "active_force_settling";
+    }
+    if (force_motion_paused_) {
+      return "active_force_paused";
+    }
+    if (force_progress_scale_ < 0.98) {
+      return "active_force_throttled";
     }
     return "active";
   }
@@ -1175,6 +1333,7 @@ private:
     double current_contouring_error = 0.0;
     double current_force = 0.0;
     double current_force_offset = 0.0;
+    double current_force_progress_scale = 1.0;
     std::string current_force_state;
     {
       std::lock_guard<std::mutex> lock(mutex_);
@@ -1182,6 +1341,7 @@ private:
         return;
       }
       updateForceSensorSafetyLocked();
+      updateForceSafetyRetreatLocked();
       updateVirtualProgressLocked(current_time);
       const double horizon = get_parameter("reference_horizon").as_double();
       const double step = get_parameter("reference_dt").as_double();
@@ -1197,6 +1357,7 @@ private:
         yaw_reference = state[2];
         if (i == 0) {
           current_reference = state;
+          last_commanded_reference_ = state;
         }
         active_reference_states.push_back(state);
         target.time_trajectory.push_back(sample_time);
@@ -1214,6 +1375,7 @@ private:
       current_contouring_error = contouring_error_;
       current_force = admittance_->measuredForce();
       current_force_offset = force_contact_plane_offset_ + admittance_->offset();
+      current_force_progress_scale = force_progress_scale_;
       current_force_state = forceStateLocked();
     }
     target_publisher_->publish(target);
@@ -1237,7 +1399,8 @@ private:
           {progress_publisher_, current_progress},
           {progress_rate_publisher_, current_progress_rate},
           {lag_error_publisher_, current_lag_error},
-          {contouring_error_publisher_, current_contouring_error}})
+          {contouring_error_publisher_, current_contouring_error},
+          {force_progress_scale_publisher_, current_force_progress_scale}})
       {
         std_msgs::msg::Float64 message;
         message.data = item.second;
@@ -1247,11 +1410,13 @@ private:
         last_progress_log_ = current_time;
         RCLCPP_INFO(get_logger(),
           "Path progress: tau=%.2f s, tau_dot=%.2f, projected_tau=%.2f s, "
-          "lag=%.2f s, contour=%.3f m, force=%.2f N, offset=%.2f mm, force_state=%s",
+          "lag=%.2f s, contour=%.3f m, force=%.2f N, offset=%.2f mm, "
+          "force_scale=%.2f, force_state=%s",
           current_progress, current_progress_rate,
           current_progress - current_lag_error,
           current_lag_error, current_contouring_error, current_force,
-          1000.0 * current_force_offset, current_force_state.c_str());
+          1000.0 * current_force_offset, current_force_progress_scale,
+          current_force_state.c_str());
       }
       publishActiveReference(active_reference_states, current_time);
     }
@@ -1607,7 +1772,16 @@ private:
   rclcpp::Time last_force_time_{0, 0, RCL_ROS_TIME};
   std::chrono::steady_clock::time_point last_force_wall_time_{};
   std::optional<rclcpp::Time> force_in_tolerance_since_;
+  std::optional<rclcpp::Time> force_pause_since_;
+  std::optional<rclcpp::Time> force_resume_since_;
+  bool initial_force_settled_{false};
+  bool force_motion_paused_{false};
+  double force_progress_scale_{0.0};
   std::optional<Eigen::VectorXd> force_safety_anchor_;
+  std::optional<Eigen::VectorXd> last_commanded_reference_;
+  double force_safety_retreat_offset_{0.0};
+  bool force_safety_retreat_initialized_{false};
+  std::chrono::steady_clock::time_point force_safety_retreat_wall_time_{};
   double last_tracking_log_{-1.0e9};
   double last_navigation_log_{-1.0e9};
 
@@ -1624,6 +1798,8 @@ private:
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr phase_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr force_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr offset_publisher_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr
+    force_progress_scale_publisher_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr force_state_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
     contact_arm_reference_publisher_;

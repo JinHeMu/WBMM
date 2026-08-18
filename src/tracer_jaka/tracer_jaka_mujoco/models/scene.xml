@@ -80,11 +80,14 @@
     <!-- 20 个 wall_clean_path_* site 按蛇形顺序排列，可作为表面轨迹采样点。   -->
     <!-- ==================================================================== -->
     <body name="wall_cleaning_station" pos="0 2.925 0">
+      <!-- Represent a compliant wiping pad, not a 40 mm soft wall. The former
+           0.50 s / 0.04 m contact let visible geometry sink deeply before the
+           F/T sensor developed useful force. -->
       <geom name="wall_cleaning_surface" type="box" pos="0 0 0.90"
             size="1.50 0.025 0.40" material="cleaning_wall_mat"
             contype="1" conaffinity="1" condim="3" priority="1"
             friction="0.50 0.01 0.001"
-            solref="0.50 1.0" solimp="0.60 0.90 0.04 0.5 2"/>
+            solref="0.10 1.0" solimp="0.85 0.95 0.008 0.5 2"/>
 
       <!-- Raster row 1: left to right. All sites sit 6 mm in front of wall. -->
       <site name="wall_clean_path_00" pos="-1.25 -0.031 0.60" size="0.018" rgba="0.10 0.75 1.00 0.85"/>

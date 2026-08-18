@@ -69,6 +69,34 @@ double adaptiveProgressRate(double tracking_error, double lag_error,
   return (1.0 - filter) * previous_rate + filter * raw_rate;
 }
 
+double rateLimitedStep(double current, double target, double max_rate,
+                       double dt)
+{
+  if (!std::isfinite(current) || !std::isfinite(target)) {
+    return current;
+  }
+  const double maximum_step = std::abs(max_rate) * std::max(0.0, dt);
+  return current + std::clamp(target - current, -maximum_step, maximum_step);
+}
+
+double forceProgressScale(double force_error, double full_speed_error,
+                          double pause_error, double minimum_scale)
+{
+  force_error = std::max(0.0, force_error);
+  full_speed_error = std::max(0.0, full_speed_error);
+  pause_error = std::max(full_speed_error + 1.0e-6, pause_error);
+  minimum_scale = std::clamp(minimum_scale, 0.0, 1.0);
+  if (force_error <= full_speed_error) {
+    return 1.0;
+  }
+  if (force_error >= pause_error) {
+    return minimum_scale;
+  }
+  const double ratio = (force_error - full_speed_error) /
+    (pause_error - full_speed_error);
+  return 1.0 - ratio * (1.0 - minimum_scale);
+}
+
 ForceAdmittance::ForceAdmittance(
   double desired_force, double mass, double damping, double stiffness,
   double max_offset, double max_velocity, double filter_alpha)

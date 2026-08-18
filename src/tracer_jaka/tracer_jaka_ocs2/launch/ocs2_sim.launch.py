@@ -164,6 +164,11 @@ def generate_launch_description():
             description="Per-joint velocity limit for the position-command integrator.",
         ),
         DeclareLaunchArgument(
+            "arm_contact_command_velocity",
+            default_value="0.10",
+            description="Per-joint slew limit for guarded/contact position references.",
+        ),
+        DeclareLaunchArgument(
             "arm_max_delta_per_step",
             default_value="0.50",
             description=(
@@ -440,6 +445,9 @@ def generate_launch_description():
                     value_type=bool),
                 "arm_max_command_velocity": ParameterValue(
                     LaunchConfiguration("arm_max_command_velocity"),
+                    value_type=float),
+                "arm_contact_command_velocity": ParameterValue(
+                    LaunchConfiguration("arm_contact_command_velocity"),
                     value_type=float),
                 "arm_max_delta_per_step": ParameterValue(
                     LaunchConfiguration("arm_max_delta_per_step"),

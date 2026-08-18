@@ -106,6 +106,7 @@ public:
         "contact_arm_reference_topic", "");
     declare_parameter<bool>("arm_use_velocity_integrator", false);
     declare_parameter<double>("arm_max_command_velocity", 0.50);
+    declare_parameter<double>("arm_contact_command_velocity", 0.10);
 
     // 可视化
     declare_parameter<bool>("enable_visualization", true);
@@ -140,6 +141,8 @@ public:
         get_parameter("arm_use_velocity_integrator").as_bool();
     armMaxCommandVelocity_ =
         get_parameter("arm_max_command_velocity").as_double();
+    armContactCommandVelocity_ =
+        get_parameter("arm_contact_command_velocity").as_double();
 
     enableViz_ =
         get_parameter("enable_visualization").as_bool();
@@ -338,9 +341,9 @@ public:
                   std::placeholders::_1));
       RCLCPP_INFO(
           get_logger(),
-          "Contact-aware arm command lead enabled from %s: %.3f rad",
+          "Contact-aware arm command enabled from %s: lead %.3f rad, slew %.3f rad/s",
           forceControlStateTopic.c_str(),
-          armContactMaxDeltaPerStep_);
+          armContactMaxDeltaPerStep_, armContactCommandVelocity_);
     }
 
     const std::string contactArmReferenceTopic =
@@ -918,11 +921,22 @@ private:
       const std_msgs::msg::String::SharedPtr msg)
   {
     const bool contactConstrained =
+        msg->data == "guarded_approach" ||
         msg->data == "active_force_settling" ||
+        msg->data == "active_force_throttled" ||
+        msg->data == "active_force_paused" ||
         msg->data == "active" ||
         msg->data == "over_force_retreat" ||
         msg->data == "sensor_timeout_retreat";
-    contactConstrained_.store(contactConstrained);
+    const bool previous = contactConstrained_.exchange(contactConstrained);
+    if (previous != contactConstrained)
+    {
+      RCLCPP_INFO(
+          get_logger(),
+          "Arm reference mode changed to %s (force state: %s)",
+          contactConstrained ? "guarded direct-position" : "MPC velocity-integrated",
+          msg->data.c_str());
+    }
   }
 
   void contactArmReferenceCallback(
@@ -1262,6 +1276,24 @@ private:
               command,
               measured - maxLead,
               measured + maxLead);
+
+          // Entering guarded approach used to replace the velocity-integrated
+          // command with the direct contact reference in one control cycle.
+          // Slew from the last command so both the pre-contact handover and a
+          // later safety retreat remain continuous at the arm controller.
+          if (lastGoodArmQ_.size() == armDim_)
+          {
+            const double nominalDt = 1.0 / std::max(1.0, mrtRate_);
+            const double commandDt = lastArmCommandTime_ > 0.0 ?
+                std::clamp(currentTime - lastArmCommandTime_, 0.0, 0.05) :
+                nominalDt;
+            const double maximumChange =
+                std::abs(armContactCommandVelocity_) * commandDt;
+            command = std::clamp(
+                command,
+                lastGoodArmQ_[i] - maximumChange,
+                lastGoodArmQ_[i] + maximumChange);
+          }
         }
 
         const double delta =
@@ -1285,6 +1317,11 @@ private:
         }
 
         armCommand[i] = command;
+      }
+
+      if (contactConstrained)
+      {
+        lastArmCommandTime_ = currentTime;
       }
 
       return true;
@@ -1482,6 +1519,7 @@ private:
   bool armUseVelocityIntegrator_{false};
   double armMaxCommandVelocity_{0.50};
   double lastArmCommandTime_{0.0};
+  double armContactCommandVelocity_{0.10};
 
   std::vector<std::string> armJointNames_;
 

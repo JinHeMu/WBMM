@@ -26,13 +26,23 @@ without changing the base path. It is reset outside contact, so an unloaded
 sensor cannot preload a wall-penetrating reference during navigation.
 During the final approach, the wallward reference is kept within 0.1 mm of the
 measured tool. Contact detection opens five nominal seconds before the planned
-contact. The first 0.5 N sample captures the actual normal contact plane, enables
-force-control ownership, and skips the remaining open-loop approach distance;
-path time then freezes while force settles. A
-missing wrench stream freezes virtual progress and commands a bounded retreat.
+contact; this final search already uses the same slew-limited direct arm command
+as contact control, so contact does not cause a controller-mode step. The first
+0.5 N sample captures the actual normal contact plane and skips the remaining
+open-loop approach distance; path time then freezes once while the initial force
+settles. After that latch, ordinary force ripple continuously scales path speed
+instead of restarting the two-second settling hold. A sustained error above
+8 N pauses progress after 0.25 s; it resumes only after the error remains below
+5 N for 0.5 s. This hysteresis keeps the active MPC horizon continuous through
+raster corners while still stopping tangential motion for a genuine loss of
+force regulation. A missing wrench stream freezes virtual progress and commands
+a bounded retreat.
+The 20 mm safety retreat is applied at 10 mm/s from the last command, rather
+than as a one-cycle Cartesian jump.
 The MuJoCo cleaning surface uses a compliant contact profile to represent the
-foam/eraser layer expected on the real tool; rigid-wall contact is not a valid
-plant model for this reference-level force loop.
+foam/eraser layer expected on the real tool. Its active layer is 8 mm and the
+pad collision margin is 3 mm; the previous 40 mm wall compliance was too deep
+to preserve visual and force-contact agreement.
 The 35 N hard limit is latched; after inspection,
 reset it explicitly through `/wipe_planner/enable_force_control`
 (`std_srvs/srv/SetBool`, `data: true`).
@@ -53,10 +63,11 @@ ros2 launch wipe_planner wipe_plan_preview.launch.py
 This starts only `wipe_plan_preview_node` and RViz. It does not start MuJoCo,
 REMANI, OCS2 MPC/MRT, or any controller, and the node has no velocity or arm
 command publisher. The dedicated RViz view follows REMANI's visualization
-convention: blue ghosts show the constrained whole-body coverage result, the green
-`Path` is the tool coverage, and the gray `Path` is the differential-drive base
-motion. The result is published once with transient-local durability, avoiding
-the frame drops caused by repeatedly replacing hundreds of mesh markers.
+convention: the yellow robot is the wall-normal pre-contact pose, blue ghosts
+show the constrained whole-body coverage result, the green `Path` is the tool
+coverage, and the gray `Path` is the differential-drive base motion. The result
+is published once with transient-local durability, avoiding the frame drops
+caused by repeatedly replacing hundreds of mesh markers.
 
 WipePlanner first plans the full-board coverage path from the known wall geometry
 and publishes it to RViz. It then adds a wall-normal pre-contact pose 0.12 m on
@@ -86,11 +97,12 @@ reference is then held for four nominal seconds, and adaptive progress slows
 further whenever whole-body tracking lags.
 
 The OCS2 model does not contain wall-contact dynamics, so the MRT arm adapter
-changes ownership only while a force-control state is active. In free space it
-keeps consuming the OCS2 policy. During contact it clears the velocity
-integrator and tracks WipePlanner's force-corrected six-joint reference from
+keeps consuming the OCS2 policy in free space, then changes ownership during
+the final guarded approach and contact. It clears the velocity integrator and
+tracks WipePlanner's force-corrected six-joint reference from
 `/wipe_planner/contact_arm_reference`, with a 0.10 rad measured-state command
-bound. OCS2 continues to control the mobile base. The validated nominal contact
+bound and 0.10 rad/s command slew. OCS2 continues to control the mobile base.
+The validated nominal contact
 tuning is 12 N, `M=2`, `D=200`, `K=50`, and a 0.001 m/s admittance velocity
 limit. Coverage runs at 0.015 m/s on horizontal strokes and 0.008 m/s at row
 changes.
@@ -133,7 +145,8 @@ Useful topics:
 - `/wipe_planner/normal_force`: filtered simulated force
 - `/wipe_planner/admittance_offset`: bounded normal reference correction
 - `/wipe_planner/contact_arm_reference`: force-corrected six-joint contact command
-- `/wipe_planner/force_control_state`: armed/active/timeout/over-force state
+- `/wipe_planner/force_control_state`: guarded/settling/throttled/paused/safety state
+- `/wipe_planner/force_progress_scale`: filtered 0--1 force-based path-speed scale
 - `/wipe_planner/enable_force_control`: runtime `std_srvs/SetBool` switch
 - `/wipe_planner/{base,joint,ee}_tracking_error`: MPC diagnostics
 - `/wipe_planner/virtual_progress`: current path time `tau` in nominal seconds

@@ -16,8 +16,8 @@ wipe_task:
     # Contact wiping profile.  The earlier 0.10 m/s non-contact validation
     # speed produced unacceptable normal-force transients once the pad touched
     # the wall, so contact operation deliberately uses a conservative rate.
-    tangential_speed: 0.015
-    corner_speed: 0.008
+    tangential_speed: 0.03
+    corner_speed: 0.015
 
   contact:
     desired_normal_force: 12.0

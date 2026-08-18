@@ -74,8 +74,18 @@ wipe_planner:
     force_precontact_max_lead: 0.0001
     force_progress_tolerance: 3.0
     # Do not start tangential wiping on a single in-band sample.  Contact force
-    # must remain settled continuously before virtual time can advance.
+    # must remain settled continuously before virtual time can first advance.
+    # This latch is not re-armed by ordinary force ripple later in the path.
     force_settle_hold: 2.0
+    # In-motion supervision is deliberately wider and hysteretic. Moderate
+    # force error continuously reduces tau_dot; only a sustained error above
+    # 8 N pauses the path, and recovery must remain below 5 N before resuming.
+    force_progress_pause_error: 8.0
+    force_progress_resume_error: 5.0
+    force_progress_pause_hold: 0.25
+    force_progress_resume_hold: 0.50
+    force_progress_min_scale: 0.15
+    force_progress_scale_filter: 0.08
     # M*d_ddot + D*d_dot + K*d = measured_force - desired_force.
     # Positive d follows normal_into_room (retreat); negative d presses in.
     admittance_mass: 2.0
@@ -90,6 +100,10 @@ wipe_planner:
     force_hard_limit: 35.0
     force_sensor_timeout: 0.20
     force_safety_retreat: 0.020
+    # Keep the 20 mm fail-safe retreat, but slew it in over two seconds. A
+    # one-cycle Cartesian step caused the visible arm snap on over-force or
+    # wrench timeout events.
+    force_safety_retreat_speed: 0.010
 
     # RViz performance: complete meshes at only six evenly-spaced contact
     # instants. The trajectory lines are one Marker each and are published once.
