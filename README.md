@@ -1,8 +1,12 @@
-# Tracer-JAKA：定位、三维建图与移动操作规划工作空间
+# WBMM：Tracer-JAKA 全身移动操作（Whole-Body Mobile Manipulation）工作空间
 
 本仓库是 Tracer 移动底盘与 JAKA Zu5 机械臂的 ROS 2 Humble 工作空间。它将
 定位建图、MuJoCo 仿真、nvblox 三维 ESDF 建图、REMANI 全身规划与 OCS2 MPC
 控制整合在同一套接口下，支持先在仿真验证，再迁移至真实机器人。
+
+> 工作空间已更名为 **WBMM（Whole-Body Mobile Manipulation）**，源码目录也已按“职责 + 部署场景”重新组织。
+>
+> 📖 快速命令速查见 [docs/QUICKSTART.md](docs/QUICKSTART.md)。
 
 ## 系统能力
 
@@ -65,14 +69,17 @@ robot_state_publisher:
 
 | 路径 | 作用 |
 |---|---|
-| `src/tracer_jaka/tracer_jaka_mujoco` | MuJoCo 桥接、传感器仿真、SLAM、实机 SLAM、D455 rosbag 录制 |
-| `src/tracer_jaka/tracer_jaka_ocs2` | Tracer-JAKA OCS2 MPC/MRT、REMANI 桥接、ESDF 验证与控制启动文件 |
-| `src/remani_planner` | REMANI 搜索、轨迹优化、环境 ESDF 与全身重规划 |
-| `src/tracer_jaka/my_nvblox_bringup` | 自定义 nvblox bringup、ESDF/mesh 可视化、地图导出器；Git 中的唯一源码 |
-| `src/tracer_jaka/grid_map` | 静态 ESDF 读取、MuJoCo 场景 ESDF 与 RViz 可视化工具 |
-| `src/tracer_jaka/jaka_ros2` | Tracer 底盘、JAKA 机械臂、夹爪驱动与描述文件 |
-| `src/imu`、`src/lakibeam` | Hipnuc IMU 与 Lakibeam 驱动 |
-| `src/ocs2_ros2` | OCS2 ROS 2 依赖与求解器实现 |
+| `src/vendor/` | 上游/第三方源码：`ocs2_ros2`、`remani_planner` |
+| `src/interfaces/` | 跨层稳定消息/服务/动作契约：`tracer_jaka_interfaces` |
+| `src/robot/` | 机器人唯一描述：`tracer_jaka_description`、`tracer_jaka_moveit_config` |
+| `src/drivers/` | 真实硬件 I/O：底盘、JAKA 机械臂、夹爪、IMU、LiDAR |
+| `src/algorithms/` | 公共算法：OCS2 控制、REMANI 集成、力控预留 |
+| `src/perception/` | 定位/建图/ESDF：nvblox、grid_map、esdf_simple_nav、localization、mapping |
+| `src/applications/` | 具体任务：`wiping/wipe_planner` |
+| `src/simulation/` | 仿真后端：`tracer_jaka_mujoco` |
+| `src/bringup/` | 顶层系统组合：`tracer_jaka_bringup` |
+| `tools/` | 仓库级脚本和示例 |
+| `data/` | 运行数据：bags、maps_generated、outputs、debug |
 | `docs/` | 架构、ESDF、rosbag、REMANI 与实验记录文档 |
 
 ## 环境要求
@@ -97,16 +104,18 @@ sudo apt install \
 ## 构建主工作空间
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source /opt/ros/humble/setup.bash
 
 colcon build --symlink-install --packages-up-to \
+  tracer_jaka_description \
   tracer_jaka_mujoco \
   tracer_jaka_ocs2 \
   remani_planner \
   grid_map \
   hipnuc_imu \
-  lakibeam1
+  lakibeam1 \
+  tracer_jaka_bringup
 
 source install/setup.bash
 ```
@@ -117,10 +126,13 @@ source install/setup.bash
 
 ## 常用入口
 
+> 更简洁的启动命令速查见 [docs/QUICKSTART.md](docs/QUICKSTART.md)。
+> 当前实际启动入口仍以各功能包为主；`tracer_jaka_bringup` 是规划中的统一顶层入口，待后续收敛。
+
 ### 1. MuJoCo：定位、SLAM、REMANI 与 OCS2
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 
@@ -172,7 +184,7 @@ ros2 launch tracer_jaka_mujoco task_table_sim.launch.py
 ```
 
 场景文件是
-[`scene_task_table.xml`](src/tracer_jaka/tracer_jaka_mujoco/models/scene_task_table.xml)。
+[`scene_task_table.xml`](src/simulation/tracer_jaka_mujoco/models/scene_task_table.xml)。
 后续若接入 REMANI/OCS2，应先用 D455/nvblox 将该场景建立为 ESDF，再以
 `task_surface_*` sites 生成末端任务轨迹。
 
@@ -193,7 +205,7 @@ ros2 topic echo /jaka_fts_broadcaster/wrench
 sudo ip link set can0 up type can bitrate 500000
 sudo chmod 777 /dev/ttyUSB0
 
-source /home/a/ocs2_ws/install/setup.bash
+source /home/a/WBMM/install/setup.bash
 ros2 launch tracer_jaka_mujoco real_slam.launch.py
 ```
 
@@ -221,8 +233,8 @@ ros2 launch tracer_jaka_mujoco real_slam.launch.py \
 需要先同步到 Docker 共享工作空间：
 
 ```bash
-cd /home/a/ocs2_ws
-src/tracer_jaka/my_nvblox_bringup/scripts/sync_to_isaac_ros_ws.sh
+cd /home/a/WBMM
+src/perception/my_nvblox_bringup/scripts/sync_to_isaac_ros_ws.sh
 ```
 
 进入 Docker 后构建：
@@ -261,18 +273,20 @@ ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
 
 ## 文档导航
 
+- [快速开始 / 启动命令速查](docs/QUICKSTART.md)
 - [MuJoCo → nvblox → REMANI → OCS2 完整通道](docs/MUJOCO_NVBLOX_REMANI_PIPELINE.md)
 - [D455 ESDF 仿真与实机运行指南](docs/D455_ESDF_仿真与实机运行指南.md)
 - [D455 RGB-D ESDF rosbag 录制教程](docs/D455_RGBD_ESDF_ROSBAG_录制教程.md)
 - [REMANI 与 OCS2 集成说明](docs/REMANI_OCS2_INTEGRATION.md)
 - [仓库总体 Pipeline](docs/总体%20Pipeline.md)
+- [工程目录重构设计](docs/工程目录重构设计.md)
 - [周报与实验整理](docs/WEEKLY_REPORT_2026-07-25_to_2026-07-31.md)
 
 各功能包还提供更具体的说明：
 
-- [MuJoCo 包 README](src/tracer_jaka/tracer_jaka_mujoco/README.md)
-- [OCS2 包 README](src/tracer_jaka/tracer_jaka_ocs2/README.md)
-- [nvblox bringup README](src/tracer_jaka/my_nvblox_bringup/README.md)
+- [MuJoCo 包 README](src/simulation/tracer_jaka_mujoco/README.md)
+- [OCS2 包 README](src/algorithms/control/tracer_jaka_ocs2/README.md)
+- [nvblox bringup README](src/perception/my_nvblox_bringup/README.md)
 
 ## Git 约定
 

@@ -5,7 +5,7 @@
 
 适用环境：
 
-- NUC：ROS 2 Humble，工作空间 `~/ocs2_ws`
+- NUC：ROS 2 Humble，工作空间 `~/WBMM`
 - 实机定位：`robot_localization + slam_toolbox`
 - 深度相机：Intel RealSense D455
 - ROS Domain：20
@@ -84,14 +84,14 @@ bag 不会修复错误的 TF。若录制的数据中没有动态 `/tf`，或者 
 确认 NUC 上存在：
 
 ```text
-~/ocs2_ws/src/tracer_jaka/tracer_jaka_mujoco/launch/record_d455_esdf_bag.launch.py
-~/ocs2_ws/src/tracer_jaka/tracer_jaka_mujoco/config/d455_esdf_bag_qos.yaml
+~/WBMM/src/simulation/tracer_jaka_mujoco/launch/record_d455_esdf_bag.launch.py
+~/WBMM/src/simulation/tracer_jaka_mujoco/config/d455_esdf_bag_qos.yaml
 ```
 
 构建：
 
 ```bash
-cd ~/ocs2_ws
+cd ~/WBMM
 source /opt/ros/humble/setup.bash
 
 colcon build --symlink-install \
@@ -104,10 +104,10 @@ source install/setup.bash
 
 ```bash
 grep -n "include-unpublished-topics" \
-  ~/ocs2_ws/src/tracer_jaka/tracer_jaka_mujoco/launch/record_d455_esdf_bag.launch.py
+  ~/WBMM/src/simulation/tracer_jaka_mujoco/launch/record_d455_esdf_bag.launch.py
 
 grep -n "sigterm_timeout" \
-  ~/ocs2_ws/src/tracer_jaka/tracer_jaka_mujoco/launch/record_d455_esdf_bag.launch.py
+  ~/WBMM/src/simulation/tracer_jaka_mujoco/launch/record_d455_esdf_bag.launch.py
 ```
 
 两个命令都必须有输出。新版入口会预先订阅指定话题，并允许 zstd 最多使用
@@ -122,7 +122,7 @@ grep -n "sigterm_timeout" \
 ### 4.1 终端一：启动实机定位和 SLAM
 
 ```bash
-cd ~/ocs2_ws
+cd ~/WBMM
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 
@@ -146,7 +146,7 @@ ros2 launch tracer_jaka_mujoco real_slam.launch.py
 如果只连接一台 RealSense：
 
 ```bash
-cd ~/ocs2_ws
+cd ~/WBMM
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 
@@ -173,7 +173,7 @@ rs-enumerate-devices
 不要看到相机画面后立即录制。先在第三个终端设置相同 DDS 环境：
 
 ```bash
-cd ~/ocs2_ws
+cd ~/WBMM
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 
@@ -237,13 +237,13 @@ D455 使用同一个 Domain 20。
 创建 bag 总目录：
 
 ```bash
-mkdir -p ~/ocs2_ws/bags
+mkdir -p ~/WBMM/bags
 ```
 
 启动录制：
 
 ```bash
-cd ~/ocs2_ws
+cd ~/WBMM
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 
@@ -338,7 +338,7 @@ exit code -9
 ### 8.1 检查文件
 
 ```bash
-ls -lh ~/ocs2_ws/bags/d455_rgbd_esdf_02
+ls -lh ~/WBMM/bags/d455_rgbd_esdf_02
 ```
 
 必须存在：
@@ -359,7 +359,7 @@ d455_rgbd_esdf_02_0.db3.zstd
 ### 8.2 检查 bag 信息
 
 ```bash
-ros2 bag info ~/ocs2_ws/bags/d455_rgbd_esdf_02
+ros2 bag info ~/WBMM/bags/d455_rgbd_esdf_02
 ```
 
 必须确认以下话题的 Count 非零：
@@ -399,14 +399,14 @@ ros2 bag info ~/ocs2_ws/bags/d455_rgbd_esdf_02
 
 ```bash
 ros2 bag reindex --storage sqlite3 \
-  ~/ocs2_ws/bags/d455_rgbd_esdf_02
+  ~/WBMM/bags/d455_rgbd_esdf_02
 ```
 
 然后检查：
 
 ```bash
 ros2 bag info --storage sqlite3 \
-  ~/ocs2_ws/bags/d455_rgbd_esdf_02
+  ~/WBMM/bags/d455_rgbd_esdf_02
 ```
 
 `reindex` 只能重建元数据，不能恢复没有录到的 `/tf`、里程计或相机消息。
@@ -428,14 +428,14 @@ mkdir -p /home/a/workspaces/isaac_ros-dev/bags
 如果可以解析 NUC 主机名 `ras`：
 
 ```bash
-rsync -avP ras@ras:~/ocs2_ws/bags/d455_rgbd_esdf_02/ \
+rsync -avP ras@ras:~/WBMM/bags/d455_rgbd_esdf_02/ \
   /home/a/workspaces/isaac_ros-dev/bags/d455_rgbd_esdf_02/
 ```
 
 否则使用 NUC IP：
 
 ```bash
-rsync -avP ras@NUC_IP:~/ocs2_ws/bags/d455_rgbd_esdf_02/ \
+rsync -avP ras@NUC_IP:~/WBMM/bags/d455_rgbd_esdf_02/ \
   /home/a/workspaces/isaac_ros-dev/bags/d455_rgbd_esdf_02/
 ```
 
@@ -594,7 +594,7 @@ ros2 topic hz /odometry/filtered
 ros2 run tf2_ros tf2_echo odom d455_depth_optical_frame
 
 # 2. 录制
-cd ~/ocs2_ws
+cd ~/WBMM
 source install/setup.bash
 ros2 launch tracer_jaka_mujoco record_d455_esdf_bag.launch.py \
   output:=bags/d455_rgbd_esdf_新编号

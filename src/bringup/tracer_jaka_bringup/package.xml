@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>tracer_jaka_bringup</name>
+  <version>0.1.0</version>
+  <description>WBMM top-level system composition for Tracer + JAKA simulation and real robot bringup.</description>
+  <maintainer email="user@todo.todo">user</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>tracer_jaka_description</exec_depend>
+  <exec_depend>tracer_jaka_moveit_config</exec_depend>
+  <exec_depend>tracer_jaka_mujoco</exec_depend>
+  <exec_depend>tracer_jaka_ocs2</exec_depend>
+  <exec_depend>wipe_planner</exec_depend>
+  <exec_depend>remani_planner</exec_depend>
+  <exec_depend>my_nvblox_bringup</exec_depend>
+  <exec_depend>grid_map</exec_depend>
+  <exec_depend>esdf_simple_nav</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,6 +1,8 @@
 # OCS2 + REMANI 移动机械臂 MPC 工程全面指南
 
 > Tracer 差速底盘 + JAKA 6-DOF 机械臂的全方位轨迹规划与模型预测控制系统
+>
+> 📖 快速命令速查见 [QUICKSTART.md](QUICKSTART.md)。
 
 ---
 
@@ -159,7 +161,7 @@ v   = s · √(vx² + vy²)
 上游 OCS2 库的 ROS 2 移植版本，包含 git submodules，是整个系统的核心求解器框架。**极少直接修改此部分代码**。
 
 ```
-src/ocs2_ros2/
+src/vendor/ocs2_ros2/
 ├── core/
 │   ├── ocs2_core/          # 核心数据结构: 状态/输入向量、代价函数、约束、数值积分
 │   ├── ocs2_oc/            # 最优控制: Lagrangian、Hamiltonian、滚动时域
@@ -211,19 +213,19 @@ src/ocs2_ros2/
 这是本工程的核心代码区，包含所有 ROS 2 可执行节点和配置文件。
 
 ```
-src/tracer_jaka/
-├── tracer_jaka_ocs2/         # ★ 主包: MPC/MRT节点 + 桥接 + 手柄控制 + 配置
-├── tracer_jaka_mujoco/       # MuJoCo 仿真: 桥接节点 + 场景模型 + SLAM + EKF
-├── tracer_jaka_moveit_config/  # MoveIt2 配置 (单独使用, 不与 MPC 同时运行)
-├── grid_map/                 # GridMap / ESDF 工具包:
+src/
+├── algorithms/control/tracer_jaka_ocs2/   # ★ 主包: MPC/MRT节点 + 桥接 + 手柄控制 + 配置
+├── simulation/tracer_jaka_mujoco/         # MuJoCo 仿真: 桥接节点 + 场景模型 + SLAM + EKF
+├── robot/tracer_jaka_moveit_config/       # MoveIt2 配置 (单独使用, 不与 MPC 同时运行)
+├── perception/grid_map/                   # GridMap / ESDF 工具包:
 │   ├── mjcf_to_esdf          — MuJoCo 场景 → ESDF NPZ 转换工具
 │   └── maps/                 — 预生成的 ESDF 地图文件
-├── esdf_simple_nav/          # 基于 ESDF 的简单导航 (实验性)
-└── jaka_ros2/                # JAKA 机械臂驱动 + Tracer 底盘驱动 (子模块)
-    ├── src/jaka_driver/      — JAKA 机械臂 ROS 2 驱动
-    ├── src/jaka_description/ — JAKA URDF 描述
-    ├── src/jaka_hardware_interface/ — JAKA ros2_control 硬件接口
-    └── src/tracer_driver/    — Tracer 底盘驱动 (tracer_base)
+├── perception/esdf_simple_nav/            # 基于 ESDF 的简单导航 (实验性)
+├── drivers/arm/jaka_driver_tools/         # JAKA 机械臂 ROS 2 驱动/工具
+├── robot/tracer_jaka_description/         # JAKA/Tracer-JAKA URDF 描述（统一入口）
+├── drivers/arm/jaka_hardware_interface/   # JAKA ros2_control 硬件接口
+├── drivers/base/tracer_base/              # Tracer 底盘驱动
+└── drivers/arm/dh_ag_ros2/                # DH AG95 夹爪驱动
 ```
 
 #### 4.2.1 tracer_jaka_ocs2 — 可执行节点一览
@@ -278,7 +280,7 @@ ros2 run grid_map mjcf_to_esdf \
 | `tracer_base` | Tracer 底盘 CAN 驱动: 订阅 `/cmd_vel`, 发布 `/odom` + `odom→base_footprint` TF |
 | `jaka_driver` | JAKA 机械臂驱动: 提供 `jaka_forward_controller` (速度控制) 和 MoveIt 接口 |
 | `jaka_hardware_interface` | JAKA ros2_control HardwareInterface 插件 |
-| `jaka_description` | JAKA 机械臂 URDF (含 DH 参数) |
+| `tracer_jaka_description` | JAKA/Tracer-JAKA 机械臂 URDF (含 DH 参数) |
 | `dh_ag95_gripper` | DH AG95 夹爪 ROS 2 驱动 |
 
 ---
@@ -288,7 +290,7 @@ ros2 run grid_map mjcf_to_esdf \
 REMANI (REactive Mobile mAnipulator Navigation Intelligence) 是一个基于分层优化的全身轨迹规划器，由以下子包组成：
 
 ```
-src/remani_planner/
+src/vendor/remani_planner/
 ├── plan_env/         # 环境表示
 ├── mm_config/        # 移动机械臂运动学/动力学配置
 ├── path_searching/   # 前端路径搜索
@@ -387,12 +389,12 @@ EXEC_TRAJ
 ### 4.4 传感器与驱动包
 
 ```
-src/imu/
+src/drivers/sensors/
 ├── hipnuc_imu/          # Hipnuc IMU 驱动 (串口, USB)
 ├── hipnuc_imu_can/      # Hipnuc IMU 驱动 (CAN)
 └── hipnuc_lib_package/  # Hipnuc 共享 C 库: 二进制协议解码 + NMEA 解析 + CANopen/J1939 解析
 
-src/lakibeam/
+src/drivers/sensors/lakibeam1/
 └── lakibeam1/           # Lakibeam1 单线激光雷达驱动 (Ethernet/UDP)
 ```
 
@@ -871,7 +873,7 @@ REMANI FSM 在 EXEC_TRAJ 状态下持续监控跟踪误差：
 ### 8.1 构建
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source /opt/ros/humble/setup.bash
 
 # 全量构建
@@ -1388,6 +1390,6 @@ map ──(SLAM/静态)──→ odom ──(EKF/tracer_base)──→ base_foot
 ---
 
 > **文档版本**: 2026-08-01
-> **工程路径**: `/home/a/ocs2_ws` (OCS2+REMANI), `/home/a/workspaces/isaac_ros-dev` (nvblox/Isaac ROS)
+> **工程路径**: `/home/a/WBMM` (OCS2+REMANI), `/home/a/workspaces/isaac_ros-dev` (nvblox/Isaac ROS)
 > **ROS 版本**: Humble
 > **C++ 标准**: C++17

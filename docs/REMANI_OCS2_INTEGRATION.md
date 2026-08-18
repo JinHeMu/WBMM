@@ -1,5 +1,7 @@
 # REMANI + Tracer/JAKA + OCS2 integration
 
+> 快速命令速查见 [QUICKSTART.md](QUICKSTART.md)。
+
 ## Implemented data flow
 
 ```text
@@ -38,7 +40,7 @@ being filled with zeros.
 ## Build
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source /opt/ros/humble/setup.bash
 colcon build --packages-up-to remani_planner tracer_jaka_ocs2 --symlink-install
 source install/setup.bash

@@ -2,7 +2,7 @@
 
 > 适用工作区：
 >
-> - ROS 2、MuJoCo、定位与 SLAM：`/home/a/ocs2_ws`
+> - ROS 2、MuJoCo、定位与 SLAM：`/home/a/WBMM`
 > - Isaac ROS、nvblox 与 ESDF：`/home/a/workspaces/isaac_ros-dev`
 >
 > 当前传感器分工：
@@ -115,7 +115,7 @@ Fast DDS 发现主机发布的话题。
 ### 3.1 构建主机工作区
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source /opt/ros/humble/setup.bash
 
 colcon build --symlink-install \
@@ -148,7 +148,7 @@ source install/setup.bash
 ### 4.1 主机启动完整仿真
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 
@@ -265,7 +265,7 @@ ros2 launch my_nvblox_bringup mujoco_esdf.launch.py \
 ```bash
 sudo chmod 777 /dev/ttyUSB0
 
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 
@@ -322,7 +322,7 @@ ros2 launch lakibeam1 lakibeam1_scan_view.launch.py
 确保底盘里程计也已经发布，然后只启动 EKF 和 slam_toolbox：
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source install/setup.bash
 
 export ROS_DOMAIN_ID=20
@@ -347,7 +347,7 @@ ros2 topic list
 只有一台 RealSense 时：
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source install/setup.bash
 
 ros2 launch tracer_jaka_mujoco d455_sensor.launch.py
@@ -437,7 +437,7 @@ ros2 launch my_nvblox_bringup d455_esdf.launch.py \
 ### 5.5 可选：启动末端 D435 做抓取识别
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source install/setup.bash
 
 ros2 launch tracer_jaka_mujoco d435_sensor.launch.py \
@@ -459,7 +459,7 @@ D435 默认使用：
 参数文件：
 
 ```text
-/home/a/ocs2_ws/src/tracer_jaka/my_nvblox_bringup/config/nvblox_3d.yaml
+/home/a/WBMM/src/perception/my_nvblox_bringup/config/nvblox_3d.yaml
 ```
 
 | 参数 | 当前值 | 作用 | 建议 |
@@ -504,7 +504,7 @@ ros2 launch my_nvblox_bringup d455_esdf.launch.py \
 
 | 修改目标 | 文件 |
 |---|---|
-| D455 在机器人上的安装位置 | `/home/a/ocs2_ws/src/tracer_jaka/tracer_jaka_mujoco/urdf/tracer_jaka_zu5.urdf` |
+| D455 在机器人上的安装位置 | `/home/a/WBMM/src/simulation/tracer_jaka_mujoco/urdf/tracer_jaka_zu5.urdf` |
 | D455 在 MuJoCo 中的位置和视线 | `models/tracer_jaka_zu5_robot.xml` |
 | MuJoCo D455 频率、分辨率、FOV、话题 | `config/sensors.yaml` |
 | 实机 D455 分辨率、帧率、命名空间 | `launch/d455_sensor.launch.py` |
@@ -609,7 +609,7 @@ ros2 topic hz /nvblox_node/esdf_3d_pointcloud
 NUC：
 
 ```bash
-cd ~/ocs2_ws
+cd ~/WBMM
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 mkdir -p bags
@@ -630,7 +630,7 @@ ros2 bag info bags/d455_esdf_01
 
 ```bash
 mkdir -p /home/a/workspaces/isaac_ros-dev/bags
-rsync -avP ras@NUC_IP:~/ocs2_ws/bags/d455_esdf_01/ \
+rsync -avP ras@NUC_IP:~/WBMM/bags/d455_esdf_01/ \
   /home/a/workspaces/isaac_ros-dev/bags/d455_esdf_01/
 ```
 
@@ -790,7 +790,7 @@ D435 -> /camera/d435i/...
 主机：
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source install/setup.bash
 export MUJOCO_GL=egl
 ros2 launch tracer_jaka_mujoco esdf_sensor_sim.launch.py
@@ -808,7 +808,7 @@ ros2 launch my_nvblox_bringup mujoco_esdf.launch.py
 主机终端 1：
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source install/setup.bash
 export ROS_DOMAIN_ID=20
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
@@ -819,7 +819,7 @@ ros2 launch tracer_jaka_mujoco real_slam.launch.py
 主机终端 2：
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source install/setup.bash
 ros2 launch tracer_jaka_mujoco d455_sensor.launch.py \
   serial_no:="'D455序列号'"

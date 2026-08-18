@@ -1,5 +1,7 @@
 # MuJoCo → nvblox ESDF → REMANI → OCS2 完整仿真通道
 
+> 快速命令速查见 [QUICKSTART.md](QUICKSTART.md)。
+
 ## 1. 通道结构
 
 ```text
@@ -30,7 +32,7 @@ OCS2 MPC/MRT → 底盘与机械臂命令 → MuJoCo
 场景文件：
 
 ```text
-tracer_jaka_mujoco/models/scene_nvblox_remani_demo.xml
+src/simulation/tracer_jaka_mujoco/models/scene_nvblox_remani_demo.xml
 ```
 
 - 中央箱体：让底盘不能直线前往目标，必须绕行。
@@ -46,14 +48,14 @@ MuJoCo 机器人视觉/碰撞几何使用 group 1/3，环境使用 group 0。D45
 `my_nvblox_bringup` 的 Git 源码现在位于：
 
 ```text
-/home/a/ocs2_ws/src/tracer_jaka/my_nvblox_bringup
+/home/a/WBMM/src/perception/my_nvblox_bringup
 ```
 
 首次运行或源码更新后，先在主机同步到 Isaac ROS 工作空间：
 
 ```bash
-cd /home/a/ocs2_ws
-src/tracer_jaka/my_nvblox_bringup/scripts/sync_to_isaac_ros_ws.sh
+cd /home/a/WBMM
+src/perception/my_nvblox_bringup/scripts/sync_to_isaac_ros_ws.sh
 ```
 
 然后在 Docker 中重新执行 `colcon build --symlink-install
@@ -79,7 +81,7 @@ ros2 launch my_nvblox_bringup mujoco_mapping_export.launch.py \
 ### 3.2 主机：再启动 MuJoCo 自动覆盖扫描
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 
@@ -132,7 +134,7 @@ ros2 run tf2_ros tf2_echo odom d455_depth_optical_frame
 建图端和 Docker 均退出后，在主机运行：
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 

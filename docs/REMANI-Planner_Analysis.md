@@ -297,7 +297,7 @@ grid_map_->evaluateEDTWithGrad(pos, dist, grad);
 | ⭐ | `remani_planner/plan_manage/config/remani_planner_param.yaml` | ~59 | 算法参数（搜索、优化、FSM 阈值） |
 | ⭐ | `remani_planner/plan_manage/src/planning_visualization.cpp` | ~300+ | RViz 可视化辅助 |
 | ⭐ | `mm_controller/src/mm_controller_fsm.cpp` | ~300+ | 轨迹跟踪控制器（另一套 FSM） |
-| ⭐ | `remani_planner/plan_manage/src/remani_planner_node.cpp` | ~30 | ROS 主节点入口 |
+| ⭐ | `remani_planner/plan_manage/src/vendor/remani_planner_node.cpp` | ~30 | ROS 主节点入口 |
 
 ### 2.2 各文件职责
 
@@ -428,7 +428,7 @@ target_link_libraries(remani_planner_core
   ${PCL_LIBRARIES}
 )
 
-add_executable(remani_planner_node src/remani_planner_node.cpp)
+add_executable(remani_planner_node src/vendor/remani_planner_node.cpp)
 target_link_libraries(remani_planner_node remani_planner_core)
 ament_target_dependencies(remani_planner_node rclcpp)
 

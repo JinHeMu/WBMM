@@ -1,6 +1,7 @@
 build/
 install/
 log/
+data/
 *.pyc
 __pycache__/
 .vscode/
@@ -13,6 +14,5 @@ bag_export/
 *.nvblx
 *.npz
 *.zstd
-maps/
 .data
 .posegraph

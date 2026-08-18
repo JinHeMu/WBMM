@@ -1,0 +1,45 @@
+mm:
+  mobile_base_dof            : 2    # degree of freedom of the mobile base
+  # The URDF loader below derives the collision envelope from the four
+  # base_link collision spheres. These values remain as a fallback.
+  mobile_base_length         : 0.74
+  mobile_base_width          : 0.68
+  mobile_base_height         : 0.376
+  mobile_base_wheel_base     : 0.34 # left/right wheel origins are at y=+/-0.17
+  mobile_base_wheel_radius   : 0.07 # please modify the value of ${mobile_base_wheel_radius} in poly_traj_utils.hpp if you change this value
+  mobile_base_non_singul_vel : 0.05 # minimum linear velocity to avoid singularity
+  odom_twist_in_body_frame   : true # nav_msgs/Odometry twist is expressed in child_frame_id
+  mobile_base_max_wheel_omega: 10.0 # maximum rotation speed of the wheel
+  mobile_base_max_wheel_alpha: 20.0 # maximum rotation acceleration of the wheel
+  mobile_base_check_radius   : 0.17 # radius of the circle used to check the collision of the mobile base
+
+  manipulator_dof    : 6    # degree of freedom of the manipulator
+  manipulator_max_vel: 1.57 # maximum velocity of the manipulator
+  manipulator_max_acc: 3.14 # maximum acceleration of the manipulator
+
+  # Use the actual Tracer + JAKA ZU5 kinematic chain and collision spheres.
+  use_urdf_model: true # whether to use the URDF model or the legacy FastArmer/UR5 model
+  urdf_file: "/home/a/WBMM/src/simulation/tracer_jaka_mujoco/urdf/tracer_jaka_zu5_real.urdf"
+  urdf_base_link: "base_footprint"
+  urdf_mobile_base_collision_link: "base_link"
+  urdf_joint_names: ["joint_1", "joint_2", "joint_3",
+                     "joint_4", "joint_5", "joint_6"]
+
+  # Only used by the legacy FastArmer/UR5 model when use_urdf_model=false.
+  base_mani_fixed_joint_xyz_ypr: [0.0, 0.0, 0.357, -1.57, 0.0, 0.0]
+
+  # param for FastArmer
+  use_fast_armer       : false # whether to use FastArmer or UR5
+  # Conservative common radius. The URDF contains per-link spheres ranging
+  # from 0.035 to 0.085 m; current REMANI costs use one common radius.
+  manipulator_thickness: 0.085
+  manipulator_config   : [0.176,   0.417,  0.07,   0.385,  0.0,    0.20] # parameters for DH table for FastArmer
+  manipulator_min_pos  : [-6.28, -1.48, -3.05, -1.48, -6.28, -6.28]
+  manipulator_max_pos  : [ 6.28,  4.62,  3.05,  4.62,  6.28,  6.28]
+
+  # param for UR5
+  # use_fast_armer       : false # whether to use FastArmer or UR5
+  # manipulator_thickness: 0.044 # radius of the circle used to check the collision of the manipulator for UR5
+  # manipulator_config   : [0.163,  0.425, 0.392, 0.127, 0.1,   0.1] # parameters for DH table for UR5
+  # manipulator_min_pos  : [-3.14, -3.14, -3.14, -3.14, -3.14, -3.14] # minimum joint position for UR5
+  # manipulator_max_pos  : [ 3.14,  3.14,  3.14,  3.14,  3.14,  3.14] # maximum joint position for UR5

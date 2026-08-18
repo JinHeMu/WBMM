@@ -2,6 +2,8 @@
 
 ## 总体 Pipeline
 
+> 快速命令速查见 [QUICKSTART.md](QUICKSTART.md)。
+
 
 ```mermaid
 flowchart LR
@@ -31,7 +33,7 @@ flowchart LR
 | 行驶方向  | `singul=+1/-1`         | `v` 的正负号           |
 | 航向      | 由速度和 `singul` 恢复 | 显式 yaw 状态          |
 
-OCS2 模型定义可以在 [WheelBasedMobileManipulatorDynamics.cpp](/home/a/ocs2_ws/src/ocs2_ros2/basic examples/ocs2_mobile_manipulator/src/dynamics/WheelBasedMobileManipulatorDynamics.cpp) 中看到：
+OCS2 模型定义可以在 [WheelBasedMobileManipulatorDynamics.cpp](/home/a/WBMM/src/vendor/ocs2_ros2/basic examples/ocs2_mobile_manipulator/src/dynamics/WheelBasedMobileManipulatorDynamics.cpp) 中看到：
 
 \[ \dot{x}=v\cos(yaw),\quad \dot{y}=v\sin(yaw),\quad \dot{yaw}=\omega,\quad \dot{q}=u_{arm} \]
 
@@ -74,9 +76,9 @@ power       = num_order - column
 
 对应代码可参考：
 
-- [PolynomialTraj.msg](/home/a/ocs2_ws/src/remani_planner/quadrotor_msgs/msg/PolynomialTraj.msg)
-- [poly_traj_utils.hpp (line 19)](/home/a/ocs2_ws/src/remani_planner/traj_utils/include/traj_utils/poly_traj_utils.hpp:19)
-- [remani_simulator.py (line 154)](/home/a/ocs2_ws/src/remani_planner/plan_manage/scripts/remani_simulator.py:154)
+- [PolynomialTraj.msg](/home/a/WBMM/src/vendor/remani_planner/quadrotor_msgs/msg/PolynomialTraj.msg)
+- [poly_traj_utils.hpp (line 19)](/home/a/WBMM/src/vendor/remani_planner/traj_utils/include/traj_utils/poly_traj_utils.hpp:19)
+- [remani_simulator.py (line 154)](/home/a/WBMM/src/vendor/remani_planner/plan_manage/scripts/remani_simulator.py:154)
 
 桥接节点最好直接解析求位置、速度和加速度，而不是先转成大量离散点再做数值差分。
 
@@ -90,7 +92,7 @@ REMANI 按行驶方向分段发布：
 - 每段开始时间等于前面所有分段 duration 的累加
 - `singul` 在每个分段内固定
 
-发布逻辑在 [remani_replan_fsm.cpp (line 785)](/home/a/ocs2_ws/src/remani_planner/plan_manage/src/remani_replan_fsm.cpp:785)。
+发布逻辑在 [remani_replan_fsm.cpp (line 785)](/home/a/WBMM/src/vendor/remani_planner/plan_manage/src/remani_replan_fsm.cpp:785)。
 
 目前消息中没有 `segment_count` 或独立的 `plan_id`，因此桥接层不能严格知道一批消息什么时候发送完成。短期可以：
 
@@ -143,7 +145,7 @@ elapsed = max(0, ros_now - remani_start_stamp)
 
 ## 5. 采样与发布策略
 
-当前 MPC horizon 是 2 秒，频率配置为 100 Hz，见 [task.info (line 74)](/home/a/ocs2_ws/src/ocs2_tracer_jaka/tracer_jaka_ocs2/config/task.info:74)。
+当前 MPC horizon 是 2 秒，频率配置为 100 Hz，见 [task.info (line 74)](/home/a/WBMM/src/algorithms/control/tracer_jaka_ocs2/config/task.info:74)。
 
 建议桥接器：
 
@@ -154,7 +156,7 @@ elapsed = max(0, ros_now - remani_start_stamp)
 - 轨迹最后追加 1～3 秒终点保持。
 - 最后保持点的 `u_ref` 为零。
 
-没有必要按 MPC 的 100 Hz 生成参考点，因为 [WholeBodyTrajectoryCost.cpp (line 40)](/home/a/ocs2_ws/src/ocs2_ros2/basic examples/ocs2_mobile_manipulator/src/cost/WholeBodyTrajectoryCost.cpp:40) 已经会在线性插值状态，并对 yaw 使用最短角插值。
+没有必要按 MPC 的 100 Hz 生成参考点，因为 [WholeBodyTrajectoryCost.cpp (line 40)](/home/a/WBMM/src/vendor/ocs2_ros2/basic examples/ocs2_mobile_manipulator/src/cost/WholeBodyTrajectoryCost.cpp:40) 已经会在线性插值状态，并对 yaw 使用最短角插值。
 
 ## 6. 航向和倒车段处理
 
@@ -217,9 +219,9 @@ v   = singul * norm(velocity)
 ocs2::TargetTrajectoriesRosPublisher
 ```
 
-MPC 端不需要改动，因为 [TracerJakaMpcNode.cpp (line 57)](/home/a/ocs2_ws/src/ocs2_tracer_jaka/tracer_jaka_ocs2/src/TracerJakaMpcNode.cpp:57) 已经通过 `RosReferenceManager` 订阅目标。
+MPC 端不需要改动，因为 [TracerJakaMpcNode.cpp (line 57)](/home/a/WBMM/src/algorithms/control/tracer_jaka_ocs2/src/TracerJakaMpcNode.cpp:57) 已经通过 `RosReferenceManager` 订阅目标。
 
-现有的 [tracer_jaka_whole_body_trajectory_node.cpp (line 420)](/home/a/ocs2_ws/src/ocs2_tracer_jaka/tracer_jaka_ocs2/src/tracer_jaka_whole_body_trajectory_node.cpp:420) 可以作为桥接节点的直接模板，只需把“读取 CSV”替换成“解析并采样 REMANI 多项式”。
+现有的 [tracer_jaka_whole_body_trajectory_node.cpp (line 420)](/home/a/WBMM/src/algorithms/control/tracer_jaka_ocs2/src/tracer_jaka_whole_body_trajectory_node.cpp:420) 可以作为桥接节点的直接模板，只需把“读取 CSV”替换成“解析并采样 REMANI 多项式”。
 
 ## 8. 坐标系和关节顺序检查
 

@@ -9,7 +9,7 @@ This is a ROS 2 workspace for Model Predictive Control (MPC) of a mobile manipul
 ## Build
 
 ```bash
-cd /home/a/ocs2_ws
+cd /home/a/WBMM
 # Full build of the relevant packages
 colcon build \
   --packages-up-to tracer_jaka_ocs2 tracer_jaka_mujoco tracer_base remani_planner \
@@ -32,16 +32,50 @@ The workspace uses C++17. Build output goes to `build/` and `install/`. Build lo
 
 ## Running
 
-**Simulation (MuJoCo)**:
+Quick command reference: [docs/QUICKSTART.md](docs/QUICKSTART.md).
+
+**Simulation (MuJoCo + REMANI + OCS2)**:
 ```bash
+# One-command full simulation pipeline
 ros2 launch tracer_jaka_ocs2 ocs2_sim.launch.py
-# In a separate terminal, run the REMANI planner:
-ros2 launch remani_planner exp0.launch.py
+
+# Only SLAM/localization simulation
+ros2 launch tracer_jaka_mujoco slam_sim.launch.py
+
+# Task table / wiping preview
+ros2 launch tracer_jaka_mujoco task_table_sim.launch.py
+ros2 launch wipe_planner wipe_plan_preview.launch.py
+```
+
+**MuJoCo → nvblox → REMANI → OCS2**:
+```bash
+# Docker side
+ros2 launch my_nvblox_bringup mujoco_mapping_export.launch.py \
+  ros_domain_id:=20 rviz:=true
+
+# Host side
+ros2 launch tracer_jaka_mujoco mujoco_nvblox_mapping.launch.py \
+  viewer:=false ros_domain_id:=20
+
+# After export
+ros2 launch tracer_jaka_ocs2 mujoco_mapped_esdf_control.launch.py
 ```
 
 **Real robot**:
 ```bash
+# CAN + localization/SLAM
+sudo ip link set can0 up type can bitrate 500000
+ros2 launch tracer_jaka_mujoco real_slam.launch.py
+
+# OCS2 real control (not yet a full wiping entry)
 ros2 launch tracer_jaka_ocs2 ocs2_real.launch.py
+```
+
+Always source the workspace first:
+```bash
+cd /home/a/WBMM
+source /opt/ros/humble/setup.bash
+source install/setup.bash
 ```
 
 ## Architecture — Data Flow
@@ -73,10 +107,10 @@ Tracer base + JAKA arm (simulated via MuJoCo or real hardware)
 
 ## Three Source Packages
 
-### `src/ocs2_ros2/` — OCS2 Framework (ROS 2 port)
+### `src/vendor/ocs2_ros2/` — OCS2 Framework (ROS 2 port)
 Upstream OCS2 libraries: `core`, `ddp`, `mpc`, `oc`, `pinocchio_interface`, `ros_interfaces`, `mobile_manipulator`, etc. Contains git submodules. These are the MPC solver, cost functions, constraints, and ROS integration layer. Rarely modified directly.
 
-### `src/ocs2_tracer_jaka/` — Robot-Specific Implementation
+### `src/algorithms/control/tracer_jaka_ocs2/` — Robot-Specific Implementation
 The main package is `tracer_jaka_ocs2`, which contains all ROS 2 executables:
 
 | Executable | Source | Purpose |
@@ -90,9 +124,9 @@ The main package is `tracer_jaka_ocs2`, which contains all ROS 2 executables:
 | `tracer_jaka_whole_body_trajectory_node` | `tracer_jaka_whole_body_trajectory_node.cpp` | Plays back pre-recorded whole-body CSV trajectories |
 | `csv_path_visualizer_node` | `csv_path_visualizer_node.cpp` | Visualizes CSV paths |
 
-Supporting packages: `tracer_jaka_mujoco` (MuJoCo sim + URDF models), `tracer_base` (CAN driver for real Tracer base), `grid_map` (ESDF representation), `jaka_ros2` (JAKA arm driver).
+Supporting packages: `src/simulation/tracer_jaka_mujoco` (MuJoCo sim + URDF models), `src/drivers/base/tracer_base` (CAN driver for real Tracer base), `src/perception/grid_map` (ESDF representation), `src/drivers/arm/*` (JAKA arm driver).
 
-### `src/remani_planner/` — Global Planner
+### `src/vendor/remani_planner/` — Global Planner
 Sub-packages forming a layered planning pipeline:
 
 | Package | Purpose |
@@ -136,5 +170,6 @@ The replan finite state machine triggers global replanning when the environment 
 ## Documentation Files
 
 - [README.md](README.md) — basic build/run commands
+- [QUICKSTART.md](docs/QUICKSTART.md) — concise startup commands
 - [总体 Pipeline.md](总体 Pipeline.md) — architecture diagram and state/control mapping table (Chinese)
-- [REMANI_OCS2_INTEGRATION.md](REMANI_OCS2_INTEGRATION.md) — detailed REMANI-OCS2 data flow and bridge design (Chinese/English mixed)
+- [REMANI_OCS2_INTEGRATION.md](docs/REMANI_OCS2_INTEGRATION.md) — detailed REMANI-OCS2 data flow and bridge design (Chinese/English mixed)
