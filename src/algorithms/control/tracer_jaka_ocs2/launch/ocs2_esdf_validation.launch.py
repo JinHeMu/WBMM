@@ -27,6 +27,7 @@ def generate_launch_description():
         ocs2_share, 'rviz', 'tracer_jaka_esdf_validation.rviz')
 
     esdf_file = LaunchConfiguration('esdf_file')
+    ply_file = LaunchConfiguration('ply_file')
     map2d_yaml = LaunchConfiguration('map2d_yaml')
     mujoco_model = LaunchConfiguration('mujoco_model')
     use_sim_time = LaunchConfiguration('use_sim_time')
@@ -73,9 +74,23 @@ def generate_launch_description():
             'stride': ParameterValue(
                 LaunchConfiguration('esdf_display_stride'),
                 value_type=int),
+            'include_unknown': ParameterValue(
+                LaunchConfiguration('esdf_display_unknown'),
+                value_type=bool),
+            'publish_surface_mesh': ParameterValue(
+                LaunchConfiguration('publish_esdf_mesh'),
+                value_type=bool),
+            'ply_file': ParameterValue(ply_file, value_type=str),
+            'publish_ply_mesh': ParameterValue(
+                LaunchConfiguration('publish_ply_mesh'),
+                value_type=bool),
             'publish_period': 1.0,
-            'z_min_2d': 0.05,
-            'z_max_2d': 0.60,
+            'z_min_2d': ParameterValue(
+                LaunchConfiguration('esdf_2d_min_z'),
+                value_type=float),
+            'z_max_2d': ParameterValue(
+                LaunchConfiguration('esdf_2d_max_z'),
+                value_type=float),
         }],
     )
 
@@ -117,8 +132,17 @@ def generate_launch_description():
             description='REMANI-format NPZ exported from nvblox.'),
         DeclareLaunchArgument(
             'map2d_yaml',
-            default_value='/home/a/WBMM/src/bringup/tracer_jaka_bringup/maps/factory_map.yaml',
+            default_value=(
+                '/home/a/WBMM/src/bringup/tracer_jaka_bringup/'
+                'maps/factory_map.yaml'),
             description='2D map saved by slam_toolbox.'),
+        DeclareLaunchArgument(
+            'ply_file',
+            default_value='',
+            description=(
+                'Saved nvblox mesh PLY. Empty derives <prefix>_mesh.ply from '
+                'either <prefix>_remani.npz or '
+                '<prefix>_remani_esdf.npz.')),
         DeclareLaunchArgument(
             'mujoco_model',
             default_value=default_scene_file,
@@ -127,12 +151,46 @@ def generate_launch_description():
         DeclareLaunchArgument('viewer', default_value='true'),
         DeclareLaunchArgument('use_rviz', default_value='true'),
         DeclareLaunchArgument(
-            'esdf_display_distance', default_value='0.5'),
+            'esdf_display_distance',
+            default_value='0.5',
+            description=(
+                'Only show observed ESDF voxels within this distance of an '
+                'obstacle; <= 0 disables filtering.')),
         DeclareLaunchArgument(
-            'esdf_display_stride', default_value='2'),
-        DeclareLaunchArgument('remani_manipulator_max_vel', default_value='1.57'),
-        DeclareLaunchArgument('remani_manipulator_max_acc', default_value='3.14'),
-        DeclareLaunchArgument('remani_freeze_manipulator', default_value='false'),
+            'esdf_display_stride',
+            default_value='2',
+            description='3D ESDF voxel subsampling; 2 reduces RViz clutter.'),
+        DeclareLaunchArgument(
+            'esdf_display_unknown',
+            default_value='false',
+            description=(
+                'Also render conservative unknown voxels. Normally false to '
+                'avoid filling the complete query volume.')),
+        DeclareLaunchArgument(
+            'publish_esdf_mesh',
+            default_value='false',
+            description=(
+                'Publish the legacy occupancy-derived surface mesh.')),
+        DeclareLaunchArgument(
+            'publish_ply_mesh',
+            default_value='true',
+            description='Publish the saved native nvblox PLY in RViz.'),
+        DeclareLaunchArgument(
+            'esdf_2d_min_z',
+            default_value='0.05',
+            description=(
+                'Minimum height used by the 2D occupancy projection.')),
+        DeclareLaunchArgument(
+            'esdf_2d_max_z',
+            default_value='0.60',
+            description=(
+                'Maximum height used by the 2D occupancy projection.')),
+        DeclareLaunchArgument(
+            'remani_manipulator_max_vel', default_value='1.57'),
+        DeclareLaunchArgument(
+            'remani_manipulator_max_acc', default_value='3.14'),
+        DeclareLaunchArgument(
+            'remani_freeze_manipulator', default_value='false'),
         simulator_and_planner,
         saved_esdf_visualization,
         saved_2d_map_server,

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from pathlib import Path
+
 import numpy as np
 
 import rclpy
@@ -17,13 +19,17 @@ from sensor_msgs_py import point_cloud2
 
 from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Point
+from visualization_msgs.msg import Marker
 
 
 class EsdfRvizPublisher(Node):
     def __init__(self):
         super().__init__("esdf_rviz_publisher")
 
-        self.declare_parameter("esdf_file", "maps/tracer_jaka_zu5_scene_esdf.npz")
+        self.declare_parameter(
+            "esdf_file", "maps/tracer_jaka_zu5_scene_esdf.npz"
+        )
         self.declare_parameter("frame_id", "map")
 
         # z_slice < 0 表示显示完整 3D ESDF
@@ -33,6 +39,10 @@ class EsdfRvizPublisher(Node):
         self.declare_parameter("max_distance", 0.8)
         self.declare_parameter("stride", 2)
         self.declare_parameter("publish_period", 0.5)
+        self.declare_parameter("include_unknown", False)
+        self.declare_parameter("publish_surface_mesh", True)
+        self.declare_parameter("ply_file", "")
+        self.declare_parameter("publish_ply_mesh", False)
 
         # 2D 投影高度范围，适合移动底盘
         self.declare_parameter("z_min_2d", 0.05)
@@ -78,6 +88,26 @@ class EsdfRvizPublisher(Node):
             .get_parameter_value()
             .double_value
         )
+        self.include_unknown = (
+            self.get_parameter("include_unknown")
+            .get_parameter_value()
+            .bool_value
+        )
+        self.publish_surface_mesh = (
+            self.get_parameter("publish_surface_mesh")
+            .get_parameter_value()
+            .bool_value
+        )
+        self.ply_file = (
+            self.get_parameter("ply_file")
+            .get_parameter_value()
+            .string_value
+        )
+        self.publish_ply_mesh = (
+            self.get_parameter("publish_ply_mesh")
+            .get_parameter_value()
+            .bool_value
+        )
 
         if self.stride < 1:
             self.stride = 1
@@ -115,6 +145,31 @@ class EsdfRvizPublisher(Node):
             qos,
         )
 
+        self.mesh_pub = self.create_publisher(
+            Marker,
+            "/esdf_surface_mesh",
+            qos,
+        )
+
+        self.ply_mesh_pub = self.create_publisher(
+            Marker,
+            "/nvblox_ply_mesh",
+            qos,
+        )
+
+        self.surface_mesh = (
+            self.make_surface_mesh()
+            if self.publish_surface_mesh
+            else None
+        )
+        self.surface_mesh_published = False
+        self.ply_mesh = (
+            self.make_ply_mesh()
+            if self.publish_ply_mesh
+            else None
+        )
+        self.ply_mesh_published = False
+
         self.timer = self.create_timer(
             self.publish_period,
             self.publish_maps,
@@ -125,6 +180,11 @@ class EsdfRvizPublisher(Node):
         self.get_logger().info(f"Origin: {self.origin}")
         self.get_logger().info(f"Voxel size: {self.voxel_size}")
         self.get_logger().info(f"Frame id: {self.frame_id}")
+        self.get_logger().info(
+            "3D ESDF display: "
+            f"stride={self.stride}, max_distance={self.max_distance}, "
+            f"include_unknown={self.include_unknown}"
+        )
 
     def make_header(self):
         header = Header()
@@ -160,15 +220,22 @@ class EsdfRvizPublisher(Node):
 
             dd = esdf_slice
 
-            observed = self.observed[::stride, ::stride, k]
-            mask = observed & (np.abs(dd) <= max_distance)
+            if self.include_unknown:
+                visible = np.ones_like(esdf_slice, dtype=bool)
+            else:
+                visible = self.observed[::stride, ::stride, k]
+            mask = visible
+            if max_distance > 0.0:
+                mask &= np.abs(dd) <= max_distance
 
             xs = origin[0] + (ii[mask] + 0.5) * voxel_size
             ys = origin[1] + (jj[mask] + 0.5) * voxel_size
             zs = np.full_like(xs, origin[2] + (k + 0.5) * voxel_size)
             intensities = dd[mask].astype(np.float32)
 
-            points = np.column_stack((xs, ys, zs, intensities)).astype(np.float32)
+            points = np.column_stack(
+                (xs, ys, zs, intensities)
+            ).astype(np.float32)
 
         else:
             esdf_sampled = esdf[::stride, ::stride, ::stride]
@@ -181,21 +248,37 @@ class EsdfRvizPublisher(Node):
             )
 
             dd = esdf_sampled
-            observed = self.observed[::stride, ::stride, ::stride]
-            mask = observed & (np.abs(dd) <= max_distance)
+            if self.include_unknown:
+                visible = np.ones_like(esdf_sampled, dtype=bool)
+            else:
+                visible = self.observed[::stride, ::stride, ::stride]
+            mask = visible
+            if max_distance > 0.0:
+                mask &= np.abs(dd) <= max_distance
 
             xs = origin[0] + (ii[mask] + 0.5) * voxel_size
             ys = origin[1] + (jj[mask] + 0.5) * voxel_size
             zs = origin[2] + (kk[mask] + 0.5) * voxel_size
             intensities = dd[mask].astype(np.float32)
 
-            points = np.column_stack((xs, ys, zs, intensities)).astype(np.float32)
+            points = np.column_stack(
+                (xs, ys, zs, intensities)
+            ).astype(np.float32)
 
         fields = [
-            PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
-            PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
-            PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
-            PointField(name="intensity", offset=12, datatype=PointField.FLOAT32, count=1),
+            PointField(
+                name="x", offset=0, datatype=PointField.FLOAT32, count=1
+            ),
+            PointField(
+                name="y", offset=4, datatype=PointField.FLOAT32, count=1
+            ),
+            PointField(
+                name="z", offset=8, datatype=PointField.FLOAT32, count=1
+            ),
+            PointField(
+                name="intensity", offset=12,
+                datatype=PointField.FLOAT32, count=1
+            ),
         ]
 
         return point_cloud2.create_cloud(
@@ -203,6 +286,130 @@ class EsdfRvizPublisher(Node):
             fields,
             points.tolist(),
         )
+
+    def make_surface_mesh(self):
+        """Build a voxel surface mesh from observed occupied ESDF cells.
+
+        The REMANI NPZ does not contain nvblox's native triangle mesh. This
+        marker reconstructs the collision surface without requiring CUDA or
+        nvblox_ros on the validation host. Conservative unknown occupancy is
+        deliberately excluded; otherwise the complete query AABB becomes a
+        solid box and hides the measured scene.
+        """
+        solid = self.occ & self.observed
+        marker = Marker()
+        marker.header = self.make_header()
+        marker.ns = "saved_esdf_surface"
+        marker.id = 0
+        marker.type = Marker.TRIANGLE_LIST
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = 1.0
+        marker.scale.y = 1.0
+        marker.scale.z = 1.0
+        marker.color.r = 0.70
+        marker.color.g = 0.76
+        marker.color.b = 0.82
+        marker.color.a = 0.72
+
+        # Each template is two consistently wound triangles for one face of a
+        # unit voxel. The coordinates are converted to metric positions below.
+        faces = (
+            (0, -1, ((0, 0, 0), (0, 0, 1), (0, 1, 1),
+                     (0, 0, 0), (0, 1, 1), (0, 1, 0))),
+            (0, 1, ((1, 0, 0), (1, 1, 0), (1, 1, 1),
+                    (1, 0, 0), (1, 1, 1), (1, 0, 1))),
+            (1, -1, ((0, 0, 0), (1, 0, 0), (1, 0, 1),
+                     (0, 0, 0), (1, 0, 1), (0, 0, 1))),
+            (1, 1, ((0, 1, 0), (0, 1, 1), (1, 1, 1),
+                    (0, 1, 0), (1, 1, 1), (1, 1, 0))),
+            (2, -1, ((0, 0, 0), (0, 1, 0), (1, 1, 0),
+                     (0, 0, 0), (1, 1, 0), (1, 0, 0))),
+            (2, 1, ((0, 0, 1), (1, 0, 1), (1, 1, 1),
+                    (0, 0, 1), (1, 1, 1), (0, 1, 1))),
+        )
+
+        face_count = 0
+        for axis, direction, corners in faces:
+            neighbour = np.zeros_like(solid)
+            current_slice = [slice(None)] * 3
+            neighbour_slice = [slice(None)] * 3
+            if direction < 0:
+                current_slice[axis] = slice(1, None)
+                neighbour_slice[axis] = slice(None, -1)
+            else:
+                current_slice[axis] = slice(None, -1)
+                neighbour_slice[axis] = slice(1, None)
+            neighbour[tuple(current_slice)] = solid[tuple(neighbour_slice)]
+
+            boundary_cells = np.argwhere(solid & ~neighbour)
+            face_count += int(boundary_cells.shape[0])
+            if boundary_cells.size == 0:
+                continue
+
+            metric_cells = (
+                self.origin[None, :]
+                + boundary_cells.astype(float) * self.voxel_size
+            )
+            for corner in corners:
+                vertices = metric_cells + (
+                    np.asarray(corner, dtype=float)[None, :]
+                    * self.voxel_size
+                )
+                marker.points.extend(
+                    Point(x=float(vertex[0]),
+                          y=float(vertex[1]),
+                          z=float(vertex[2]))
+                    for vertex in vertices
+                )
+
+        triangle_count = len(marker.points) // 3
+        self.get_logger().info(
+            f"Built ESDF surface mesh: {face_count} voxel faces, "
+            f"{triangle_count} triangles"
+        )
+        return marker
+
+    def make_ply_mesh(self):
+        """Create an RViz mesh-resource marker for the saved nvblox PLY."""
+        ply_path = Path(self.ply_file).expanduser() if self.ply_file else None
+        if ply_path is None:
+            esdf_path = Path(self.esdf_file).expanduser()
+            ply_path = None
+            for suffix in ("_remani_esdf.npz", "_remani.npz"):
+                if esdf_path.name.endswith(suffix):
+                    ply_name = esdf_path.name[:-len(suffix)] + "_mesh.ply"
+                    ply_path = esdf_path.with_name(ply_name)
+                    break
+            if ply_path is None:
+                ply_path = esdf_path.with_suffix(".ply")
+        ply_path = ply_path.resolve()
+
+        if not ply_path.is_file():
+            self.get_logger().warning(
+                f"Saved nvblox PLY does not exist: {ply_path}. "
+                "Run d455_bag_esdf.launch.py again or pass ply_file."
+            )
+            return None
+
+        marker = Marker()
+        marker.header = self.make_header()
+        marker.ns = "saved_nvblox_ply"
+        marker.id = 0
+        marker.type = Marker.MESH_RESOURCE
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = 1.0
+        marker.scale.y = 1.0
+        marker.scale.z = 1.0
+        marker.color.r = 1.0
+        marker.color.g = 1.0
+        marker.color.b = 1.0
+        marker.color.a = 1.0
+        marker.mesh_resource = ply_path.as_uri()
+        marker.mesh_use_embedded_materials = True
+        self.get_logger().info(f"Using saved nvblox PLY: {ply_path}")
+        return marker
 
     def make_2d_occupancy_grid(self):
         """
@@ -254,6 +461,16 @@ class EsdfRvizPublisher(Node):
 
         self.cloud_pub.publish(cloud_msg)
         self.grid_pub.publish(grid_msg)
+        if self.surface_mesh is not None and not self.surface_mesh_published:
+            self.surface_mesh.header = self.make_header()
+            self.mesh_pub.publish(self.surface_mesh)
+            # The map is static and the publisher is transient-local, so RViz
+            # receives this retained mesh even if it connects later.
+            self.surface_mesh_published = True
+        if self.ply_mesh is not None and not self.ply_mesh_published:
+            self.ply_mesh.header = self.make_header()
+            self.ply_mesh_pub.publish(self.ply_mesh)
+            self.ply_mesh_published = True
 
 
 def main(args=None):

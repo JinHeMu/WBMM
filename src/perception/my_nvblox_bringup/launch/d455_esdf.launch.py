@@ -32,6 +32,20 @@ def generate_launch_description():
             default_value='-1.0',
             description='Negative keeps the real-robot map persistent'),
         DeclareLaunchArgument(
+            'maximum_input_queue_length', default_value='20'),
+        DeclareLaunchArgument('tick_period_ms', default_value='10'),
+        DeclareLaunchArgument(
+            'integrate_depth_rate_hz', default_value='30.0'),
+        DeclareLaunchArgument(
+            'decay_tsdf_rate_hz',
+            default_value='0.0',
+            description='0.0 keeps the persistent static map forever'),
+        DeclareLaunchArgument('update_mesh_rate_hz', default_value='5.0'),
+        DeclareLaunchArgument('update_esdf_rate_hz', default_value='10.0'),
+        DeclareLaunchArgument('publish_layer_rate_hz', default_value='5.0'),
+        DeclareLaunchArgument(
+            'publish_debug_vis_rate_hz', default_value='2.0'),
+        DeclareLaunchArgument(
             'esdf_viz_follow_robot',
             default_value='false',
             description='False keeps a fixed world-aligned ESDF view'),
@@ -50,6 +64,10 @@ def generate_launch_description():
         DeclareLaunchArgument('ros_domain_id', default_value='20'),
         DeclareLaunchArgument(
             'rmw_implementation', default_value='rmw_fastrtps_cpp'),
+        DeclareLaunchArgument(
+            'input_qos',
+            default_value='SENSOR_DATA',
+            description='Use DEFAULT for lossless reliable bag replay'),
         SetEnvironmentVariable(
             'ROS_DOMAIN_ID', LaunchConfiguration('ros_domain_id')),
         SetEnvironmentVariable(
@@ -76,6 +94,21 @@ def generate_launch_description():
                 'map_clearing_frame_id': 'base_footprint',
                 'map_clearing_radius_m':
                     LaunchConfiguration('map_clearing_radius_m'),
+                'maximum_input_queue_length':
+                    LaunchConfiguration('maximum_input_queue_length'),
+                'tick_period_ms': LaunchConfiguration('tick_period_ms'),
+                'integrate_depth_rate_hz':
+                    LaunchConfiguration('integrate_depth_rate_hz'),
+                'decay_tsdf_rate_hz':
+                    LaunchConfiguration('decay_tsdf_rate_hz'),
+                'update_mesh_rate_hz':
+                    LaunchConfiguration('update_mesh_rate_hz'),
+                'update_esdf_rate_hz':
+                    LaunchConfiguration('update_esdf_rate_hz'),
+                'publish_layer_rate_hz':
+                    LaunchConfiguration('publish_layer_rate_hz'),
+                'publish_debug_vis_rate_hz':
+                    LaunchConfiguration('publish_debug_vis_rate_hz'),
                 'esdf_viz_follow_robot':
                     LaunchConfiguration('esdf_viz_follow_robot'),
                 'esdf_viz_size_x':
@@ -92,7 +125,7 @@ def generate_launch_description():
                     LaunchConfiguration('esdf_viz_subsampling'),
                 'esdf_viz_max_distance':
                     LaunchConfiguration('esdf_viz_max_distance'),
-                'input_qos': 'SENSOR_DATA',
+                'input_qos': LaunchConfiguration('input_qos'),
                 'depth_image_topic': LaunchConfiguration('depth_image_topic'),
                 'depth_camera_info_topic':
                     LaunchConfiguration('depth_camera_info_topic'),

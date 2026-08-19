@@ -134,7 +134,13 @@ ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
   bag:=/workspaces/isaac_ros-dev/bags/d455_esdf_01
 ```
 
-This launch is now a complete offline export pipeline. During replay RViz shows:
+This launch is a lossless offline export pipeline. It uses reliable RGB-D QoS,
+a 500-message nvblox TF queue, and disables periodic full-volume visualization
+while fusion is running. These settings prevent large image messages from
+being silently discarded merely to keep a live display responsive.
+
+For an optional live view, start a separate RViz after mapping. The export does
+not depend on RViz topics; it saves the complete internal nvblox layers:
 
 - `/nvblox_node/mesh`: the incrementally fused RGB-D surface mesh;
 - `/nvblox_node/esdf_3d_pointcloud`: the bounded 3D ESDF visualization;
@@ -145,52 +151,68 @@ writable bind-mounted directory `/workspaces/isaac_ros-dev/bag_export`:
 
 ```text
 d455_bag_map.nvblx          native nvblox layer cake
+d455_bag_mesh.ply           fused nvblox triangle mesh
 d455_bag_remani_esdf.npz   dense ESDF consumed by REMANI
+d455_bag_nvblox_timings.txt callback/processed/integrated frame audit
 d455_bag_2d.pgm/.yaml      latest recorded 2D SLAM map
 ```
 
 The NPZ contains `esdf`, `occupancy`, `observed`, `origin`, `voxel_size`, and
 `bounds_max`. Unobserved cells are marked occupied by default, so REMANI cannot
-plan through camera-unseen space. Query bounds and outputs can be changed at
-launch time:
+plan through camera-unseen space. By default the exported ESDF spans the
+**complete mapped scene**: the exporter queries nvblox with `use_aabb=false`,
+which returns a dense grid over all allocated ESDF blocks. To restrict the
+query to a fixed box instead, pass `esdf_use_aabb:=true` together with the
+`esdf_min_*` / `esdf_size_*` arguments:
 
 ```bash
 ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
   bag:=/workspaces/isaac_ros-dev/bags/d455_esdf_01 \
   map_output:=/workspaces/isaac_ros-dev/bag_export/site.nvblx \
+  ply_output:=/workspaces/isaac_ros-dev/bag_export/site_mesh.ply \
+  timings_output:=/workspaces/isaac_ros-dev/bag_export/site_timings.txt \
   esdf_output:=/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
-  map2d_output:=/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
-  esdf_min_x:=-6.0 esdf_min_y:=-6.0 esdf_min_z:=-0.2 \
-  esdf_size_x:=12.0 esdf_size_y:=12.0 esdf_size_z:=3.0
+  map2d_output:=/workspaces/isaac_ros-dev/bag_export/site_2d.yaml
 ```
 
-Wait for the `Saved native nvblox map` and `Saved REMANI ESDF` messages before
-stopping the launch. The native map is suitable for later nvblox reload; the
-NPZ is the planner-side snapshot and does not require CUDA at planning time.
+Wait for `All synchronized depth inputs were processed`, `Saved nvblox mesh
+PLY`, `Saved native nvblox map`, and `Saved REMANI ESDF` before stopping the
+launch. The exporter reads the expected depth count directly from bag metadata
+and refuses to save if DDS, exact-time synchronization, or TF processing lost
+any frame. The timing audit must show `ros/depth_image_callback` equal to
+`ros/depth` and `ros/depth/integrate`, within `drain_max_pending_frames` (the
+bag's final depth frame legitimately waits forever for TF at its own stamp and
+the sim clock stops with the player). Offline fusion raises the depth limit to
+1000 Hz so every unique recorded depth timestamp participates in the map.
+`decay_tsdf_rate_hz` defaults to `0.0` (decay off); with nvblox's 5 Hz decay a
+`static_tsdf` map silently erodes to the last ~30 s of observations.
 
-The launch starts RGB-D nvblox with `use_sim_time=true`, waits five
-seconds for its subscribers and TF buffer, then plays the bag with `/clock` at
-half speed. The slower playback turns a recorded 30 Hz stream into an
-effective 15 Hz stream. It uses ROS domain 21 by default so live domain-20
-robot topics cannot mix with replayed timestamps. Its default ESDF display is
-20 m x 20 m x 3 m at 0.2 Hz with voxel subsampling 3. Only voxels whose
-absolute ESDF distance is at most 0.5 m are shown, so distant free space is
-hidden. Offline persistent mapping defaults to 10 cm voxels; this uses roughly
+The launch starts RGB-D nvblox with `use_sim_time=true`, waits five seconds for
+its subscribers and TF buffer, then plays the bag with `/clock` at quarter
+speed. The exporter node also starts before playback and creates its nvblox
+service clients immediately, so DDS discovery is already complete when a
+`std_msgs/msg/Bool` trigger is published after playback. This avoids a cold
+post-playback discovery round-trip, which once manifested as an intermittent
+`Waiting for save_timings service` hang at the end of replay. It uses ROS
+domain 21 by default so live domain-20 robot topics cannot mix with replayed
+timestamps. Periodic ESDF visualization is disabled during
+offline fusion; the final service query exports the ESDF over all allocated
+blocks by default (`esdf_use_aabb:=false`), or the configured AABB with
+`esdf_use_aabb:=true`. Offline persistent mapping defaults to 10 cm voxels; this uses roughly
 one eighth of the 3D voxel count of 5 cm mapping and is intended for 4 GB GPUs.
 Real-time local mapping remains at 5 cm.
 
-The NUC recorder and Docker player intentionally use different `/tf` QoS:
-recording uses best effort to accept the live publisher, while playback uses
-reliable so tf2 listeners receive the replayed transforms.
+The NUC recorder and Docker player intentionally use different QoS: recording
+accepts the live sensor profiles, while offline playback publishes RGB-D and TF
+reliably. nvblox subscribes with its reliable `DEFAULT` profile for this launch.
 
-Use `rate:=0.25` if the GPU still falls behind. Increase the fixed ESDF display
-only when needed:
+If a machine still cannot keep up, reduce `rate` further. This changes runtime,
+not map extent:
 
 ```bash
 ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
   bag:=/workspaces/isaac_ros-dev/bags/d455_esdf_01 \
-  rate:=0.25 esdf_viz_size_x:=12.0 esdf_viz_size_y:=12.0 \
-  esdf_viz_rate:=0.2 esdf_viz_subsampling:=3
+  rate:=0.10
 ```
 
 ## Stable interfaces

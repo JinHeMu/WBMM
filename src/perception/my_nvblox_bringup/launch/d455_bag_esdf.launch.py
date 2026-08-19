@@ -7,6 +7,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
+    EmitEvent,
     ExecuteProcess,
     RegisterEventHandler,
     IncludeLaunchDescription,
@@ -14,6 +15,7 @@ from launch.actions import (
     TimerAction,
 )
 from launch.event_handlers import OnProcessExit
+from launch.events import Shutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     EnvironmentVariable,
@@ -40,6 +42,23 @@ def generate_launch_description():
             "ros_domain_id": LaunchConfiguration("ros_domain_id"),
             "voxel_size": LaunchConfiguration("voxel_size"),
             "map_clearing_radius_m": "-1.0",
+            "input_qos": "DEFAULT",
+            "maximum_input_queue_length":
+                LaunchConfiguration("maximum_input_queue_length"),
+            "tick_period_ms": LaunchConfiguration("tick_period_ms"),
+            "integrate_depth_rate_hz":
+                LaunchConfiguration("integrate_depth_rate_hz"),
+            "decay_tsdf_rate_hz":
+                LaunchConfiguration("decay_tsdf_rate_hz"),
+            "update_mesh_rate_hz":
+                LaunchConfiguration("update_mesh_rate_hz"),
+            "update_esdf_rate_hz":
+                LaunchConfiguration("update_esdf_rate_hz"),
+            "publish_layer_rate_hz":
+                LaunchConfiguration("publish_layer_rate_hz"),
+            "publish_debug_vis_rate_hz":
+                LaunchConfiguration("publish_debug_vis_rate_hz"),
+            "esdf_viz": "false",
             "esdf_viz_follow_robot": "false",
             "esdf_viz_size_x": LaunchConfiguration("esdf_viz_size_x"),
             "esdf_viz_size_y": LaunchConfiguration("esdf_viz_size_y"),
@@ -79,47 +98,78 @@ def generate_launch_description():
         }],
     )
 
+    exporter = Node(
+        package='my_nvblox_bringup',
+        executable='nvblox_map_exporter',
+        name='nvblox_map_exporter',
+        output='screen',
+        parameters=[{
+            'use_sim_time': False,
+            'trigger_topic': LaunchConfiguration('trigger_topic'),
+            'service_call_timeout_sec': ParameterValue(
+                LaunchConfiguration('service_call_timeout_sec'),
+                value_type=float),
+            'map_output': LaunchConfiguration('map_output'),
+            'ply_output': LaunchConfiguration('ply_output'),
+            'timings_output': LaunchConfiguration('timings_output'),
+            'bag_path': LaunchConfiguration('bag'),
+            'depth_topic': '/camera/d455/depth/image_rect_raw',
+            'esdf_output': LaunchConfiguration('esdf_output'),
+            'drain_timeout_sec': ParameterValue(
+                LaunchConfiguration('drain_timeout_sec'), value_type=float),
+            'drain_stable_polls': ParameterValue(
+                LaunchConfiguration('drain_stable_polls'), value_type=int),
+            'drain_max_pending_frames': ParameterValue(
+                LaunchConfiguration('drain_max_pending_frames'),
+                value_type=int),
+            'esdf_use_aabb': ParameterValue(
+                LaunchConfiguration('esdf_use_aabb'), value_type=bool),
+            'require_all_depth_integrated': True,
+            'frame_id': 'odom',
+            'esdf_min_x': ParameterValue(
+                LaunchConfiguration('esdf_min_x'), value_type=float),
+            'esdf_min_y': ParameterValue(
+                LaunchConfiguration('esdf_min_y'), value_type=float),
+            'esdf_min_z': ParameterValue(
+                LaunchConfiguration('esdf_min_z'), value_type=float),
+            'esdf_size_x': ParameterValue(
+                LaunchConfiguration('esdf_size_x'), value_type=float),
+            'esdf_size_y': ParameterValue(
+                LaunchConfiguration('esdf_size_y'), value_type=float),
+            'esdf_size_z': ParameterValue(
+                LaunchConfiguration('esdf_size_z'), value_type=float),
+            'unknown_is_occupied': ParameterValue(
+                LaunchConfiguration('unknown_is_occupied'), value_type=bool),
+        }],
+    )
+
+    export_trigger = ExecuteProcess(
+        cmd=[
+            'ros2', 'topic', 'pub', '--once',
+            '--qos-reliability', 'reliable',
+            '--qos-durability', 'transient_local',
+            LaunchConfiguration('trigger_topic'),
+            'std_msgs/msg/Bool', '{data: true}',
+        ],
+        output='screen',
+    )
+
     export_after_playback = RegisterEventHandler(
         OnProcessExit(
             target_action=player_process,
             on_exit=[
                 TimerAction(
-                    period=3.0,
-                    actions=[Node(
-                        package='my_nvblox_bringup',
-                        executable='nvblox_map_exporter',
-                        name='nvblox_map_exporter',
-                        output='screen',
-                        parameters=[{
-                            'use_sim_time': False,
-                            'map_output': LaunchConfiguration('map_output'),
-                            'esdf_output': LaunchConfiguration('esdf_output'),
-                            'frame_id': 'odom',
-                            'esdf_min_x': ParameterValue(
-                                LaunchConfiguration('esdf_min_x'),
-                                value_type=float),
-                            'esdf_min_y': ParameterValue(
-                                LaunchConfiguration('esdf_min_y'),
-                                value_type=float),
-                            'esdf_min_z': ParameterValue(
-                                LaunchConfiguration('esdf_min_z'),
-                                value_type=float),
-                            'esdf_size_x': ParameterValue(
-                                LaunchConfiguration('esdf_size_x'),
-                                value_type=float),
-                            'esdf_size_y': ParameterValue(
-                                LaunchConfiguration('esdf_size_y'),
-                                value_type=float),
-                            'esdf_size_z': ParameterValue(
-                                LaunchConfiguration('esdf_size_z'),
-                                value_type=float),
-                            'unknown_is_occupied': ParameterValue(
-                                LaunchConfiguration('unknown_is_occupied'),
-                                value_type=bool),
-                        }],
-                    )],
+                    period=LaunchConfiguration('export_settle_time'),
+                    actions=[export_trigger],
                 ),
             ],
+        ),
+    )
+    shutdown_after_export = RegisterEventHandler(
+        OnProcessExit(
+            target_action=exporter,
+            on_exit=[EmitEvent(event=Shutdown(
+                reason='Offline nvblox export finished'))],
         ),
     )
 
@@ -129,8 +179,70 @@ def generate_launch_description():
             description="Absolute path to the ROS bag directory"),
         DeclareLaunchArgument(
             "rate",
-            default_value="0.5",
-            description="Playback rate; 0.5 turns a 30 Hz stream into 15 Hz"),
+            default_value="0.25",
+            description="Playback rate; slow replay prevents offline drops"),
+        DeclareLaunchArgument(
+            'maximum_input_queue_length',
+            default_value='500',
+            description='Large offline TF/sensor queue; prevents silent loss'),
+        DeclareLaunchArgument('tick_period_ms', default_value='5'),
+        DeclareLaunchArgument(
+            'integrate_depth_rate_hz',
+            default_value='1000.0',
+            description='Offline mode integrates every unique depth stamp'),
+        DeclareLaunchArgument(
+            'decay_tsdf_rate_hz',
+            default_value='0.0',
+            description=(
+                '0.0 disables TSDF decay so the offline map stays complete; '
+                'decay erases everything not re-observed within ~30 s')),
+        DeclareLaunchArgument(
+            'update_mesh_rate_hz',
+            default_value='0.5',
+            description='Final save_ply forces a complete mesh update'),
+        DeclareLaunchArgument(
+            'update_esdf_rate_hz',
+            default_value='1.0',
+            description='Final ESDF service forces a complete update'),
+        DeclareLaunchArgument(
+            'publish_layer_rate_hz', default_value='0.5'),
+        DeclareLaunchArgument(
+            'publish_debug_vis_rate_hz', default_value='0.5'),
+        DeclareLaunchArgument(
+            'export_settle_time',
+            default_value='5.0',
+            description=(
+                'Wall-time pause after playback before publishing the export '
+                'trigger; the exporter itself starts before playback and '
+                'discovers nvblox services during the replay')),
+        DeclareLaunchArgument(
+            'trigger_topic',
+            default_value='/nvblox_export_trigger',
+            description='Topic that releases the pre-started map exporter'),
+        DeclareLaunchArgument(
+            'service_call_timeout_sec',
+            default_value='300.0',
+            description='Maximum time for one nvblox export service call'),
+        DeclareLaunchArgument(
+            'drain_timeout_sec',
+            default_value='120.0',
+            description='Abort instead of exporting if input is not drained'),
+        DeclareLaunchArgument(
+            'drain_stable_polls',
+            default_value='3',
+            description='Consecutive equal counters required before export'),
+        DeclareLaunchArgument(
+            'drain_max_pending_frames',
+            default_value='3',
+            description=(
+                'Frames allowed to stay unprocessed at the bag end (final '
+                'depth frame has no later TF and the sim clock stops)')),
+        DeclareLaunchArgument(
+            'esdf_use_aabb',
+            default_value='false',
+            description=(
+                'false exports the ESDF over all allocated blocks (complete '
+                'map); true uses the esdf_min_*/esdf_size_* box below')),
         DeclareLaunchArgument(
             "ros_domain_id",
             default_value="21",
@@ -160,6 +272,19 @@ def generate_launch_description():
                 LaunchConfiguration('output_dir'),
                 'd455_bag_map.nvblx',
             ])),
+        DeclareLaunchArgument(
+            'ply_output',
+            default_value=PathJoinSubstitution([
+                LaunchConfiguration('output_dir'),
+                'd455_bag_mesh.ply',
+            ])),
+        DeclareLaunchArgument(
+            'timings_output',
+            default_value=PathJoinSubstitution([
+                LaunchConfiguration('output_dir'),
+                'd455_bag_nvblox_timings.txt',
+            ]),
+            description='Audit file containing callback/processed counts'),
         DeclareLaunchArgument(
             'esdf_output',
             default_value=PathJoinSubstitution([
@@ -198,5 +323,7 @@ def generate_launch_description():
         nvblox,
         map_snapshot,
         player,
+        exporter,
         export_after_playback,
+        shutdown_after_export,
     ])

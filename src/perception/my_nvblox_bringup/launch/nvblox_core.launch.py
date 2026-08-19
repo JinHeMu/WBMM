@@ -56,6 +56,29 @@ def generate_launch_description():
                 'workspace_height_bounds_visualization_attachment_frame_id':
                     clearing_frame,
                 'input_qos': LaunchConfiguration('input_qos'),
+                'maximum_input_queue_length': ParameterValue(
+                    LaunchConfiguration('maximum_input_queue_length'),
+                    value_type=int),
+                'tick_period_ms': ParameterValue(
+                    LaunchConfiguration('tick_period_ms'), value_type=int),
+                'integrate_depth_rate_hz': ParameterValue(
+                    LaunchConfiguration('integrate_depth_rate_hz'),
+                    value_type=float),
+                'decay_tsdf_rate_hz': ParameterValue(
+                    LaunchConfiguration('decay_tsdf_rate_hz'),
+                    value_type=float),
+                'update_mesh_rate_hz': ParameterValue(
+                    LaunchConfiguration('update_mesh_rate_hz'),
+                    value_type=float),
+                'update_esdf_rate_hz': ParameterValue(
+                    LaunchConfiguration('update_esdf_rate_hz'),
+                    value_type=float),
+                'publish_layer_rate_hz': ParameterValue(
+                    LaunchConfiguration('publish_layer_rate_hz'),
+                    value_type=float),
+                'publish_debug_vis_rate_hz': ParameterValue(
+                    LaunchConfiguration('publish_debug_vis_rate_hz'),
+                    value_type=float),
             },
         ],
     )
@@ -126,6 +149,25 @@ def generate_launch_description():
             default_value='7.0',
             description='Set below zero to keep all integrated map blocks'),
         DeclareLaunchArgument('input_qos', default_value='SENSOR_DATA'),
+        DeclareLaunchArgument(
+            'maximum_input_queue_length',
+            default_value='20',
+            description='Maximum queued sensor messages awaiting TF'),
+        DeclareLaunchArgument('tick_period_ms', default_value='10'),
+        DeclareLaunchArgument(
+            'integrate_depth_rate_hz', default_value='30.0'),
+        DeclareLaunchArgument(
+            'decay_tsdf_rate_hz',
+            default_value='0.0',
+            description=(
+                'TSDF weight decay rate. 0.0 disables decay so static_tsdf '
+                'maps stay persistent; nvblox default 5 Hz erases anything '
+                'not re-observed within ~30 s')),
+        DeclareLaunchArgument('update_mesh_rate_hz', default_value='5.0'),
+        DeclareLaunchArgument('update_esdf_rate_hz', default_value='10.0'),
+        DeclareLaunchArgument('publish_layer_rate_hz', default_value='5.0'),
+        DeclareLaunchArgument(
+            'publish_debug_vis_rate_hz', default_value='2.0'),
         DeclareLaunchArgument('use_color', default_value='true'),
         DeclareLaunchArgument('use_lidar', default_value='false'),
         DeclareLaunchArgument(

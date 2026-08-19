@@ -645,11 +645,25 @@ ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
   bag:=/workspaces/isaac_ros-dev/bags/d455_esdf_01
 ```
 
-该入口自动使用 `use_sim_time=true`、发布 `/clock`、开启 RGB 融合并以
-`0.5` 倍速回放。离线入口默认使用 ROS Domain 21，与实机 Domain 20
-隔离，避免实时话题和 bag 的时间戳混入同一个 nvblox。若仍然积压，增加
-`rate:=0.25`。如果离线回放稳定而实时双机运行不稳定，主要问题在
-网络/DDS；如果离线仍然丢图，应继续检查 bag 内的
+该入口自动使用 `use_sim_time=true`、发布 `/clock`、开启 RGB 融合并默认以
+`0.25` 倍速回放。离线 RGB-D 与 TF 均使用 Reliable QoS，深度融合限频提高
+到 1000 Hz，并将 nvblox 输入队列扩大到 500。TSDF 权重衰减默认关闭
+（`decay_tsdf_rate_hz:=0.0`）：nvblox 默认 5 Hz 衰减会在回放过程中持续
+抹掉约 30 秒前未再被观测的体素，导致离线地图只剩最后一小段（这也是
+之前"导出只有最后一帧"的原因）。导出前会读取 bag 元数据，
+只有 `depth callback = processed = integrated = bag 深度帧数`（允许
+`drain_max_pending_frames` 帧尾差，默认 3：bag 最后一帧深度没有更晚的
+TF，仿真时钟也已停止，永远无法被处理）连续稳定后才保存 PLY、nvblx
+和 ESDF，否则拒绝生成残缺文件。导出器在回放开始前就已启动，并预先
+创建 save_timings/save_ply/save_map/ESDF 四个客户端；回放结束后由
+`/nvblox_export_trigger`（std_msgs/msg/Bool）触发导出。这样避免回放
+结束后才冷启动一个新 DDS 参与者去发现 nvblox 服务，消除曾出现的
+`Waiting for save_timings service` 长时间不可达问题。ESDF 默认以 `esdf_use_aabb:=false`
+导出 nvblox 全部已分配体素块（完整地图）；设为 `true` 时才使用
+`esdf_min_*`/`esdf_size_*` 固定窗口。离线入口默认使用 ROS Domain 21，
+与实机 Domain 20 隔离，避免实时话题和 bag 的时间戳混入同一个 nvblox。
+若仍然积压，将 `rate` 降到 `0.10`。如果离线仍然失败，
+应继续检查 bag 内的
 `odom -> base_footprint -> d455_depth_optical_frame` 是否跳变。
 
 录制端 `/tf` 使用 Best Effort，而回放端必须使用 Reliable。两端分别使用
@@ -658,6 +672,95 @@ ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
 
 4 GB GPU 上，离线无界持久地图默认使用 `voxel_size:=0.10`。实时滚动局部
 地图仍使用 5 cm；不要在 4 GB 显存上同时运行 MuJoCo nvblox 和 bag nvblox。
+
+### 8.7 离线导出后主机显示/验证完整地图
+
+Docker 内执行完整离线导出（`rviz:=false` 表示容器内不启动 RViz；需要容器内
+实时查看时可去掉）：
+
+```bash
+cd /workspaces/isaac_ros-dev
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
+  bag:=/workspaces/isaac_ros-dev/bags/d455_rgbd_esdf_02 \
+  map_output:=/workspaces/isaac_ros-dev/bag_export/site.nvblx \
+  ply_output:=/workspaces/isaac_ros-dev/bag_export/site_mesh.ply \
+  esdf_output:=/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
+  map2d_output:=/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
+  unknown_is_occupied:=false \
+  rviz:=false
+```
+
+等待日志依次出现：
+
+```text
+Mapping completion received; exporting nvblox map
+All synchronized depth inputs were processed; starting complete-map export
+Saved nvblox mesh PLY: .../site_mesh.ply
+Saved native nvblox map: .../site.nvblx
+Saved REMANI ESDF: .../site_remani.npz
+```
+
+然后在**主机**终端（不是 Docker）启动显示端：
+
+```bash
+source /home/a/WBMM/install/setup.bash
+
+ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py \
+  esdf_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
+  map2d_yaml:=/home/a/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
+  ply_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_mesh.ply
+```
+
+显示端无需修改：RViz 配置已包含 `/map`（2D Map）、
+`/nvblox_ply_mesh`（Marker）和 `/esdf_cloud`（PointCloud2，intensity 为
+距离），Fixed Frame 为 `odom`。主机侧的 `grid_map` 是 develop/egg-link
+安装、`tracer_jaka_ocs2` 是 symlink 安装，源码改动会直接生效。
+
+验证是否完整：
+
+```bash
+# 以当前 d455_rgbd_esdf_02 为例，期望接近：
+# shape=(169,161,73), voxel=0.10 m
+# observed=298340, occupied=89821
+# 观测范围 x≈[-5.60,9.80], y≈[-6.20,8.30]
+python3 /tmp/analyze_export.py \
+  /home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
+  /home/a/workspaces/isaac_ros-dev/bag_export/site_mesh.ply
+```
+
+### 8.8 本次已解决的导出器卡死问题
+
+现象：旧版导出器在 bag 播放结束后才作为新进程启动，随后一直打印
+`Waiting for save_timings service`，连 nvblox 的 `save_timings` 服务都发现
+不了，最终只能 `timeout` 杀掉整条 launch。
+
+原因：播放结束后冷启动一个新 ROS/DDS 参与者去发现已运行很久的 nvblox，
+这一轮服务发现在个别环境下不稳定；与 TSDF decay 是否关闭没有直接因果。
+
+解决方法（已内置到 `my_nvblox_bringup`）：
+
+1. 导出器随回放一起启动，回放期间就创建并发现
+   `save_timings / save_ply / save_map / ESDF` 四个服务客户端；
+2. 回放结束并等待 `export_settle_time` 后，launch 向
+   `/nvblox_export_trigger` 发布 `std_msgs/msg/Bool` 触发导出；
+3. 导出器等待服务时主动 `rclpy.spin_once()` 处理 DDS graph 事件；
+4. 所有 nvblox 服务调用都有超时（`service_call_timeout_sec`，默认 300），
+   不再无限挂起。
+
+后续使用不需要额外操作。若仍出现 `Waiting for save_timings service`，
+优先确认：
+
+```bash
+# 容器内检查安装的 launch/脚本是否已是新版本
+grep -n "trigger_topic\|_prepare_service_clients" \
+  /workspaces/isaac_ros-dev/install/my_nvblox_bringup/share/my_nvblox_bringup/launch/d455_bag_esdf.launch.py \
+  /workspaces/isaac_ros-dev/install/my_nvblox_bringup/lib/python3.10/site-packages/my_nvblox_bringup/nvblox_map_exporter.py
+```
+
+若确认已是新版，可把 `service_call_timeout_sec:=600` 调大后重试。
 
 ## 9. 常见问题
 
@@ -752,7 +855,34 @@ ros2 run tf2_ros tf2_echo base_link d455_depth_optical_frame
 注意：关闭清图后，GPU 显存会随着探索范围增长。长期导航或大场地应使用
 滚动局部模式；短时间建图、标定和验证适合持久模式。
 
-### 9.6 nvblox 或 RViz 卡顿
+### 9.6 离线导出的地图只有最后一小段
+
+现象：bag 回放时 RViz 里地图正常生长，但最终导出的 PLY/ESDF 只剩
+最后一小段（看起来像"最后一帧"），`site_timings.txt` 里
+`depth_image_callback ≈ processed ≈ integrated`。
+
+原因不是丢帧，而是 nvblox 的 TSDF 权重衰减：`decay_tsdf_rate_hz` 默认
+5 Hz、衰减因子 0.95，约 27 秒后所有未被重新观测的体素权重低于阈值而被
+整块删除。机器人走过的地方边走边消失，只剩最后约 30 秒视野。实机
+持久地图同样受影响。
+
+处理：
+
+```bash
+ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
+  bag:=... decay_tsdf_rate_hz:=0.0
+```
+
+当前启动文件已把 `decay_tsdf_rate_hz` 默认改为 `0.0`。同时确认导出
+ESDF 使用 `esdf_use_aabb:=false`（默认），固定 12 m × 12 m 窗口装不下
+整幅地图时会把外围裁掉。若 bag 末尾 1~3 帧没有对应 TF 导致
+`processed < callback`，把 `drain_max_pending_frames` 调到与帧尾差一致。
+若回放结束后一直打印 `Waiting for save_timings service`，说明导出器
+在播放结束后才冷启动并没能完成 DDS 服务发现；确认当前包已同步/构建
+（导出器会随回放预启动），并把 `service_call_timeout_sec` 从默认 300
+调大重试。
+
+### 9.7 nvblox 或 RViz 卡顿
 
 优先按顺序降低：
 
@@ -764,7 +894,7 @@ ros2 run tf2_ros tf2_echo base_link d455_depth_optical_frame
 
 不要先增大输入队列。队列过大会增加延迟，使当前深度帧与 TF 时间更难匹配。
 
-### 9.7 同时连接 D455 和 D435 后相机串号
+### 9.8 同时连接 D455 和 D435 后相机串号
 
 分别指定序列号：
 
