@@ -1,5 +1,5 @@
 <mujoco model="tracer_jaka_zu5">
-  <compiler angle="radian" meshdir="/home/a/mujoco_sim/tracer_jaka_zu5/tracer_jaka_zu5_mjcf/tracer_jaka_zu5/meshes" />
+  <compiler angle="radian" meshdir="meshes" />
   <asset>
     <mesh name="tracer_base_link_no_wheel_mesh" file="tracer_base_link_no_wheel_mesh.obj" />
     <mesh name="tracer_base_link_no_wheel_mesh003" file="tracer_base_link_no_wheel_mesh003.obj" />
@@ -137,9 +137,9 @@
     <!-- Sensor CAD comes from the same files used by tracer_jaka_zu5.urdf.
          The robot mesh directory is external, therefore these two files use
          explicit package-source paths. -->
-    <mesh name="lakibeam_laser" file="/home/a/WBMM/src/simulation/tracer_jaka_mujoco/urdf/meshes/laser.STL"
+    <mesh name="lakibeam_laser" file="laser.STL"
           scale="0.001 0.001 0.001" />
-    <mesh name="hipnuc_imu" file="/home/a/WBMM/src/simulation/tracer_jaka_mujoco/urdf/meshes/imu.STL"
+    <mesh name="hipnuc_imu" file="imu.STL"
           scale="0.001 0.001 0.001" />
     <material name="right_wheel_link_mat" rgba="0.502 0.502 0.502 1" specular="0" />
     <material name="left_wheel_link_mat" rgba="0.502 0.502 0.502 1" specular="0" />

@@ -1,7 +1,7 @@
 <mujoco model="tracer_jaka_esdf_validation">
 
   <compiler angle="radian"
-            meshdir="/home/a/mujoco_sim/tracer_jaka_zu5/tracer_jaka_zu5_mjcf/tracer_jaka_zu5/meshes" />
+            meshdir="meshes" />
 
   <include file="tracer_jaka_zu5_robot.xml"/>
 

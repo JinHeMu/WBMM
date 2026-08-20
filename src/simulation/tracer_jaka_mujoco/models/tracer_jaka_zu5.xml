@@ -1,5 +1,5 @@
 <mujoco model="tracer_jaka_zu5">
-  <compiler angle="radian" meshdir="/home/a/mujoco_sim/tracer_jaka_zu5/tracer_jaka_zu5_mjcf/tracer_jaka_zu5/meshes" />
+  <compiler angle="radian" meshdir="meshes" />
   <asset>
     <mesh name="tracer_base_link_no_wheel_mesh" file="tracer_base_link_no_wheel_mesh.obj" />
     <mesh name="tracer_base_link_no_wheel_mesh003" file="tracer_base_link_no_wheel_mesh003.obj" />

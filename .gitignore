@@ -16,3 +16,6 @@ bag_export/
 *.zstd
 .data
 .posegraph
+
+# Local Python packages installed into the writable workspace (read-only system disk)
+.python_packages/

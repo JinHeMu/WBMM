@@ -22,11 +22,15 @@ def _prepare_contact_task(context, *args, **kwargs):
     os.makedirs(os.path.dirname(target), exist_ok=True)
     with open(source, encoding='utf-8') as stream:
         contents = stream.read()
-    old = 'environmentCollision\n{\n  activate            true'
-    new = 'environmentCollision\n{\n  activate            false'
-    if old not in contents:
+    # The source task.info may already have environmentCollision disabled.
+    # Accept both true/false as long as the block exists, and force it to false
+    # for the wipe pipeline.
+    env_true = 'environmentCollision\n{\n  activate            true'
+    env_false = 'environmentCollision\n{\n  activate            false'
+    if env_true in contents:
+        contents = contents.replace(env_true, env_false, 1)
+    elif env_false not in contents:
         raise RuntimeError('Could not locate environmentCollision in task.info')
-    contents = contents.replace(old, new, 1)
     # REMANI and WipePlanner both validate the complete arm path with the same
     # conservative sphere model.  Keeping OCS2's independent FCL self-collision
     # barrier enabled here creates contradictory gradients at the handoff (the
@@ -35,11 +39,12 @@ def _prepare_contact_task(context, *args, **kwargs):
     # and the adaptive progress gate correctly stops.  The generic OCS2 task is
     # left untouched; only this generated wipe-pipeline task delegates collision
     # ownership to the two planners.
-    old_self_collision = 'selfCollision\n{\n  activate true'
-    new_self_collision = 'selfCollision\n{\n  activate false'
-    if old_self_collision not in contents:
+    self_true = 'selfCollision\n{\n  activate true'
+    self_false = 'selfCollision\n{\n  activate false'
+    if self_true in contents:
+        contents = contents.replace(self_true, self_false, 1)
+    elif self_false not in contents:
         raise RuntimeError('Could not locate selfCollision in task.info')
-    contents = contents.replace(old_self_collision, new_self_collision, 1)
     # The generic navigation task uses a very cheap arm input (R=0.01), which
     # makes the short-horizon policy overly aggressive during the long Cartesian
     # approach. The wipe task uses R=0.02, stronger state tracking, and an
