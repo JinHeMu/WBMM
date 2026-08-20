@@ -27,6 +27,7 @@ def generate_launch_description():
 
     start_base = LaunchConfiguration("start_base")
     start_rsp = LaunchConfiguration("start_robot_state_publisher")
+    start_arm_pose = LaunchConfiguration("start_arm_pose")
     start_imu = LaunchConfiguration("start_imu")
     start_lidar = LaunchConfiguration("start_lidar")
     use_rviz = LaunchConfiguration("rviz")
@@ -47,6 +48,7 @@ def generate_launch_description():
     args = [
         DeclareLaunchArgument("start_base", default_value="true"),
         DeclareLaunchArgument("start_robot_state_publisher", default_value="true"),
+        DeclareLaunchArgument("start_arm_pose", default_value="true"),
         DeclareLaunchArgument("start_imu", default_value="true"),
         DeclareLaunchArgument("start_lidar", default_value="true"),
         DeclareLaunchArgument("rviz", default_value="true"),
@@ -94,6 +96,7 @@ def generate_launch_description():
             executable="arm_pose_publisher",
             name="arm_pose_publisher",
             parameters=[{"use_sim_time": False}],
+            condition=IfCondition(start_arm_pose),
         ),
         Node(
             package="tracer_base",

@@ -40,6 +40,9 @@ def generate_launch_description():
 
     # --------- 参数 ---------
     use_rviz   = LaunchConfiguration('use_rviz')
+    start_base = LaunchConfiguration('start_base')
+    start_rsp  = LaunchConfiguration('start_robot_state_publisher')
+    mrt_odom_topic = LaunchConfiguration('mrt_odom_topic')
     task_file  = LaunchConfiguration('task_file')
     urdf_file  = LaunchConfiguration('urdf_file')
     lib_folder = LaunchConfiguration('lib_folder')
@@ -51,6 +54,12 @@ def generate_launch_description():
 
     declare_args = [
         DeclareLaunchArgument('use_rviz',  default_value='true'),
+        DeclareLaunchArgument('start_base', default_value='true'),
+        DeclareLaunchArgument(
+            'start_robot_state_publisher', default_value='true'),
+        DeclareLaunchArgument(
+            'mrt_odom_topic', default_value='/odom',
+            description='Odometry consumed by MRT; use /odometry/filtered when EKF is running'),
         DeclareLaunchArgument('can_port',  default_value='can0'),
         DeclareLaunchArgument(
             'publish_odom_tf',
@@ -90,6 +99,7 @@ def generate_launch_description():
         executable='robot_state_publisher',
         output='screen',
         parameters=[robot_description, {'use_sim_time': False}],
+        condition=IfCondition(start_rsp),
     )
 
     # --------- 3. tracer 底盘 (CAN) ---------
@@ -108,6 +118,7 @@ def generate_launch_description():
             'simulated_robot': False,
             'control_rate':    50,
         }],
+        condition=IfCondition(start_base),
     )
 
     # --------- 4. controller_manager + spawners ---------
@@ -169,7 +180,7 @@ def generate_launch_description():
             'traj_horizon':      0.10,                 # 实机给宽一点
             'use_stamped_cmd':   False,                # *** 关键: 发 Twist ***
             'base_cmd_topic':    '/cmd_vel',           # *** tracer_base 订这个 ***
-            'odom_topic':        '/odom',              # *** tracer_base 发这个 ***
+            'odom_topic':        mrt_odom_topic,       # *** 默认 /odom，EKF 时用 /odometry/filtered ***
             'joint_state_topic': '/joint_states',
             'arm_cmd_topic':     '/jaka_forward_controller/commands',
             'arm_joint_names':   ['joint_1','joint_2','joint_3',
@@ -202,7 +213,7 @@ def generate_launch_description():
             [pkg_ocs2, 'rviz', 'tracer_jaka_ocs2.rviz'])],
         parameters=[{'use_sim_time': False}],
         output='screen',
-        condition=None,   # 如果你想用 IfCondition(use_rviz), 这里加上
+        condition=IfCondition(use_rviz),
     )
 
     use_joy    = LaunchConfiguration('use_joy')

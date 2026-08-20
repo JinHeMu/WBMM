@@ -9,15 +9,13 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <exec_depend>tracer_jaka_description</exec_depend>
-  <exec_depend>tracer_jaka_moveit_config</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
   <exec_depend>tracer_jaka_mujoco</exec_depend>
   <exec_depend>tracer_jaka_ocs2</exec_depend>
-  <exec_depend>wipe_planner</exec_depend>
   <exec_depend>remani_planner</exec_depend>
-  <exec_depend>my_nvblox_bringup</exec_depend>
   <exec_depend>grid_map</exec_depend>
-  <exec_depend>esdf_simple_nav</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
