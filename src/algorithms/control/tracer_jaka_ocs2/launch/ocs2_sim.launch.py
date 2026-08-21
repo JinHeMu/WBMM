@@ -124,6 +124,9 @@ def generate_launch_description():
         "remani_freeze_manipulator")
     remani_tracking_error_replan_enabled = LaunchConfiguration(
         "remani_tracking_error_replan_enabled")
+    remani_planner_frame = LaunchConfiguration("remani_planner_frame")
+    remani_target_frame = LaunchConfiguration("remani_target_frame")
+    remani_use_tf_transform = LaunchConfiguration("remani_use_tf_transform")
     mrt_traj_horizon = LaunchConfiguration("mrt_traj_horizon")
 
     task_file = LaunchConfiguration("task_file")
@@ -319,6 +322,22 @@ def generate_launch_description():
             default_value="true",
             description="Enable REMANI tracking-error replans.",
         ),
+        DeclareLaunchArgument(
+            "remani_planner_frame",
+            default_value="odom",
+            description=(
+                "Frame in which REMANI plans. Set map to validate the "
+                "persistent-map pipeline in simulation.")),
+        DeclareLaunchArgument(
+            "remani_target_frame",
+            default_value="odom",
+            description="Frame in which the REMANI->OCS2 bridge publishes."),
+        DeclareLaunchArgument(
+            "remani_use_tf_transform",
+            default_value="false",
+            description=(
+                "Use dynamic TF map->odom in the bridge when planner_frame "
+                "differs from target_frame.")),
         DeclareLaunchArgument(
             "task_file",
             default_value=PathJoinSubstitution(
@@ -725,6 +744,9 @@ def generate_launch_description():
             "freeze_manipulator": remani_freeze_manipulator,
             "tracking_error_replan_enabled":
                 remani_tracking_error_replan_enabled,
+            "planner_frame": remani_planner_frame,
+            "target_frame": remani_target_frame,
+            "use_tf_transform": remani_use_tf_transform,
         }.items(),
     )
 

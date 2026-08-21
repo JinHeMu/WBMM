@@ -31,13 +31,14 @@ def generate_launch_description():
     share = get_package_share_directory("my_nvblox_bringup")
     d455_launch = os.path.join(share, "launch", "d455_esdf.launch.py")
     qos_file = os.path.join(share, "config", "d455_esdf_bag_qos.yaml")
+    global_frame = LaunchConfiguration("global_frame")
 
     nvblox = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(d455_launch),
         launch_arguments={
             "use_sim_time": "true",
             "use_color": LaunchConfiguration("use_color"),
-            "global_frame": "odom",
+            "global_frame": global_frame,
             "rviz": LaunchConfiguration("rviz"),
             "ros_domain_id": LaunchConfiguration("ros_domain_id"),
             "voxel_size": LaunchConfiguration("voxel_size"),
@@ -125,7 +126,7 @@ def generate_launch_description():
             'esdf_use_aabb': ParameterValue(
                 LaunchConfiguration('esdf_use_aabb'), value_type=bool),
             'require_all_depth_integrated': True,
-            'frame_id': 'odom',
+            'frame_id': global_frame,
             'esdf_min_x': ParameterValue(
                 LaunchConfiguration('esdf_min_x'), value_type=float),
             'esdf_min_y': ParameterValue(
@@ -243,6 +244,14 @@ def generate_launch_description():
             description=(
                 'false exports the ESDF over all allocated blocks (complete '
                 'map); true uses the esdf_min_*/esdf_size_* box below')),
+        DeclareLaunchArgument(
+            "global_frame",
+            default_value="map",
+            description=(
+                "Coordinate frame used for offline nvblox and the exported "
+                "ESDF. Use map when the bag contains map->odom TF and the "
+                "ESDF should align with the saved 2D map; use odom for "
+                "old odom-only workflows.")),
         DeclareLaunchArgument(
             "ros_domain_id",
             default_value="21",

@@ -42,6 +42,10 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include <tf2/exceptions.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+
 #include <ocs2_core/Types.h>
 #include <ocs2_core/reference/TargetTrajectories.h>
 #include <ocs2_msgs/msg/mpc_observation.hpp>
@@ -332,6 +336,11 @@ public:
     transformX_ = declare_parameter<double>("planner_to_ocs2_x", 0.0);
     transformY_ = declare_parameter<double>("planner_to_ocs2_y", 0.0);
     transformYaw_ = declare_parameter<double>("planner_to_ocs2_yaw", 0.0);
+    plannerFrame_ = declare_parameter<std::string>("planner_frame", "map");
+    targetFrame_ = declare_parameter<std::string>("target_frame", "odom");
+    useTfTransform_ = declare_parameter<bool>("use_tf_transform", true);
+    tfBuffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+    tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
 
     // ---- 参数校验 ----------------------------------------------------------
     if (stateDim_ != armDim_ + 3 || inputDim_ != armDim_ + 2)
@@ -400,6 +409,13 @@ public:
   }
 
 private:
+  // TF / frame configuration for dynamic map->odom reference transformation.
+  std::string plannerFrame_;
+  std::string targetFrame_;
+  bool useTfTransform_;
+  std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tfListener_;
+
   // ===========================================================================
   // observationCallback
   //     接收 MPC 观测消息，缓存最新的观测状态、时间和 ROS 时间戳。
@@ -600,6 +616,45 @@ private:
   }
 
   // ===========================================================================
+  // getPlannerToTargetTransform
+  //     Look up the current planner_frame -> target_frame transform for the
+  //     given ROS timestamp. Returns false if TF is unavailable (caller then
+  //     falls back to the legacy fixed planner_to_ocs2_* parameters).
+  // ===========================================================================
+  bool getPlannerToTargetTransform(
+      const rclcpp::Time & stamp,
+      double & tx,
+      double & ty,
+      double & yaw)
+  {
+    if (!useTfTransform_ || plannerFrame_ == targetFrame_)
+    {
+      return false;
+    }
+    try
+    {
+      const auto transform = tfBuffer_->lookupTransform(
+          targetFrame_, plannerFrame_, stamp,
+          tf2::durationFromSec(0.1));
+      const auto & q = transform.transform.rotation;
+      tx = transform.transform.translation.x;
+      ty = transform.transform.translation.y;
+      yaw = std::atan2(
+          2.0 * (q.w * q.z + q.x * q.y),
+          1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+      return true;
+    }
+    catch (const tf2::TransformException & ex)
+    {
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 3000,
+          "Cannot transform %s -> %s: %s; using fixed transform.",
+          plannerFrame_.c_str(), targetFrame_.c_str(), ex.what());
+      return false;
+    }
+  }
+
+  // ===========================================================================
   // sampleAt
   //     在指定 ROS 时间戳采样参考轨迹，输出单个 (state, input) 对。
   //
@@ -680,9 +735,19 @@ private:
     }
 
     // ---- 提取并变换平面的位置、速度和加速度 ---------------------------------
-    // 可配置的 2D 刚体变换: (transformX_, transformY_, transformYaw_)
-    const double c = std::cos(transformYaw_);
-    const double s = std::sin(transformYaw_);
+    // 优先使用动态 TF（planner_frame -> target_frame），否则退回到可配置的
+    // 2D 刚体变换: (transformX_, transformY_, transformYaw_)
+    double tfX = transformX_;
+    double tfY = transformY_;
+    double tfYaw = transformYaw_;
+    if (getPlannerToTargetTransform(rosStamp, tfX, tfY, tfYaw))
+    {
+      RCLCPP_DEBUG(
+          get_logger(), "Using dynamic TF %s -> %s.",
+          plannerFrame_.c_str(), targetFrame_.c_str());
+    }
+    const double c = std::cos(tfYaw);
+    const double s = std::sin(tfYaw);
     const double px = sample.position[0];
     const double py = sample.position[1];
     const double vx = sample.velocity[0];
@@ -691,8 +756,8 @@ private:
     const double ay = sample.acceleration[1];
 
     // 位置：p_ocs2 = t + R · p_planner
-    const double x = transformX_ + c * px - s * py;
-    const double y = transformY_ + s * px + c * py;
+    const double x = tfX + c * px - s * py;
+    const double y = tfY + s * px + c * py;
     // 速度：v_ocs2 = R · v_planner
     const double vxWorld = c * vx - s * vy;
     const double vyWorld = s * vx + c * vy;

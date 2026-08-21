@@ -29,6 +29,7 @@ def generate_launch_description():
     esdf_file = LaunchConfiguration('esdf_file')
     ply_file = LaunchConfiguration('ply_file')
     map2d_yaml = LaunchConfiguration('map2d_yaml')
+    frame_id = LaunchConfiguration('frame_id')
     mujoco_model = LaunchConfiguration('mujoco_model')
     use_sim_time = LaunchConfiguration('use_sim_time')
 
@@ -49,6 +50,9 @@ def generate_launch_description():
             'remani_static_esdf_offset_x': '0.0',
             'remani_static_esdf_offset_y': '0.0',
             'remani_static_esdf_offset_z': '0.0',
+            'remani_planner_frame': frame_id,
+            'remani_target_frame': 'odom',
+            'remani_use_tf_transform': 'true',
             'remani_manipulator_max_vel': LaunchConfiguration(
                 'remani_manipulator_max_vel'),
             'remani_manipulator_max_acc': LaunchConfiguration(
@@ -66,7 +70,7 @@ def generate_launch_description():
         parameters=[{
             'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
             'esdf_file': ParameterValue(esdf_file, value_type=str),
-            'frame_id': 'odom',
+            'frame_id': frame_id,
             'z_slice': -1.0,
             'max_distance': ParameterValue(
                 LaunchConfiguration('esdf_display_distance'),
@@ -120,6 +124,12 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'frame_id',
+            default_value='map',
+            description=(
+                'Frame in which the saved ESDF/PLY is expressed. Use map '
+                'for the persistent-map pipeline, odom for legacy.')),
         DeclareLaunchArgument(
             'esdf_file',
             default_value=PathJoinSubstitution([

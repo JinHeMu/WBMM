@@ -762,6 +762,233 @@ grep -n "trigger_topic\|_prepare_service_clients" \
 
 若确认已是新版，可把 `service_call_timeout_sec:=600` 调大后重试。
 
+### 8.9 持久地图定位 + REMANI-MPC 实机 pipeline（map 坐标系）
+
+目标：上电后通过 2D 地图定位确定 `map -> odom`，同时 3D ESDF 也保存在
+`map` 坐标系下，REMANI 直接在 `map` 中规划，OCS2/MRT 继续在 `odom` 中控制。
+
+推荐架构：
+
+```text
+保存的 2D 地图 (map frame)  +  保存的 3D ESDF (map frame)
+                    │
+                    ▼
+map_server + AMCL（或 slam_toolbox localization）发布 map -> odom
+                    │
+                    ▼
+odom_to_map_relay 把 EKF odom 转发成 map 系 odometry
+                    │
+                    ▼
+REMANI 在 map frame 中规划
+                    │
+                    ▼
+remani_to_ocs2_reference_bridge 用 TF 把 map 轨迹转回 odom
+                    │
+                    ▼
+OCS2 MPC/MRT 继续在 odom 中控制机器人
+```
+
+#### 8.9.1 离线导出 map 坐标系地图
+
+`d455_bag_esdf.launch.py` 现在默认 `global_frame:=map`。如果 bag 内包含
+`map -> odom` TF，导出的 ESDF 就是 map 坐标系：
+
+```bash
+# Docker 容器内
+ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
+  bag:=/workspaces/isaac_ros-dev/bags/d455_rgbd_esdf_02 \
+  map_output:=/workspaces/isaac_ros-dev/bag_export/site.nvblx \
+  ply_output:=/workspaces/isaac_ros-dev/bag_export/site_mesh.ply \
+  esdf_output:=/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
+  map2d_output:=/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
+  unknown_is_occupied:=false \
+  global_frame:=map \
+  rviz:=false
+```
+
+#### 8.9.2 实机启动持久地图定位 + REMANI-MPC
+
+```bash
+# 主机工作区（已 source /home/a/WBMM/install/setup.bash）
+ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py \
+  map_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
+  static_esdf_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
+  initial_x:=0.0 \
+  initial_y:=0.0 \
+  initial_yaw:=0.0 \
+  use_rviz:=true
+```
+
+该 launch 会：
+
+1. 启动 Tracer CAN、IMU、LiDAR、EKF、RSP（不启动 slam_toolbox mapping）；
+2. 启动 `map_server` + `AMCL`，发布 `map -> odom`；
+3. 启动 `odom_to_map_relay`，把 `/odometry/filtered` 转成 map 系
+   `/odometry/filtered_map`；
+4. 启动 OCS2 MPC/MRT，继续在 `odom` 中控制；
+5. 启动 REMANI planner + bridge，REMANI 在 `map` 中规划，bridge 通过 TF
+   动态把 map 轨迹转换到 odom。
+
+AMCL 初始位姿用 `initial_x/initial_y/initial_yaw` 给出；如果机器人不在
+初始估计附近，可在 RViz 中用 `2D Pose Estimate` 手动给定。
+
+#### 8.9.3 RViz 验证
+
+只验证保存的 2D 地图、3D ESDF 和 PLY 是否对齐（不需要实机）：
+
+```bash
+# 主机
+ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py \
+  esdf_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
+  ply_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_mesh.ply \
+  map2d_yaml:=/home/a/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
+  frame_id:=map \
+  use_rviz:=true \
+  viewer:=false
+```
+
+RViz 的 Fixed Frame 已改为 `map`，会显示：
+
+- `/map`：保存的 2D SLAM 地图；
+- `/nvblox_ply_mesh`：保存的 nvblox mesh；
+- `/esdf_cloud`：map 坐标系下的 3D ESDF。
+
+#### 8.9.4 实机使用详细步骤
+
+1. **准备地图与 ESDF**
+   - 用同一份 bag 离线导出：
+     - `site_2d.yaml / site_2d.pgm`：2D 地图；
+     - `site_remani.npz`：map 坐标系 3D ESDF；
+     - `site_mesh.ply`：mesh（可选，用于 RViz 显示）。
+   - 确保导出时 `global_frame:=map`（当前默认已是 `map`）。
+
+2. **确认实机环境**
+   - 底盘 CAN：`can0`；
+   - IMU 串口：`/dev/ttyUSB0`（可按实际改）；
+   - LiDAR IP：默认 `192.168.198.2`；
+   - JAKA 网络：默认 `10.5.5.100`，本机 `10.5.5.127`；
+   - 启动前确认 JAKA 上电、底盘上电、LiDAR/IMU 正常。
+
+3. **启动持久地图定位 + REMANI-MPC**
+
+   ```bash
+   source /home/a/WBMM/install/setup.bash
+
+   ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py \
+     map_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
+     static_esdf_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
+     initial_x:=0.0 \
+     initial_y:=0.0 \
+     initial_yaw:=0.0 \
+     use_rviz:=true
+   ```
+
+   - `initial_*` 是 AMCL 的初始猜测；如果机器人不在该位姿附近，RViz 里用
+     `2D Pose Estimate` 点一下实际位置。
+   - 如果实际地图原点不是 `(0,0)`，把 `initial_*` 改成机器人在地图中的真实位姿。
+
+4. **等待系统就绪**
+   - 等待 EKF 发布 `/odometry/filtered`；
+   - 等待 AMCL 发布 `map -> odom`；
+   - 等待 `odom_to_map_relay` 发布 `/odometry/filtered_map`；
+   - 等待 REMANI 和 bridge 启动（launch 中已延迟 15 秒）。
+
+   检查命令：
+
+   ```bash
+   ros2 run tf2_ros tf2_echo map odom
+   ros2 topic echo /odometry/filtered_map --once
+   ros2 topic hz /mobile_manipulator_mpc_target
+   ros2 topic hz /cmd_vel
+   ```
+
+5. **RViz 操作**
+   - Fixed Frame 设为 `map`；
+   - 应该看到：
+     - `/map`：2D 地图；
+     - `/esdf_cloud`：map 系 3D ESDF；
+     - `/nvblox_ply_mesh`：mesh；
+     - `/move_base_simple/goal` 或 `/goal_pose`：REMANI 目标点。
+   - 使用 `2D Nav Goal` 在地图上点击目标，或发布 `WholeBodyGoal` 给 REMANI。
+   - 观察 `/planning/trajectory` 出现，随后
+     `/mobile_manipulator_mpc_target` 持续发布，机器人开始运动。
+
+6. **安全停止**
+   - 急停：直接停底盘/按急停；
+   - 软件停止：向 REMANI 发 abort，或停掉 `remani_mpc_localized_real.launch.py`。
+
+#### 8.9.5 仿真验证
+
+##### A. 静态验证：2D 地图 + 3D ESDF + PLY 是否对齐
+
+不需要实机，只需要已导出的文件：
+
+```bash
+source /home/a/WBMM/install/setup.bash
+
+ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py \
+  esdf_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
+  ply_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_mesh.ply \
+  map2d_yaml:=/home/a/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
+  frame_id:=map \
+  use_rviz:=true \
+  viewer:=false
+```
+
+预期日志：
+
+```text
+map_server: 177 x 150 map @ 0.05 m/cell
+esdf_rviz_publisher: Frame id: map
+esdf_rviz_publisher: ESDF shape=(169,161,73)
+```
+
+RViz Fixed Frame 为 `map`，可看到地图、ESDF 点云和 mesh 对齐。
+
+##### B. 完整仿真：MuJoCo + OCS2 + REMANI 在 map 坐标系下跑通
+
+在 `ocs2_esdf_validation.launch.py` 基础上，它已经会把 `frame_id:=map`
+传给 REMANI planner 和 bridge：
+
+```bash
+ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py \
+  esdf_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
+  ply_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_mesh.ply \
+  map2d_yaml:=/home/a/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
+  frame_id:=map \
+  use_rviz:=true \
+  viewer:=true
+```
+
+仿真中会启动：
+
+- MuJoCo 机器人；
+- EKF / TF；
+- OCS2 MPC/MRT；
+- REMANI planner + REMANI->OCS2 bridge；
+- RViz。
+
+在 RViz 中发送目标后，可观察：
+
+```text
+REMANI /planning/trajectory
+bridge /mobile_manipulator_mpc_target
+OCS2 /cmd_vel
+```
+
+如果看到目标点、规划轨迹、MPC 目标轨迹和机器人运动，说明
+“map 系 ESDF + map 系规划 + odom 系控制”的完整链路在仿真中已验证。
+
+#### 8.9.6 实机常见排查
+
+| 现象 | 检查 |
+| --- | --- |
+| RViz 没有 `map` 或 `map -> odom` | `ros2 run tf2_ros tf2_echo map odom`；确认 AMCL/map_server 已启动 |
+| `/odometry/filtered_map` 没有数据 | 检查 `odom_to_map_relay` 是否启动、TF 是否可查 |
+| REMANI 不规划 | 检查 `/move_base_simple/goal`、`/goal_pose` 或 WholeBodyGoal 是否发送；检查 `/planning/trajectory` |
+| bridge 没有 `mpc_target` | 检查 `map -> odom` TF；看 bridge 日志是否报 `Cannot transform` |
+| 机器人乱跑/方向不对 | 确认 AMCL 初始位姿正确；确认 ESDF 是同一 bag 导出的 map 系文件 |
+
 ## 9. 常见问题
 
 ### 9.1 RViz 提示 `Frame [odom] does not exist`

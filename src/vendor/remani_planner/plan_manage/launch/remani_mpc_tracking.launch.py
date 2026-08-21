@@ -45,6 +45,9 @@ def generate_launch_description():
     static_esdf_offset_z = LaunchConfiguration('static_esdf_offset_z')
     odom_topic = LaunchConfiguration('odom_topic')
     joint_state_topic = LaunchConfiguration('joint_state_topic')
+    planner_frame = LaunchConfiguration('planner_frame')
+    target_frame = LaunchConfiguration('target_frame')
+    use_tf_transform = LaunchConfiguration('use_tf_transform')
     planner_to_ocs2_x = LaunchConfiguration('planner_to_ocs2_x')
     planner_to_ocs2_y = LaunchConfiguration('planner_to_ocs2_y')
     planner_to_ocs2_yaw = LaunchConfiguration('planner_to_ocs2_yaw')
@@ -113,10 +116,10 @@ def generate_launch_description():
                 'grid_map.use_load_map': False,
                 'grid_map.use_global_map': True,
                 'grid_map.use_tf_cloud_transform': False,
-                'grid_map.frame_id': 'odom',
+                'grid_map.frame_id': planner_frame,
                 'fsm.global_plan': True,
                 'fsm.target_type': 1,
-                'fsm.planning_frame': 'odom',
+                'fsm.planning_frame': planner_frame,
                 'fsm.tracking_error_replan_enabled': ParameterValue(
                     tracking_error_replan_enabled, value_type=bool),
                 'fsm.tracking_error_position_threshold': ParameterValue(
@@ -173,6 +176,10 @@ def generate_launch_description():
                 planner_to_ocs2_y, value_type=float),
             'planner_to_ocs2_yaw': ParameterValue(
                 planner_to_ocs2_yaw, value_type=float),
+            'planner_frame': planner_frame,
+            'target_frame': target_frame,
+            'use_tf_transform': ParameterValue(
+                use_tf_transform, value_type=bool),
         }],
     )
 
@@ -192,6 +199,24 @@ def generate_launch_description():
             'odom_topic', default_value='/base_controller/odom'),
         DeclareLaunchArgument(
             'joint_state_topic', default_value='/joint_states'),
+        DeclareLaunchArgument(
+            'planner_frame', default_value='odom',
+            description=(
+                'Frame in which REMANI plans and in which the static ESDF is '
+                'expressed. Use map for persistent localization, odom for '
+                'legacy odom-only workflows.')),
+        DeclareLaunchArgument(
+            'target_frame', default_value='odom',
+            description=(
+                'Frame in which the bridge publishes OCS2 target '
+                'trajectories. Normally odom because OCS2/MRT controls in '
+                'odom.')),
+        DeclareLaunchArgument(
+            'use_tf_transform', default_value='true',
+            description=(
+                'When planner_frame differs from target_frame, use TF to '
+                'transform REMANI trajectories dynamically instead of only '
+                'the fixed planner_to_ocs2_* offsets.')),
         DeclareLaunchArgument('planner_to_ocs2_x', default_value='0.0'),
         DeclareLaunchArgument('planner_to_ocs2_y', default_value='0.0'),
         DeclareLaunchArgument('planner_to_ocs2_yaw', default_value='0.0'),

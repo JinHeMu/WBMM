@@ -26,6 +26,7 @@ def generate_launch_description():
     rviz_config = os.path.join(share, "rviz", "slam.rviz")
 
     start_base = LaunchConfiguration("start_base")
+    start_slam = LaunchConfiguration("start_slam")
     start_rsp = LaunchConfiguration("start_robot_state_publisher")
     start_arm_pose = LaunchConfiguration("start_arm_pose")
     start_imu = LaunchConfiguration("start_imu")
@@ -47,6 +48,13 @@ def generate_launch_description():
 
     args = [
         DeclareLaunchArgument("start_base", default_value="true"),
+        DeclareLaunchArgument(
+            "start_slam",
+            default_value="true",
+            description=(
+                "Start slam_toolbox in mapping mode and publish map->odom. "
+                "Set false when a separate AMCL/localization node provides "
+                "map->odom.")),
         DeclareLaunchArgument("start_robot_state_publisher", default_value="true"),
         DeclareLaunchArgument("start_arm_pose", default_value="true"),
         DeclareLaunchArgument("start_imu", default_value="true"),
@@ -184,6 +192,7 @@ def generate_launch_description():
                     output="screen",
                     parameters=[slam_config],
                     remappings=[("/scan", scan_topic)],
+                    condition=IfCondition(start_slam),
                 ),
                 Node(
                     package="rviz2",
