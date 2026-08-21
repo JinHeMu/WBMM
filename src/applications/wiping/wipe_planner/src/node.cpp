@@ -287,7 +287,11 @@ private:
     declare_parameter("force_axis", "z");
     declare_parameter("force_use_absolute", true);
     declare_parameter("force_filter_alpha", 0.20);
+    declare_parameter("force_spike_rejection_n", 8.0);
+    declare_parameter("force_spike_confirm_samples", 3);
+    declare_parameter("force_hard_limit_confirm_samples", 3);
     declare_parameter("force_contact_threshold", 0.5);
+    declare_parameter("force_contact_confirm_samples", 3);
     declare_parameter("force_contact_detection_window", 1.0);
     declare_parameter("force_contact_plane_max_offset", 0.030);
     declare_parameter("force_precontact_max_lead", 0.0001);
@@ -527,6 +531,9 @@ private:
     admittance_->reset(admittance_->measuredForce());
     force_hard_stop_ = false;
     force_sensor_stale_ = false;
+    force_spike_count_ = 0;
+    force_hard_limit_count_ = 0;
+    force_contact_confirm_count_ = 0;
     force_contact_detected_ = false;
     force_contact_plane_offset_ = 0.0;
     resetForceProgressSupervisorLocked();
@@ -558,12 +565,49 @@ private:
       last_force_wall_time_ = std::chrono::steady_clock::now();
       force_message_received_ = true;
       force_sensor_stale_ = false;
+
+      // Reject single-sample force spikes before they can trigger contact
+      // capture, hard-stop latching, or an admittance jump.  A real sustained
+      // force change is accepted after N consecutive samples remain outside
+      // the spike band.
+      const double spike_threshold = std::max(
+        0.0, get_parameter("force_spike_rejection_n").as_double());
+      const int spike_confirm = std::max(
+        1, static_cast<int>(
+          get_parameter("force_spike_confirm_samples").as_int()));
+      if (force_message_received_ &&
+          std::abs(force - admittance_->measuredForce()) > spike_threshold)
+      {
+        ++force_spike_count_;
+        if (force_spike_count_ < spike_confirm) {
+          // Keep the previous filtered value and do not feed this glitch into
+          // contact detection/admittance/hard-limit logic.
+          return;
+        }
+      } else {
+        force_spike_count_ = 0;
+      }
       const double detection_window = std::max(
         0.0, get_parameter("force_contact_detection_window").as_double());
+      const double contact_threshold = std::max(
+        0.0, get_parameter("force_contact_threshold").as_double());
+      const int contact_confirm = std::max(
+        1, static_cast<int>(
+          get_parameter("force_contact_confirm_samples").as_int()));
       if (force_control_enabled_ && phase_ == Phase::WIPING &&
           !force_contact_detected_ && !wipe_trajectory_.empty() &&
           virtual_progress_ >= wipe_contact_start_time_ - detection_window &&
-          force >= get_parameter("force_contact_threshold").as_double())
+          force >= contact_threshold)
+      {
+        ++force_contact_confirm_count_;
+      } else {
+        force_contact_confirm_count_ = 0;
+      }
+      if (force_control_enabled_ && phase_ == Phase::WIPING &&
+          !force_contact_detected_ && !wipe_trajectory_.empty() &&
+          virtual_progress_ >= wipe_contact_start_time_ - detection_window &&
+          force >= contact_threshold &&
+          force_contact_confirm_count_ >= contact_confirm)
       {
         force_contact_detected_ = true;
         if (observation_) {
@@ -604,12 +648,21 @@ private:
       if (force_control_enabled_ &&
           filtered_force >= get_parameter("force_hard_limit").as_double())
       {
-        if (!force_hard_stop_) {
+        const int hard_confirm = std::max(
+          1, static_cast<int>(
+            get_parameter("force_hard_limit_confirm_samples").as_int()));
+        ++force_hard_limit_count_;
+        if (!force_hard_stop_ &&
+            force_hard_limit_count_ >= hard_confirm)
+        {
           RCLCPP_ERROR(get_logger(),
-            "Force hard limit reached: %.2f N; stopping progress and retreating",
-            filtered_force);
+            "Force hard limit reached: %.2f N over %d samples; "
+            "stopping progress and retreating",
+            filtered_force, force_hard_limit_count_);
+          force_hard_stop_ = true;
         }
-        force_hard_stop_ = true;
+      } else {
+        force_hard_limit_count_ = 0;
       }
       const double force_error = std::abs(
         filtered_force - planner_->desiredForce());
@@ -1765,6 +1818,9 @@ private:
   std::atomic_bool remani_task_confirmed_{false};
   bool force_hard_stop_{false};
   bool force_sensor_stale_{false};
+  int force_spike_count_{0};
+  int force_hard_limit_count_{0};
+  int force_contact_confirm_count_{0};
   bool force_message_received_{false};
   bool force_contact_detected_{false};
   bool force_control_enabled_{true};

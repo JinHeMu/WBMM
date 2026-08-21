@@ -61,9 +61,21 @@ wipe_planner:
     force_axis: "z"
     force_use_absolute: true
     force_filter_alpha: 0.20
+    # Reject a single-sample FTS spike (N newtons away from the filtered value)
+    # unless it persists for M consecutive samples. This prevents a sensor
+    # glitch from latching the hard-stop or prematurely capturing contact.
+    force_spike_rejection_n: 8.0
+    force_spike_confirm_samples: 3
+    # Hard-limit latch requires several consecutive filtered samples above the
+    # limit; a one-sample spike cannot freeze the wipe pipeline.
+    force_hard_limit_confirm_samples: 3
     # Capture the actual contact plane as soon as force appears near the end of
     # the normal approach; then skip the remaining geometric approach samples.
     force_contact_threshold: 0.5
+    # Require several consecutive samples above the threshold before declaring
+    # contact. In MuJoCo simulation a single low-level force ripple can
+    # otherwise trigger a false contact and freeze the pre-contact phase.
+    force_contact_confirm_samples: 3
     # The final approach is 1 mm/s, so open contact detection 5 s before the
     # geometric plane to cover collision-shape and calibration uncertainty.
     # Admittance itself remains inactive until force is actually detected.

@@ -47,6 +47,53 @@ The 35 N hard limit is latched; after inspection,
 reset it explicitly through `/wipe_planner/enable_force_control`
 (`std_srvs/srv/SetBool`, `data: true`).
 
+### 仿真预接触卡住排查
+
+在 `ros2 launch wipe_planner wipe_pipeline.launch.py` 的 MuJoCo 仿真中，
+力传感器来自接触求解器，接触瞬间可能出现单帧或短时力跳变。如果它在预接触
+阶段触发：
+
+- `force_contact_detected_`（误判已接触）；
+- `force_hard_stop_`（超过 35 N 并锁存）；
+- `initial_force_settled_` 一直无法满足（接触力未稳定到目标力附近）；
+
+WipePlanner 会把 `virtual_progress_rate` 置 0，机械臂看起来卡在初始/预接触点。
+
+代码已加入三层保护：
+
+```text
+force_spike_rejection_n: 8.0
+force_spike_confirm_samples: 3
+force_contact_confirm_samples: 3
+force_hard_limit_confirm_samples: 3
+```
+
+- 单帧力跳变不会进入接触检测、导纳和硬限位判断；
+- 接触判定必须连续多帧超过阈值；
+- 硬限位也必须连续多帧确认后才锁存。
+
+如果仍然卡住，先看当前状态：
+
+```bash
+ros2 topic echo /wipe_planner/force_control_state --once
+ros2 topic echo /wipe_planner/normal_force --once
+ros2 topic echo /wipe_planner/virtual_progress_rate --once
+```
+
+- `active_force_settling`：接触力还没稳定，等待 `force_settle_hold` 秒；
+  可适当调大 `force_progress_tolerance` 或调小 `force_filter_alpha`。
+- `over_force_retreat`：硬限位锁存，执行：
+
+  ```bash
+  ros2 service call /wipe_planner/enable_force_control std_srvs/srv/SetBool "{data: true}"
+  ```
+
+- `active_force_paused`：力误差持续过大，等它回到 `force_progress_resume_error`
+  以下；或调大 `force_progress_pause_error` / `force_progress_resume_error`。
+
+仿真中如果接触瞬间冲击仍然偏大，可以降低 MuJoCo 接触刚度/提高阻尼，或把
+`force_contact_threshold` 从 0.5 调到 2.0~3.0 N，避免把轻微力纹波当成真实接触。
+
 ```bash
 colcon build --symlink-install --packages-select wipe_planner
 source install/setup.bash
