@@ -84,22 +84,46 @@ robot_state_publisher:
 
 ## 环境要求
 
-主机建议使用 Ubuntu 22.04 + ROS 2 Humble，并准备：
+主机建议使用 Ubuntu 22.04 + ROS 2 Humble。以下依赖已在本工作区的
+MuJoCo、静态 ESDF 验证和实机持久地图入口中验证：
 
-- MuJoCo Python 运行环境；无头渲染时使用 `MUJOCO_GL=egl`。
-- `robot_localization`、`slam_toolbox`、`nav2_map_server`。
+- MuJoCo Python 运行环境；关闭 MuJoCo viewer 的无头渲染使用 `MUJOCO_GL=egl`。
+- `robot_localization`、`slam_toolbox`、Nav2 map server / AMCL。
+- ROS 2 Control 的 `controller_manager` 与标准控制器（实机机械臂控制）。
 - Tracer CAN、Hipnuc IMU 与 Lakibeam 驱动（仅实机）。
 - Isaac ROS Docker + CUDA + nvblox（仅三维 ESDF 建图）。
 
-安装定位和 SLAM 依赖：
+安装系统依赖：
 
 ```bash
 sudo apt update
 sudo apt install \
+  libzip-dev \
+  libompl-dev \
+  python3-pip \
+  python3-evdev \
+  ros-humble-xacro \
+  ros-humble-pinocchio \
   ros-humble-robot-localization \
   ros-humble-slam-toolbox \
-  ros-humble-nav2-map-server
+  ros-humble-nav2-map-server \
+  ros-humble-nav2-lifecycle-manager \
+  ros-humble-nav2-amcl \
+  ros-humble-control-msgs \
+  ros-humble-controller-manager \
+  ros-humble-ros2-controllers
+
+python3 -m pip install --user mujoco mujoco_lidar
 ```
+
+MuJoCo 安装验证：
+
+```bash
+python3 -c "import mujoco, mujoco_lidar; print(mujoco.__version__)"
+```
+
+静态地图文件放在 `/home/a/WBMM/maps/`，本工作区的默认文件为
+`site_remani.npz`、`site_mesh.ply`、`site_2d.yaml` 与 `site_2d.pgm`。
 
 ## 构建主工作空间
 
@@ -115,7 +139,8 @@ colcon build --symlink-install --packages-up-to \
   grid_map \
   hipnuc_imu \
   lakibeam1 \
-  tracer_jaka_bringup
+  tracer_jaka_bringup \
+  tracer_jaka_localization
 
 source install/setup.bash
 ```
@@ -171,6 +196,16 @@ ros2 launch tracer_jaka_mujoco mujoco_nvblox_mapping.launch.py \
 
 ```bash
 ros2 launch tracer_jaka_ocs2 mujoco_mapped_esdf_control.launch.py
+```
+
+使用本地静态 ESDF 完整验证（MuJoCo + OCS2 + REMANI）：
+
+```bash
+export MUJOCO_GL=egl
+ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py \
+  frame_id:=map \
+  use_rviz:=true \
+  viewer:=false
 ```
 
 ### 3. MuJoCo：打磨/加工任务桌

@@ -19,15 +19,37 @@ export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export MUJOCO_GL=egl            # 无头服务器跑 MuJoCo 时使用
 ```
 
-安装基础依赖：
+安装已验证的系统依赖：
 
 ```bash
 sudo apt update
 sudo apt install \
+  libzip-dev \
+  libompl-dev \
+  python3-pip \
+  python3-evdev \
+  ros-humble-xacro \
+  ros-humble-pinocchio \
   ros-humble-robot-localization \
   ros-humble-slam-toolbox \
-  ros-humble-nav2-map-server
+  ros-humble-nav2-map-server \
+  ros-humble-nav2-lifecycle-manager \
+  ros-humble-nav2-amcl \
+  ros-humble-control-msgs \
+  ros-humble-controller-manager \
+  ros-humble-ros2-controllers
+
+python3 -m pip install --user mujoco mujoco_lidar
 ```
+
+验证 MuJoCo Python 包：
+
+```bash
+python3 -c "import mujoco, mujoco_lidar; print(mujoco.__version__)"
+```
+
+本地静态地图目录为 `/home/a/WBMM/maps/`，需要包含：
+`site_remani.npz`、`site_mesh.ply`、`site_2d.yaml` 和 `site_2d.pgm`。
 
 ## 2. 构建
 
@@ -43,7 +65,8 @@ colcon build --symlink-install --packages-up-to \
   grid_map \
   hipnuc_imu \
   lakibeam1 \
-  tracer_jaka_bringup
+  tracer_jaka_bringup \
+  tracer_jaka_localization
 
 source install/setup.bash
 ```
@@ -102,6 +125,21 @@ ros2 topic echo /jaka_fts_broadcaster/wrench
 ```bash
 ros2 launch wipe_planner wipe_plan_preview.launch.py
 ```
+
+### 3.5 本地静态 ESDF：MuJoCo + OCS2 + REMANI
+
+使用 `maps/` 中已导出的地图验证完整规划控制闭环：
+
+```bash
+export MUJOCO_GL=egl
+ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py \
+  frame_id:=map \
+  use_rviz:=true \
+  viewer:=false
+```
+
+日志出现 `MPC node is ready`、`MRT node is ready` 与
+`Loaded static ESDF` 即表示仿真规划链已就绪。
 
 ## 4. MuJoCo → nvblox → REMANI → OCS2 建图闭环
 
@@ -173,14 +211,22 @@ ros2 launch tracer_jaka_mujoco real_slam.launch.py \
   start_imu:=false start_lidar:=false
 ```
 
-### 5.3 实机 OCS2 控制雏形
+### 5.3 实机持久地图定位 + REMANI-MPC
 
 ```bash
-ros2 launch tracer_jaka_ocs2 ocs2_real.launch.py
+source /opt/ros/humble/setup.bash
+source /home/a/WBMM/install/setup.bash
+
+ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py \
+  initial_x:=0.0 \
+  initial_y:=0.0 \
+  initial_yaw:=0.0 \
+  use_rviz:=true
 ```
 
-当前 `ocs2_real.launch.py` 还不是完整擦拭入口，正式上机前应使用统一的
-`tracer_jaka_bringup` 实机 launch 替代。
+该入口默认从 `/home/a/WBMM/maps/` 读取 `site_2d.yaml` 和
+`site_remani.npz`，并启动 map server、AMCL、ros2_control、OCS2 与 REMANI。
+启动前确认 CAN、IMU、LiDAR 和 JAKA 机械臂已上电且网络/设备路径正确。
 
 ### 5.4 擦拭任务预览
 

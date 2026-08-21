@@ -174,8 +174,8 @@ MuJoCo 控制。
 ```bash
 ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py \
   mujoco_model:=$(ros2 pkg prefix tracer_jaka_mujoco)/share/tracer_jaka_mujoco/models/scene_nvblox_remani_demo.xml \
-  esdf_file:=/home/a/workspaces/isaac_ros-dev/bag_export/mujoco_demo_remani_esdf.npz \
-  map2d_yaml:=/home/a/workspaces/isaac_ros-dev/bag_export/mujoco_demo_2d.yaml \
+  esdf_file:=/home/a/WBMM/maps/site_remani.npz \
+  map2d_yaml:=/home/a/WBMM/maps/site_2d.yaml \
   remani_freeze_manipulator:=false \
   remani_manipulator_max_vel:=0.35 \
   remani_manipulator_max_acc:=0.70

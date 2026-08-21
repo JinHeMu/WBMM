@@ -7,11 +7,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import (
-    EnvironmentVariable,
-    LaunchConfiguration,
-    PathJoinSubstitution,
-)
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -19,6 +15,7 @@ from launch_ros.parameter_descriptions import ParameterValue
 def generate_launch_description():
     ocs2_share = get_package_share_directory('tracer_jaka_ocs2')
     mujoco_share = get_package_share_directory('tracer_jaka_mujoco')
+    local_maps_dir = '/home/a/WBMM/maps'
     sim_launch = os.path.join(ocs2_share, 'launch', 'ocs2_sim.launch.py')
     task_file = os.path.join(ocs2_share, 'config', 'task_esdf_only.info')
     default_scene_file = os.path.join(
@@ -132,27 +129,17 @@ def generate_launch_description():
                 'for the persistent-map pipeline, odom for legacy.')),
         DeclareLaunchArgument(
             'esdf_file',
-            default_value=PathJoinSubstitution([
-                EnvironmentVariable(
-                    'NVBLOX_OUTPUT_DIR',
-                    default_value=(
-                        '/home/a/workspaces/isaac_ros-dev/bag_export')),
-                'd455_bag_remani_esdf.npz',
-            ]),
+            default_value=os.path.join(local_maps_dir, 'site_remani.npz'),
             description='REMANI-format NPZ exported from nvblox.'),
         DeclareLaunchArgument(
             'map2d_yaml',
-            default_value=(
-                '/home/a/WBMM/src/bringup/tracer_jaka_bringup/'
-                'maps/factory_map.yaml'),
+            default_value=os.path.join(local_maps_dir, 'site_2d.yaml'),
             description='2D map saved by slam_toolbox.'),
         DeclareLaunchArgument(
             'ply_file',
-            default_value='',
+            default_value=os.path.join(local_maps_dir, 'site_mesh.ply'),
             description=(
-                'Saved nvblox mesh PLY. Empty derives <prefix>_mesh.ply from '
-                'either <prefix>_remani.npz or '
-                '<prefix>_remani_esdf.npz.')),
+                'Saved nvblox mesh PLY for RViz visualization.')),
         DeclareLaunchArgument(
             'mujoco_model',
             default_value=default_scene_file,

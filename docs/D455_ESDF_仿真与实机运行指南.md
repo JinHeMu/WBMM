@@ -709,9 +709,9 @@ Saved REMANI ESDF: .../site_remani.npz
 source /home/a/WBMM/install/setup.bash
 
 ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py \
-  esdf_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
-  map2d_yaml:=/home/a/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
-  ply_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_mesh.ply
+  esdf_file:=/home/a/WBMM/maps/site_remani.npz \
+  map2d_yaml:=/home/a/WBMM/maps/site_2d.yaml \
+  ply_file:=/home/a/WBMM/maps/site_mesh.ply
 ```
 
 显示端无需修改：RViz 配置已包含 `/map`（2D Map）、
@@ -727,8 +727,8 @@ ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py \
 # observed=298340, occupied=89821
 # 观测范围 x≈[-5.60,9.80], y≈[-6.20,8.30]
 python3 /tmp/analyze_export.py \
-  /home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
-  /home/a/workspaces/isaac_ros-dev/bag_export/site_mesh.ply
+  /home/a/WBMM/maps/site_remani.npz \
+  /home/a/WBMM/maps/site_mesh.ply
 ```
 
 ### 8.8 本次已解决的导出器卡死问题
@@ -811,8 +811,8 @@ ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
 ```bash
 # 主机工作区（已 source /home/a/WBMM/install/setup.bash）
 ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py \
-  map_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
-  static_esdf_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
+  map_file:=/home/a/WBMM/maps/site_2d.yaml \
+  static_esdf_file:=/home/a/WBMM/maps/site_remani.npz \
   initial_x:=0.0 \
   initial_y:=0.0 \
   initial_yaw:=0.0 \
@@ -839,9 +839,9 @@ AMCL 初始位姿用 `initial_x/initial_y/initial_yaw` 给出；如果机器人�
 ```bash
 # 主机
 ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py \
-  esdf_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
-  ply_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_mesh.ply \
-  map2d_yaml:=/home/a/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
+  esdf_file:=/home/a/WBMM/maps/site_remani.npz \
+  ply_file:=/home/a/WBMM/maps/site_mesh.ply \
+  map2d_yaml:=/home/a/WBMM/maps/site_2d.yaml \
   frame_id:=map \
   use_rviz:=true \
   viewer:=false
@@ -875,8 +875,8 @@ RViz 的 Fixed Frame 已改为 `map`，会显示：
    source /home/a/WBMM/install/setup.bash
 
    ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py \
-     map_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
-     static_esdf_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
+     map_file:=/home/a/WBMM/maps/site_2d.yaml \
+     static_esdf_file:=/home/a/WBMM/maps/site_remani.npz \
      initial_x:=0.0 \
      initial_y:=0.0 \
      initial_yaw:=0.0 \
@@ -927,9 +927,9 @@ RViz 的 Fixed Frame 已改为 `map`，会显示：
 source /home/a/WBMM/install/setup.bash
 
 ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py \
-  esdf_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
-  ply_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_mesh.ply \
-  map2d_yaml:=/home/a/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
+  esdf_file:=/home/a/WBMM/maps/site_remani.npz \
+  ply_file:=/home/a/WBMM/maps/site_mesh.ply \
+  map2d_yaml:=/home/a/WBMM/maps/site_2d.yaml \
   frame_id:=map \
   use_rviz:=true \
   viewer:=false
@@ -952,9 +952,9 @@ RViz Fixed Frame 为 `map`，可看到地图、ESDF 点云和 mesh 对齐。
 
 ```bash
 ros2 launch tracer_jaka_ocs2 ocs2_esdf_validation.launch.py \
-  esdf_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz \
-  ply_file:=/home/a/workspaces/isaac_ros-dev/bag_export/site_mesh.ply \
-  map2d_yaml:=/home/a/workspaces/isaac_ros-dev/bag_export/site_2d.yaml \
+  esdf_file:=/home/a/WBMM/maps/site_remani.npz \
+  ply_file:=/home/a/WBMM/maps/site_mesh.ply \
+  map2d_yaml:=/home/a/WBMM/maps/site_2d.yaml \
   frame_id:=map \
   use_rviz:=true \
   viewer:=true

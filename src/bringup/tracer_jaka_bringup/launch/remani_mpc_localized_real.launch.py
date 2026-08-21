@@ -77,8 +77,8 @@ def generate_launch_description():
     default_urdf = os.path.join(
         tracer_mujoco_share, 'urdf', 'tracer_jaka_zu5_real.urdf')
     default_task = os.path.join(ocs2_share, 'config', 'task_real.info')
-    default_esdf = '/home/a/workspaces/isaac_ros-dev/bag_export/site_remani.npz'
-    default_map = os.path.join(bringup_share, 'maps', 'factory_map.yaml')
+    default_esdf = '/home/a/WBMM/maps/site_remani.npz'
+    default_map = '/home/a/WBMM/maps/site_2d.yaml'
 
     declare_args = [
         DeclareLaunchArgument('use_rviz', default_value='true'),
