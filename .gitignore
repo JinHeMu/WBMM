@@ -12,7 +12,6 @@ bag_export/
 *.db3
 *.mcap
 *.nvblx
-*.npz
 *.zstd
 .data
 .posegraph
