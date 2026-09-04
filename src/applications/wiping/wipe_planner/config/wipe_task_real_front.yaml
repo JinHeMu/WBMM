@@ -1,0 +1,120 @@
+# Real-robot, force-disabled dry-run task.
+#
+# Assumption requested for the first integration test:
+#   * the localized robot starts at map pose (0, 0, 0);
+#   * the vertical board plane is 2.0 m straight ahead, X = 2.0 m;
+#   * the requested nominal board centre height is about 0.50 m;
+#   * the usable region below is raised only as far as required by the real
+#     URDF/self-collision model, and is verified by the preview test.
+#
+# All geometry is expressed in the persistent map frame.  Re-measure these
+# values before allowing contact; this file deliberately traces 5 cm in front
+# of the physical plane while force control is disabled.
+wipe_task:
+  surface:
+    type: "vertical"
+    # 0.55 m is the lowest centre height that passed the complete real-URDF
+    # pre-contact approach and all coverage IK/self-collision checks.
+    center: [2.00, 0.00, 0.55]
+    normal_into_room: [-1.0, 0.0, 0.0]
+    # For this X-constant wall the planner's wall direction is map -Y.
+    # These limits therefore produce physical map Y in [+0.45, -0.45].
+    x_limits: [-0.45, 0.45]
+    y_limits: [1.99, 2.01]
+    z_limits: [0.35, 0.75]
+
+  coverage:
+    # Continuous boustrophedon/snake coverage.  Use "ras" only when drawing
+    # the single-stroke RAS characters instead of covering the whole board.
+    pattern: "raster"
+    width: 0.90
+    height: 0.40
+
+  raster:
+    # 9 strokes give 5 cm centreline spacing over the 0.40 m height. Full
+    # material coverage therefore assumes a pad/brush effective width >=5 cm.
+    rows: 9
+    columns: 2
+    solver_spacing: 0.03
+    tangential_speed: 0.025
+    corner_speed: 0.012
+
+  contact:
+    desired_normal_force: 0.0
+    # Negative moves toward the free-room side for normal [-1,0,0].  This is
+    # a non-contact dry run 5 cm off the board, not a force-controlled wipe.
+    offset: -0.05
+
+  approach:
+    # REMANI navigates only to this pre-contact state.  Its environment check
+    # uses the URDF sphere radius plus optimization.safe_margin_mani (0.10 m),
+    # so the previous 5 cm dry-run offset + 2 cm clearance was still inside
+    # the board collision envelope.  Move the tool another 15 cm into the room:
+    # the REMANI goal is then 20 cm from the physical board, leaving 15 mm over
+    # the worst-case 0.085 m sphere + 0.10 m optimizer margin. WipePlanner owns
+    # the subsequent fixed-base normal approach; the contact/wipe targets are
+    # intentionally unchanged.
+    clearance: 0.15
+    speed: 0.015
+    touch_distance: 0.02
+    touch_speed: 0.005
+    precontact_hold_duration: 1.0
+
+  whole_body:
+    # Keep the base parallel to the wall so differential-drive straight
+    # primitives can follow the board sweep.  The farther pre-contact tool pose
+    # also needs a farther base pose; otherwise folding the arm back toward a
+    # base at 0.80 m standoff intersects the base protection spheres.
+    cleaning_yaw: 1.570796327
+    base_standoff_direction: [-1.0, 0.0, 0.0]
+    preferred_standoff: 0.95
+    standoff_limits: [0.90, 1.00]
+    candidate_lateral_step: 0.04
+    # Try the two opposite along-board offsets.  The positive 0.32 m branch
+    # exposes the collision-free elbow-up pre-contact solution; the wide step
+    # deliberately keeps the online candidate set small.
+    candidate_longitudinal_range: 0.32
+    candidate_longitudinal_step: 0.64
+    # tool0 +Z points into the wall (+map X), tool0 +Y points down (-map Z).
+    desired_tool_rotation:
+      [0.0, 0.0, 1.0,
+       -1.0, 0.0, 0.0,
+       0.0, -1.0, 0.0]
+
+  hybrid_astar:
+    xy_resolution: 0.02
+    yaw_resolution: 0.12
+    primitive_length: 0.03
+    collision_check_step: 0.02
+    goal_position_tolerance: 0.02
+    goal_yaw_tolerance: 0.06
+    max_curvature: 2.0
+    heuristic_weight: 4.0
+    reverse_penalty: 1.05
+    gear_switch_penalty: 3.0
+    curvature_penalty: 0.15
+    curvature_change_penalty: 0.08
+    joint_motion_penalty: 0.20
+    search_margin: 0.30
+    standoff_margin: 0.05
+    yaw_samples: 1
+    yaw_sample_step: 0.08
+    collision_joint_step: 0.04
+    max_nodes: 12000
+
+  limits:
+    wheel_separation: 0.34
+    wheel_radius: 0.07
+    wheel_angular_speed: 1.5
+    base_speed: 0.10
+    base_acceleration: 0.20
+    angular_speed: 0.30
+    angular_acceleration: 0.50
+    joint_speed: 0.05
+
+  solver:
+    position_tolerance: 0.012
+    axis_tolerance: 0.12
+    max_iterations: 80
+    nominal_arm_seed: [0.891, 0.447, -0.973, 3.662, 2.245, 0.541]
+    search_arm_seed: [3.334, 2.164, 1.362, 2.757, 1.764, -3.142]

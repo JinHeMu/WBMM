@@ -1,0 +1,128 @@
+wipe_planner:
+  ros__parameters:
+    robot_name: "mobile_manipulator"
+    trajectory_topic: "/planning/trajectory"
+    wrench_topic: "/fts_broadcaster/wrench"
+    remani_task_service: "/remani_planner/set_task_execution"
+    world_frame: "odom"
+    # Internal geometry/planning frame and OCS2/MRT control frame. The real
+    # localized launch overrides these to map/odom and enables dynamic TF.
+    planner_frame: "odom"
+    control_frame: "odom"
+    use_tf_transform: false
+    tf_lookup_timeout: 0.10
+    ee_frame: "tool0"
+    urdf_file: ""
+    task_file: ""
+
+    publish_rate: 20.0
+    reference_horizon: 3.0
+    reference_dt: 0.08
+    assembly_timeout: 0.08
+    start_lead: 0.15
+    contact_start_lead: 0.30
+    append_wipe_task: true
+    auto_navigation_goal: true
+    whole_body_goal_topic: "/remani_planner/whole_body_goal"
+    joint_names: ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
+
+    # REMANI targets the safe wall-normal pre-contact state. A complete 9D
+    # arrival uses the squared tolerance below. If its base/yaw have reached the
+    # end of the navigation trajectory but the arm still lags, WipePlanner takes
+    # ownership and inserts a collision-checked base-hold arm alignment instead
+    # of asking REMANI to plan a zero-base-speed manipulator-only residual.
+    navigation_whole_body_squared_tolerance: 0.20
+    navigation_arrival_hold: 0.35
+    navigation_base_tolerance: 0.08
+    navigation_yaw_tolerance: 0.25
+    navigation_partial_handoff_enabled: true
+    navigation_partial_remaining: 1.50
+    navigation_partial_arrival_hold: 0.0
+    # The geometric path is nominal; virtual progress and force safety can
+    # independently slow or stop its execution.
+    alignment_joint_speed: 0.08
+    task_settle_duration: 4.0
+
+    # Briefly hold the first offset-plane state before starting coverage.
+
+    # Adaptive virtual time tau. Nominal trajectory seconds parameterize the
+    # path, while tau_dot is slowed/stopped when the whole robot falls behind.
+    progress_min_rate: 0.0
+    progress_max_rate: 1.15
+    progress_rate_filter: 0.20
+    progress_lag_gain: 0.70
+    progress_ahead_gain: 0.20
+    progress_projection_backtrack: 2.0
+    progress_projection_lookahead: 4.0
+    progress_projection_dt: 0.10
+    progress_base_scale: 0.20
+    progress_yaw_scale: 0.45
+    progress_joint_scale: 0.30
+    progress_ee_scale: 0.08
+    progress_error_soft: 0.70
+    progress_error_hard: 1.80
+
+    # Continuous normal-force control. It only changes arm joints; the planned
+    # differential-drive base state and its no-slip constraint remain intact.
+    force_control_enabled: true
+    force_axis: "z"
+    force_use_absolute: true
+    force_filter_alpha: 0.20
+    # Reject a single-sample FTS spike (N newtons away from the filtered value)
+    # unless it persists for M consecutive samples. This prevents a sensor
+    # glitch from latching the hard-stop or prematurely capturing contact.
+    force_spike_rejection_n: 8.0
+    force_spike_confirm_samples: 3
+    # Hard-limit latch requires several consecutive filtered samples above the
+    # limit; a one-sample spike cannot freeze the wipe pipeline.
+    force_hard_limit_confirm_samples: 3
+    # Capture the actual contact plane as soon as force appears near the end of
+    # the normal approach; then skip the remaining geometric approach samples.
+    force_contact_threshold: 0.5
+    # Require several consecutive samples above the threshold before declaring
+    # contact. In MuJoCo simulation a single low-level force ripple can
+    # otherwise trigger a false contact and freeze the pre-contact phase.
+    force_contact_confirm_samples: 3
+    # The final approach is 1 mm/s, so open contact detection 5 s before the
+    # geometric plane to cover collision-shape and calibration uncertainty.
+    # Admittance itself remains inactive until force is actually detected.
+    force_contact_detection_window: 5.0
+    force_contact_plane_max_offset: 0.030
+    # Bound the pre-contact reference to 0.1 mm beyond the measured tool. This
+    # prevents queued MPC position error from becoming a stiff-wall impact.
+    force_precontact_max_lead: 0.0001
+    force_progress_tolerance: 3.0
+    # Do not start tangential wiping on a single in-band sample.  Contact force
+    # must remain settled continuously before virtual time can first advance.
+    # This latch is not re-armed by ordinary force ripple later in the path.
+    force_settle_hold: 2.0
+    # In-motion supervision is deliberately wider and hysteretic. Moderate
+    # force error continuously reduces tau_dot; only a sustained error above
+    # 8 N pauses the path, and recovery must remain below 5 N before resuming.
+    force_progress_pause_error: 8.0
+    force_progress_resume_error: 5.0
+    force_progress_pause_hold: 0.25
+    force_progress_resume_hold: 0.50
+    force_progress_min_scale: 0.15
+    force_progress_scale_filter: 0.08
+    # M*d_ddot + D*d_dot + K*d = measured_force - desired_force.
+    # Positive d follows normal_into_room (retreat); negative d presses in.
+    admittance_mass: 2.0
+    admittance_damping: 200.0
+    admittance_stiffness: 50.0
+    admittance_max_offset: 0.015
+    # The contact model needs millimetre-per-second authority to reach 12 N in
+    # a reasonable time and, more importantly, to release an overshoot before
+    # the hard limit. The second-order damping still smooths direction changes.
+    admittance_max_velocity: 0.001
+    max_joint_force_correction: 0.10
+    force_hard_limit: 35.0
+    force_sensor_timeout: 0.20
+    force_safety_retreat: 0.020
+    # Keep the 20 mm fail-safe retreat, but slew it in over two seconds. A
+    # one-cycle Cartesian step caused the visible arm snap on over-force or
+    # wrench timeout events.
+    force_safety_retreat_speed: 0.010
+
+    active_visualization_rate: 4.0
+    active_visualization_snapshots: 3

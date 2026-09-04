@@ -1,0 +1,39 @@
+<mujoco model="tracer_jaka_zu5_force_follow_5m">
+
+  <compiler angle="radian" meshdir="meshes" />
+
+  <!-- Keep the complete robot collision model.  This scene only replaces the
+       task-room obstacles with a dedicated open 5 m commissioning corridor. -->
+  <include file="tracer_jaka_zu5_robot.xml"/>
+
+  <asset>
+    <texture name="force_follow_ground" type="2d" builtin="checker" mark="edge"
+             rgb1="0.18 0.23 0.28" rgb2="0.10 0.13 0.16"
+             markrgb="0.75 0.75 0.75" width="300" height="300"/>
+    <material name="force_follow_ground" texture="force_follow_ground"
+              texrepeat="12 4" texuniform="true" reflectance="0.15"/>
+  </asset>
+
+  <worldbody>
+    <light name="top" pos="2.5 0 5" dir="0 0 -1"
+           diffuse="0.75 0.75 0.75"/>
+
+    <geom name="floor" type="plane" size="8 4 0.05" pos="2.5 0 0"
+          material="force_follow_ground" contype="1" conaffinity="1"
+          condim="3" friction="2.0 0.01 0.001"/>
+
+    <!-- Non-colliding one-metre markers make the travelled distance visible. -->
+    <site name="distance_0m" type="cylinder" pos="0 -0.8 0.006"
+          size="0.04 0.006" rgba="0.2 0.8 1.0 1"/>
+    <site name="distance_1m" type="cylinder" pos="1 -0.8 0.006"
+          size="0.04 0.006" rgba="0.2 0.8 1.0 1"/>
+    <site name="distance_2m" type="cylinder" pos="2 -0.8 0.006"
+          size="0.04 0.006" rgba="0.2 0.8 1.0 1"/>
+    <site name="distance_3m" type="cylinder" pos="3 -0.8 0.006"
+          size="0.04 0.006" rgba="0.2 0.8 1.0 1"/>
+    <site name="distance_4m" type="cylinder" pos="4 -0.8 0.006"
+          size="0.04 0.006" rgba="0.2 0.8 1.0 1"/>
+    <site name="distance_5m" type="cylinder" pos="5 -0.8 0.006"
+          size="0.04 0.006" rgba="0.2 1.0 0.3 1"/>
+  </worldbody>
+</mujoco>

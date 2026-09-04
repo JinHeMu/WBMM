@@ -1,0 +1,58 @@
+# Canonical ros2_control controller inventory for simulation and real hardware.
+# Launch files override update_rate/use_sim_time only; controller names and joint
+# interfaces remain identical across backends.
+controller_manager:
+  ros__parameters:
+    update_rate: 125
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    arm_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    arm_trajectory_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    base_controller:
+      type: diff_drive_controller/DiffDriveController
+
+    fts_broadcaster:
+      type: force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster
+
+arm_controller:
+  ros__parameters:
+    joints: [joint_1, joint_2, joint_3, joint_4, joint_5, joint_6]
+    interface_name: position
+
+arm_trajectory_controller:
+  ros__parameters:
+    joints: [joint_1, joint_2, joint_3, joint_4, joint_5, joint_6]
+    command_interfaces: [position]
+    state_interfaces: [position, velocity]
+    state_publish_rate: 100.0
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    constraints:
+      stopped_velocity_tolerance: 0.05
+      goal_time: 0.0
+
+base_controller:
+  ros__parameters:
+    left_wheel_names: [left_wheel]
+    right_wheel_names: [right_wheel]
+    wheel_separation: 0.34
+    wheel_radius: 0.082
+    publish_rate: 50.0
+    base_frame_id: base_footprint
+    odom_frame_id: odom
+    enable_odom_tf: true
+    open_loop: false
+    cmd_vel_timeout: 0.5
+    use_stamped_vel: true
+
+fts_broadcaster:
+  ros__parameters:
+    sensor_name: tcp_fts_sensor
+    # Real JAKA hardware exports the already transformed tool0 wrench.
+    frame_id: tool0

@@ -1,0 +1,112 @@
+# Unified task used by scene_task_table.xml.
+# Geometry, planning, navigation contract, MPC tracking and optional force
+# execution are intentionally kept in one reproducible task description.
+task:
+  schema_version: 1
+  name: mujoco_table_wiping
+  frame_id: odom
+  type: surface_contact
+
+  surface:
+    type: planar
+    # Commissioning patch at the west edge of the physical z=0.750 m table.
+    center: [2.38, 0.03, 0.750]
+    normal_into_room: [0.0, 0.0, 1.0]
+    axis_u: [1.0, 0.0, 0.0]
+    u_limits: [-0.03, 0.03]
+    v_limits: [-0.03, 0.03]
+
+  pattern:
+    type: raster
+    rows: 3
+    columns: 5
+    sample_spacing: 0.03
+    tangential_speed: 0.025
+    row_change_speed: 0.012
+
+  approach:
+    clearance: 0.08
+    speed: 0.015
+    hold_duration: 1.0
+
+  constraints:
+    base_standoff_direction: [-1.0, 0.0, 0.0]
+    base_policy: fixed
+    # TA-WBMP 的 standoff 是首个任务点到 base_link 的平面距离。候选同时
+    # 接受完整接触路径与预接触接近 IK 检查，底盘始终保持在桌面西侧。
+    standoff_samples: [0.36, 0.40, 0.42, 0.44]
+    longitudinal_offset_samples: [-0.08, 0.0, 0.08]
+    # planner 内部会叠加表面法向和 pi/2；该偏置对应 task_contact 基座 yaw=-0.958716061。
+    task_yaw: 0.612080266
+    max_position_error: 0.012
+    max_axis_error: 0.12
+    minimum_normalized_joint_margin: 0.0
+    minimum_manipulability: 0.0
+    desired_tool_rotation:
+      [0.575206735, -0.818008076, 0.0,
+       -0.818008076, -0.575206735, 0.0,
+       0.0, 0.0, -1.0]
+    cost_weights:
+      preferred_standoff: 0.42
+      # Keep the dynamically navigated entry away from the table; do not let
+      # a marginally shorter arm path dominate physical base clearance.
+      standoff_deviation: 5.0
+      base_path: 0.08
+      arm_path: 0.06
+      inverse_joint_margin: 0.20
+      inverse_min_sigma: 0.01
+
+  navigation:
+    initial_state:
+      [0.0, 0.0, 0.0,
+       0.0, 1.5707, 0.0, 1.5707, 3.14159, 0.785398]
+    # TA-WBMP ranks the entry here; live collision-aware navigation is owned
+    # by REMANI using task_table_esdf.npz.
+    grid_resolution: 0.10
+    robot_radius: 0.31
+    base_speed: 0.10
+    angular_speed: 0.30
+    joint_speed: 0.05
+    sample_period: 0.10
+    obstacles: []
+
+  solver:
+    max_iterations: 110
+    damping: 0.0001
+    max_joint_step: 0.18
+    nominal_arm_seed: [0.0, 1.5707, 0.0, 1.5707, 3.14159, 0.785398]
+    search_arm_seed: [-0.000000098, 1.900822751, 0.474463874,
+                      2.337099332, 4.712392653, 0.785416000]
+
+  execution:
+    mpc:
+      reference_rate: 20.0
+      reference_horizon: 3.0
+      reference_dt: 0.08
+      tracking_slow_squared_tolerance: 0.04
+      tracking_stop_squared_tolerance: 0.16
+    force_control:
+      # Launch argument force_control_enabled can override this default.
+      enabled: false
+      mode: constant_force
+      wrench_topic: /fts_broadcaster/wrench
+      force_axis: z
+      absolute_force: true
+      desired_force: 12.0
+      mass: 3.0
+      damping: 45.0
+      stiffness: 300.0
+      filter_alpha: 0.25
+      max_offset: 0.015
+      max_velocity: 0.010
+      base_share: 0.0
+      max_base_delta: 0.02
+      max_joint_delta: 0.10
+      sensor_timeout: 0.20
+      progress_full_speed_error: 2.0
+      progress_pause_error: 8.0
+      progress_min_scale: 0.10
+      hard_limit: 35.0
+      # Reject isolated F/T spikes before they can latch the hard limit.
+      spike_rejection_n: 8.0
+      spike_confirm_samples: 3

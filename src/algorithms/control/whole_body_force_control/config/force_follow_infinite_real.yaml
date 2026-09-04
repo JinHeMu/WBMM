@@ -1,0 +1,55 @@
+whole_body_force_control:
+  ros__parameters:
+    # Real-hardware profile for "infinite" velocity-type force following.
+    #
+    # This is NOT the default real profile.  It removes the finite
+    # displacement stop so that, while the operator keeps pushing/pulling
+    # tool0/Fx, the robot keeps moving in that direction at a low, bounded
+    # speed.  Releasing the force stops the robot at the current position.
+    #
+    # Only use in a large open area with:
+    #   - E-stop reachable
+    #   - base wheels off the ground OR a large fenced / clearly marked space
+    #   - JAKA hardware force/admittance features disabled
+    #   - a second observer
+    control_mode: force_follow
+    armed: false
+    reference_output_enabled: false
+    enforce_single_target_owner: true
+
+    wrench_topic: /fts_broadcaster/wrench
+    status_topic: /whole_body_force_control/status
+    control_state_topic: /whole_body_force_control/control_state
+    enable_service: /whole_body_force_control/enable
+
+    force_axis: x
+    absolute_force: false
+    force_scale: 1.0
+    response_body_x: 1.0
+    response_body_y: 0.0
+    response_body_z: 0.0
+    admittance_axes: [legacy]
+    constant_force_axes: [none]
+    absolute_wrench_axes: [none]
+
+    # True velocity-type infinite force following.
+    force_velocity_mode: true
+    force_deadband: 0.5
+
+    # Keep motion slow for hand-guiding commissioning.
+    stiffness: 1.0
+    max_offset: 1000.0
+    max_velocity: 0.02
+    filter_alpha: 0.15
+
+    # Mostly mobile-base travel, with a small arm contribution.  No total
+    # base stop; the arm remains bounded by joint limits and max_joint_delta.
+    base_share: 0.90
+    max_base_delta: 1000.0
+    max_joint_delta: 0.20
+
+    loop_rate: 50.0
+    force_timeout: 0.10
+    observation_timeout: 0.20
+    capture_settle_time: 1.0
+    hard_wrench_limit: [15.0, 15.0, 15.0, 2.0, 2.0, 2.0]

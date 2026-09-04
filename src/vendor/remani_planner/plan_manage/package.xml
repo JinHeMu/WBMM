@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>remani_planner</name>
+  <version>0.0.0</version>
+  <description>The remani_planner package (ROS2 port)</description>
+  <maintainer email="hlied@connect.ust.hk">Haojia Li</maintainer>
+  <license>TODO</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>plan_env</depend>
+  <depend>mm_config</depend>
+  <depend>path_searching</depend>
+  <depend>traj_opt</depend>
+  <depend>traj_utils</depend>
+  <depend>quadrotor_msgs</depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs_py</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>grid_map</exec_depend>
+  <exec_depend>tracer_jaka_description</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,0 +1,7 @@
+image: site_2d.pgm
+mode: trinary
+resolution: 0.050000001
+origin: [-6.469860797, -4.028981638, 0.000000000]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.25

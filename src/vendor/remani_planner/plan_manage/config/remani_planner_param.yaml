@@ -1,0 +1,84 @@
+search:
+  oneshot_check_len: 0.02  # Interval for checking whether the RS/Debain curve obtained by oneshot collides
+  oneshot_range    : 1.0  # oneshot range
+
+  traj_forward_penalty     : 1.0 # Forward penalty coefficient
+  traj_back_penalty        : 3.0 # Backward penalty coefficient
+  traj_gear_switch_penalty : 10.0  # Penalty for switching between forward and reverse gears
+  traj_steer_penalty       : 5.0  # Steering penalty
+  traj_steer_change_penalty: 2.0  # Penalty for steering change
+
+  try_astar_times: 10 # Use whole-body RRT after try_astar_times consecutive planning failures
+
+  yaw_resolution    : 3.15   # yaw sampling interval
+  max_arc           : 0.4    # Maximum forward search displacement
+  min_turning_radius: 0.2    # Minimum turning radius
+  lambda_heu        : 1.0    # Coefficient for greedy search, multiplied by h
+  max_seach_time    : 0.5    # Maximum time for Hybrid A* search
+  check_num         : 16     # Used to check collision when Hybrid A* expands the state
+  dist_resolution   : 0.6    # Expected distance between path points given to the backend
+  sample_time       : 0.1    # Sampling time when given to the backend
+  curvatureDisCoe   : 0.4    # Angle coefficient for time allocation
+  allocate_num      : 100000 # Number of allocated nodes (maximum number of nodes visited)
+
+  # manipulator sample
+  goal_rate: 0.4             # Probability for RRT to sample the end point
+  max_loop_num: 5000         # Maximum number of RRT sampling times
+  max_sample_time: 0.2       # Maximum time for whole-body RRT
+  max_mani_search_time: 0.05 # Maximum time for manipulator search
+
+optimization:
+  weight_obstacle          : 50000.0  # Weight for obstacle
+  weight_manipulator_self       : 1000.0   # Weight for self collision
+  weight_base_feasibility       : 100.0    # Weight for base feasibility
+  weight_manipulator_feasibility: 100.0    # Weight for manipulator feasibility
+  weight_time                   : 1.0     # Weight for time
+  
+  ground_safe_dis        : 0.03           # Safe distance from the ground
+  safe_margin            : 0.10           # General safe margin
+  safe_margin_mani       : 0.10           # Safe margin for the manipulator
+  self_safe_margin       : 0.10           # Safe margin for self
+  ground_safe_margin     : 0.03           # Safe margin from the ground
+
+  mobile_base_opt_gear: true              # Whether to optimize the gear
+  constrain_points_perPiece: 16           # Constraint points per piece
+  dense_sample_resolution: 16             # Resolution for dense sampling
+  
+fsm:
+  target_type  : 1            # 1: use RViz2 2D Goal Pose; 2: run preset targets in order
+  time_for_gripper: 0.05      # Time for the gripper to grip things between path points
+  # Stop retrying an infeasible/ill-conditioned goal forever. Each initial
+  # cycle runs one full front-end + back-end search; a local replan cycle may
+  # include its normal fallback attempt. A new goal resets this counter.
+  max_consecutive_planning_failures: 20
+
+  thresh_replan_time: 2.5     # Threshold for replanning time
+  replan_trajectory_time: 1.7 # the expected max time of replanning trajectory, greater than max replan time
+  planning_horizon: 5.0       # Planning horizon
+  global_plan: true           # Whether to use global plan
+  emergency_time: 1.5         # greater than max replan time
+
+  # Replan from the measured whole-body state when MPC tracking drifts or
+  # falls behind the time-parameterized REMANI reference.
+  tracking_error_replan_enabled: false # whether to replan when tracking error exceeds thresholds
+  tracking_error_position_threshold: 0.30 # mobile-base xy error [m]
+  tracking_error_yaw_threshold: 0.45      # wrapped base yaw error [rad]
+  tracking_error_joint_threshold: 0.30    # maximum absolute joint error [rad]
+  tracking_error_persistence: 0.30        # error must persist this long [s]
+  tracking_error_min_interval: 2.0        # cooldown between triggers [s]
+  tracking_error_grace_period: 0.60       # ignore a newly published trajectory [s]
+  tracking_goal_position_tolerance: 0.12  # measured goal acceptance [m]
+  tracking_goal_yaw_tolerance: 0.20       # measured goal acceptance [rad]
+  tracking_goal_joint_tolerance: 0.15     # max joint goal error [rad]
+  # Finishing outside the acceptance tolerance does not itself cause a replan.
+  # REMANI holds the final target and lets MPC remove ordinary residual error.
+  # Only a substantially larger error, sustained for the configured duration,
+  # starts a new plan from the measured whole-body state.
+  tracking_goal_replan_position_threshold: 0.40 # large base xy miss [m]
+  tracking_goal_replan_yaw_threshold: 0.70      # large wrapped yaw miss [rad]
+  tracking_goal_replan_joint_threshold: 0.45    # large max joint miss [rad]
+  tracking_goal_replan_persistence: 1.00        # large miss persistence [s]
+
+grid_map:
+  use_load_map: true     # Whether to use simulation map
+  use_global_map: false # Whether to use global map

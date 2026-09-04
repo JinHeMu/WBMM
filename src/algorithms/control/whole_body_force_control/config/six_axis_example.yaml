@@ -1,0 +1,24 @@
+whole_body_force_control:
+  ros__parameters:
+    # 轴顺序/名称固定为 fx, fy, fz, tx, ty, tz。这里六轴均允许柔顺。
+    admittance_axes: [fx, fy, fz, tx, ty, tz]
+
+    # 仅 Fz 做 12 N 恒力；其它五轴是零目标的被动导纳。
+    # tx/ty/tz 默认不选中，desired_wrench 中的力矩目标也默认为 0。
+    constant_force_axes: [fz]
+    desired_wrench: [0.0, 0.0, 12.0, 0.0, 0.0, 0.0]
+
+    # 若接触力方向只关心幅值，可逐轴选择绝对值。力矩通常保留符号。
+    absolute_wrench_axes: [fz]
+
+    # 6D wrench 会根据消息 frame_id 变换到 ee_frame；缺失 frame_id 时拒绝。
+    require_wrench_frame: true
+
+    # 前三项对应平移，后三项对应转动。转动参数单位分别使用
+    # kg*m^2、N*m*s/rad、N*m/rad、rad、rad/s。
+    mass_6d: [3.0, 3.0, 3.0, 0.30, 0.30, 0.30]
+    damping_6d: [45.0, 45.0, 45.0, 4.5, 4.5, 4.5]
+    stiffness_6d: [150.0, 150.0, 150.0, 15.0, 15.0, 15.0]
+    max_offset_6d: [0.08, 0.08, 0.08, 0.15, 0.15, 0.15]
+    max_velocity_6d: [0.035, 0.035, 0.035, 0.15, 0.15, 0.15]
+    filter_alpha_6d: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25]

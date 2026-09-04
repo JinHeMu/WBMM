@@ -1,0 +1,20 @@
+build/
+install/
+log/
+data/
+*.pyc
+__pycache__/
+.vscode/
+.idea/
+.DS_Store
+bags/
+bag_export/
+*.db3
+*.mcap
+*.nvblx
+*.zstd
+.data
+.posegraph
+
+# Local Python packages installed into the writable workspace (read-only system disk)
+.python_packages/

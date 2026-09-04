@@ -1,0 +1,40 @@
+whole_body_force_control:
+  ros__parameters:
+    # Commissioning mode: measured external force is mapped directly to a
+    # bounded displacement reference.  No constant-force target is active.
+    control_mode: force_follow
+    armed: true
+    reference_output_enabled: true
+    enforce_single_target_owner: true
+
+    wrench_topic: /whole_body_force_control/fake_wrench
+    status_topic: /whole_body_force_control/status
+    control_state_topic: /whole_body_force_control/control_state
+    enable_service: /whole_body_force_control/enable
+
+    # First whole-body test is deliberately one-dimensional.  A signed Fx
+    # drives motion along the current base heading, so both the differential
+    # base and arm can contribute without requesting lateral base velocity.
+    force_axis: x
+    absolute_force: false
+    force_scale: 1.0
+    response_body_x: 1.0
+    response_body_y: 0.0
+    response_body_z: 0.0
+    admittance_axes: [legacy]
+    constant_force_axes: [none]
+    absolute_wrench_axes: [none]
+
+    stiffness: 150.0
+    max_offset: 0.08
+    max_velocity: 0.035
+    filter_alpha: 0.25
+    base_share: 0.40
+    max_base_delta: 0.04
+    max_joint_delta: 0.25
+
+    loop_rate: 50.0
+    force_timeout: 0.50
+    observation_timeout: 0.25
+    capture_settle_time: 1.0
+    hard_wrench_limit: [25.0, 25.0, 25.0, 4.0, 4.0, 4.0]

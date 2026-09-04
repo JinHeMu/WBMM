@@ -1,0 +1,26 @@
+task_file: src/algorithms/planning/ta_wbmp/config/ras_drawing.yaml
+urdf_file: src/simulation/tracer_jaka_mujoco/urdf/tracer_jaka_zu5.urdf
+task_name: ras_drawing
+task_type: ras_drawing
+success: true
+task_points: 114
+whole_body_points: 577
+duration_s: 179.913957021
+candidate_count: 9
+feasible_candidate_count: 9
+selected_candidate_id: 3
+selected_score: 3.60124394871
+min_joint_margin: 0.112664047316
+min_manipulability: 0.0358522995613
+min_sigma: 0.0902012286867
+task_base_path_length_m: 3.22608630952
+max_contact_position_error_m: 0.0116600187208
+max_tool_axis_error_rad: 0.000232155680352
+max_lateral_velocity_mps: 2.22148975006e-15
+execution_contract:
+  navigation_backend: REMANI
+  tracking_backend: OCS2_MPC
+  remani_goal_9d: [1.45,2.08,0,0.046718299109,3.9883647331,-2.41346354642,1.56656389805,4.6649187691,0.785296055221]
+  task_entry_9d: [1.45,2.08,0,0.0331366958481,3.93274931137,-2.07279832469,1.28172848094,4.67839900227,0.785299016775]
+  execution_start_index: 459
+  task_start_index: 463

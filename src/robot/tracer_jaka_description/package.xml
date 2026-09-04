@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>tracer_jaka_description</name>
+  <version>0.0.0</version>
+  <description>The tracer_jaka_description package</description>
+
+  <!-- Maintainer information -->
+  <maintainer email="meddy@todo.todo">meddy</maintainer>
+  
+  <!-- License information -->
+  <license>TODO</license>
+  
+  <!-- Dependencies for ROS2 -->  
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  
+  <build_depend>urdf</build_depend>
+  <build_depend>xacro</build_depend>
+
+  <build_export_depend>urdf</build_export_depend>
+  <build_export_depend>xacro</build_export_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  
+  <exec_depend>urdf</exec_depend>
+  <exec_depend>xacro</exec_depend> 
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>forward_command_controller</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>joint_state_publisher_gui</exec_depend>
+
+  <!-- The export tag contains other, unspecified, tags -->
+  <export>
+    <!-- Other tools can request additional information be placed here -->
+    <build_type>ament_cmake</build_type>
+    <gazebo_ros gazebo_model_path="${prefix}/.."/>
+  </export>
+  
+</package>

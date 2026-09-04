@@ -1,0 +1,88 @@
+<mujoco model="tracer_jaka_front_board_wipe_scene">
+
+  <compiler angle="radian" meshdir="meshes"/>
+
+  <include file="tracer_jaka_zu5_robot.xml"/>
+
+  <asset>
+    <texture name="wipe_floor_tex" type="2d" builtin="checker" mark="edge"
+             rgb1="0.22 0.25 0.28" rgb2="0.12 0.15 0.18"
+             markrgb="0.55 0.58 0.62" width="300" height="300"/>
+    <material name="wipe_floor_mat" texture="wipe_floor_tex"
+              texrepeat="8 8" texuniform="true" reflectance="0.10"/>
+    <material name="whiteboard_mat" rgba="0.92 0.94 0.96 1"
+              specular="0.35" shininess="0.55"/>
+    <material name="whiteboard_frame_mat" rgba="0.12 0.16 0.20 1"
+              specular="0.50" shininess="0.45"/>
+    <material name="coverage_guide_mat" rgba="0.10 0.45 0.95 0.35"
+              specular="0.15" shininess="0.20"/>
+  </asset>
+
+  <worldbody>
+    <light name="wipe_top_light" pos="0 0 4" dir="0 0 -1"
+           diffuse="0.82 0.82 0.82"/>
+    <light name="wipe_board_light" pos="-1.5 0 1.8" dir="1 0 -0.5"
+           diffuse="0.35 0.38 0.42"/>
+
+    <geom name="floor" type="plane" size="6 6 0.05" pos="0 0 0"
+          material="wipe_floor_mat" contype="1" conaffinity="1"
+          condim="3" friction="2.0 0.01 0.001"/>
+
+    <!--
+      The room-facing whiteboard plane is exactly X=2.0 m.  Its centre and
+      usable area match wipe_task_real_front.yaml:
+        centre=(2.0, 0.0, 0.55), width=0.90 m, height=0.40 m.
+      The body centre is shifted by the half thickness so its -X face remains
+      the configured task plane.  The default force-disabled trajectory stays
+      5 cm in front of this face and therefore has no physical contact.
+    -->
+    <body name="front_whiteboard" pos="2.02 0 0.55">
+      <geom name="front_whiteboard_surface" type="box"
+            size="0.02 0.45 0.20" material="whiteboard_mat"
+            contype="1" conaffinity="1" friction="0.9 0.01 0.001"/>
+
+      <!-- Dark frame outside the 0.90 x 0.40 m usable coverage region. -->
+      <geom name="board_frame_top" type="box" pos="-0.021 0 0.22"
+            size="0.018 0.49 0.02" material="whiteboard_frame_mat"
+            contype="0" conaffinity="0"/>
+      <geom name="board_frame_bottom" type="box" pos="-0.021 0 -0.22"
+            size="0.018 0.49 0.02" material="whiteboard_frame_mat"
+            contype="0" conaffinity="0"/>
+      <geom name="board_frame_left" type="box" pos="-0.021 0.47 0"
+            size="0.018 0.02 0.20" material="whiteboard_frame_mat"
+            contype="0" conaffinity="0"/>
+      <geom name="board_frame_right" type="box" pos="-0.021 -0.47 0"
+            size="0.018 0.02 0.20" material="whiteboard_frame_mat"
+            contype="0" conaffinity="0"/>
+
+      <!-- Nine visual guide lines, matching the 5 cm snake-row spacing. -->
+      <geom name="guide_0" type="box" pos="-0.021 0 -0.20"
+            size="0.002 0.44 0.002" material="coverage_guide_mat"
+            contype="0" conaffinity="0"/>
+      <geom name="guide_1" type="box" pos="-0.021 0 -0.15"
+            size="0.002 0.44 0.002" material="coverage_guide_mat"
+            contype="0" conaffinity="0"/>
+      <geom name="guide_2" type="box" pos="-0.021 0 -0.10"
+            size="0.002 0.44 0.002" material="coverage_guide_mat"
+            contype="0" conaffinity="0"/>
+      <geom name="guide_3" type="box" pos="-0.021 0 -0.05"
+            size="0.002 0.44 0.002" material="coverage_guide_mat"
+            contype="0" conaffinity="0"/>
+      <geom name="guide_4" type="box" pos="-0.021 0 0.00"
+            size="0.002 0.44 0.002" material="coverage_guide_mat"
+            contype="0" conaffinity="0"/>
+      <geom name="guide_5" type="box" pos="-0.021 0 0.05"
+            size="0.002 0.44 0.002" material="coverage_guide_mat"
+            contype="0" conaffinity="0"/>
+      <geom name="guide_6" type="box" pos="-0.021 0 0.10"
+            size="0.002 0.44 0.002" material="coverage_guide_mat"
+            contype="0" conaffinity="0"/>
+      <geom name="guide_7" type="box" pos="-0.021 0 0.15"
+            size="0.002 0.44 0.002" material="coverage_guide_mat"
+            contype="0" conaffinity="0"/>
+      <geom name="guide_8" type="box" pos="-0.021 0 0.20"
+            size="0.002 0.44 0.002" material="coverage_guide_mat"
+            contype="0" conaffinity="0"/>
+    </body>
+  </worldbody>
+</mujoco>

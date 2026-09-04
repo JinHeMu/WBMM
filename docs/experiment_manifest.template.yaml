@@ -1,0 +1,28 @@
+schema_version: 1
+experiment_id: "REPLACE_ME"
+git:
+  sha: "0e9b7e53ea4260fe1191f8a19a42745c038da099"
+  branch: "test"
+  dirty: true
+verification_level: "L0"
+scenario:
+  task_file: "REPLACE_ME"
+  planner_profile: "REPLACE_ME"
+  controller_profile: "REPLACE_ME"
+  deployment_profile: "REPLACE_ME"
+safety:
+  execution_enabled: false
+  command_output_enabled: false
+  jaka_read_only: true
+  force_control_enabled: false
+  auto_start: false
+  safety_release: false
+evidence:
+  commands: []
+  logs: []
+  metrics_file: ""
+result:
+  status: "unverified"
+  failure_stage: ""
+  error_code: ""
+  notes: ""

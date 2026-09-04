@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<robot name="tracer_jaka_zu5" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:arg name="control_backend" default="mock"/>
+  <xacro:arg name="robot_ip" default="10.5.5.100"/>
+  <xacro:arg name="local_ip" default="10.5.5.127"/>
+  <xacro:arg name="jaka_read_only" default="true"/>
+
+  <xacro:include filename="tracer_jaka_zu5.urdf"/>
+  <xacro:include filename="tracer_jaka_zu5.ros2_control.xacro"/>
+  <xacro:tracer_jaka_ros2_control
+      backend="$(arg control_backend)"
+      robot_ip="$(arg robot_ip)"
+      local_ip="$(arg local_ip)"
+      read_only="$(arg jaka_read_only)"/>
+</robot>

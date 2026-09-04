@@ -1,0 +1,26 @@
+task_file: src/algorithms/planning/ta_wbmp/config/table_wipe.yaml
+urdf_file: src/simulation/tracer_jaka_mujoco/urdf/tracer_jaka_zu5.urdf
+task_name: table_wiping
+task_type: surface_raster
+success: true
+task_points: 15
+whole_body_points: 292
+duration_s: 48.6472942247
+candidate_count: 9
+feasible_candidate_count: 7
+selected_candidate_id: 2
+selected_score: 1.95197025758
+min_joint_margin: 0.124681565646
+min_manipulability: 0.041701909816
+min_sigma: 0.127143910362
+task_base_path_length_m: 0
+max_contact_position_error_m: 0.00421844265719
+max_tool_axis_error_rad: 0.00190588660452
+max_lateral_velocity_mps: 1.29075801901e-15
+execution_contract:
+  navigation_backend: REMANI
+  tracking_backend: OCS2_MPC
+  remani_goal_9d: [1.03,1.15,2.05103244818e-10,1.16587903478,0.485940567762,1.08897379924,3.13749582586,4.71235597323,1.951973699]
+  task_entry_9d: [1.03,1.15,2.05103244818e-10,1.16752281205,0.24451593668,1.4292660094,3.03962822563,4.71399953549,1.95305762497]
+  execution_start_index: 273
+  task_start_index: 277

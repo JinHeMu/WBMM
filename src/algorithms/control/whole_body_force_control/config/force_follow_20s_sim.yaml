@@ -1,0 +1,44 @@
+whole_body_force_control:
+  ros__parameters:
+    # Simulation-only sustained-motion profile.  A constant signed tool0/Fx
+    # ramps the whole-body displacement for the complete 20 s test instead of
+    # reaching the short 80 mm spring equilibrium used by force_follow_sim.yaml.
+    control_mode: force_follow
+    armed: true
+    reference_output_enabled: true
+    enforce_single_target_owner: true
+
+    wrench_topic: /whole_body_force_control/fake_wrench
+    status_topic: /whole_body_force_control/status
+    control_state_topic: /whole_body_force_control/control_state
+    enable_service: /whole_body_force_control/enable
+
+    force_axis: x
+    absolute_force: false
+    force_scale: 1.0
+    response_body_x: 1.0
+    response_body_y: 0.0
+    response_body_z: 0.0
+    admittance_axes: [legacy]
+    constant_force_axes: [none]
+    absolute_wrench_axes: [none]
+
+    # 7 N / 1 N/m = 7 m static target.  The 0.25 m/s reference rate therefore
+    # stays on its ramp for all 20 s and commands about 5 m total travel.
+    stiffness: 1.0
+    max_offset: 5.20
+    max_velocity: 0.25
+    filter_alpha: 0.25
+
+    # A six-axis arm cannot translate 2.5 m relative to its base.  Keep a
+    # visible ~0.10 m arm contribution and assign the remaining ~4.90 m to the
+    # mobile base.  These are simulation-only finite-travel limits.
+    base_share: 0.98
+    max_base_delta: 5.10
+    max_joint_delta: 0.60
+
+    loop_rate: 50.0
+    force_timeout: 0.50
+    observation_timeout: 0.25
+    capture_settle_time: 1.0
+    hard_wrench_limit: [25.0, 25.0, 25.0, 4.0, 4.0, 4.0]

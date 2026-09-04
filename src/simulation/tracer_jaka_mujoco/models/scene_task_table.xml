@@ -1,0 +1,136 @@
+<mujoco model="tracer_jaka_task_table_scene">
+  <compiler angle="radian"
+            meshdir="meshes"/>
+
+  <include file="tracer_jaka_zu5_robot.xml"/>
+
+  <asset>
+    <texture name="task_floor_tex" type="2d" builtin="checker" mark="edge"
+             rgb1="0.20 0.24 0.28" rgb2="0.11 0.14 0.17"
+             markrgb="0.62 0.66 0.70" width="300" height="300"/>
+    <material name="task_floor_mat" texture="task_floor_tex"
+              texrepeat="6 5" texuniform="true" reflectance="0.12"/>
+    <material name="task_table_mat" rgba="0.55 0.31 0.13 1"
+              specular="0.20" shininess="0.35"/>
+    <material name="task_work_surface_mat" rgba="0.70 0.70 0.64 1"
+              specular="0.45" shininess="0.65"/>
+    <material name="task_metal_mat" rgba="0.16 0.19 0.22 1"
+              specular="0.55" shininess="0.50"/>
+    <material name="task_bench_mat" rgba="0.16 0.38 0.63 1"
+              specular="0.25" shininess="0.35"/>
+  </asset>
+
+  <worldbody>
+    <light name="task_ceiling_light" pos="0 0 5.5" dir="0 0 -1"
+           diffuse="0.85 0.85 0.85"/>
+    <light name="task_side_light" pos="-2.5 -2.0 3.0" dir="0.5 0.4 -0.7"
+           diffuse="0.30 0.34 0.40"/>
+
+    <geom name="floor" type="plane" size="10 10 0.05" pos="0 0 0"
+          material="task_floor_mat" contype="1" conaffinity="1"
+          condim="3" friction="2.0 0.01 0.001"/>
+
+    <!-- 8 m x 6 m task cell. The robot begins at the origin. -->
+    <body name="task_wall_n" pos="2.0 3.0 1.1">
+      <geom type="box" size="4.0 0.05 1.1" rgba="0.73 0.76 0.80 1"/>
+    </body>
+    <body name="task_wall_s" pos="2.0 -3.0 1.1">
+      <geom type="box" size="4.0 0.05 1.1" rgba="0.73 0.76 0.80 1"/>
+    </body>
+    <body name="task_wall_e" pos="6.0 0 1.1">
+      <geom type="box" size="0.05 3.0 1.1" rgba="0.73 0.76 0.80 1"/>
+    </body>
+    <body name="task_wall_w" pos="-2.0 0 1.1">
+      <geom type="box" size="0.05 3.0 1.1" rgba="0.73 0.76 0.80 1"/>
+    </body>
+
+    <!--
+      Processing table dimensions (full dimensions):
+        length = 2.40 m along +X, width = 1.20 m along +Y,
+        top surface height = 0.75 m.
+      The center is offset from the home robot pose so the robot can approach
+      either long side. The named task surface is the contact/reconstruction
+      target for polishing or machining trajectories.
+    -->
+    <body name="processing_table" pos="3.45 0 0">
+      <!-- 60 mm tabletop: top face is exactly z = 0.75 m. -->
+      <geom name="processing_table_top" type="box" pos="0 0 0.72"
+            size="1.20 0.60 0.03" material="task_table_mat"
+            contype="1" conaffinity="1" friction="1.25 0.01 0.001"/>
+
+      <!-- Thin, replaceable workpiece/task surface, 1.80 m x 0.90 m. -->
+      <geom name="task_surface" type="box" pos="0 0 0.749"
+            size="0.90 0.45 0.001" material="task_work_surface_mat"
+            contype="1" conaffinity="1" friction="1.10 0.01 0.001"/>
+
+      <!-- Four legs, kept inside the tabletop perimeter. -->
+      <geom name="processing_table_leg_nw" type="box" pos="-1.08 0.48 0.345"
+            size="0.06 0.06 0.345" material="task_metal_mat"
+            contype="1" conaffinity="1"/>
+      <geom name="processing_table_leg_sw" type="box" pos="-1.08 -0.48 0.345"
+            size="0.06 0.06 0.345" material="task_metal_mat"
+            contype="1" conaffinity="1"/>
+      <geom name="processing_table_leg_ne" type="box" pos="1.08 0.48 0.345"
+            size="0.06 0.06 0.345" material="task_metal_mat"
+            contype="1" conaffinity="1"/>
+      <geom name="processing_table_leg_se" type="box" pos="1.08 -0.48 0.345"
+            size="0.06 0.06 0.345" material="task_metal_mat"
+            contype="1" conaffinity="1"/>
+
+      <!-- Reference sites for perception, coverage-path generation and
+           end-effector constraints. All are 1 mm above the task surface. -->
+      <site name="task_surface_center" pos="0 0 0.761" size="0.025"
+            type="sphere" rgba="1 0.15 0.10 0.85"/>
+      <site name="task_surface_nw" pos="-0.78 0.33 0.761" size="0.018"
+            type="sphere" rgba="0.95 0.80 0.10 0.85"/>
+      <site name="task_surface_ne" pos="0.78 0.33 0.761" size="0.018"
+            type="sphere" rgba="0.95 0.80 0.10 0.85"/>
+      <site name="task_surface_sw" pos="-0.78 -0.33 0.761" size="0.018"
+            type="sphere" rgba="0.95 0.80 0.10 0.85"/>
+      <site name="task_surface_se" pos="0.78 -0.33 0.761" size="0.018"
+            type="sphere" rgba="0.95 0.80 0.10 0.85"/>
+      <site name="task_surface_w" pos="-0.78 0 0.761" size="0.014"
+            type="sphere" rgba="0.15 0.95 0.35 0.85"/>
+      <site name="task_surface_e" pos="0.78 0 0.761" size="0.014"
+            type="sphere" rgba="0.15 0.95 0.35 0.85"/>
+      <site name="task_surface_n" pos="0 0.33 0.761" size="0.014"
+            type="sphere" rgba="0.15 0.95 0.35 0.85"/>
+      <site name="task_surface_s" pos="0 -0.33 0.761" size="0.014"
+            type="sphere" rgba="0.15 0.95 0.35 0.85"/>
+    </body>
+
+    <!--
+      Two stools beside the south long edge of the table.
+      Full dimensions per stool: length = 0.34 m (X), width = 0.24 m (Y),
+      height = 0.44 m (seat top). They are physical obstacles for REMANI and
+      nvblox, requiring the mobile base to choose a valid approach side.
+    -->
+    <body name="stool_left" pos="2.78 -1.02 0">
+      <geom name="stool_left_seat" type="box" pos="0 0 0.415"
+            size="0.17 0.12 0.025" material="task_bench_mat"
+            contype="1" conaffinity="1" friction="1.1 0.01 0.001"/>
+      <geom name="stool_left_leg_nw" type="box" pos="-0.125 0.080 0.195"
+            size="0.025 0.025 0.195" material="task_metal_mat" contype="1" conaffinity="1"/>
+      <geom name="stool_left_leg_sw" type="box" pos="-0.125 -0.080 0.195"
+            size="0.025 0.025 0.195" material="task_metal_mat" contype="1" conaffinity="1"/>
+      <geom name="stool_left_leg_ne" type="box" pos="0.125 0.080 0.195"
+            size="0.025 0.025 0.195" material="task_metal_mat" contype="1" conaffinity="1"/>
+      <geom name="stool_left_leg_se" type="box" pos="0.125 -0.080 0.195"
+            size="0.025 0.025 0.195" material="task_metal_mat" contype="1" conaffinity="1"/>
+    </body>
+
+    <body name="stool_right" pos="4.12 -1.02 0">
+      <geom name="stool_right_seat" type="box" pos="0 0 0.415"
+            size="0.17 0.12 0.025" material="task_bench_mat"
+            contype="1" conaffinity="1" friction="1.1 0.01 0.001"/>
+      <geom name="stool_right_leg_nw" type="box" pos="-0.125 0.080 0.195"
+            size="0.025 0.025 0.195" material="task_metal_mat" contype="1" conaffinity="1"/>
+      <geom name="stool_right_leg_sw" type="box" pos="-0.125 -0.080 0.195"
+            size="0.025 0.025 0.195" material="task_metal_mat" contype="1" conaffinity="1"/>
+      <geom name="stool_right_leg_ne" type="box" pos="0.125 0.080 0.195"
+            size="0.025 0.025 0.195" material="task_metal_mat" contype="1" conaffinity="1"/>
+      <geom name="stool_right_leg_se" type="box" pos="0.125 -0.080 0.195"
+            size="0.025 0.025 0.195" material="task_metal_mat" contype="1" conaffinity="1"/>
+    </body>
+  </worldbody>
+</mujoco>

@@ -1,0 +1,56 @@
+whole_body_force_control:
+  ros__parameters:
+    # Simulation-only "infinite" force-follow profile.
+    #
+    # Unlike force_follow_sim.yaml (finite elastic displacement) and
+    # force_follow_20s_sim.yaml (5 m commissioning corridor), this profile
+    # intentionally leaves the translational travel limit effectively open:
+    # while a signed tool0/Fx is present, the whole-body reference keeps moving
+    # along the commanded direction at max_velocity without reaching a
+    # displacement cap.
+    control_mode: force_follow
+    armed: true
+    reference_output_enabled: true
+    enforce_single_target_owner: true
+
+    wrench_topic: /whole_body_force_control/fake_wrench
+    status_topic: /whole_body_force_control/status
+    control_state_topic: /whole_body_force_control/control_state
+    enable_service: /whole_body_force_control/enable
+
+    force_axis: x
+    absolute_force: false
+    force_scale: 1.0
+    response_body_x: 1.0
+    response_body_y: 0.0
+    response_body_z: 0.0
+    admittance_axes: [legacy]
+    constant_force_axes: [none]
+    absolute_wrench_axes: [none]
+
+    # True velocity-type infinite force following: while a signed force is
+    # above the deadband, the reference keeps moving at max_velocity in that
+    # direction.  Releasing the force stops the robot at the current position.
+    force_velocity_mode: true
+    force_deadband: 0.5
+
+    # In force_velocity_mode=true, stiffness/max_offset are not used as a
+    # finite equilibrium stop.  They are kept in the file for schema/backward
+    # compatibility; the large values simply ensure the legacy spring path is
+    # never the limiting factor if this flag is accidentally disabled.
+    stiffness: 1.0
+    max_offset: 1000000.0
+    max_velocity: 0.25
+    filter_alpha: 0.25
+
+    # The arm still cannot translate metres relative to its base.  Keep a
+    # visible ~2% arm contribution and assign ~98% to the mobile base.
+    base_share: 0.98
+    max_base_delta: 1000000.0
+    max_joint_delta: 0.60
+
+    loop_rate: 50.0
+    force_timeout: 0.50
+    observation_timeout: 0.25
+    capture_settle_time: 1.0
+    hard_wrench_limit: [25.0, 25.0, 25.0, 4.0, 4.0, 4.0]

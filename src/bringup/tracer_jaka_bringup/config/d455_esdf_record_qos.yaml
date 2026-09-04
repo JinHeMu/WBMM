@@ -1,0 +1,34 @@
+/camera/d455/depth/image_rect_raw:
+  reliability: best_effort
+  durability: volatile
+  history: keep_last
+  depth: 10
+
+/camera/d455/depth/camera_info:
+  reliability: best_effort
+  durability: volatile
+  history: keep_last
+  depth: 10
+
+/camera/d455/color/image_raw:
+  reliability: best_effort
+  durability: volatile
+  history: keep_last
+  depth: 10
+
+/camera/d455/color/camera_info:
+  reliability: best_effort
+  durability: volatile
+  history: keep_last
+  depth: 10
+
+/tf:
+  reliability: best_effort
+  durability: volatile
+  history: keep_last
+  depth: 100
+
+/tf_static:
+  reliability: reliable
+  durability: transient_local
+  history: keep_all

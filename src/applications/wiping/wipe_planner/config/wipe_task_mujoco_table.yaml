@@ -1,0 +1,112 @@
+# Closed-loop table-wiping task for scene_task_table.xml.
+#
+# This file is deliberately tied to the physical MuJoCo scene rather than an
+# RViz-only marker:
+#   * processing-table top plane: z = 0.750 m;
+#   * replaceable task surface: x=[2.55, 4.35], y=[-0.45, 0.45];
+#   * MuJoCo body tool0_and_camera_link is 0.270 m above the pad bottom;
+#   * the URDF frame named tool0, used by WipePlanner and REMANI, is already at
+#     that pad bottom. Therefore no extra contact offset is applied here.
+wipe_task:
+  surface:
+    type: "horizontal"
+    center: [3.45, 0.00, 0.750]
+    normal_into_room: [0.0, 0.0, 1.0]
+    # Use the west edge of the physical tabletop. This keeps the base outside
+    # the table footprint while retaining a reachable 80-mm pre-contact lift.
+    # The replaceable inset starts at x=2.55; this commissioning patch is on
+    # the same processing_table_top, 10 cm farther west.
+    x_limits: [2.35, 2.41]
+    y_limits: [0.00, 0.06]
+    z_limits: [0.750, 0.750]
+
+  coverage:
+    pattern: "raster"
+    width: 0.06
+    height: 0.06
+
+  raster:
+    rows: 3
+    columns: 5
+    solver_spacing: 0.03
+    tangential_speed: 0.025
+    corner_speed: 0.012
+
+  contact:
+    # Tracking-first commissioning: force control remains disabled by launch.
+    desired_normal_force: 0.0
+    # URDF tool0 is the physical pad bottom and should lie on z=0.750 m.
+    offset: 0.0
+
+  approach:
+    # REMANI receives the complete 9D state with the pad 0.08 m above the
+    # physical table. WipePlanner owns the later collision-checked, fixed-base
+    # surface-normal approach.
+    # 0.08 m is the largest continuously reachable clearance for this table
+    # height and arm/base geometry. REMANI still preserves the complete URDF
+    # collision spheres plus a task-specific 0.02 m ESDF safety margin.
+    clearance: 0.08
+    speed: 0.015
+    touch_distance: 0.02
+    touch_speed: 0.004
+    precontact_hold_duration: 1.0
+
+  whole_body:
+    # The base approaches the west side of the table. The yaw and search seed
+    # are initialized from the scene's task_contact keyframe, but the planner
+    # must still find a collision-free 9D pre-contact state.
+    cleaning_yaw: -0.958716061
+    base_standoff_direction: [-1.0, 0.0, 0.0]
+    preferred_standoff: 1.58
+    standoff_limits: [1.55, 1.65]
+    candidate_lateral_step: 0.04
+    candidate_longitudinal_range: 0.24
+    candidate_longitudinal_step: 0.08
+    # tool0 +Z points down into the horizontal workpiece. The in-plane axes
+    # match the MuJoCo task_contact posture; keeping all three axes fixed avoids
+    # an under-constrained wrist spin at the REMANI/task handoff.
+    desired_tool_rotation:
+      [0.575206735, -0.818008076, 0.0,
+       -0.818008076, -0.575206735, 0.0,
+       0.0, 0.0, -1.0]
+
+  hybrid_astar:
+    xy_resolution: 0.02
+    yaw_resolution: 0.12
+    primitive_length: 0.03
+    collision_check_step: 0.02
+    goal_position_tolerance: 0.02
+    goal_yaw_tolerance: 0.06
+    max_curvature: 2.0
+    heuristic_weight: 4.0
+    reverse_penalty: 1.05
+    gear_switch_penalty: 3.0
+    curvature_penalty: 0.15
+    curvature_change_penalty: 0.08
+    joint_motion_penalty: 0.20
+    search_margin: 0.30
+    standoff_margin: 0.05
+    yaw_samples: 2
+    yaw_sample_step: 0.08
+    collision_joint_step: 0.04
+    max_nodes: 16000
+
+  limits:
+    wheel_separation: 0.34
+    wheel_radius: 0.07
+    wheel_angular_speed: 1.5
+    base_speed: 0.10
+    base_acceleration: 0.20
+    angular_speed: 0.30
+    angular_acceleration: 0.50
+    joint_speed: 0.05
+
+  solver:
+    position_tolerance: 0.012
+    axis_tolerance: 0.12
+    max_iterations: 110
+    nominal_arm_seed: [0.0, 1.5707, 0.0, 1.5707, 3.14159, 0.785398]
+    # Arm part of the MuJoCo task_contact keyframe. It is only an IK seed; its
+    # colliding base pose is never accepted or sent to REMANI.
+    search_arm_seed: [-0.000000098, 1.900822751, 0.474463874,
+                      2.337099332, 4.712392653, 0.785416000]

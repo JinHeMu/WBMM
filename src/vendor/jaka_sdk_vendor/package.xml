@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>jaka_sdk_vendor</name>
+  <version>1.0.0</version>
+  <description>Single repository source for the JAKA C API headers and shared library.</description>
+  <maintainer email="490754775@qq.com">WBMM maintainers</maintainer>
+  <license>Proprietary</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

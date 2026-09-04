@@ -1,0 +1,80 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!--
+    backend: mujoco | real | mock
+    Geometry never changes with the backend; only exported hardware interfaces do.
+  -->
+  <xacro:macro name="tracer_jaka_ros2_control"
+               params="backend robot_ip local_ip read_only">
+    <ros2_control name="tracer_jaka_zu5_${backend}" type="system">
+      <hardware>
+        <xacro:if value="${backend == 'mujoco'}">
+          <plugin>mujoco_ros2_control/MujocoSystem</plugin>
+        </xacro:if>
+        <xacro:if value="${backend == 'real'}">
+          <plugin>jaka_hardware_interface/JakaHardwareInterface</plugin>
+          <param name="robot_ip">${robot_ip}</param>
+          <param name="local_ip">${local_ip}</param>
+          <param name="read_only">${read_only}</param>
+          <param name="ft_bias_fx">-10.07</param>
+          <param name="ft_bias_fy">-7.00</param>
+          <param name="ft_bias_fz">-6.96</param>
+          <param name="ft_bias_tx">0.66</param>
+          <param name="ft_bias_ty">-0.53</param>
+          <param name="ft_bias_tz">0.02</param>
+          <param name="r_t_s_x">0.0</param>
+          <param name="r_t_s_y">-0.05</param>
+          <param name="r_t_s_z">-0.226</param>
+          <param name="ft_deadband_force">0.00</param>
+          <param name="ft_deadband_torque">0.00</param>
+          <param name="ft_filter_alpha">0.1</param>
+        </xacro:if>
+        <xacro:if value="${backend == 'mock'}">
+          <plugin>mock_components/GenericSystem</plugin>
+          <param name="calculate_dynamics">true</param>
+        </xacro:if>
+      </hardware>
+
+      <xacro:macro name="arm_joint_interfaces" params="joint_name">
+        <joint name="${joint_name}">
+          <command_interface name="position"/>
+          <state_interface name="position"/>
+          <state_interface name="velocity"/>
+          <xacro:if value="${backend != 'real'}">
+            <state_interface name="effort"/>
+          </xacro:if>
+        </joint>
+      </xacro:macro>
+      <xacro:arm_joint_interfaces joint_name="joint_1"/>
+      <xacro:arm_joint_interfaces joint_name="joint_2"/>
+      <xacro:arm_joint_interfaces joint_name="joint_3"/>
+      <xacro:arm_joint_interfaces joint_name="joint_4"/>
+      <xacro:arm_joint_interfaces joint_name="joint_5"/>
+      <xacro:arm_joint_interfaces joint_name="joint_6"/>
+
+      <xacro:if value="${backend == 'mujoco'}">
+        <joint name="left_wheel">
+          <command_interface name="velocity"/>
+          <state_interface name="position"/>
+          <state_interface name="velocity"/>
+        </joint>
+        <joint name="right_wheel">
+          <command_interface name="velocity"/>
+          <state_interface name="position"/>
+          <state_interface name="velocity"/>
+        </joint>
+      </xacro:if>
+
+      <xacro:if value="${backend == 'real'}">
+        <sensor name="tcp_fts_sensor">
+          <state_interface name="force.x"/>
+          <state_interface name="force.y"/>
+          <state_interface name="force.z"/>
+          <state_interface name="torque.x"/>
+          <state_interface name="torque.y"/>
+          <state_interface name="torque.z"/>
+        </sensor>
+      </xacro:if>
+    </ros2_control>
+  </xacro:macro>
+</robot>

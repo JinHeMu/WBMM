@@ -1,0 +1,27 @@
+<mujoco model="tracer_jaka_esdf_validation">
+
+  <compiler angle="radian"
+            meshdir="meshes" />
+
+  <include file="tracer_jaka_zu5_robot.xml"/>
+
+  <asset>
+    <texture name="validation_ground" type="2d" builtin="checker"
+             rgb1="0.22 0.25 0.28" rgb2="0.12 0.15 0.18"
+             width="300" height="300"/>
+    <material name="validation_ground" texture="validation_ground"
+              texrepeat="8 8" texuniform="true" reflectance="0.1"/>
+  </asset>
+
+  <worldbody>
+    <light name="top" pos="0 0 4" dir="0 0 -1"
+           diffuse="0.7 0.7 0.7"/>
+    <!--
+      外部 ESDF 验证模式不在 MuJoCo 中放置任何场景障碍物。
+      地面仅用于支撑机器人；所有规划障碍均来自 nvblox bag 导出的 ESDF。
+    -->
+    <geom name="floor" type="plane" size="10 10 0.05" pos="0 0 0"
+          material="validation_ground" contype="1" conaffinity="1"
+          condim="3" friction="2.0 0.01 0.001"/>
+  </worldbody>
+</mujoco>

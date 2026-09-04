@@ -1,0 +1,174 @@
+<mujoco model="tracer_jaka_zu5_scene">
+
+  <compiler angle="radian"
+            meshdir="meshes" />
+
+  <include file="tracer_jaka_zu5_robot.xml"/>
+
+  <asset>
+    <texture name="groundplane" type="2d" builtin="checker" mark="edge"
+             rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8"
+             width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texrepeat="4 4"
+              texuniform="true" reflectance="0.2"/>
+    <material name="cleaning_wall_mat" rgba="0.97 0.97 0.95 1"
+              specular="0.08" shininess="0.12"/>
+  </asset>
+
+  <worldbody>
+    <light name="top" pos="0 0 4" dir="0 0 -1" diffuse="0.7 0.7 0.7" />
+
+    <geom name="floor"
+          type="plane"
+          size="8 8 0.05"
+          pos="0 0 0"
+          material="groundplane"
+          contype="1"
+          conaffinity="1"
+          condim="3"
+          friction="2.0 0.01 0.001" />
+
+    <!-- 四周墙体 — 8 m × 6 m 活动区域，为机械臂展开、绕桌和开门留出净空。 -->
+    <body name="wall_n" pos="2.0 3.0 1.0">
+      <geom type="box" size="4.0 0.05 1.0" contype="1" conaffinity="1"
+            rgba="0.97 0.97 0.95 1"/>
+    </body>
+    <body name="wall_s" pos="2.0 -3.0 1.0">
+      <geom type="box" size="4.0 0.05 1.0" contype="1" conaffinity="1"
+            rgba="0.8 0.8 0.78 1"/>
+    </body>
+    <!-- East wall has a 0.90 m wide, 2.00 m high doorway. The two wall
+         segments intentionally leave the opening clear for the hinged door. -->
+    <body name="wall_e_south" pos="6.0 -1.725 1.0">
+      <geom type="box" size="0.05 1.275 1.0" contype="1" conaffinity="1"
+            rgba="0.8 0.8 0.78 1"/>
+    </body>
+    <body name="wall_e_north" pos="6.0 1.725 1.0">
+      <geom type="box" size="0.05 1.275 1.0" contype="1" conaffinity="1"
+            rgba="0.8 0.8 0.78 1"/>
+    </body>
+
+    <!-- Passive swing door: 0.90 m wide, 2.00 m high, 70 mm thick.
+         Its closed leaf is in the east-wall opening. A robot inside this room
+         pushes in +X and opens the leaf toward the exterior (negative yaw). -->
+    <body name="swing_door" pos="6.0 -0.45 0">
+      <joint name="door_hinge" type="hinge" axis="0 0 1"
+             limited="true" range="-1.5708 0"
+             damping="0.35" frictionloss="0.08" armature="0.02"/>
+      <geom name="door_leaf" type="box" pos="0 0.45 1.0"
+            size="0.035 0.45 1.0" density="300"
+            contype="1" conaffinity="1" condim="3"
+            friction="1.0 0.01 0.001" rgba="0.42 0.24 0.10 1"/>
+      <!-- A small handle gives the end effector a visible interaction target. -->
+      <geom name="door_handle" type="cylinder" pos="-0.065 0.73 1.02"
+            quat="0.70710678 0 0.70710678 0" size="0.016 0.075"
+            contype="1" conaffinity="1" rgba="0.72 0.74 0.76 1"/>
+      <site name="door_handle_site" pos="-0.12 0.73 1.02" size="0.025"
+            type="sphere" rgba="0.15 0.90 0.30 0.75"/>
+    </body>
+    <body name="wall_w" pos="-2.0 0 1.0">
+      <geom type="box" size="0.05 3.0 1.0" contype="1" conaffinity="1"
+            rgba="0.8 0.8 0.78 1"/>
+    </body>
+
+    <!-- ==================================================================== -->
+    <!-- 大范围墙面清洁任务区                                                 -->
+    <!--                                                                      -->
+    <!-- 白色作业面：3.00 m (X) x 0.80 m (Z)，有效高度 0.50..1.30 m。         -->
+    <!-- home 状态工具高度约 1.40 m，最高轨迹点 1.26 m，保留 0.14 m 余量。     -->
+    <!-- 表面法向朝向房间内部 -Y；工具接触目标平面为 MuJoCo y = 2.90 m。       -->
+    <!-- 20 个 wall_clean_path_* site 按蛇形顺序排列，可作为表面轨迹采样点。   -->
+    <!-- ==================================================================== -->
+    <body name="wall_cleaning_station" pos="2.0 2.925 0">
+      <!-- Represent a compliant wiping pad, not a 40 mm soft wall. The former
+           0.50 s / 0.04 m contact let visible geometry sink deeply before the
+           F/T sensor developed useful force. -->
+      <geom name="wall_cleaning_surface" type="box" pos="0 0 0.90"
+            size="1.50 0.025 0.40" material="cleaning_wall_mat"
+            contype="1" conaffinity="1" condim="3" priority="1"
+            friction="0.50 0.01 0.001"
+            solref="0.10 1.0" solimp="0.85 0.95 0.008 0.5 2"/>
+
+      <!-- Raster row 1: left to right. All sites sit 6 mm in front of wall. -->
+      <site name="wall_clean_path_00" pos="-1.25 -0.031 0.60" size="0.018" rgba="0.10 0.75 1.00 0.85"/>
+      <site name="wall_clean_path_01" pos="-0.625 -0.031 0.60" size="0.018" rgba="0.10 0.75 1.00 0.85"/>
+      <site name="wall_clean_path_02" pos="0 -0.031 0.60" size="0.018" rgba="0.10 0.75 1.00 0.85"/>
+      <site name="wall_clean_path_03" pos="0.625 -0.031 0.60" size="0.018" rgba="0.10 0.75 1.00 0.85"/>
+      <site name="wall_clean_path_04" pos="1.25 -0.031 0.60" size="0.018" rgba="0.10 0.75 1.00 0.85"/>
+      <!-- Raster row 2: right to left. -->
+      <site name="wall_clean_path_05" pos="1.25 -0.031 0.82" size="0.018" rgba="0.20 0.95 0.45 0.85"/>
+      <site name="wall_clean_path_06" pos="0.625 -0.031 0.82" size="0.018" rgba="0.20 0.95 0.45 0.85"/>
+      <site name="wall_clean_path_07" pos="0 -0.031 0.82" size="0.018" rgba="0.20 0.95 0.45 0.85"/>
+      <site name="wall_clean_path_08" pos="-0.625 -0.031 0.82" size="0.018" rgba="0.20 0.95 0.45 0.85"/>
+      <site name="wall_clean_path_09" pos="-1.25 -0.031 0.82" size="0.018" rgba="0.20 0.95 0.45 0.85"/>
+      <!-- Raster row 3: left to right. -->
+      <site name="wall_clean_path_10" pos="-1.25 -0.031 1.04" size="0.018" rgba="1.00 0.75 0.10 0.85"/>
+      <site name="wall_clean_path_11" pos="-0.625 -0.031 1.04" size="0.018" rgba="1.00 0.75 0.10 0.85"/>
+      <site name="wall_clean_path_12" pos="0 -0.031 1.04" size="0.018" rgba="1.00 0.75 0.10 0.85"/>
+      <site name="wall_clean_path_13" pos="0.625 -0.031 1.04" size="0.018" rgba="1.00 0.75 0.10 0.85"/>
+      <site name="wall_clean_path_14" pos="1.25 -0.031 1.04" size="0.018" rgba="1.00 0.75 0.10 0.85"/>
+      <!-- Raster row 4: right to left. -->
+      <site name="wall_clean_path_15" pos="1.25 -0.031 1.26" size="0.018" rgba="1.00 0.25 0.25 0.85"/>
+      <site name="wall_clean_path_16" pos="0.625 -0.031 1.26" size="0.018" rgba="1.00 0.25 0.25 0.85"/>
+      <site name="wall_clean_path_17" pos="0 -0.031 1.26" size="0.018" rgba="1.00 0.25 0.25 0.85"/>
+      <site name="wall_clean_path_18" pos="-0.625 -0.031 1.26" size="0.018" rgba="1.00 0.25 0.25 0.85"/>
+      <site name="wall_clean_path_19" pos="-1.25 -0.031 1.26" size="0.018" rgba="1.00 0.25 0.25 0.85"/>
+      <site name="wall_cleaning_center" pos="0 -0.031 0.90" size="0.025"
+            rgba="0.70 0.10 0.95 0.90"/>
+    </body>
+
+    <!-- ==================================================================== -->
+    <!-- 加工任务桌：与 scene_task_table.xml 使用相同的尺寸。                -->
+    <!-- 全尺寸：长 2.40 m（X）、宽 1.20 m（Y）、台面高 0.75 m。              -->
+    <!-- 桌子偏东布置，西侧为机器人初始位姿和接近路径预留空间。                -->
+    <!-- ==================================================================== -->
+    <body name="processing_table" pos="2.55 0 0">
+      <geom name="processing_table_top" type="box" pos="0 0 0.72"
+            size="1.20 0.60 0.03" contype="1" conaffinity="1"
+            friction="1.25 0.01 0.001" rgba="0.55 0.31 0.13 1"/>
+      <!-- 1.80 m x 0.90 m replaceable task surface; top z = 0.75 m. -->
+      <geom name="task_surface" type="box" pos="0 0 0.749"
+            size="0.90 0.45 0.001" contype="1" conaffinity="1"
+            friction="1.10 0.01 0.001" rgba="0.70 0.70 0.64 1"/>
+      <site name="task_surface_center" pos="0 0 0.761" size="0.025"
+            type="sphere" rgba="1 0.15 0.10 0.85"/>
+
+      <geom name="processing_table_leg_nw" type="box" pos="-1.08 0.48 0.345"
+            size="0.06 0.06 0.345" contype="1" conaffinity="1"
+            rgba="0.16 0.19 0.22 1"/>
+      <geom name="processing_table_leg_sw" type="box" pos="-1.08 -0.48 0.345"
+            size="0.06 0.06 0.345" contype="1" conaffinity="1"
+            rgba="0.16 0.19 0.22 1"/>
+      <geom name="processing_table_leg_ne" type="box" pos="1.08 0.48 0.345"
+            size="0.06 0.06 0.345" contype="1" conaffinity="1"
+            rgba="0.16 0.19 0.22 1"/>
+      <geom name="processing_table_leg_se" type="box" pos="1.08 -0.48 0.345"
+            size="0.06 0.06 0.345" contype="1" conaffinity="1"
+            rgba="0.16 0.19 0.22 1"/>
+    </body>
+
+    <!-- Two stools are placed beside the two long sides of the table.
+         Each is 0.34 m (X) x 0.24 m (Y) x 0.44 m (height), leaving only
+         30 mm clearance from the tabletop edge for a compact manipulation
+         and obstacle-avoidance test. -->
+    <body name="stool_north" pos="2.55 0.75 0">
+      <geom name="stool_north_seat" type="box" pos="0 0 0.415"
+            size="0.17 0.12 0.025" contype="1" conaffinity="1"
+            friction="1.1 0.01 0.001" rgba="0.16 0.38 0.63 1"/>
+      <geom name="stool_north_leg_nw" type="box" pos="-0.125 0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+      <geom name="stool_north_leg_sw" type="box" pos="-0.125 -0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+      <geom name="stool_north_leg_ne" type="box" pos="0.125 0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+      <geom name="stool_north_leg_se" type="box" pos="0.125 -0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+    </body>
+    <body name="stool_south" pos="2.55 -0.75 0">
+      <geom name="stool_south_seat" type="box" pos="0 0 0.415"
+            size="0.17 0.12 0.025" contype="1" conaffinity="1"
+            friction="1.1 0.01 0.001" rgba="0.16 0.38 0.63 1"/>
+      <geom name="stool_south_leg_nw" type="box" pos="-0.125 0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+      <geom name="stool_south_leg_sw" type="box" pos="-0.125 -0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+      <geom name="stool_south_leg_ne" type="box" pos="0.125 0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+      <geom name="stool_south_leg_se" type="box" pos="0.125 -0.080 0.195" size="0.025 0.025 0.195" contype="1" conaffinity="1" rgba="0.16 0.19 0.22 1"/>
+    </body>
+
+  </worldbody>
+</mujoco>

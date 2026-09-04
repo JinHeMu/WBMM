@@ -1,0 +1,26 @@
+task_file: src/algorithms/planning/ta_wbmp/config/blackboard_wipe.yaml
+urdf_file: src/simulation/tracer_jaka_mujoco/urdf/tracer_jaka_zu5.urdf
+task_name: blackboard_wiping
+task_type: surface_raster
+success: true
+task_points: 67
+whole_body_points: 507
+duration_s: 132.890881517
+candidate_count: 9
+feasible_candidate_count: 9
+selected_candidate_id: 8
+selected_score: 2.5941107086
+min_joint_margin: 0.123340736121
+min_manipulability: 0.0457259707854
+min_sigma: 0.1249262983
+task_base_path_length_m: 4.38
+max_contact_position_error_m: 0.00950199970648
+max_tool_axis_error_rad: 0.000258954878614
+max_lateral_velocity_mps: 2.279081304e-15
+execution_contract:
+  navigation_backend: REMANI
+  tracking_backend: OCS2_MPC
+  remani_goal_9d: [1.47,2.04,0,0.668612823336,3.76769468345,-2.23733325623,1.61107197102,4.04303450168,0.785204530452]
+  task_entry_9d: [1.47,2.04,0,0.505060945286,3.73003980373,-1.90045389117,1.31216156437,4.20652789234,0.785196419256]
+  execution_start_index: 436
+  task_start_index: 440

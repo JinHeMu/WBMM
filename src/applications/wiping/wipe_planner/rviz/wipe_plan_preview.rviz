@@ -1,0 +1,185 @@
+Panels:
+  - Class: rviz_common/Displays
+    Help Height: 0
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Wipe plan1
+      Splitter Ratio: 0.56
+    Tree Height: 620
+  - Class: rviz_common/Selection
+    Name: Selection
+  - Class: rviz_common/Views
+    Expanded:
+      - /Current View1
+    Name: Views
+    Splitter Ratio: 0.5
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.45
+      Cell Size: 0.5
+      Class: rviz_default_plugins/Grid
+      Color: 150; 150; 155
+      Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
+      Name: Ground grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 20
+      Reference Frame: <Fixed Frame>
+      Value: true
+    - Class: rviz_common/Group
+      Displays:
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: true
+          Name: Wipe Board Region
+          Namespaces:
+            wipe_board: true
+          Topic:
+            Depth: 1
+            Durability Policy: Transient Local
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /wipe_task/board_marker
+          Value: true
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: true
+          Name: Board and trajectory
+          Namespaces:
+            {}
+          Topic:
+            Depth: 1
+            Durability Policy: Transient Local
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /wipe_planner/preview/scene
+          Value: true
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: true
+          Name: Constrained whole-body plan
+          Namespaces:
+            {}
+          Topic:
+            Depth: 1
+            Durability Policy: Transient Local
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /wipe_planner/back_end_mm_mesh_vis
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
+          Color: 95; 110; 130
+          Enabled: true
+          Head Diameter: 0.06
+          Head Length: 0.08
+          Length: 0.20
+          Line Style: Lines
+          Line Width: 0.025
+          Name: Differential base path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0.02
+          Pose Color: 95; 110; 130
+          Pose Style: None
+          Radius: 0.02
+          Shaft Diameter: 0.025
+          Shaft Length: 0.08
+          Topic:
+            Depth: 1
+            Durability Policy: Transient Local
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /wipe_planner/preview/base_path
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
+          Color: 30; 255; 75
+          Enabled: true
+          Head Diameter: 0.05
+          Head Length: 0.05
+          Length: 0.15
+          Line Style: Lines
+          Line Width: 0.04
+          Name: End-effector coverage Path
+          Offset:
+            X: 0
+            Y: -0.015
+            Z: 0
+          Pose Color: 30; 255; 75
+          Pose Style: None
+          Radius: 0.02
+          Shaft Diameter: 0.02
+          Shaft Length: 0.06
+          Topic:
+            Depth: 1
+            Durability Policy: Transient Local
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /wipe_planner/preview/ee_coverage_path
+          Value: true
+      Enabled: true
+      Name: Wipe plan
+  Enabled: true
+  Global Options:
+    Background Color: 32; 34; 40
+    Fixed Frame: odom
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+      Hide Inactive Objects: true
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+      Line color: 255; 255; 0
+  Transformation:
+    Current:
+      Class: rviz_default_plugins/TF
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 5.2
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Focal Point:
+        X: 2.0
+        Y: 2.45
+        Z: 0.9
+      Focal Shape Fixed Size: false
+      Focal Shape Size: 0.05
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.01
+      Pitch: 0.48
+      Target Frame: odom
+      Value: Orbit (rviz_default_plugins)
+      Yaw: 4.70
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 900
+  Hide Left Dock: false
+  Hide Right Dock: false
+  QMainWindow State: 000000ff00000000fd00000001000000000000019a00000330fc0200000001fb000000100044006900730070006c006100790073010000003d00000330000000c900ffffff000004e20000033000000004000000040000000800000008fc00000000
+  Selection:
+    collapsed: false
+  Views:
+    collapsed: false
+  Width: 1400
+  X: 120
+  Y: 80

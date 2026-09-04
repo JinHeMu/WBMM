@@ -1,0 +1,42 @@
+{
+  "date": "2026-09-02",
+  "passed": true,
+  "level": "MuJoCo fake-wrench no-contact tracking",
+  "force_profile_N": [0.0, 5.0, 12.0, 0.0, -8.0, 0.0],
+  "stage_means": {
+    "low_push": {
+      "force_N": 5.0,
+      "base_measured_m": 0.0133332235,
+      "arm_measured_m": 0.0193551473,
+      "ee_measured_m": 0.0326883708
+    },
+    "high_push": {
+      "force_N": 12.0,
+      "base_measured_m": 0.0319999740,
+      "arm_measured_m": 0.0296012359,
+      "ee_measured_m": 0.0616012099
+    },
+    "release": {
+      "force_N": 0.0,
+      "base_measured_m": 0.0000392726,
+      "arm_measured_m": 0.0000098902,
+      "ee_measured_m": 0.0000491628
+    },
+    "pull": {
+      "force_N": -8.0,
+      "base_measured_m": -0.0213332894,
+      "arm_measured_m": -0.0192384620,
+      "ee_measured_m": -0.0405717514
+    },
+    "final_release": {
+      "force_N": 0.0,
+      "base_measured_m": -0.0000015050,
+      "arm_measured_m": -0.0000559163,
+      "ee_measured_m": -0.0000574213
+    }
+  },
+  "unexpected_collision": false,
+  "final_control_state": "ACTIVE",
+  "control_fault": null,
+  "failures": []
+}

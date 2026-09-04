@@ -1,0 +1,37 @@
+/camera/d455/depth/image_rect_raw:
+  # Offline replay must not silently discard large depth images.
+  reliability: reliable
+  durability: volatile
+  history: keep_last
+  depth: 100
+
+/camera/d455/depth/camera_info:
+  reliability: reliable
+  durability: volatile
+  history: keep_last
+  depth: 100
+
+/camera/d455/color/image_raw:
+  reliability: reliable
+  durability: volatile
+  history: keep_last
+  depth: 100
+
+/camera/d455/color/camera_info:
+  reliability: reliable
+  durability: volatile
+  history: keep_last
+  depth: 100
+
+/tf:
+  # Playback must satisfy tf2's reliable DynamicListenerQoS subscription.
+  # The NUC recorder intentionally uses a separate best-effort override.
+  reliability: reliable
+  durability: volatile
+  history: keep_last
+  depth: 100
+
+/tf_static:
+  reliability: reliable
+  durability: transient_local
+  history: keep_all

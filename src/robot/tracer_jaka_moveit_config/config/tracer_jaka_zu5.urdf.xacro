@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="tracer_jaka_zu5">
+    <xacro:arg name="initial_positions_file" default="initial_positions.yaml" />
+
+    <!-- Import tracer_jaka_zu5 urdf file -->
+    <xacro:include filename="$(find tracer_jaka_description)/urdf/tracer_jaka_zu5.urdf" />
+
+</robot>

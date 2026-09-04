@@ -1,0 +1,136 @@
+# Vertical wall-board wiping geometry, expressed in odom.
+# The wall runs along Y at plane X = +2.486 (it faces -X, into the room).
+# Board: 0.9 m wide ALONG THE WALL (odom Y), 0.6 m tall (odom Z).
+wipe_task:
+  surface:
+    type: "vertical"
+    center: [+2.486, +0.865, +0.853]
+    # From board INTO the room (robot side). If the robot wipes from the
+    # opposite side, flip this AND whole_body.base_standoff_direction to +X.
+    normal_into_room: [-1.0, 0.0, 0.0]
+    # x_limits are coordinates ALONG the wall direction derived from the
+    # normal (odom Y for this wall). The planner maps them onto the surface
+    # plane, so no map rotation is needed.
+    x_limits: [+0.445, +1.285]
+    # Plane coordinate, informational for vertical surfaces.
+    y_limits: [+2.476, +2.496]
+    z_limits: [+0.583, +1.123]
+
+  # The active task is a single-stroke "RAS" character outline on the board:
+  # one continuous polyline that writes R -> A -> S without leaving the surface
+  # (write-the-letter effect). Switch pattern to "raster" to go back to the
+  # snake coverage.
+  coverage:
+    pattern: "ras"
+    # Character area, centered on the board: 0.80 m along the wall x 0.52 m
+    # tall. Must fit inside surface x_limits/z_limits (here ~2 cm margin all
+    # around); wider values raise "RAS coverage does not fit".
+    width: 0.80
+    height: 0.52
+
+  raster:
+    rows: 4
+    columns: 5
+    # Four alternating strokes along the wall direction (odom Y for this
+    # wall), connected by Z row changes; hybrid A* and continuous IK operate
+    # on samples no farther than 3 cm apart.
+    solver_spacing: 0.03
+    # Contact wiping profile.  The earlier 0.10 m/s non-contact validation
+    # speed produced unacceptable normal-force transients once the pad touched
+    # the surface, so contact operation deliberately uses a conservative rate.
+    tangential_speed: 0.03
+    corner_speed: 0.015
+
+  contact:
+    desired_normal_force: 12.0
+    # tool0 is the pad tip. The admittance outer loop creates only the small
+    # surface-normal correction needed to reach the target force.
+    offset: 0.0
+
+  approach:
+    # REMANI navigates with the tool 12 cm off the surface. WipePlanner then
+    # holds the base and moves only the arm along the surface normal.
+    clearance: 0.12
+    # Traverse open clearance efficiently, then reduce the last 20 mm to a
+    # true contact-search speed.  This avoids converting the surface/contact
+    # damping into a force impulse at first touch.
+    speed: 0.01
+    touch_distance: 0.02
+    touch_speed: 0.001
+    precontact_hold_duration: 0.5
+
+  whole_body:
+    # Base faces along the wall (+Y); alternating rows use forward/reverse
+    # motion along the wall, Z row changes are handled by the arm.
+    cleaning_yaw: 1.570796327
+    base_standoff_direction: [-1.0, 0.0, 0.0]
+    preferred_standoff: 0.70
+    standoff_limits: [0.70, 0.70]
+    candidate_lateral_step: 0.04
+    candidate_longitudinal_range: 0.0
+    candidate_longitudinal_step: 0.08
+    # Matrix ROW-major, columns are desired tool x/y/z axes in odom.
+    # tool +Z -> odom +X (INTO the wall), tool +Y -> odom -Z (DOWN), so the
+    # wrist camera (d435i, mounted on the tool's -Y side) faces UP:
+    # col(0)=(0,-1,0), col(1)=(0,0,-1), col(2)=(1,0,0).
+    desired_tool_rotation:
+      [0.0, 0.0, 1.0,
+       -1.0, 0.0, 0.0,
+       0.0, -1.0, 0.0]
+
+  # Adapted from REMANI's KinoAstar front end. The search state is the
+  # differential-drive base (x,y,yaw); each expanded node is accepted only if
+  # the associated coverage sample has a continuous collision-free IK result.
+  hybrid_astar:
+    xy_resolution: 0.02
+    yaw_resolution: 0.12
+    primitive_length: 0.03
+    collision_check_step: 0.02
+    goal_position_tolerance: 0.012
+    goal_yaw_tolerance: 0.06
+    max_curvature: 2.0
+    heuristic_weight: 4.0
+    reverse_penalty: 1.05
+    gear_switch_penalty: 3.0
+    curvature_penalty: 0.15
+    curvature_change_penalty: 0.08
+    joint_motion_penalty: 0.20
+    search_margin: 0.30
+    # Keep the base on the standoff line. With yaw_samples=0 it moves only
+    # forward/reverse along the wall and never attempts a lateral approach.
+    standoff_margin: 0.05
+    yaw_samples: 0
+    yaw_sample_step: 0.08
+    collision_joint_step: 0.04
+    max_nodes: 8000
+
+  limits:
+    # Same wheel geometry and conservative limits as REMANI mm_param.yaml.
+    wheel_separation: 0.34
+    wheel_radius: 0.07
+    wheel_angular_speed: 10.0
+    base_speed: 0.25
+    base_acceleration: 0.35
+    angular_speed: 0.55
+    angular_acceleration: 0.80
+    joint_speed: 0.05
+
+  solver:
+    position_tolerance: 0.012
+    axis_tolerance: 0.12
+    max_iterations: 60
+    nominal_arm_seed: [0.891, 0.447, -0.973, 3.662, 2.245, 0.541]
+    # Deterministic collision-free basin used for first-keypoint multi-start
+    # IK. Encoder noise at task handoff must not select a different IK branch.
+    # Tool-horizontal basin (tool +Z into the wall): the arm-down seeds cannot
+    # converge to the horizontal-tool pose. This seed is collision-free AND
+    # keeps J4 off its lower limit, so the pre-contact retreat along the wall
+    # normal stays solvable from the first coverage pose (verified: full
+    # 136-keypoint chain + 12 cm normal approach all pass).
+    # Deterministic collision-free basin for the camera-up tool pose (tool +Y
+    # down). Converges to the first coverage pose from the C++ base candidate
+    # (standoff line on the -X room side) with every joint at least 1.69 rad
+    # from its limits, so the 12 cm normal retreat stays solvable and encoder
+    # noise cannot select a different IK branch (verified: 297 collision-free
+    # candidates all pass the retreat; camera mount side faces odom +Z).
+    search_arm_seed: [3.334, 2.164, 1.362, 2.757, 1.764, -3.142]

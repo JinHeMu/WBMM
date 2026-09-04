@@ -1,0 +1,41 @@
+whole_body_force_control:
+  ros__parameters:
+    # Real-hardware commissioning profile.  Launch overrides armed/output;
+    # both remain false unless the operator explicitly opens the gates.
+    control_mode: force_follow
+    armed: false
+    reference_output_enabled: false
+    enforce_single_target_owner: true
+
+    wrench_topic: /fts_broadcaster/wrench
+    status_topic: /whole_body_force_control/status
+    control_state_topic: /whole_body_force_control/control_state
+    enable_service: /whole_body_force_control/enable
+
+    # Calibrate force_axis / force_scale with the robot read-only before motion.
+    # This first profile maps signed tool Fx to the base forward direction.
+    force_axis: x
+    absolute_force: false
+    force_scale: 1.0
+    response_body_x: 1.0
+    response_body_y: 0.0
+    response_body_z: 0.0
+    admittance_axes: [legacy]
+    constant_force_axes: [none]
+    absolute_wrench_axes: [none]
+
+    # Conservative hand-guiding limits.  Increase only after recorded tests.
+    stiffness: 400.0
+    max_offset: 0.020
+    max_velocity: 0.010
+    filter_alpha: 0.15
+    base_share: 0.35
+    max_base_delta: 0.010
+    max_joint_delta: 0.080
+
+    loop_rate: 50.0
+    force_timeout: 0.10
+    observation_timeout: 0.20
+    capture_settle_time: 1.0
+    hard_wrench_limit: [15.0, 15.0, 15.0, 2.0, 2.0, 2.0]
+

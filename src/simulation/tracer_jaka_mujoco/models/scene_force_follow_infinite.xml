@@ -1,0 +1,42 @@
+<mujoco model="tracer_jaka_zu5_force_follow_infinite">
+
+  <compiler angle="radian" meshdir="meshes" />
+
+  <!-- Complete robot collision model on an effectively unbounded open ground
+       plane.  No walls or task objects: the robot can keep following a force
+       direction without hitting a finite commissioning boundary. -->
+  <include file="tracer_jaka_zu5_robot.xml"/>
+
+  <asset>
+    <texture name="force_follow_infinite_ground" type="2d" builtin="checker"
+             mark="edge" rgb1="0.18 0.23 0.28" rgb2="0.10 0.13 0.16"
+             markrgb="0.75 0.75 0.75" width="300" height="300"/>
+    <material name="force_follow_infinite_ground"
+              texture="force_follow_infinite_ground"
+              texrepeat="100 100" texuniform="true" reflectance="0.15"/>
+  </asset>
+
+  <worldbody>
+    <light name="top" pos="0 0 20" dir="0 0 -1"
+           diffuse="0.75 0.75 0.75"/>
+
+    <!-- MuJoCo plane is actually finite in extents; using a very large half
+         size makes it effectively unbounded for any practical force-follow
+         validation. -->
+    <geom name="floor" type="plane" size="1000 1000 0.05" pos="0 0 0"
+          material="force_follow_infinite_ground" contype="1" conaffinity="1"
+          condim="3" friction="2.0 0.01 0.001"/>
+
+    <!-- Ten-metre visual markers, non-colliding. -->
+    <site name="distance_0m" type="cylinder" pos="0 -1.2 0.006"
+          size="0.05 0.006" rgba="0.2 0.8 1.0 1"/>
+    <site name="distance_10m" type="cylinder" pos="10 -1.2 0.006"
+          size="0.05 0.006" rgba="0.2 0.8 1.0 1"/>
+    <site name="distance_20m" type="cylinder" pos="20 -1.2 0.006"
+          size="0.05 0.006" rgba="0.2 0.8 1.0 1"/>
+    <site name="distance_50m" type="cylinder" pos="50 -1.2 0.006"
+          size="0.05 0.006" rgba="0.2 1.0 0.3 1"/>
+    <site name="distance_100m" type="cylinder" pos="100 -1.2 0.006"
+          size="0.05 0.006" rgba="0.2 1.0 0.3 1"/>
+  </worldbody>
+</mujoco>

@@ -1,0 +1,55 @@
+/**:
+  ros__parameters:
+    # Base-mounted D455 local collision map: 5 cm voxels, 2 m ESDF truncation.
+    voxel_size: 0.05
+    cuda_stream_type: 1
+    num_cameras: 1
+    mapping_type: "static_tsdf"
+    esdf_mode: "3d"
+    use_tf_transforms: true
+    use_topic_transforms: false
+    use_depth: true
+    use_color: true
+    use_lidar: false
+    input_qos: "SENSOR_DATA"
+    maximum_input_queue_length: 20
+    tick_period_ms: 10
+    integrate_depth_rate_hz: 30.0
+    integrate_color_rate_hz: 5.0
+    update_mesh_rate_hz: 5.0
+    update_esdf_rate_hz: 10.0
+    publish_layer_rate_hz: 5.0
+    publish_debug_vis_rate_hz: 2.0
+    clear_map_outside_radius_rate_hz: 1.0
+    map_clearing_radius_m: 7.0
+    publish_esdf_distance_slice: false
+    print_rates_to_console: true
+    print_timings_to_console: false
+    print_delays_to_console: false
+    print_queue_drops_to_console: true
+    print_statistics_on_console_period_ms: 10000
+    layer_visualization_min_tsdf_weight: 0.1
+    layer_visualization_exclusion_height_m: 2.5
+    layer_visualization_exclusion_radius_m: 7.0
+    max_back_projection_distance: 5.0
+    back_projection_subsampling: 1
+    layer_streamer_bandwidth_limit_mbps: -1.0
+    multi_mapper:
+      connected_mask_component_size_threshold: 2000
+      remove_small_connected_components: true
+    static_mapper:
+      do_depth_preprocessing: false
+      projective_integrator_max_integration_distance_m: 5.0
+      projective_integrator_truncation_distance_vox: 4.0
+      projective_integrator_weighting_mode: "inverse_square_tsdf_distance_penalty"
+      projective_integrator_max_weight: 5.0
+      projective_tsdf_integrator_invalid_depth_decay_factor: -1.0
+      raycast_subsampling_factor: 4
+      workspace_bounds_type: "unbounded"
+      esdf_integrator_min_weight: 0.1
+      esdf_integrator_max_site_distance_vox: 2.0
+      esdf_integrator_max_distance_m: 2.0
+      mesh_integrator_min_weight: 0.1
+      mesh_integrator_weld_vertices: true
+      layer_streamer_exclusion_height_m: 2.5
+      layer_streamer_exclusion_radius_m: 7.0

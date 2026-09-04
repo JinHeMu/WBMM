@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ta_wbmp</name>
+  <version>0.1.0</version>
+  <description>Task-aware whole-body nominal motion planner demo for a differential-drive mobile manipulator.</description>
+  <maintainer email="user@todo.todo">WBMM</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>eigen</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>ocs2_msgs</depend>
+  <depend>pinocchio</depend>
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>trajectory_msgs</depend>
+  <depend>traj_utils</depend>
+  <depend>visualization_msgs</depend>
+  <depend>wbmm_visualization</depend>
+  <depend>whole_body_force_control</depend>
+  <depend>yaml-cpp</depend>
+  <exec_depend>tracer_jaka_description</exec_depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

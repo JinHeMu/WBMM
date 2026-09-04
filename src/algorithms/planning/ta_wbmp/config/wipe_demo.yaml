@@ -1,0 +1,62 @@
+task:
+  name: whiteboard_wiping_demo
+  frame_id: world
+  type: surface_contact
+
+  # Same wall convention as wipe_planner: the normal points from the wall into
+  # the room. TA-WBMP plans the nominal geometry only; force adaptation belongs
+  # to the online execution layer.
+  surface:
+    center: [2.0, 2.90, 0.95]
+    normal_into_room: [0.0, -1.0, 0.0]
+    x_limits: [1.35, 2.65]
+    z_limits: [0.72, 1.18]
+
+  pattern:
+    type: raster
+    rows: 3
+    columns: 6
+    sample_spacing: 0.08
+    tangential_speed: 0.06
+    row_change_speed: 0.035
+
+  approach:
+    clearance: 0.12
+    speed: 0.025
+    hold_duration: 0.6
+
+  constraints:
+    # Candidate task configurations form X_task. The candidate with the best
+    # future raster feasibility, joint margin and manipulability is selected.
+    standoff_samples: [0.78, 0.82, 0.86]
+    longitudinal_offset_samples: [-0.12, 0.0, 0.12]
+    task_yaw: 0.0
+    max_position_error: 0.012
+    max_axis_error: 0.12
+    minimum_normalized_joint_margin: 0.035
+    minimum_manipulability: 0.00001
+    desired_tool_rotation:
+      [1.0, 0.0, 0.0,
+       0.0, 0.0, 1.0,
+       0.0, -1.0, 0.0]
+
+  navigation:
+    initial_state:
+      [0.20, 0.35, 0.0,
+       0.0, 1.5707, 0.0, 1.5707, 3.14159, 0.785398]
+    grid_resolution: 0.10
+    robot_radius: 0.31
+    base_speed: 0.25
+    angular_speed: 0.55
+    joint_speed: 0.12
+    sample_period: 0.10
+    obstacles:
+      - {x: 0.80, y: 0.95, radius: 0.24}
+      - {x: 1.55, y: 1.36, radius: 0.22}
+
+  solver:
+    max_iterations: 90
+    damping: 0.0001
+    max_joint_step: 0.18
+    nominal_arm_seed: [0.891, 0.447, -0.973, 3.662, 2.245, 0.541]
+    search_arm_seed: [0.0, 1.5707, 0.0, 1.5707, 3.14159, 0.7854]

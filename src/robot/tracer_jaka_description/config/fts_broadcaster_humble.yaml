@@ -1,0 +1,8 @@
+# Humble spawner compatibility: pass this file directly with --param-file.
+/**:
+  ros__parameters:
+    sensor_name: tcp_fts_sensor
+    # jaka_hardware_interface already rotates the compensated wrench into
+    # tool0.  The header must describe those values to avoid a second TF
+    # rotation inside whole_body_force_control.
+    frame_id: tool0

@@ -1,0 +1,134 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: false
+      Alpha: 0.3
+      Cell Size: 0.5
+      Color: 180; 180; 180
+      Plane: XY
+      Plane Cell Count: 20
+      Reference Frame: <Fixed Frame>
+      Value: false
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Task semantics
+      Namespaces:
+        navigation_obstacles: false
+        phase_NAVIGATE: true
+        phase_PRECONTACT_ALIGN: true
+        phase_PRECONTACT_APPROACH: true
+        phase_TASK_CONSTRAINED: true
+        summary: false
+        table_legs: true
+        table_top: true
+        task_normal_constraint: true
+        task_surface: true
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /ta_wbmp/markers
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Current robot
+      Namespaces:
+        current_robot: true
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /wbmm/robot_mesh
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Time segment snapshots
+      Namespaces: {}
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /wbmm/time_segments
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Active NAVIGATE to TASK playback
+      Namespaces: {}
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /wbmm/playback
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 210; 220; 0
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.055
+      Name: Base navigation path
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /wbmm/base_path
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 0; 190; 35
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.035
+      Name: Table wiping path
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /wbmm/ee_path
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 255; 255; 255
+    Fixed Frame: world
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+      Hide Inactive Objects: true
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 3.6
+      Focal Point:
+        X: 0.95
+        Y: 0.95
+        Z: 0.55
+      Pitch: 0.72
+      Target Frame: world
+      Yaw: 2.43
+      Value: Orbit (rviz_default_plugins)
+Window Geometry:
+  Height: 900
+  Hide Left Dock: true
+  Hide Right Dock: true
+  Width: 1400
