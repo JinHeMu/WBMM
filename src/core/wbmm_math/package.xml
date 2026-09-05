@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>wbmm_math</name>
+  <version>0.1.0</version>
+  <description>Robot-agnostic Eigen conversions and linear algebra utilities for WBMM.</description>
+  <maintainer email="maintainers@example.com">WBMM Maintainers</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>eigen</depend>
+  <depend>wbmm_core</depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

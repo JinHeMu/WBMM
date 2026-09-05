@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>wbmm_core</name>
+  <version>0.1.0</version>
+  <description>Robot-agnostic C++ domain contracts, validation, results, and ports for WBMM.</description>
+  <maintainer email="maintainers@example.com">WBMM Maintainers</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
