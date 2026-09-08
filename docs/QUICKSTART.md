@@ -9,7 +9,10 @@
 - [MuJoCo → nvblox → REMANI → OCS2 完整通道](MUJOCO_NVBLOX_REMANI_PIPELINE.md)
 - [D455 ESDF 仿真与实机运行指南](D455_ESDF_仿真与实机运行指南.md)
 - [实机部署指南](实机部署指南.md)
-- [工程目录重构设计](工程目录重构设计.md)
+- [架构技术合同](../architecture.md)
+- [坐标系技术合同](../frames.md)
+- [仓库开发与维护标准](../仓库开发与维护标准.md)
+- [修改历史](../CHANGELOG.md)
 
 ## 1. 环境准备
 

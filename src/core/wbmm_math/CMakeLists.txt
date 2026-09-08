@@ -16,8 +16,7 @@ find_package(Eigen3 REQUIRED)
 find_package(wbmm_core REQUIRED)
 
 add_library(${PROJECT_NAME}
-  src/conversions.cpp
-  src/linear_algebra.cpp
+  src/compat.cpp
 )
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 

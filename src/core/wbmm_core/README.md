@@ -2,14 +2,15 @@
 
 `wbmm_core` 是 WBMM 的纯 C++17 领域合同包。它定义“哪些数据可以在模块之间流动、模块可以请求哪些能力、失败如何表达”，不实现具体机器人、求解器、中间件或硬件驱动。
 
-> 架构调整说明（2026-09-05）：科研快速开发版设计决定最终将 `wbmm_math` 合入本包的 `math/` 子目录，并把现有 Ports 裁剪为四个稳定接口。当前代码尚未执行合并和裁剪，本 README 以下内容描述的是当前已实现状态。
+> 架构调整说明（2026-09-05）：科研快速开发版设计决定把 `wbmm_math` 合入本包的 `math/` 子目录，并把现有 Ports 裁剪为四个稳定接口。本包已先完成 math 合并；`wbmm_math` 包暂时保留为兼容转发层，Ports 裁剪按真实调用者分批进行。
 
 ## 边界
 
 允许依赖：
 
 - C++17 标准库；
-- 测试阶段的 `ament_cmake_gtest`。
+- Eigen3（仅用于 `wbmm_core/math/` 的转换与线性代数）；
+- 测试阶段的 `ament_cmake_gtest`（在线 ament 模式）或系统 GTest（离线模式）。
 
 禁止依赖：
 
@@ -71,9 +72,15 @@ if (!status.ok()) {
 独立构建与测试：
 
 ```bash
+# ROS/ament 环境
 colcon build --packages-select wbmm_core
 colcon test --packages-select wbmm_core
 colcon test-result --verbose
+
+# 无 ROS/ament 的离线模式
+cmake -S src/core/wbmm_core -B build/wbmm_core_offline -DWBMM_BUILD_OFFLINE=ON
+cmake --build build/wbmm_core_offline
+ctest --test-dir build/wbmm_core_offline --output-on-failure
 ```
 
 ## 当前成熟度

@@ -1,4 +1,4 @@
 #pragma once
 
-#include "wbmm_math/conversions.hpp"
-#include "wbmm_math/linear_algebra.hpp"
+// Compatibility aggregate for the former standalone math package.
+#include "wbmm_core/math/wbmm_math.hpp"

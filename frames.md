@@ -2,6 +2,24 @@
 
 > 技术合同：所有算法、Topic、控制器、可视化中的坐标/速度/力都必须明确标注“相对哪个 frame”。
 > 若没有标注，默认按本文档最接近的上下文解释。
+> 本文档与 `architecture.md` 配套；仓库级修改历史见 `CHANGELOG.md`。
+
+## 0. 与 wbmm_core 的映射
+
+`wbmm_core` 中与 frame 相关的领域字段：
+
+| C++ 类型 | 表达内容 |
+|---|---|
+| `Header::frame_id` | 所在坐标系/父 frame |
+| `Header::stamp` | 时间戳（system/steady/simulation） |
+| `Vector3` | 位置、线量，单位默认 SI |
+| `Quaternion` | 姿态，内部顺序 `wxyz` |
+| `Pose` | 位姿 = frame + stamp + position + orientation |
+| `Wrench` | 力/力矩，原始值必须明确 frame_id |
+| `WholeBodyState` | header.frame_id 是规划/测量坐标系 |
+| `WholeBodyInput` | 关节速度与底盘命令，不携带 frame 时按调用处约定解释 |
+
+所有 ROS 消息、TF、话题数据在进入 `wbmm_core` 前必须完成 frame/单位/四元数顺序转换。
 
 ## 1. Frame Tree
 

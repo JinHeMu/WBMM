@@ -15,6 +15,7 @@
 - `types.hpp`：领域数据合同；
 - `validation.hpp`：边界校验与差速底盘维度合同；
 - `ports.hpp`：能力接口；
+- `math/`：Eigen 转换、关节映射和线性代数工具（`conversions.hpp`、`linear_algebra.hpp`、`math.hpp`）；
 - `wbmm_core.hpp`：聚合头文件。
 
 ## 兼容性规则

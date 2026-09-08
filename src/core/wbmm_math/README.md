@@ -1,14 +1,19 @@
 # wbmm_math
 
-`wbmm_math` 是 WBMM 的纯 C++17 Eigen 数学层，依赖方向固定为：
-
-> 架构调整说明（2026-09-05）：简化设计决定最终把本包合入 `wbmm_core/math/`，减少科研阶段的包数量。当前包和测试暂时保留，尚未执行文件移动或删除；合并前不应让更多包直接依赖它。
+`wbmm_math` 现在是 `wbmm_core/math/` 的兼容转发包。新代码请直接使用：
 
 ```text
-wbmm_core <- wbmm_math <- algorithms / adapters
+wbmm_core/math/conversions.hpp
+wbmm_core/math/linear_algebra.hpp
+wbmm_core/math/math.hpp
+wbmm_core/math/wbmm_math.hpp
 ```
 
-它不改变 `wbmm_core` 的领域合同，也不依赖 ROS、具体机器人、硬件 SDK、运动学库或求解器。
+原 `wbmm_math` 头文件只做转发，目标库链接 `wbmm_core`。所有实现已经迁入 `wbmm_core`；删除本包前保留它给尚未切换的旧调用方过渡。
+
+```text
+wbmm_core <- wbmm_math (compatibility only)
+```
 
 ## 职责
 
@@ -67,4 +72,12 @@ if (!state_vector.ok()) {
 colcon build --packages-select wbmm_core wbmm_math
 colcon test --packages-select wbmm_core wbmm_math
 colcon test-result --verbose
+```
+
+在线下构建中只需要构建 `wbmm_core`，无需 ament/ROS：
+
+```bash
+cmake -S src/core/wbmm_core -B build/wbmm_core_offline -DWBMM_BUILD_OFFLINE=ON
+cmake --build build/wbmm_core_offline
+ctest --test-dir build/wbmm_core_offline --output-on-failure
 ```

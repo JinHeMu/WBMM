@@ -1,262 +1,184 @@
-# Architecture
+# WBMM Architecture
 
 > 技术合同：所有新功能、重构、Bug 修复都必须先对照本文档，再修改代码。
-> 状态：持续维护。若实现与本文档不一致，以本文档为基准更新代码或文档。
+> 状态：持续维护；当前仓库处于“旧 ROS 主链保留 + 新核心逐步收敛”的重构阶段。
+> 若实现与本文档不一致，以本文档为基准更新代码或文档；涉及稳定接口变化时先写 ADR。
 
-## System Goal
+## 1. 当前阶段定位
 
-从一份统一 YAML 任务文件出发，自动完成：
+WBMM 当前不是“单一新架构已替换旧链”的状态，而是：
 
-```text
-统一 YAML 任务
-  -> TA-WBMP 任务轨迹生成 + 全身可达性/碰撞/运动学规划
-  -> REMANI 碰撞感知导航到 9D 预接触状态 q_pre
-  -> 显式参考所有权交接
-  -> OCS2 MPC 跟踪预接触接近与接触任务轨迹
-  -> 可选 whole_body_force_control（force_control_enabled=false/true）
-  -> MuJoCo / 实机闭环
-```
+- 保留现有可运行的 ROS 2 / MuJoCo / OCS2 / REMANI 链路作为回归基线；
+- 逐步把通用状态、结果、数学、模型、环境、任务和执行能力收敛到轻量核心；
+- 先建立 `wbmm_core`，再按真实调用接入，避免一次大规模 Port 化。
 
-`wipe_planner` 已退出主链，但暂不物理删除：它仍保留部分尚未完全等价迁移的
-接触安全监督与回归基线。
+因此本文件同时描述：
 
-## Data Flow
+1. **目标架构**：未来希望形成的轻量主链；
+2. **当前架构**：现在实际运行的 ROS 主链；
+3. **迁移路径**：从当前到目标的小步迁移顺序。
+
+## 2. 目标架构
 
 ```text
-task.yaml
-  |
-  v
-TaskTrajectoryGenerator        # surface/pattern/execution 解析
-  |
-  v
-TaskAwarePlanner (TA-WBMP)     # 生成 Plan: waypoints + q_pre + task_targets/normals
-  |
-  v
-ExecutionCoordinator
-  |-- WholeBodyGoal(q_pre) ---------------> REMANI
-  |-- REMANI trajectory -----> bridge ----> OCS2 MPC  (NAVIGATING 阶段)
-  |-- set_task_execution(true) -----------> REMANI TASK_EXEC
-  |-- MpcTargetTrajectories ---------------> OCS2 MPC/MRT
-  |-- optional wrench ---------------------> whole_body_force_control
-  |       \-> corrected 9D reference -----> OCS2 MPC
-  v
-MuJoCo / real robot
+WbmmNode（ROS 输入输出）
+      ↓ 转成 wbmm_core 类型
+WbmmFSM（阶段与故障）
+      ↓
+WbmmManager（唯一业务入口）
+      ├── RobotModel         # FK、Jacobian、关节限制、碰撞几何
+      ├── Environment        # 距离、占据、环境版本
+      ├── PlannerBackend     # 状态/任务/环境 → 全身轨迹
+      └── ControllerBackend  # 参考/反馈 → 全身命令
+      ↓
+轨迹 / 命令 / 状态
 ```
 
-执行过程中**同一时刻只有一个 MPC 参考所有者**：
+依赖方向：
 
-- `NAVIGATING`：REMANI bridge 持有 MPC reference。
-- `TASK_EXEC`：TA-WBMP Coordinator 持有 MPC reference。
+```text
+ROS 接口 / 应用 / bringup
+        ↓
+WbmmManager / execution
+        ↓
+core 类型 + math + RobotModel / Environment / backend 接口
+        ↓
+vendor / 具体求解器 / 驱动
+```
 
-交权使用 `/remani_bridge/set_reference_enabled` 和
-`/remani_planner/set_task_execution` 两次确认。bridge 释放 publisher 后运行时数量
-必须先变为 0；Coordinator 建立 publisher 后必须变为 1。任一步骤超时或发现
-多于一个发布者都进入 `FAILED`，不得继续发送任务参考。
+目标模块位置：
 
-## State Definition
+```text
+src/
+├── core/
+│   └── wbmm_core/            # 唯一基础库：类型、Result、校验、math、少量稳定接口
+├── wbmm/                      # 科研主程序包（目标骨架）
+│   ├── src/
+│   │   ├── node.cpp
+│   │   ├── runtime.cpp
+│   │   ├── task/
+│   │   ├── model/
+│   │   ├── environment/
+│   │   ├── planning/
+│   │   ├── execution/
+│   │   ├── contact/
+│   │   ├── adapters/
+│   │   └── cli/
+│   └── config/
+├── algorithms/                # 重依赖算法/集成包（OCS2、力控、可视化）
+├── robot/                     # 机器人描述与模型资源
+├── drivers/                   # 硬件驱动
+├── perception/                # ESDF、地图、感知
+└── bringup/                   # 顶层系统组合
+```
 
-全身状态固定为 9 维，顺序不可变：
+## 3. 当前实际主链（保留基线）
+
+当前仍可运行的主链：
+
+```text
+统一任务 YAML
+  → TA-WBMP 任务轨迹与候选规划
+  → ExecutionCoordinator / REMANI 导航到 q_pre
+  → 显式参考所有权交接
+  → OCS2 MPC/MRT 跟踪全身参考
+  → 可选 whole_body_force_control
+  → MuJoCo / 实机
+```
+
+`wipe_planner` 不再作为新主链规划器，但仍作为接触安全监督和任务行为回归基线保留。
+
+## 4. 核心数据合同
+
+### 4.1 领域类型与数学
+
+- `wbmm_core` 存放统一领域类型：
+  - `WholeBodyState`
+  - `WholeBodyInput`
+  - `TaskTrajectory`
+  - `WholeBodyTrajectory`
+  - `EnvironmentSnapshot`
+  - `PlanningResult`
+  - `Status / Result<T>`
+- 数学与转换已迁入 `wbmm_core/math/`：
+  - `conversions.hpp`
+  - `linear_algebra.hpp`
+  - `math.hpp`
+  - `wbmm_math.hpp`
+- `wbmm_math` 暂保留为兼容转发包；所有真实调用方切到 `wbmm_core/math/` 后删除。
+- 算法内部允许 Eigen，ROS/适配层在边界完成转换，领域结构保持普通 C++ 字段。
+
+### 4.2 状态与控制维度
+
+全身状态固定为 9 维：
 
 ```text
 x = [x_b, y_b, yaw_b, q1, q2, q3, q4, q5, q6]^T
 ```
 
-| 符号 | 含义 |
-|---|---|
-| `x_b, y_b` | 底盘在规划坐标系（`odom`/`map`）中的位置 |
-| `yaw_b` | 底盘航向角 |
-| `q1..q6` | JAKA 机械臂关节角 |
-
-该状态同时用于：
-
-- `trajectory_msgs/JointTrajectory` 可视化契约
-- `ocs2_msgs/MpcObservation` 实测状态
-- `sensor_msgs/JointState` live state
-- TA-WBMP / wipe_planner 内部 `Eigen::VectorXd`
-
-## Control Definition
-
-MPC/执行输入固定为 8 维：
+控制输入固定为 8 维：
 
 ```text
 u = [v_b, omega_b, qdot1, qdot2, qdot3, qdot4, qdot5, qdot6]^T
 ```
 
-| 符号 | 含义 |
-|---|---|
-| `v_b` | 底盘纵向速度 |
-| `omega_b` | 底盘航向角速度 |
-| `qdot1..qdot6` | 机械臂关节速度 |
+- 关节顺序显式、可审计；禁止猜测、补零或静默重排。
+- 差速底盘不允许横向速度。
+- 所有空间量必须声明 frame；时间量必须声明 clock。
 
-## Task
+### 4.3 参考所有权
 
-任务层期望通常表达为末端执行器（EE）目标：
+同一时刻只能有一个 MPC/执行参考所有者：
 
-```text
-p_ee_des(t), R_ee_des(t), V_ee_des(t)
-```
+- `NAVIGATING`：REMANI bridge / 对应导航后端。
+- `TASK_EXEC`：ExecutionCoordinator / 新 WbmmManager。
+- 所有权切换必须有明确请求、确认与超时检查。
 
-全身运动学关系（概念模型）：
+## 5. 模块职责
 
-```text
-V_ee = J_wb(x) u
-```
+| 模块 | 职责 | 当前状态 |
+|---|---|---|
+| `src/core/wbmm_core` | 统一类型、Result、校验、数学、少量稳定接口 | 已开始收敛，数学已迁入 |
+| `src/core/wbmm_math` | 旧数学包 | 兼容转发，待删除 |
+| `src/wbmm` | 科研主程序包：node/runtime/task/model/environment/planning/execution/contact/adapters/cli | 目录骨架已建，按模块逐步迁入 |
+| `src/algorithms/planning/ta_wbmp` | 任务轨迹、候选规划、执行协调 | 保留，后续拆分 |
+| `src/algorithms/control/tracer_jaka_ocs2` | OCS2 MPC/MRT 集成 | 保留独立集成 |
+| `src/algorithms/control/whole_body_force_control` | 导纳/恒力/力跟随 | 保留，迁移接触监督 |
+| `src/algorithms/visualization/wbmm_visualization` | 统一显示 | 保留 |
+| `src/applications/wiping/wipe_planner` | 旧接触执行基线 | 冻结/回归基线 |
+| `src/robot` | 机器人描述/模型 | 保留，收敛唯一模型源 |
+| `src/drivers` | 硬件驱动 | 保留 |
+| `src/perception` | ESDF、地图、定位 | 保留，统一查询语义 |
+| `src/bringup` | 顶层 launch/部署 | 保留，收敛入口 |
 
-其中 `J_wb(x)` 是全身 Jacobian，把底盘速度与机械臂关节速度映射到 EE 空间速度。
-实际代码中 TA-WBMP 使用 URDF + Pinocchio 前向运动学/IK 生成离散 9D waypoint，
-OCS2 使用全身模型做滚动优化跟踪。
+## 6. 接口与转换边界
 
-## Base Constraint
+### 6.1 稳定接口（目标最小集合）
 
-差速底盘非完整约束：
+- `RobotModel`
+- `Environment`
+- `PlannerBackend`
+- `ControllerBackend`
 
-```text
-x_b_dot = v_b * cos(yaw_b)
-y_b_dot = v_b * sin(yaw_b)
-yaw_b_dot = omega_b
-```
+当前 `wbmm_core` 内仍保留较多 Port 原型；在没有真实调用者前冻结，不继续扩展。
 
-所有底盘路径/参考都必须满足该约束，不允许产生横向速度。
+### 6.2 边界规则
 
-## Coordinate Frames
+- `wbmm_core` 不依赖 ROS、具体机器人、vendor、求解器。
+- 核心不依赖 `ament_cmake`：可用 `WBMM_BUILD_OFFLINE=ON` 进行纯 CMake/CTest 构建。
+- ROS 消息、TF、ros2_control 只在 adapter/application/bringup 边界出现。
+- 算法包可使用 Eigen，但对外输出应是核心领域类型或由边界转换后的 ROS 类型。
 
-详细帧树见 `docs/frames.md`。核心约定：
+## 7. 迁移顺序
 
-```text
-map
-  -> odom
-      -> base_footprint
-          -> base_link
-              -> jaka_base_link
-                  -> Link_1 .. Link_6
-                      -> tool0_and_camera_link
-                          -> tool0
-```
+1. **M01 基础类型与数学**：已完成 math 迁入 `wbmm_core`、离线构建、关节映射与 round-trip。
+2. **M02 机器人模型与碰撞几何**：收敛 URDF、FK/IK/Jacobian、碰撞几何。
+3. **M03 环境/ESDF 与碰撞检查**：统一地图查询与碰撞语义。
+4. **M04+ 任务/规划/控制拆分**：把 TA-WBMP、力控、协调器按职责拆入新主链。
+5. 删除 `wbmm_math`、旧 Ports 和已迁移旧模块。
 
-- 规划/任务坐标系：`odom`（MuJoCo 默认），实机定位时可使用 `map`。
-- 所有 9D 状态中的 `x_b, y_b, yaw_b` 都是相对规划坐标系的底盘位姿。
-- EE 位置/法向量在规划坐标系中表达。
-- 力传感器读数在传感器自身坐标系，使用时必须明确 `F^sensor`，并由上层决定是否转换到 EE/世界系。
+## 8. 文档与验证
 
-## Modules
-
-| 模块 | 职责 |
-|---|---|
-| `ta_wbmp` | 统一 YAML 任务解析、任务轨迹生成、TA-WBMP 全身规划、执行协调器、可选力控 |
-| `remani_planner` | vendor，碰撞感知导航到 q_pre |
-| `tracer_jaka_ocs2` | OCS2 MPC + MRT，跟踪 9D 全身参考 |
-| `tracer_jaka_mujoco` | MuJoCo 仿真、URDF、场景 |
-| `whole_body_force_control` | 通用恒力/导纳/力跟随控制库 |
-| `wbmm_visualization` | 统一整机 mesh/轨迹/播放可视化 |
-| `wipe_planner` | 旧主链实现，保留为接触安全回归基线，不再作为主链依赖 |
-
-## Interfaces
-
-主要 C++ 接口：
-
-- `TaskTrajectoryProvider::generate() -> TaskTrajectory`
-- `TaskAwarePlanner::plan() -> Plan`
-- `WholeBodyStateValidityChecker::check(state)`
-- `CandidateCostEvaluator::evaluate(metrics)`
-- `NavigationCostEstimator::estimate(start, goal)`
-- `whole_body_force_control::AdmittanceController`
-- `whole_body_force_control::ForceFollower`
-- `whole_body_force_control::WholeBodyKinematics`
-
-主要 ROS 2 接口：
-
-- 服务：`/ta_wbmp/execution/start`、`/ta_wbmp/execution/enable_force_control`、`/remani_planner/set_task_execution`
-- 话题：见下文 ROS Topics。
-
-## Costs
-
-TA-WBMP 候选评分权重（`CandidateCostWeights`）：
-
-```text
-score =
-  w_pos    * position_error
-+ w_axis   * axis_error
-+ w_arm    * arm_path_length
-+ w_base   * base_path_length
-+ w_margin * inverse_joint_margin
-+ w_manip  * inverse_manipulability
-+ w_sigma  * inverse_min_sigma
-+ w_standoff_dev * standoff_deviation
-+ w_offset * longitudinal_offset
-+ w_nav    * navigation_cost_estimate
-+ w_preferred * preferred_standoff
-```
-
-OCS2 MPC 侧仍有独立的全身跟踪 Q 和输入 R 权重，定义在 OCS2 `task.info` / 模型配置中。
-
-## Constraints
-
-硬约束 / 强约束：
-
-- 9D 状态维度与关节名顺序固定。
-- 差速底盘非完整约束。
-- 任务 EE 位置误差 ≤ `max_position_error`，姿态误差 ≤ `max_axis_error`。
-- 关节限位与最小关节裕度。
-- 可操作度 / 最小奇异值阈值。
-- 自碰撞与 ESDF 环境碰撞（REMANI）。
-- 底盘 standoff / longitudinal offset 几何语义：standoff 沿底盘—任务面方向，longitudinal offset 沿水平正交方向。
-- 力控安全：传感器超时保持、力误差节流/暂停、硬限位锁存、尖峰拒绝。
-
-阶段约束：
-
-```text
-NAVIGATE -> PRECONTACT_ALIGN -> PRECONTACT_APPROACH -> TASK_CONSTRAINED
-```
-
-## Optimization Variables
-
-- 任务候选：`standoff`、`longitudinal_offset`、`yaw_offset`
-- 底盘路径：SE2 离散点 `(x, y, yaw)`
-- 机械臂 IK：`q = [q1..q6]`
-- 全身 waypoint：`x = [x_b, y_b, yaw_b, q1..q6]`
-- OCS2 滚动优化：状态轨迹 `x(.)`、输入轨迹 `u(.)`
-
-## Solver
-
-| 层级 | 方法 |
-|---|---|
-| TA-WBMP 底盘导航 | SE2 grid A* + polyline simplify |
-| TA-WBMP 任务候选 | 候选枚举 + URDF/Pinocchio IK + 碰撞/运动学检查 |
-| REMANI | vendor 优化式轨迹规划（碰撞感知） |
-| OCS2 MPC | SLQ / MRT 滚动时域控制 |
-| 力控 | 二阶导纳或准静态力跟随 + 全身运动学修正 |
-
-## ROS Topics
-
-主要话题（以当前实现为准）：
-
-| Topic | Type | 方向 | QoS/备注 |
-|---|---|---|---|
-| `/ta_wbmp/execution/status` | `std_msgs/String` | 输出 | transient_local，状态机 |
-| `/ta_wbmp/execution/force_state` | `std_msgs/String` | 输出 | 力控状态 |
-| `/ta_wbmp/execution/start` | `std_srvs/Trigger` | 服务 | 启动执行 |
-| `/ta_wbmp/execution/enable_force_control` | `std_srvs/SetBool` | 服务 | 运行时开关力控 |
-| `/remani_planner/whole_body_goal` | `traj_utils/WholeBodyGoal` | 输出 | 发给 REMANI 的 q_pre |
-| `/remani_planner/set_task_execution` | `std_srvs/SetBool` | 服务 | 显式交权 |
-| `/remani_planner/fsm_state` | `std_msgs/String` | 输入 | REMANI 状态 |
-| `/planning/trajectory` | `quadrotor_msgs/PolynomialTraj` | 输入 | REMANI 导航轨迹 |
-| `/mobile_manipulator_mpc_target` | `ocs2_msgs/MpcTargetTrajectories` | 输出 | 9D MPC 参考 |
-| `/mobile_manipulator_mpc_observation` | `ocs2_msgs/MpcObservation` | 输入 | 实测 9D 状态 |
-| `/fts_broadcaster/wrench` | `geometry_msgs/WrenchStamped` | 输入 | 力传感器 |
-| `/base_controller/cmd_vel` | `geometry_msgs/Twist` | 输出 | MRT -> 底盘 |
-| `/arm_controller/commands` | `std_msgs/Float64MultiArray` | 输出 | MRT -> 机械臂 |
-| `/wbmm/whole_body_trajectory` | `trajectory_msgs/JointTrajectory` | 可视化 | transient_local |
-| `/wbmm/phase_schedule` | `std_msgs/String` | 可视化 | transient_local |
-| `/wbmm/robot_mesh` | `visualization_msgs/MarkerArray` | 可视化 | transient_local |
-
-## Update Frequency
-
-| 环节 | 频率 |
-|---|---|
-| TA-WBMP 离线规划 | 一次性 |
-| ExecutionCoordinator MPC reference | 默认 20 Hz（`reference_rate`） |
-| OCS2 MPC / MRT 控制环 | 约 125 Hz |
-| MuJoCo / 实机底层控制 | 125 Hz 级别 |
-| 力传感器 | 由驱动决定（通常 50–500 Hz） |
-| wbmm robot_mesh | 10–30 Hz |
-| REMANI 导航轨迹 | 事件驱动 / 重规划 |
+- 坐标系详细合同见 [frames.md](frames.md)。
+- 仓库级修改与历史记录见 [CHANGELOG.md](CHANGELOG.md)。
+- 验证分级沿用 L0–L6；每个改动必须记录实际达到的等级，不得用“能启动”代替“已验证”。

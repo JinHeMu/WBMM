@@ -7,6 +7,8 @@
 > 工作空间已更名为 **WBMM（Whole-Body Mobile Manipulation）**，源码目录也已按“职责 + 部署场景”重新组织。
 >
 > 📖 快速命令速查见 [docs/QUICKSTART.md](docs/QUICKSTART.md)。
+>
+> 🔧 当前处于“保留旧 ROS 主链 + 逐步收敛 `wbmm_core`”的重构阶段，最近改动见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 系统能力
 
@@ -69,6 +71,9 @@ robot_state_publisher:
 
 | 路径 | 作用 |
 |---|---|
+| `src/core/wbmm_core/` | 统一领域类型、Result、校验、`math/`；当前核心收敛对象 |
+| `src/core/wbmm_math/` | 旧数学包，现为兼容转发层，目标删除 |
+| `src/wbmm/` | 目标科研主程序包骨架：node/runtime/task/model/environment/planning/execution/contact/adapters/cli |
 | `src/vendor/` | 上游/第三方源码与二进制：`ocs2_ros2`、`remani_planner`、`jaka_sdk_vendor`；差异见 `docs/vendor_patches.md` |
 | `src/interfaces/` | 跨层稳定消息/服务/动作契约：`tracer_jaka_interfaces` |
 | `src/robot/` | 机器人唯一描述：`tracer_jaka_description`、`tracer_jaka_moveit_config` |
@@ -148,6 +153,20 @@ source install/setup.bash
 初次启动 OCS2 时可能触发模型自动微分代码生成，时间会明显长于后续启动。若修改
 `task.info` 中影响动力学或运动学的配置，请按 OCS2 文档清理对应的自动生成目录后
 重新生成。
+
+### 核心离线构建与测试（无 ROS/ament）
+
+`wbmm_core` 可以独立于 ROS 构建和测试：
+
+```bash
+cd /home/a/WBMM
+cmake -S src/core/wbmm_core -B build/wbmm_core_offline \
+  -DWBMM_BUILD_OFFLINE=ON -DBUILD_TESTING=ON
+cmake --build build/wbmm_core_offline
+ctest --test-dir build/wbmm_core_offline --output-on-failure
+```
+
+只构建核心库、不跑测试时可加 `-DBUILD_TESTING=OFF`。
 
 ## 常用入口
 
@@ -309,16 +328,17 @@ ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
 
 ## 文档导航
 
-- [架构技术合同](docs/architecture.md)
-- [坐标系技术合同](docs/frames.md)
-- [仓库开发与维护标准](docs/仓库开发与维护标准.md)
+- [架构技术合同](architecture.md)
+- [坐标系技术合同](frames.md)
+- [仓库开发与维护标准](仓库开发与维护标准.md)
+- [修改历史](CHANGELOG.md)
+- [重构方案](WBMM架构评估与重构执行方案.md)
 - [快速开始 / 启动命令速查](docs/QUICKSTART.md)
 - [MuJoCo → nvblox → REMANI → OCS2 完整通道](docs/MUJOCO_NVBLOX_REMANI_PIPELINE.md)
 - [D455 ESDF 仿真与实机运行指南](docs/D455_ESDF_仿真与实机运行指南.md)
 - [D455 RGB-D ESDF rosbag 录制教程](docs/D455_RGBD_ESDF_ROSBAG_录制教程.md)
 - [REMANI 与 OCS2 集成说明](docs/REMANI_OCS2_INTEGRATION.md)
 - [仓库总体 Pipeline](docs/总体%20Pipeline.md)
-- [工程目录重构设计](docs/工程目录重构设计.md)
 - [周报与实验整理](docs/WEEKLY_REPORT_2026-07-25_to_2026-07-31.md)
 
 各功能包还提供更具体的说明：

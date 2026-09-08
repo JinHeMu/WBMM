@@ -427,9 +427,8 @@ common.yaml
 
 截至 2026-09-05：
 
-- `src/core/wbmm_core` 已实现并通过 L1 测试；
-- `src/core/wbmm_math` 已实现 Eigen 转换和线性代数测试；
-- 本文的新决定是把二者合并为一个目标包，但尚未执行文件移动或删除；
+- `src/core/wbmm_core` 已实现并通过 L1 测试，并已包含 `math/` 子目录中的 Eigen 转换和线性代数；
+- `src/core/wbmm_math` 已改为指向 `wbmm_core/math/` 的兼容转发包；
 - 当前 `wbmm_core` 的 Ports 数量多于最终建议的四个接口，尚未裁剪；
 - `wbmm` 主程序包尚未建立；
 - 现有运行链没有被本轮架构文档修改。
