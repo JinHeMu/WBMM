@@ -46,31 +46,26 @@ core 类型 + math + RobotModel / Environment / backend 接口
 vendor / 具体求解器 / 驱动
 ```
 
-目标模块位置：
+当前目录与目标职责：
 
 ```text
 src/
-├── core/
-│   └── wbmm_core/            # 唯一基础库：类型、Result、校验、math、少量稳定接口
-├── wbmm/                      # 科研主程序包（目标骨架）
-│   ├── src/
-│   │   ├── node.cpp
-│   │   ├── runtime.cpp
-│   │   ├── task/
-│   │   ├── model/
-│   │   ├── environment/
-│   │   ├── planning/
-│   │   ├── execution/
-│   │   ├── contact/
-│   │   ├── adapters/
-│   │   └── cli/
-│   └── config/
-├── algorithms/                # 重依赖算法/集成包（OCS2、力控、可视化）
+├── core/                      # wbmm_core：类型、Result、校验、math、少量稳定接口
+├── planning/                  # 规划容器：当前为 ta_wbmp
+├── control/                   # OCS2 与力控集成
+├── visual/                    # wbmm_visualization 统一显示
+├── map/                       # 定位、建图、ESDF 与地图工具
+├── sim/                       # 仿真后端容器
+├── applications/              # 具体任务与回归基线
 ├── robot/                     # 机器人描述与模型资源
 ├── drivers/                   # 硬件驱动
-├── perception/                # ESDF、地图、感知
-└── bringup/                   # 顶层系统组合
+├── bringup/                   # tracer_jaka_bringup：唯一顶层组合
+└── vendor/                    # 上游工程与重依赖
 ```
+
+`core`、`visual`、`bringup` 是系统内唯一能力，目录本身即 ROS 包根。
+`planning`、`control`、`map`、`sim` 是可容纳多个实现的包容器。不再保留
+空的 `src/wbmm` 骨架；只在开始实现 WbmmNode/FSM/Manager 主链时创建真实主程序包。
 
 ## 3. 当前实际主链（保留基线）
 
@@ -105,7 +100,7 @@ src/
   - `linear_algebra.hpp`
   - `math.hpp`
   - `wbmm_math.hpp`
-- `wbmm_math` 暂保留为兼容转发包；所有真实调用方切到 `wbmm_core/math/` 后删除。
+- 旧 `wbmm_math` 兼容包已删除，数学 API 的唯一位置为 `src/core/include/wbmm_core/math/`。
 - 算法内部允许 Eigen，ROS/适配层在边界完成转换，领域结构保持普通 C++ 字段。
 
 ### 4.2 状态与控制维度
@@ -138,18 +133,17 @@ u = [v_b, omega_b, qdot1, qdot2, qdot3, qdot4, qdot5, qdot6]^T
 
 | 模块 | 职责 | 当前状态 |
 |---|---|---|
-| `src/core/wbmm_core` | 统一类型、Result、校验、数学、少量稳定接口 | 已开始收敛，数学已迁入 |
-| `src/core/wbmm_math` | 旧数学包 | 兼容转发，待删除 |
-| `src/wbmm` | 科研主程序包：node/runtime/task/model/environment/planning/execution/contact/adapters/cli | 目录骨架已建，按模块逐步迁入 |
-| `src/algorithms/planning/ta_wbmp` | 任务轨迹、候选规划、执行协调 | 保留，后续拆分 |
-| `src/algorithms/control/tracer_jaka_ocs2` | OCS2 MPC/MRT 集成 | 保留独立集成 |
-| `src/algorithms/control/whole_body_force_control` | 导纳/恒力/力跟随 | 保留，迁移接触监督 |
-| `src/algorithms/visualization/wbmm_visualization` | 统一显示 | 保留 |
+| `src/core` | `wbmm_core`：统一类型、Result、校验、数学、少量稳定接口 | 数学已合并，可独立构建 |
+| `src/planning/ta_wbmp` | 任务轨迹、候选规划、执行协调 | 保留，后续按真实主链收敛 |
+| `src/control/tracer_jaka_ocs2` | OCS2 MPC/MRT 集成 | 保留独立集成 |
+| `src/control/whole_body_force_control` | 导纳/恒力/力跟随 | 保留，迁移接触监督 |
+| `src/visual` | `wbmm_visualization` 统一显示 | 保留 |
 | `src/applications/wiping/wipe_planner` | 旧接触执行基线 | 冻结/回归基线 |
 | `src/robot` | 机器人描述/模型 | 保留，收敛唯一模型源 |
 | `src/drivers` | 硬件驱动 | 保留 |
-| `src/perception` | ESDF、地图、定位 | 保留，统一查询语义 |
-| `src/bringup` | 顶层 launch/部署 | 保留，收敛入口 |
+| `src/map` | ESDF、地图、定位 | 保留，统一查询语义 |
+| `src/sim/tracer_jaka_mujoco` | MuJoCo 仿真 I/O 与场景 | 保留为仿真后端 |
+| `src/bringup` | `tracer_jaka_bringup`：顶层 launch/部署 | 唯一完整系统组合入口 |
 
 ## 6. 接口与转换边界
 
@@ -175,7 +169,7 @@ u = [v_b, omega_b, qdot1, qdot2, qdot3, qdot4, qdot5, qdot6]^T
 2. **M02 机器人模型与碰撞几何**：收敛 URDF、FK/IK/Jacobian、碰撞几何。
 3. **M03 环境/ESDF 与碰撞检查**：统一地图查询与碰撞语义。
 4. **M04+ 任务/规划/控制拆分**：把 TA-WBMP、力控、协调器按职责拆入新主链。
-5. 删除 `wbmm_math`、旧 Ports 和已迁移旧模块。
+5. 按真实调用者裁剪旧 Ports 和已迁移旧模块。
 
 ## 8. 文档与验证
 

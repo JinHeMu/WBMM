@@ -11,17 +11,17 @@
 
 | 模块 / 目录 | 实际作用 | 重构处理 | 当前状态 |
 |---|---|---|---|
-| `src/core/wbmm_core` | 状态、结果、Port 原型、数学转换、校验 | 作为唯一核心库；数学已迁入 `math/`，Port 后续按真实调用裁剪 | 已开始收敛 |
-| `src/core/wbmm_math` | 旧 Eigen 数学包 | 保留为兼容转发层；所有使用者切换后删除 | 兼容转发中 |
-| `src/algorithms/planning/ta_wbmp` | 候选枚举、IK、评分、导航预览、接近/任务拼接、验证 | 按职责拆分到 planning/task 等子目录 | 待拆分 |
-| `src/algorithms/control/tracer_jaka_ocs2` | MPC 装配、MRT、目标输入、轨迹 bridge | 保留独立集成包，内部重构 | 保留 |
-| `src/algorithms/control/whole_body_force_control` | 导纳、恒力/力跟随与位姿修正 | 复用数值库；应用监督迁入 `contact` | 待迁移 |
-| `src/algorithms/visualization/wbmm_visualization` | 统一轨迹/机器人显示 | 保留，消费算法输出数据 | 保留 |
+| `src/core` | `wbmm_core`：状态、结果、Port 原型、数学转换、校验 | 作为唯一核心库；Port 后续按真实调用裁剪 | 数学已合并，兼容包已删除 |
+| `src/planning/ta_wbmp` | 候选枚举、IK、评分、导航预览、接近/任务拼接、验证 | 按真实主链逐步收敛 | 保留 |
+| `src/control/tracer_jaka_ocs2` | MPC 装配、MRT、目标输入、轨迹 bridge | 保留独立集成包，内部重构 | 保留 |
+| `src/control/whole_body_force_control` | 导纳、恒力/力跟随与位姿修正 | 复用数值库；应用监督迁入主链 | 待迁移 |
+| `src/visual` | `wbmm_visualization`：统一轨迹/机器人显示 | 保留，消费算法输出数据 | 保留 |
 | `src/applications/wiping/wipe_planner` | 旧规划与接触执行基线 | 暂保留；按功能迁移，不整包扩展 | 冻结基线 |
 | `src/robot/` | 机器人模型、描述、网格 | 保留主要结构，修正边界 | 保留 |
 | `src/drivers/` | 硬件驱动：底盘、机械臂、传感器 | 保留主要结构，修正边界 | 保留 |
-| `src/perception/` | ESDF、地图、定位、感知 | 保留主要结构，先统一查询语义 | 保留 |
-| `src/bringup/` | 系统组合、launch、部署 | 保留主要结构，修正部署配置 | 保留 |
+| `src/map/` | ESDF、地图、定位 | 保留主要结构，先统一查询语义 | 保留 |
+| `src/sim/` | 仿真后端与场景 | 保留 MuJoCo 后端边界 | 保留 |
+| `src/bringup/` | `tracer_jaka_bringup`：系统组合、launch、部署 | 作为唯一完整系统入口 | 保留 |
 | `docs/` | 架构、实验、迁移记录 | 与根目录记录文件配合维护 | 保留 |
 
 ---
@@ -32,18 +32,17 @@
 
 ```text
 src/
-├── core/
-│   ├── wbmm_core/                 # 唯一基础库（领域类型 + math + 校验 + 必要接口）
-│   └── wbmm_math/                 # 兼容转发层，目标删除
-├── algorithms/
-│   ├── control/                   # 控制集成（OCS2、力控等）
-│   ├── planning/                  # 规划集成与算法（TA-WBMP 等）
-│   └── visualization/             # 显示/可视化
-├── applications/                  # 具体应用任务（如 wiping/wipe_planner）
+├── core/                          # 唯一 wbmm_core 包
+├── planning/                      # 规划包容器
+├── control/                       # 控制与重依赖集成包容器
+├── visual/                        # 唯一 wbmm_visualization 包
+├── map/                           # 定位、建图、ESDF 包容器
+├── sim/                           # 仿真后端包容器
+├── applications/                  # 具体应用任务
 ├── robot/                         # 机器人描述与模型资源
 ├── drivers/                       # 硬件驱动
-├── perception/                    # 环境、地图、ESDF、定位
-└── bringup/                       # 顶层系统组合
+├── bringup/                       # 唯一 tracer_jaka_bringup 包
+└── vendor/                        # 上游工程与重依赖
 ```
 
 核心原则：
@@ -178,6 +177,39 @@ ctest --test-dir /tmp/wbmm_core_offline --output-on-failure
 
 - 不影响现有 colcon 包发现与构建；
 - 纯目录与文档变更。
+
+---
+
+### 2026-09-10：收敛工作区目录并删除空骨架
+
+**改动目标**
+
+缩短高频包的物理路径，按“唯一能力包 + 多实现包容器”组织工作区，
+不修改规划、控制、地图、仿真或实机行为。
+
+**实际改动**
+
+- 将 `wbmm_core` 包上移到 `src/core/`，删除已无真实调用者的 `wbmm_math` 兼容包；
+- 将规划、控制、显示、地图、仿真和系统组合分别收敛到
+  `src/planning/`、`src/control/`、`src/visual/`、`src/map/`、`src/sim/`和 `src/bringup/`；
+- 删除未包含实现的 `src/wbmm` 主程序骨架和 `src/interfaces` 接口包骨架；
+- 保持包名、ROS 资源索引、launch 入口和源码内容不变；
+- 同步更新根目录 `README.md`、`architecture.md`、`仓库开发与维护标准.md`
+  和本文档；其他历史/专项文档本次不改。
+
+**验证**
+
+- `colcon list --base-paths src` 能在新位置发现所有相关 ROS 包；
+- 在 `/tmp` 全新构建目录中成功构建 11 个相关包：
+  `wbmm_core`、`wbmm_visualization`、`whole_body_force_control`、`ta_wbmp`、
+  `tracer_jaka_ocs2`、`tracer_jaka_bringup`、`tracer_jaka_mujoco`、
+  `tracer_jaka_localization`、`grid_map`、`my_nvblox_bringup`、`esdf_simple_nav`；
+- `wbmm_core` 离线 CMake/CTest 验证为 6/6 通过；
+- Pinocchio/eigenpy 仍会输出 Boost Python 头文件检查警告，不影响本次构建。
+
+**未验证**
+
+- 本次未启动 ROS 节点、MuJoCo 场景或实机，不提升 L2–L6 验证结论。
 
 ---
 

@@ -71,18 +71,17 @@ robot_state_publisher:
 
 | 路径 | 作用 |
 |---|---|
-| `src/core/wbmm_core/` | 统一领域类型、Result、校验、`math/`；当前核心收敛对象 |
-| `src/core/wbmm_math/` | 旧数学包，现为兼容转发层，目标删除 |
-| `src/wbmm/` | 目标科研主程序包骨架：node/runtime/task/model/environment/planning/execution/contact/adapters/cli |
+| `src/core/` | `wbmm_core` 包：统一领域类型、Result、校验、`math/`和少量稳定接口 |
+| `src/planning/` | 规划算法容器：当前包含 `ta_wbmp` |
+| `src/control/` | 控制与重依赖集成：`tracer_jaka_ocs2`、`whole_body_force_control` |
+| `src/visual/` | `wbmm_visualization` 包：统一轨迹、机器人和阶段显示 |
+| `src/map/` | 定位、二维/三维建图、ESDF 与地图工具 |
+| `src/sim/` | 仿真后端容器：当前包含 `tracer_jaka_mujoco` |
 | `src/vendor/` | 上游/第三方源码与二进制：`ocs2_ros2`、`remani_planner`、`jaka_sdk_vendor`；差异见 `docs/vendor_patches.md` |
-| `src/interfaces/` | 跨层稳定消息/服务/动作契约：`tracer_jaka_interfaces` |
 | `src/robot/` | 机器人唯一描述：`tracer_jaka_description`、`tracer_jaka_moveit_config` |
 | `src/drivers/` | 真实硬件 I/O：底盘、JAKA 机械臂、夹爪、IMU、LiDAR |
-| `src/algorithms/` | 公共算法：OCS2 控制、TA-WBMP、六维导纳/恒力控制 |
-| `src/perception/` | 定位/建图/ESDF：nvblox、grid_map、esdf_simple_nav、localization |
 | `src/applications/` | 具体任务：`wiping/wipe_planner` |
-| `src/simulation/` | 仿真后端：`tracer_jaka_mujoco` |
-| `src/bringup/` | 顶层系统组合：`tracer_jaka_bringup` |
+| `src/bringup/` | `tracer_jaka_bringup` 包：仿真/实机系统组合与唯一顶层入口 |
 | `tools/` | 仓库级脚本和示例 |
 | `data/` | 运行数据：bags、maps_generated、outputs、debug |
 | `docs/` | 架构、ESDF、rosbag、REMANI 与实验记录文档 |
@@ -160,7 +159,7 @@ source install/setup.bash
 
 ```bash
 cd /home/a/WBMM
-cmake -S src/core/wbmm_core -B build/wbmm_core_offline \
+cmake -S src/core -B build/wbmm_core_offline \
   -DWBMM_BUILD_OFFLINE=ON -DBUILD_TESTING=ON
 cmake --build build/wbmm_core_offline
 ctest --test-dir build/wbmm_core_offline --output-on-failure
@@ -239,7 +238,7 @@ ros2 launch tracer_jaka_bringup mujoco_task_table.launch.py
 ```
 
 场景文件是
-[`scene_task_table.xml`](src/simulation/tracer_jaka_mujoco/models/scene_task_table.xml)。
+[`scene_task_table.xml`](src/sim/tracer_jaka_mujoco/models/scene_task_table.xml)。
 后续若接入 REMANI/OCS2，应先用 D455/nvblox 将该场景建立为 ESDF，再以
 `task_surface_*` sites 生成末端任务轨迹。
 
@@ -289,7 +288,7 @@ ros2 launch tracer_jaka_bringup real_slam.launch.py \
 
 ```bash
 cd /home/a/WBMM
-src/perception/my_nvblox_bringup/scripts/sync_to_isaac_ros_ws.sh
+src/map/my_nvblox_bringup/scripts/sync_to_isaac_ros_ws.sh
 ```
 
 进入 Docker 后构建：
@@ -343,9 +342,9 @@ ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
 
 各功能包还提供更具体的说明：
 
-- [MuJoCo 包 README](src/simulation/tracer_jaka_mujoco/README.md)
-- [OCS2 包 README](src/algorithms/control/tracer_jaka_ocs2/README.md)
-- [nvblox bringup README](src/perception/my_nvblox_bringup/README.md)
+- [MuJoCo 包 README](src/sim/tracer_jaka_mujoco/README.md)
+- [OCS2 包 README](src/control/tracer_jaka_ocs2/README.md)
+- [nvblox bringup README](src/map/my_nvblox_bringup/README.md)
 
 ## Git 约定
 
