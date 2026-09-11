@@ -119,7 +119,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "task_file",
             default_value=PathJoinSubstitution([
-                FindPackageShare("tracer_jaka_ocs2"),
+                FindPackageShare("wbmm_ocs2_ros"),
                 "config", "task_real.info"])),
         DeclareLaunchArgument(
             "force_params_file",

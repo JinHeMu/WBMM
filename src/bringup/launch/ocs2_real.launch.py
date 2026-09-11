@@ -54,7 +54,7 @@ def _enforce_safety_gate(context):
 
 
 def generate_launch_description():
-    pkg_ocs2     = FindPackageShare('tracer_jaka_ocs2')
+    pkg_ocs2     = FindPackageShare('wbmm_ocs2_ros')
     pkg_description = FindPackageShare('tracer_jaka_description')
     pkg_tracer   = FindPackageShare('tracer_base')
 
@@ -132,7 +132,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'lib_folder',
-            default_value='/tmp/ocs2_tracer_jaka_real/auto_generated'),
+            default_value='/tmp/wbmm_ocs2_real/auto_generated'),
         DeclareLaunchArgument('use_joy',    default_value='false'),
         DeclareLaunchArgument('joy_device', default_value='/dev/input/js0'),
         DeclareLaunchArgument(
@@ -144,7 +144,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'rviz_config',
             default_value=PathJoinSubstitution(
-                [pkg_ocs2, 'rviz', 'tracer_jaka_ocs2.rviz'])),
+                [pkg_ocs2, 'rviz', 'wbmm_ocs2_ros.rviz'])),
     ]
 
 
@@ -239,24 +239,27 @@ def generate_launch_description():
     common_ocs2 = {
         'taskFile':     task_file,
         'urdfFile':     urdf_file,
-        'libFolder':    lib_folder,
         'use_sim_time': False,
     }
 
     mpc_node = Node(
-        package='tracer_jaka_ocs2',
-        executable='tracer_jaka_mpc_node',
-        name='tracer_jaka_mpc_node',
-        output='screen',
-        parameters=[common_ocs2],
-    )
-
-    mrt_node = Node(
-        package='tracer_jaka_ocs2',
-        executable='tracer_jaka_mrt_node',
+        package='wbmm_ocs2_ros',
+        executable='wbmm_mpc_node',
+        name='wbmm_mpc_node',
         output='screen',
         parameters=[{
             **common_ocs2,
+            'libFolder': PathJoinSubstitution([lib_folder, 'mpc']),
+        }],
+    )
+
+    mrt_node = Node(
+        package='wbmm_ocs2_ros',
+        executable='wbmm_mrt_node',
+        output='screen',
+        parameters=[{
+            **common_ocs2,
+            'libFolder': PathJoinSubstitution([lib_folder, 'mrt']),
             'mrt_loop_rate':     100.0,
             'traj_horizon':      0.10,                 # 实机给宽一点
             'use_stamped_cmd':   False,                # *** 关键: 发 Twist ***
@@ -279,9 +282,9 @@ def generate_launch_description():
     )
 
     target_node = Node(
-        package='tracer_jaka_ocs2',
-        executable='tracer_jaka_target_node',
-        name='tracer_jaka_target_node',
+        package='wbmm_ocs2_ros',
+        executable='wbmm_target_node',
+        name='wbmm_target_node',
         output='screen',
         parameters=[{
             'robot_name':    'mobile_manipulator',
@@ -325,9 +328,9 @@ def generate_launch_description():
 
     # 手柄 -> OCS2 目标位姿节点
     joy_target_node = Node(
-        package='tracer_jaka_ocs2',
-        executable='tracer_jaka_joy_target_node',
-        name='tracer_jaka_joy_target_node',
+        package='wbmm_ocs2_ros',
+        executable='wbmm_joy_target_node',
+        name='wbmm_joy_target_node',
         output='screen',
         parameters=[{
             'robot_name':    'mobile_manipulator',
@@ -351,9 +354,9 @@ def generate_launch_description():
     # "胡萝卜" 模式: 目标 = 当前位置 + 速度 * lookahead_time
     # 松开 LB: 底盘保持位置, 手臂→home (MPC 主动对抗重力)
     joy_whole_body_node = Node(
-        package="tracer_jaka_ocs2",
-        executable="tracer_jaka_joy_whole_body_node",
-        name="tracer_jaka_joy_whole_body_node",
+        package="wbmm_ocs2_ros",
+        executable="wbmm_joy_whole_body_node",
+        name="wbmm_joy_whole_body_node",
         output="screen",
         parameters=[
             {

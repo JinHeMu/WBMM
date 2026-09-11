@@ -113,7 +113,7 @@ def generate_launch_description():
                 'pipeline fails closed when this file is absent.')),
         DeclareLaunchArgument(
             'lib_folder',
-            default_value='/tmp/ocs2_tracer_jaka_conservative/auto_generated'),
+            default_value='/tmp/wbmm_ocs2_conservative/auto_generated'),
         DeclareLaunchArgument('initial_x', default_value='0.0'),
         DeclareLaunchArgument('initial_y', default_value='0.0'),
         DeclareLaunchArgument('initial_yaw', default_value='0.0'),

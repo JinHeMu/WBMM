@@ -52,7 +52,7 @@
   <exec_depend>tracer_jaka_description</exec_depend>
   <exec_depend>tracer_jaka_localization</exec_depend>
   <exec_depend>tracer_jaka_moveit_config</exec_depend>
-  <exec_depend>tracer_jaka_ocs2</exec_depend>
+  <exec_depend>wbmm_ocs2_ros</exec_depend>
   <exec_depend>whole_body_force_control</exec_depend>
   <exec_depend>wbmm_visualization</exec_depend>
   <exec_depend>remani_planner</exec_depend>

@@ -41,7 +41,7 @@ def generate_launch_description():
             "mujoco_model": mujoco_model,
             "init_keyframe": "home",
             "task_file": PathJoinSubstitution([
-                FindPackageShare("tracer_jaka_ocs2"), "config", "task.info"]),
+                FindPackageShare("wbmm_ocs2_ros"), "config", "task.info"]),
             "mrt_traj_horizon": "0.05",
             "arm_use_velocity_integrator": "true",
             "arm_max_command_velocity": "0.15",

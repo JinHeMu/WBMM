@@ -1,13 +1,116 @@
 #include "whole_body_force_control/controllers.hpp"
+#include "whole_body_force_control/pinocchio_robot_model.hpp"
+#include "whole_body_force_control/wbmm_conversions.hpp"
 #include "whole_body_force_control/whole_body_kinematics.hpp"
 
+#include <ament_index_cpp/get_package_share_directory.hpp>
 #include <gtest/gtest.h>
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
 #include <cmath>
+#include <fstream>
+#include <limits>
+#include <memory>
+#include <stdexcept>
 #include <string>
+#include <vector>
+
+namespace
+{
+
+std::string tracerJakaUrdfPath()
+{
+#ifndef WHOLE_BODY_FORCE_CONTROL_TEST_URDF_FALLBACK
+#error "WHOLE_BODY_FORCE_CONTROL_TEST_URDF_FALLBACK must be defined"
+#endif
+  try {
+    const std::string share_path =
+      ament_index_cpp::get_package_share_directory("tracer_jaka_description") +
+      "/urdf/tracer_jaka_zu5.urdf";
+    if (std::ifstream(share_path).good()) {
+      return share_path;
+    }
+  } catch (const std::exception &) {
+  }
+  return WHOLE_BODY_FORCE_CONTROL_TEST_URDF_FALLBACK;
+}
+
+std::shared_ptr<whole_body_force_control::PinocchioRobotModel> sharedRobotModel()
+{
+  static const auto model =
+    std::make_shared<whole_body_force_control::PinocchioRobotModel>(
+    tracerJakaUrdfPath());
+  return model;
+}
+
+std::unique_ptr<whole_body_force_control::WholeBodyKinematics> makeKinematics()
+{
+  return std::make_unique<whole_body_force_control::WholeBodyKinematics>(
+    sharedRobotModel(), "tool0");
+}
+
+Eigen::VectorXd seedState()
+{
+  Eigen::VectorXd seed(9);
+  seed << 2.027707685, -0.577917895, -0.958716061,
+    -0.000000098, 1.900822751, 0.474463874,
+    2.337099332, 4.712392653, 0.785416000;
+  return seed;
+}
+
+wbmm::core::WholeBodyState coreState(
+  const Eigen::VectorXd & state, const std::vector<std::string> & joint_names)
+{
+  wbmm::core::Header header;
+  header.frame_id = "odom";
+  header.stamp = 0.0;
+  header.clock = wbmm::core::ClockDomain::kSystem;
+  const auto converted =
+    whole_body_force_control::toCoreState(state, joint_names, header);
+  if (!converted.has_value()) {
+    throw std::invalid_argument("test state dimension does not match joint names");
+  }
+  return *converted;
+}
+
+// 对 9D 状态沿 8D 输入做精确一步积分(底盘用单轮车闭式解，关节用线性积分)，
+// 用于对 frameJacobian 做中心差分校验。
+Eigen::VectorXd integrateState(
+  const Eigen::VectorXd & state, const Eigen::VectorXd & input, double dt)
+{
+  Eigen::VectorXd next = state;
+  const double linear = input[0];
+  const double angular = input[1];
+  const double yaw = state[2];
+  const double next_yaw = yaw + angular * dt;
+  if (std::abs(angular) > 1.0e-12) {
+    next[0] += linear / angular * (std::sin(next_yaw) - std::sin(yaw));
+    next[1] += -linear / angular * (std::cos(next_yaw) - std::cos(yaw));
+  } else {
+    next[0] += linear * dt * std::cos(yaw);
+    next[1] += linear * dt * std::sin(yaw);
+  }
+  next[2] = next_yaw;
+  next.tail(6) += dt * input.tail(6);
+  return next;
+}
+
+Eigen::Vector3d log3(const Eigen::Matrix3d & rotation)
+{
+  const Eigen::AngleAxisd angle_axis(rotation);
+  return angle_axis.angle() * angle_axis.axis();
+}
+
+Eigen::Matrix3d rotationOf(const wbmm::core::Pose & pose)
+{
+  const Eigen::Quaterniond quaternion(
+    pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
+  return quaternion.normalized().toRotationMatrix();
+}
+
+}  // namespace
 
 TEST(AdmittanceController, PassiveAdmittanceIsBoundedAndReturnsToZero)
 {
@@ -78,12 +181,10 @@ TEST(ForceFollower, VelocityModeKeepsFollowingWhileForceIsPresent)
 {
   whole_body_force_control::ForceFollower follower(
     0.0, 1.0, 1000.0, 0.10, 1.0, false, true, 0.2);
-  // A sustained +5 N force should keep increasing offset at max_velocity.
   for (int i = 0; i < 100; ++i) {
     follower.update(5.0, 0.01);
   }
   EXPECT_NEAR(follower.offset(), 0.10, 1.0e-9);
-  // Releasing the force stops the robot at the current position (no spring back).
   const double held_offset = follower.offset();
   for (int i = 0; i < 100; ++i) {
     follower.update(0.0, 0.01);
@@ -150,23 +251,150 @@ TEST(CartesianComplianceController, TransformsForceAndLeverArmTorque)
   const auto target = whole_body_force_control::transformWrench(
     source, rotation, target_to_source);
   EXPECT_TRUE(target.head<3>().isApprox(Eigen::Vector3d(0.0, 2.0, 0.0), 1.0e-12));
-  // Rotated source torque is (-0.5, 0, 0); lever arm contributes +0.2 Nm on z.
   EXPECT_TRUE(target.tail<3>().isApprox(Eigen::Vector3d(-0.5, 0.0, 0.2), 1.0e-12));
+}
+
+TEST(PinocchioRobotModel, MatchesCoreDimensionAndJointContract)
+{
+  const auto model = sharedRobotModel();
+  EXPECT_EQ(model->stateDimension(), 9U);
+  EXPECT_EQ(model->inputDimension(), 8U);
+  EXPECT_EQ(model->baseModel(), wbmm::core::BaseModel::kDifferentialDrive);
+  EXPECT_EQ(model->jointNames().size(), 6U);
+  EXPECT_EQ(model->jointNames().front(), "joint_1");
+  EXPECT_EQ(model->jointNames().back(), "joint_6");
+  EXPECT_EQ(model->limits().joint_min.size(), 6U);
+  EXPECT_EQ(model->limits().joint_max.size(), 6U);
+  EXPECT_EQ(model->limits().max_joint_speed.size(), 6U);
+  EXPECT_TRUE(model->hasFrame("tool0"));
+  EXPECT_FALSE(model->hasFrame("not_a_link"));
+
+  const auto state = coreState(seedState(), model->jointNames());
+  std::string reason;
+  EXPECT_TRUE(model->validate(state, &reason)) << reason;
+}
+
+TEST(PinocchioRobotModel, RejectsJointOutsideLimits)
+{
+  const auto model = sharedRobotModel();
+  auto state = coreState(seedState(), model->jointNames());
+  state.joints.positions[1] = 100.0;
+  std::string reason;
+  EXPECT_FALSE(model->validate(state, &reason));
+  EXPECT_FALSE(reason.empty());
+}
+
+TEST(PinocchioRobotModel, ForwardKinematicsMapsJointsByName)
+{
+  const auto model = sharedRobotModel();
+  const auto seed = seedState();
+
+  Eigen::VectorXd reversed = seed;
+  for (int i = 0; i < 6; ++i) {
+    reversed[3 + i] = seed[3 + (5 - i)];
+  }
+  auto reversed_names = model->jointNames();
+  std::reverse(reversed_names.begin(), reversed_names.end());
+
+  wbmm::core::Pose ordered_pose;
+  wbmm::core::Pose reversed_pose;
+  ASSERT_TRUE(model->forwardKinematics(
+    coreState(seed, model->jointNames()), "tool0", ordered_pose));
+  ASSERT_TRUE(model->forwardKinematics(
+    coreState(reversed, reversed_names), "tool0", reversed_pose));
+
+  EXPECT_TRUE(
+    (rotationOf(ordered_pose) - rotationOf(reversed_pose)).norm() < 1.0e-12);
+  EXPECT_NEAR(ordered_pose.position.x, reversed_pose.position.x, 1.0e-12);
+  EXPECT_NEAR(ordered_pose.position.y, reversed_pose.position.y, 1.0e-12);
+  EXPECT_NEAR(ordered_pose.position.z, reversed_pose.position.z, 1.0e-12);
+
+  Eigen::MatrixXd ordered_jacobian(6, 8);
+  Eigen::MatrixXd reversed_jacobian(6, 8);
+  ASSERT_TRUE(model->frameJacobian(
+    coreState(seed, model->jointNames()), "tool0", ordered_jacobian));
+  ASSERT_TRUE(model->frameJacobian(
+    coreState(reversed, reversed_names), "tool0", reversed_jacobian));
+
+  EXPECT_TRUE(
+    reversed_jacobian.leftCols(2).isApprox(ordered_jacobian.leftCols(2), 1.0e-12));
+  const Eigen::MatrixXd reversed_columns =
+    ordered_jacobian.rightCols(6).rowwise().reverse();
+  EXPECT_TRUE(
+    reversed_jacobian.rightCols(6).isApprox(reversed_columns, 1.0e-12));
+}
+
+TEST(PinocchioRobotModel, ValidationMapsJointVelocitiesByName)
+{
+  const auto model = sharedRobotModel();
+  auto state = coreState(seedState(), model->jointNames());
+  state.joints.velocities.assign(6, 0.0);
+  state.joints.velocities[0] = 100.0;  // joint_1 exceeds the URDF speed limit
+
+  auto reversed_names = model->jointNames();
+  std::reverse(reversed_names.begin(), reversed_names.end());
+  std::reverse(state.joints.positions.begin(), state.joints.positions.end());
+  std::reverse(state.joints.velocities.begin(), state.joints.velocities.end());
+  state.joints.names = reversed_names;
+
+  std::string reason;
+  EXPECT_FALSE(model->validate(state, &reason));
+  EXPECT_FALSE(reason.empty());
+}
+
+TEST(PinocchioRobotModel, JacobianMatchesExactFiniteDifference)
+{
+  const auto model = sharedRobotModel();
+  const auto names = model->jointNames();
+  const auto seed = seedState();
+  const auto nominal = coreState(seed, names);
+  const double step = 1.0e-6;
+
+  std::vector<Eigen::VectorXd> inputs;
+  for (int axis = 0; axis < 8; ++axis) {
+    Eigen::VectorXd input = Eigen::VectorXd::Zero(8);
+    input[axis] = 1.0;
+    inputs.push_back(input);
+  }
+  Eigen::VectorXd combined(8);
+  combined << 0.3, -0.2, 0.1, -0.05, 0.04, 0.03, -0.02, 0.01;
+  inputs.push_back(combined);
+
+  Eigen::MatrixXd jacobian(6, 8);
+  ASSERT_TRUE(model->frameJacobian(nominal, "tool0", jacobian));
+  ASSERT_TRUE(jacobian.allFinite());
+
+  for (const auto & input : inputs) {
+    wbmm::core::Pose plus_pose;
+    wbmm::core::Pose minus_pose;
+    ASSERT_TRUE(model->forwardKinematics(
+      coreState(integrateState(seed, input, step), names), "tool0", plus_pose));
+    ASSERT_TRUE(model->forwardKinematics(
+      coreState(integrateState(seed, input, -step), names), "tool0", minus_pose));
+
+    const Eigen::Vector3d plus_position(
+      plus_pose.position.x, plus_pose.position.y, plus_pose.position.z);
+    const Eigen::Vector3d minus_position(
+      minus_pose.position.x, minus_pose.position.y, minus_pose.position.z);
+    const Eigen::Vector3d linear_velocity =
+      (plus_position - minus_position) / (2.0 * step);
+    const Eigen::Vector3d angular_velocity =
+      log3(rotationOf(plus_pose) * rotationOf(minus_pose).transpose()) /
+      (2.0 * step);
+
+    const Eigen::Matrix<double, 6, 1> expected = jacobian * input;
+    EXPECT_LT((expected.head<3>() - linear_velocity).norm(), 1.0e-7);
+    EXPECT_LT((expected.tail<3>() - angular_velocity).norm(), 1.0e-7);
+  }
 }
 
 TEST(WholeBodyKinematics, SharesMotionWithoutBaseSideslip)
 {
-  const std::string workspace = WHOLE_BODY_FORCE_CONTROL_WORKSPACE_DIR;
-  whole_body_force_control::WholeBodyKinematics kinematics(
-    workspace + "/src/robot/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf",
-    "tool0");
-  Eigen::VectorXd seed(9);
-  seed << 2.027707685, -0.577917895, -0.958716061,
-    -0.000000098, 1.900822751, 0.474463874,
-    2.337099332, 4.712392653, 0.785416000;
+  const auto kinematics = makeKinematics();
+  const Eigen::VectorXd seed = seedState();
   const Eigen::Vector3d direction(
     std::cos(seed[2]), std::sin(seed[2]), 0.0);
-  const Eigen::VectorXd corrected = kinematics.correctedState(
+  const Eigen::VectorXd corrected = kinematics->correctedState(
     seed, direction, 0.040, 0.40, 0.030, 0.20);
   const Eigen::Vector2d heading(std::cos(seed[2]), std::sin(seed[2]));
   const Eigen::Vector2d base_delta = corrected.head<2>() - seed.head<2>();
@@ -175,7 +403,7 @@ TEST(WholeBodyKinematics, SharesMotionWithoutBaseSideslip)
     base_delta.x() * heading.y() - base_delta.y() * heading.x(),
     0.0, 1.0e-12);
   const Eigen::Vector3d displacement =
-    kinematics.framePosition(corrected) - kinematics.framePosition(seed);
+    kinematics->framePosition(corrected) - kinematics->framePosition(seed);
   EXPECT_NEAR(displacement.dot(direction), 0.040, 7.5e-4);
   EXPECT_LT(
     (displacement - direction * displacement.dot(direction)).norm(), 7.5e-4);
@@ -183,19 +411,13 @@ TEST(WholeBodyKinematics, SharesMotionWithoutBaseSideslip)
 
 TEST(WholeBodyKinematics, RealizesSixAxisToolFrameCorrection)
 {
-  const std::string workspace = WHOLE_BODY_FORCE_CONTROL_WORKSPACE_DIR;
-  whole_body_force_control::WholeBodyKinematics kinematics(
-    workspace + "/src/robot/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf",
-    "tool0");
-  Eigen::VectorXd seed(9);
-  seed << 2.027707685, -0.577917895, -0.958716061,
-    -0.000000098, 1.900822751, 0.474463874,
-    2.337099332, 4.712392653, 0.785416000;
+  const auto kinematics = makeKinematics();
+  const Eigen::VectorXd seed = seedState();
   Eigen::Matrix<double, 6, 1> correction;
   correction << 0.004, -0.003, 0.005, 0.008, -0.006, 0.004;
-  const Eigen::Vector3d initial_position = kinematics.framePosition(seed);
-  const Eigen::Matrix3d initial_rotation = kinematics.frameRotation(seed);
-  const Eigen::VectorXd corrected = kinematics.correctedState6D(
+  const Eigen::Vector3d initial_position = kinematics->framePosition(seed);
+  const Eigen::Matrix3d initial_rotation = kinematics->frameRotation(seed);
+  const Eigen::VectorXd corrected = kinematics->correctedState6D(
     seed, correction, 0.0, 0.03, 0.20);
   const Eigen::Vector3d expected_position =
     initial_position + initial_rotation * correction.head<3>();
@@ -204,10 +426,58 @@ TEST(WholeBodyKinematics, RealizesSixAxisToolFrameCorrection)
     Eigen::AngleAxisd(angle, correction.tail<3>() / angle).toRotationMatrix();
 
   EXPECT_LT(
-    (kinematics.framePosition(corrected) - expected_position).norm(),
+    (kinematics->framePosition(corrected) - expected_position).norm(),
     1.0e-3);
   EXPECT_LT(
-    (kinematics.frameRotation(corrected) - expected_rotation).norm(),
+    (kinematics->frameRotation(corrected) - expected_rotation).norm(),
     2.0e-3);
   EXPECT_TRUE(corrected.head<3>().isApprox(seed.head<3>(), 1.0e-12));
+}
+
+TEST(WholeBodyKinematics, SixAxisCorrectionSharesBaseAndReachesPose)
+{
+  const auto kinematics = makeKinematics();
+  const Eigen::VectorXd seed = seedState();
+  Eigen::Matrix<double, 6, 1> correction;
+  correction << 0.010, -0.004, 0.003, 0.0, 0.0, 0.0;
+  const Eigen::Vector3d initial_position = kinematics->framePosition(seed);
+  const Eigen::Matrix3d initial_rotation = kinematics->frameRotation(seed);
+
+  const Eigen::VectorXd corrected = kinematics->correctedState6D(
+    seed, correction, 0.5, 0.03, 0.20);
+  const Eigen::Vector2d heading(std::cos(seed[2]), std::sin(seed[2]));
+  const Eigen::Vector2d base_delta = corrected.head<2>() - seed.head<2>();
+  const Eigen::Vector3d desired_world_translation =
+    initial_rotation * correction.head<3>();
+  EXPECT_NEAR(
+    base_delta.dot(heading),
+    0.5 * desired_world_translation.head<2>().dot(heading), 1.0e-9);
+  EXPECT_NEAR(
+    base_delta.x() * heading.y() - base_delta.y() * heading.x(),
+    0.0, 1.0e-12);
+
+  const Eigen::Vector3d expected_position =
+    initial_position + desired_world_translation;
+  EXPECT_LT(
+    (kinematics->framePosition(corrected) - expected_position).norm(), 1.0e-3);
+}
+
+TEST(WholeBodyKinematics, ZeroCorrectionPreservesNominalState)
+{
+  const auto kinematics = makeKinematics();
+  const Eigen::VectorXd seed = seedState();
+  const Eigen::VectorXd corrected = kinematics->correctedState(
+    seed, Eigen::Vector3d::UnitX(), 0.0, 0.4, 0.03, 0.2);
+  EXPECT_TRUE(corrected.isApprox(seed, 1.0e-12));
+}
+
+TEST(WholeBodyKinematics, RejectsWrongStateDimension)
+{
+  const auto kinematics = makeKinematics();
+  Eigen::VectorXd wrong(8);
+  wrong.setZero();
+  EXPECT_THROW(
+    kinematics->correctedState(
+      wrong, Eigen::Vector3d::UnitX(), 0.01, 0.4, 0.03, 0.2),
+    std::invalid_argument);
 }

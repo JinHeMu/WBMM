@@ -187,7 +187,7 @@ def generate_launch_description():
         DeclareLaunchArgument('urdf_file', default_value=default_urdf),
         DeclareLaunchArgument(
             'lib_folder',
-            default_value='/tmp/ocs2_tracer_jaka_real/auto_generated'),
+            default_value='/tmp/wbmm_ocs2_real/auto_generated'),
         DeclareLaunchArgument('odom_topic', default_value='/odometry/filtered'),
         DeclareLaunchArgument(
             'map_odom_topic', default_value='/odometry/filtered_map'),

@@ -37,7 +37,7 @@ def _validate_map_inputs(context):
 
 
 def generate_launch_description():
-    ocs2_share = get_package_share_directory('tracer_jaka_ocs2')
+    ocs2_share = get_package_share_directory('wbmm_ocs2_ros')
     bringup_share = get_package_share_directory('tracer_jaka_bringup')
     mujoco_share = get_package_share_directory('tracer_jaka_mujoco')
     wipe_share = get_package_share_directory('wipe_planner')
@@ -47,7 +47,7 @@ def generate_launch_description():
     default_scene_file = os.path.join(
         mujoco_share, 'models', 'scene_esdf_validation.xml')
     rviz_file = os.path.join(
-        ocs2_share, 'rviz', 'tracer_jaka_esdf_validation.rviz')
+        ocs2_share, 'rviz', 'wbmm_esdf_validation.rviz')
 
     esdf_file = LaunchConfiguration('esdf_file')
     ply_file = LaunchConfiguration('ply_file')

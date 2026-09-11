@@ -12,6 +12,39 @@ ros2 launch tracer_jaka_bringup wipe_real_pipeline.launch.py
 `force_control_enabled:=false`。任何实机命令输出还必须显式设置第三道
 `safety_release:=true`；组合不一致时 launch 会在创建硬件/控制节点前拒绝启动。
 
+## REMANI MPC 仿真（单入口）
+
+`remani_mpc_sim.launch.py` 封装 MuJoCo + EKF + REMANI + REMANI→OCS2 bridge +
+`wbmm_ocs2_ros` MPC/MRT，默认在 `odom` 坐标系规划，并在 30 s 后自动发送一个
+已验证可行的 demo goal `(0.0, 1.2, yaw=0)`：
+
+```bash
+# 可视化仿真（自动发送 demo goal）
+ros2 launch tracer_jaka_bringup remani_mpc_sim.launch.py
+
+# 无头验证
+ros2 launch tracer_jaka_bringup remani_mpc_sim.launch.py \
+  viewer:=false use_rviz:=false
+
+# 交互模式：自己用 RViz 的 2D Goal 或发 /goal_pose
+ros2 launch tracer_jaka_bringup remani_mpc_sim.launch.py \
+  publish_demo_goal:=false
+```
+
+数据流：
+
+```text
+MuJoCo + EKF
+  -> REMANI planner (static ESDF, odom)
+  -> remani_to_ocs2_reference_bridge
+  -> wbmm_ocs2_ros MPC/MRT
+  -> MuJoCo base + arm
+```
+
+可调参数：`goal_x`、`goal_y`、`goal_yaw`、`goal_delay`、`publish_demo_goal`、
+`viewer`、`use_rviz`、`start_slam`。REMANI 使用静态 ESDF，因此默认
+`start_slam:=false`。
+
 ## MoveIt：统一选择仿真或真机
 
 MoveIt、MoveIt Servo、RViz、controller manager 和仿真/实机接口均由本包统一编排。
@@ -87,12 +120,12 @@ WBMM 的顶层系统组合包。本文以
   - 速度接近零；
   - JAKA 状态、F/T、命令安全闸通过。
 - MRT 重名问题已修复：
-  - `ocs2_real.launch.py` 和 `ocs2_sim.launch.py` 不再给 MRT 显式 `name='tracer_jaka_mrt_node'`，使用 C++ 节点自身名称；
-  - `TracerJakaMrtNode.cpp` 中 OCS2 内部节点使用 `use_global_arguments(false)`，避免被 launch 层 `__node` 重命名成同一个主节点；
+  - `ocs2_real.launch.py` 和 `ocs2_sim.launch.py` 不再给 MRT 显式 `name='wbmm_mrt_node'`，使用 C++ 节点自身名称；
+  - `WbmmMrtNode.cpp` 中 OCS2 内部节点使用 `use_global_arguments(false)`，避免被 launch 层 `__node` 重命名成同一个主节点；
   - 期望 ROS 图只有：
     ```text
-    /tracer_jaka_mrt_node
-    /tracer_jaka_mrt_node_ocs2_internal
+    /wbmm_mrt_node
+    /wbmm_mrt_node_ocs2_internal
     ```
 
 ### 当前遇到的问题与对策
@@ -180,7 +213,7 @@ ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py \
   lidar_sensor_ip:=192.168.8.2 \
   map_file:=/home/a/WBMM/maps/map1/site_2d.yaml \
   static_esdf_file:=/home/a/WBMM/maps/map1/site_remani.npz \
-  lib_folder:=/tmp/ocs2_tracer_jaka_conservative/auto_generated \
+  lib_folder:=/tmp/wbmm_ocs2_conservative/auto_generated \
   initial_x:=0.0 \
   initial_y:=0.0 \
   initial_yaw:=0.0 \
@@ -425,7 +458,7 @@ sudo apt install \
 ```
 
 构建实机链路。`jaka_hardware_interface` 必须显式构建，因为当前它没有被
-`tracer_jaka_ocs2/package.xml` 声明为运行依赖：
+`wbmm_ocs2_ros/package.xml` 声明为运行依赖：
 
 ```bash
 cd /home/a/WBMM
@@ -435,7 +468,7 @@ colcon build --symlink-install --packages-up-to \
   tracer_jaka_bringup \
   tracer_jaka_localization \
   tracer_jaka_mujoco \
-  tracer_jaka_ocs2 \
+  wbmm_ocs2_ros \
   remani_planner \
   grid_map \
   tracer_base \
@@ -806,33 +839,33 @@ arm upperBound:  6 个  0.15
 
 ### 阶段 0：消除 MRT 重名
 
-进入 D0 前，必须保证 ROS 图中只有一个 `/tracer_jaka_mrt_node` 主节点和一个
-`/tracer_jaka_mrt_node_ocs2_internal` 内部节点：
+进入 D0 前，必须保证 ROS 图中只有一个 `/wbmm_mrt_node` 主节点和一个
+`/wbmm_mrt_node_ocs2_internal` 内部节点：
 
 ```bash
 # 关闭所有 launch 终端后
 ros2 daemon stop
 ros2 daemon start
 
-pgrep -af tracer_jaka_mrt_node
-ros2 node list | grep tracer_jaka_mrt
+pgrep -af wbmm_mrt_node
+ros2 node list | grep wbmm_mrt
 ```
 
 期望：
 
-- 操作系统中只有一个 `tracer_jaka_mrt_node` 进程；
-- ROS 图中只有 `/tracer_jaka_mrt_node` 与 `/tracer_jaka_mrt_node_ocs2_internal`。
+- 操作系统中只有一个 `wbmm_mrt_node` 进程；
+- ROS 图中只有 `/wbmm_mrt_node` 与 `/wbmm_mrt_node_ocs2_internal`。
 
-如果出现两个完全相同的 `/tracer_jaka_mrt_node`，优先检查
-`src/bringup/tracer_jaka_bringup/launch/ocs2_real.launch.py` 是否仍给 MRT
-节点显式 `name='tracer_jaka_mrt_node'`。已改为使用 C++ 节点自身名称；同时
-`TracerJakaMrtNode.cpp` 中 OCS2 内部节点使用 `use_global_arguments(false)`，避免被
+如果出现两个完全相同的 `/wbmm_mrt_node`，优先检查
+`src/bringup/launch/ocs2_real.launch.py` 是否仍给 MRT
+节点显式 `name='wbmm_mrt_node'`。当前使用 C++ 节点自身名称；同时
+`WbmmMrtNode.cpp` 中 OCS2 内部节点使用 `use_global_arguments(false)`，避免被
 launch 层 `__node` 重命名成同一个名字。修改后重新编译：
 
 ```bash
 cd /home/a/WBMM
 source /opt/ros/humble/setup.bash
-colcon build --symlink-install --packages-select tracer_jaka_ocs2
+colcon build --symlink-install --packages-select wbmm_ocs2_ros
 source install/setup.bash
 ```
 
@@ -854,7 +887,7 @@ ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py \
   lidar_sensor_ip:=192.168.8.2 \
   map_file:=/home/a/WBMM/maps/site_2d.yaml \
   static_esdf_file:=/home/a/WBMM/maps/site_remani.npz \
-  lib_folder:=/tmp/ocs2_tracer_jaka_conservative/auto_generated \
+  lib_folder:=/tmp/wbmm_ocs2_conservative/auto_generated \
   initial_x:=0.0 \
   initial_y:=0.0 \
   initial_yaw:=0.0 \
@@ -1009,7 +1042,7 @@ RViz 2D Goal Pose (/goal_pose, frame=map)
 | `joint_state_topic` | `/joint_states` | 真实机械臂关节状态 |
 | `task_file` | `tracer_jaka_bringup/config/task_real_conservative.info` | 默认就是 OCS2 保守速度与代价配置；不要误传回 `task_real.info` |
 | `urdf_file` | `tracer_jaka_description/urdf/tracer_jaka_zu5.urdf` | 运动学、碰撞体及传感器外参；硬件参数由 controlled xacro 注入 |
-| `lib_folder` | `/tmp/ocs2_tracer_jaka_real/auto_generated` | OCS2 自动生成库目录；不同 task 建议使用不同目录 |
+| `lib_folder` | `/tmp/wbmm_ocs2_real/auto_generated` | OCS2 自动生成库目录；不同 task 建议使用不同目录 |
 | `manipulator_max_vel` | `0.10` | REMANI 机械臂参考最大速度 rad/s |
 | `manipulator_max_acc` | `0.20` | REMANI 机械臂参考最大加速度 rad/s² |
 | `freeze_manipulator` | `true` | `true` 时 REMANI 保持当前臂型；底盘验证完成后才改 `false` |

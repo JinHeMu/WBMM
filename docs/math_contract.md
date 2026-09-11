@@ -1,6 +1,6 @@
 # WBMM 数学与接口契约
 
-> Status: ACTIVE  
+> Status: DRAFT
 > Author: Agent  
 > Reviewer: TBD  
 > Reviewed at: TBD  
@@ -817,7 +817,12 @@ src/core/wbmm_core/include/wbmm_core/validation.hpp
 | 基础校验 | `src/core/wbmm_core/include/wbmm_core/validation.hpp` |
 | 机器人模型接口 | `src/core/wbmm_core/include/wbmm_core/robot_model.hpp` |
 | 可视化 9D 契约 | `src/visual/include/wbmm_visualization/contract.hpp` |
-| OCS2 参考适配 | `src/control/tracer_jaka_ocs2` |
+| OCS2 9D/8D 模型合同 | `src/control/wbmm_ocs2/include/wbmm_ocs2/WbmmModelInfo.h`、`src/control/wbmm_ocs2/src/FactoryFunctions.cpp` |
+| OCS2 差速动力学 | `src/control/wbmm_ocs2/include/wbmm_ocs2/Dynamics.h`、`src/control/wbmm_ocs2/src/Dynamics.cpp` |
+| OCS2 状态/输入与 Pinocchio 映射 | `src/control/wbmm_ocs2/include/wbmm_ocs2/PinocchioMapping.h`、`src/control/wbmm_ocs2/src/PinocchioMapping.cpp` |
+| OCS2 问题装配 | `src/control/wbmm_ocs2/include/wbmm_ocs2/WbmmInterface.h`、`src/control/wbmm_ocs2/src/WbmmInterface.cpp` |
+| OCS2 全身参考代价 | `src/control/wbmm_ocs2/include/wbmm_ocs2/cost/WholeBodyTrajectoryCost.h`、`src/control/wbmm_ocs2/src/cost/WholeBodyTrajectoryCost.cpp` |
+| OCS2 ROS 求解与执行适配 | `src/control/wbmm_ocs2_ros/src/WbmmMpcNode.cpp`、`src/control/wbmm_ocs2_ros/src/WbmmMrtNode.cpp` |
 | 任务轨迹生成 | `src/planning/ta_wbmp`、`src/applications/wiping/wipe_planner` |
 | REMANI 算法 | `src/vendor/remani_planner` |
 | OCS2 算法 | `src/vendor/ocs2_ros2` |

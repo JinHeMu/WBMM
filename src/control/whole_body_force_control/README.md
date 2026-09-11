@@ -31,6 +31,29 @@
 `response_body_x/y/z` 配置正位移方向。实际接触任务仍必须配置碰撞、接触方向、
 最大位移和传感器超时保护。
 
+## wbmm_core 接入
+
+自 PR1 起，本包的 ROS 边界统一经过 `wbmm_core`：
+
+- `MpcObservation` -> `wbmm::core::WholeBodyState`；
+- `WrenchStamped` -> `wbmm::core::Wrench`；
+- 发布前先构造并校验 `wbmm::core::WholeBodyTrajectory`，
+  再转换为 `MpcTargetTrajectories`；
+- 转换后先调用 `wbmm::core::validate(...)`，再调用
+  `PinocchioRobotModel::validate(...)`（关节名称、顺序、限位）；校验失败按
+  fail-closed 丢弃该帧，并打印带 `RobotModel` 原因的节流日志。
+
+新增参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `state_frame` | `odom` | OCS2 9D state 的参考坐标系；只用于 core 轨迹的 frame 合同与日志，不改变数值语义。 |
+
+`WholeBodyKinematics` 不再直接解析 URDF，而是通过
+`wbmm::core::RobotModel`（当前实现 `PinocchioRobotModel`）获取 FK、Jacobian
+和关节限位；旧的 `WholeBodyKinematics(urdf_file, ee_frame)` 构造函数仍保留，
+供既有调用方平滑迁移。
+
 ## 六轴选择
 
 显式设置 `admittance_axes` 后进入 6D 模式。可选轴名为

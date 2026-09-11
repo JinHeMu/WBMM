@@ -1,10 +1,13 @@
 #include "whole_body_force_control/controllers.hpp"
+#include "whole_body_force_control/pinocchio_robot_model.hpp"
+#include "whole_body_force_control/wbmm_conversions.hpp"
+#include "whole_body_force_control/wbmm_ros_conversions.hpp"
 #include "whole_body_force_control/whole_body_kinematics.hpp"
 
+#include <wbmm_core/wbmm_core.hpp>
+
 #include <geometry_msgs/msg/wrench_stamped.hpp>
-#include <ocs2_msgs/msg/mpc_input.hpp>
 #include <ocs2_msgs/msg/mpc_observation.hpp>
-#include <ocs2_msgs/msg/mpc_state.hpp>
 #include <ocs2_msgs/msg/mpc_target_trajectories.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
@@ -35,15 +38,6 @@ namespace
 {
 constexpr std::array<const char *, 6> kAxisNames{
   "fx", "fy", "fz", "tx", "ty", "tz"};
-
-std::vector<float> toFloatVector(const Eigen::VectorXd & value)
-{
-  std::vector<float> result(static_cast<std::size_t>(value.size()));
-  for (Eigen::Index i = 0; i < value.size(); ++i) {
-    result[static_cast<std::size_t>(i)] = static_cast<float>(value[i]);
-  }
-  return result;
-}
 
 std::size_t axisIndex(const std::string & axis)
 {
@@ -126,10 +120,17 @@ public:
   {
     const auto urdf_file = declare_parameter<std::string>("urdf_file", "");
     ee_frame_ = declare_parameter<std::string>("ee_frame", "tool0");
+    state_frame_ = declare_parameter<std::string>("state_frame", "odom");
     if (urdf_file.empty()) {
       throw std::runtime_error("urdf_file is required");
     }
-    kinematics_ = std::make_unique<WholeBodyKinematics>(urdf_file, ee_frame_);
+    if (state_frame_.empty()) {
+      throw std::runtime_error("state_frame must not be empty");
+    }
+    robot_model_ = std::make_shared<PinocchioRobotModel>(urdf_file);
+    kinematics_ = std::make_unique<WholeBodyKinematics>(
+      robot_model_, ee_frame_, state_frame_,
+      wbmm::core::ClockDomain::kOcs2Mpc);
 
     robot_name_ = declare_parameter<std::string>("robot_name", "mobile_manipulator");
     control_mode_ = declare_parameter<std::string>("control_mode", "force_follow");
@@ -323,48 +324,115 @@ public:
 private:
   void observationCallback(const ocs2_msgs::msg::MpcObservation::SharedPtr message)
   {
-    if (message->state.value.size() !=
-        static_cast<std::size_t>(kinematics_->stateDimension()))
-    {
+    auto converted = wholeBodyStateFromMpcObservation(
+      *message, robot_model_->jointNames(), state_frame_,
+      wbmm::core::ClockDomain::kOcs2Mpc);
+    if (!converted.has_value()) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
-        "Ignoring %zuD observation; expected %dD",
-        message->state.value.size(), kinematics_->stateDimension());
+        "Ignoring malformed observation; expected %dD state in frame '%s'",
+        kinematics_->stateDimension(), state_frame_.c_str());
+      return;
+    }
+    const auto structural = wbmm::core::validate(*converted);
+    if (!structural.ok) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Ignoring structurally invalid observation: %s",
+        structural.message.c_str());
+      return;
+    }
+    std::string reason;
+    if (!robot_model_->validate(*converted, &reason)) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Ignoring observation rejected by RobotModel: %s", reason.c_str());
       return;
     }
     std::lock_guard<std::mutex> lock(mutex_);
-    observation_ = message;
+    observation_state_ = std::move(*converted);
+    observation_time_ = message->time;
     observation_received_ = true;
     last_observation_ = std::chrono::steady_clock::now();
   }
 
   void wrenchCallback(const geometry_msgs::msg::WrenchStamped::SharedPtr message)
   {
-    const auto transformed = wrenchInComplianceFrame(*message);
-    if (!transformed) {
-      return;
-    }
-    Vector6d wrench = *transformed;
-    if (!wrench.allFinite()) {
-      RCLCPP_ERROR_THROTTLE(
+    if (cartesian_mode_ && require_wrench_frame_ &&
+      message->header.frame_id.empty())
+    {
+      RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
-        "Dropping non-finite wrench message");
+        "Dropping 6D wrench without frame_id; expected %s",
+        ee_frame_.c_str());
       return;
     }
-    for (std::size_t i = 0; i < 6; ++i) {
-      wrench[i] *= wrench_scale_6d_[i];
-      if (absolute_wrench_axes_[i]) {
-        wrench[i] = std::abs(wrench[i]);
+
+    // 旧标量模式允许空 frame；core 合同要求非空，因此用 ee_frame_ 作为
+    // 纯标签 fallback，不做任何坐标变换（与旧行为一致）。
+    auto converted = wrenchFromRos(
+      *message, wbmm::core::ClockDomain::kSystem, ee_frame_);
+    if (!converted.has_value()) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Dropping malformed wrench message");
+      return;
+    }
+    auto validation = wbmm::core::validate(*converted);
+    if (!validation.ok) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Dropping invalid wrench: %s", validation.message.c_str());
+      return;
+    }
+
+    if (cartesian_mode_) {
+      const auto transformed = wrenchInComplianceFrame(*message);
+      if (!transformed) {
+        return;
+      }
+      *converted = toCoreWrench(*transformed, converted->header);
+      converted->header.frame_id = ee_frame_;
+      validation = wbmm::core::validate(*converted);
+      if (!validation.ok) {
+        RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 2000,
+          "Dropping invalid transformed wrench: %s",
+          validation.message.c_str());
+        return;
       }
     }
-    std::lock_guard<std::mutex> lock(mutex_);
-    measured_wrench_ = wrench;
-    measured_force_ = wrench[axisIndex(force_axis_)] * force_scale_;
+
+    applyWrenchScaleAndAbsolute(*converted);
+    const Vector6d wrench = toEigenWrench(*converted);
+    double measured_force = wrench[axisIndex(force_axis_)] * force_scale_;
     if (absolute_force_) {
-      measured_force_ = std::abs(measured_force_);
+      measured_force = std::abs(measured_force);
     }
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    measured_wrench_core_ = *converted;
+    measured_force_ = measured_force;
     wrench_received_ = true;
     last_wrench_ = std::chrono::steady_clock::now();
+  }
+
+  void applyWrenchScaleAndAbsolute(wbmm::core::Wrench & wrench) const
+  {
+    std::array<double *, 6> values{
+      &wrench.force.x, &wrench.force.y, &wrench.force.z,
+      &wrench.torque.x, &wrench.torque.y, &wrench.torque.z};
+    for (std::size_t i = 0; i < 6; ++i) {
+      *values[i] *= wrench_scale_6d_[i];
+      if (absolute_wrench_axes_[i]) {
+        *values[i] = std::abs(*values[i]);
+      }
+    }
+  }
+
+  Vector6d measuredWrenchVector() const
+  {
+    return toEigenWrench(measured_wrench_core_);
   }
 
   void enableCallback(
@@ -412,7 +480,7 @@ private:
     capture_requested_at_ = now;
     admittance_->reset(measured_force_);
     force_follower_->reset(measured_force_);
-    cartesian_controller_->reset(measured_wrench_);
+    cartesian_controller_->reset(measuredWrenchVector());
     publishControlState("SETTLING");
     response->success = true;
     response->message = reference_output_enabled_ ?
@@ -474,11 +542,7 @@ private:
 
   Eigen::VectorXd observationStateLocked() const
   {
-    Eigen::VectorXd state(kinematics_->stateDimension());
-    for (Eigen::Index i = 0; i < state.size(); ++i) {
-      state[i] = observation_->state.value[static_cast<std::size_t>(i)];
-    }
-    return state;
+    return toEigenState(observation_state_);
   }
 
   bool foreignTargetPublisherPresent() const
@@ -496,7 +560,7 @@ private:
 
   bool wrenchLimitExceeded() const
   {
-    return (measured_wrench_.cwiseAbs().array() >
+    return (measuredWrenchVector().cwiseAbs().array() >
       hard_wrench_limit_.array()).any();
   }
 
@@ -511,7 +575,7 @@ private:
     nominal_captured_ = false;
     admittance_->reset(measured_force_);
     force_follower_->reset(measured_force_);
-    cartesian_controller_->reset(measured_wrench_);
+    cartesian_controller_->reset(measuredWrenchVector());
     publishControlState("FAULT_" + reason);
   }
 
@@ -532,11 +596,12 @@ private:
     const double dt = std::chrono::duration<double>(wall_now - last_update_).count();
     last_update_ = wall_now;
     std::lock_guard<std::mutex> lock(mutex_);
-    if (!observation_) {
+    if (!observation_received_) {
       publishControlState(armed_ ? "WAITING_FOR_OBSERVATION" : "DISABLED");
       return;
     }
     const Eigen::VectorXd measured_state = observationStateLocked();
+    const Vector6d measured_wrench = measuredWrenchVector();
     const bool observation_timed_out =
       !observation_received_ ||
       std::chrono::duration<double>(wall_now - last_observation_).count() >
@@ -589,7 +654,7 @@ private:
       nominal_ee_rotation_ = kinematics_->frameRotation(nominal_state_);
       admittance_->reset(0.0);
       force_follower_->reset(0.0);
-      cartesian_controller_->reset(measured_wrench_);
+      cartesian_controller_->reset(measuredWrenchVector());
       nominal_captured_ = true;
       RCLCPP_INFO(
         get_logger(), "Captured nominal state; accepting %s wrench",
@@ -603,7 +668,7 @@ private:
     double primary_force = 0.0;
 
     if (cartesian_mode_) {
-      correction = cartesian_controller_->update(measured_wrench_, dt);
+      correction = cartesian_controller_->update(measured_wrench, dt);
       filtered_wrench = cartesian_controller_->measuredWrench();
       reference = kinematics_->correctedState6D(
         nominal_state_, correction, base_share_, max_base_delta_,
@@ -641,21 +706,53 @@ private:
     if (!reference_output_enabled_) {
       return;
     }
-    ocs2_msgs::msg::MpcTargetTrajectories target;
+
+    // 参考轨迹先在 wbmm_core 里构造并统一校验，再转换为 OCS2 消息。
+    // 几何/时间语义与旧实现一致：hold 轨迹 + 相对起点 0.02s 的等间隔点。
     const int count = std::max(
       2, static_cast<int>(std::ceil(reference_horizon_ / reference_dt_)) + 1);
+    wbmm::core::WholeBodyTrajectory trajectory;
+    trajectory.trajectory_id = "whole_body_force_control_hold";
+    trajectory.environment_revision = 1;
+    trajectory.collision_model_revision = 1;
+    trajectory.points.reserve(static_cast<std::size_t>(count));
+
     for (int i = 0; i < count; ++i) {
-      target.time_trajectory.push_back(
-        observation_->time + 0.02 + static_cast<double>(i) * reference_dt_);
-      ocs2_msgs::msg::MpcState state_message;
-      state_message.value = toFloatVector(reference);
-      target.state_trajectory.push_back(std::move(state_message));
-      ocs2_msgs::msg::MpcInput input_message;
-      input_message.value = std::vector<float>(
-        static_cast<std::size_t>(input_dimension_), 0.0F);
-      target.input_trajectory.push_back(std::move(input_message));
+      const double time_from_start =
+        0.02 + static_cast<double>(i) * reference_dt_;
+      const double stamp = observation_time_ + time_from_start;
+      wbmm::core::Header header;
+      header.frame_id = state_frame_;
+      header.stamp = stamp;
+      header.clock = wbmm::core::ClockDomain::kOcs2Mpc;
+
+      auto state = toCoreState(reference, robot_model_->jointNames(), header);
+      if (!state.has_value()) {
+        RCLCPP_ERROR_THROTTLE(
+          get_logger(), *get_clock(), 2000,
+          "Refusing to publish reference: state size does not match RobotModel");
+        return;
+      }
+      wbmm::core::WholeBodyTrajectoryPoint point;
+      point.time_from_start = time_from_start;
+      point.state = *state;
+      point.feedforward_input = makeZeroWholeBodyInput(
+        robot_model_->jointNames(), stamp, wbmm::core::ClockDomain::kOcs2Mpc);
+      point.phase = wbmm::core::ExecutionPhase::kExecution;
+      trajectory.points.push_back(point);
     }
-    target_publisher_->publish(target);
+
+    const auto validation = wbmm::core::validate(trajectory);
+    if (!validation.ok) {
+      RCLCPP_ERROR_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Refusing to publish invalid reference trajectory: %s",
+        validation.message.c_str());
+      return;
+    }
+    target_publisher_->publish(toMpcTargetTrajectories(
+      trajectory, observation_time_,
+      static_cast<std::size_t>(input_dimension_)));
   }
 
   void publishStatus(
@@ -721,6 +818,7 @@ private:
 
   std::string robot_name_;
   std::string ee_frame_;
+  std::string state_frame_;
   std::string target_topic_;
   std::string control_mode_;
   std::string force_axis_;
@@ -750,7 +848,7 @@ private:
   double capture_settle_time_{1.0};
   double force_scale_{1.0};
   double measured_force_{0.0};
-  Vector6d measured_wrench_{Vector6d::Zero()};
+  wbmm::core::Wrench measured_wrench_core_{};
   Vector6d wrench_scale_6d_{Vector6d::Ones()};
   Vector6d hard_wrench_limit_{Vector6d::Ones()};
   bool nominal_captured_{false};
@@ -761,13 +859,15 @@ private:
   Eigen::Vector3d nominal_ee_{Eigen::Vector3d::Zero()};
   Eigen::Matrix3d nominal_ee_rotation_{Eigen::Matrix3d::Identity()};
   Eigen::VectorXd nominal_state_;
+  wbmm::core::RobotModelPtr robot_model_;
   std::unique_ptr<WholeBodyKinematics> kinematics_;
   std::unique_ptr<AdmittanceController> admittance_;
   std::unique_ptr<ForceFollower> force_follower_;
   std::unique_ptr<CartesianComplianceController> cartesian_controller_;
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
-  ocs2_msgs::msg::MpcObservation::SharedPtr observation_;
+  wbmm::core::WholeBodyState observation_state_{};
+  double observation_time_{0.0};
   std::mutex mutex_;
   std::chrono::steady_clock::time_point start_time_;
   std::chrono::steady_clock::time_point last_update_;

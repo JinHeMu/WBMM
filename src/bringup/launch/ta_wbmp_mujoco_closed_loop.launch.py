@@ -71,7 +71,7 @@ def generate_launch_description():
             # Do not call this top-level argument ``task_file``: the included
             # OCS2 launch reserves that name for its Boost .info controller
             # configuration.  The coordinator consumes YAML; OCS2 must keep
-            # consuming tracer_jaka_ocs2/config/task.info.
+            # consuming wbmm_ocs2_ros/config/task.info.
             'task_file': LaunchConfiguration('task_yaml'),
             'urdf_file': os.path.join(
                 description_share, 'urdf', 'tracer_jaka_zu5.urdf'),

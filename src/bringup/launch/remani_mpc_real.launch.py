@@ -58,7 +58,7 @@ def _enforce_safety_gate(context):
 def generate_launch_description():
     bringup_share = get_package_share_directory('tracer_jaka_bringup')
     description_share = get_package_share_directory('tracer_jaka_description')
-    ocs2_share = get_package_share_directory('tracer_jaka_ocs2')
+    ocs2_share = get_package_share_directory('wbmm_ocs2_ros')
     remani_share = get_package_share_directory('remani_planner')
 
     # ------------------------------------------------------------------
@@ -120,7 +120,7 @@ def generate_launch_description():
         DeclareLaunchArgument('urdf_file', default_value=default_urdf),
         DeclareLaunchArgument(
             'lib_folder',
-            default_value='/tmp/ocs2_tracer_jaka_real/auto_generated'),
+            default_value='/tmp/wbmm_ocs2_real/auto_generated'),
         DeclareLaunchArgument(
             'odom_topic', default_value='/odometry/filtered',
             description='Odometry used by both MRT and REMANI. '

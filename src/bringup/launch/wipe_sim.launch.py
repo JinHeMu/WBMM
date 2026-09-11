@@ -17,7 +17,7 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 def _prepare_contact_task(context, *args, **kwargs):
     source = os.path.join(
-        get_package_share_directory('tracer_jaka_ocs2'), 'config', 'task.info')
+        get_package_share_directory('wbmm_ocs2_ros'), 'config', 'task.info')
     target = context.perform_substitution(LaunchConfiguration('contact_task_file'))
     os.makedirs(os.path.dirname(target), exist_ok=True)
     with open(source, encoding='utf-8') as stream:
@@ -105,7 +105,7 @@ def generate_launch_description():
     mujoco_share = get_package_share_directory('tracer_jaka_mujoco')
     description_share = get_package_share_directory('tracer_jaka_description')
     grid_map_share = get_package_share_directory('grid_map')
-    ocs2_share = get_package_share_directory('tracer_jaka_ocs2')
+    ocs2_share = get_package_share_directory('wbmm_ocs2_ros')
     bringup_share = get_package_share_directory('tracer_jaka_bringup')
     base_launch = os.path.join(
         bringup_share, 'launch', 'ocs2_sim.launch.py')
@@ -121,7 +121,7 @@ def generate_launch_description():
         DeclareLaunchArgument('auto_goal', default_value='true'),
         DeclareLaunchArgument(
             'contact_task_file',
-            default_value='/tmp/ocs2_tracer_jaka/wipe_task.info'),
+            default_value='/tmp/wbmm_ocs2/wipe_task.info'),
         DeclareLaunchArgument(
             'wipe_task_file',
             default_value=os.path.join(

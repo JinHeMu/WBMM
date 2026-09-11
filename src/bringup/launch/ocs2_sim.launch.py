@@ -13,9 +13,9 @@
 #       - arm_controller
 #       - base_controller
 #    3. 等 MuJoCo 和控制器就绪后，启动 OCS2:
-#       - tracer_jaka_mpc_node
-#       - tracer_jaka_mrt_node
-#       - tracer_jaka_target_node
+#       - wbmm_mpc_node
+#       - wbmm_mrt_node
+#       - wbmm_target_node
 #       - 可选 joy 控制目标点
 #    4. 可选 RViz2
 # =============================================================================
@@ -83,7 +83,7 @@ def _ensure_urdf(context, *args, **kwargs):
 
 
 def generate_launch_description():
-    pkg_ocs2 = FindPackageShare("tracer_jaka_ocs2")
+    pkg_ocs2 = FindPackageShare("wbmm_ocs2_ros")
     pkg_bringup = FindPackageShare("tracer_jaka_bringup")
     pkg_mujoco = FindPackageShare("tracer_jaka_mujoco")
     pkg_description = FindPackageShare("tracer_jaka_description")
@@ -99,6 +99,7 @@ def generate_launch_description():
     rviz_config = LaunchConfiguration("rviz_config")
     use_joy = LaunchConfiguration("use_joy")
     use_csv_target = LaunchConfiguration("use_csv_target")
+    trajectory_csv = LaunchConfiguration("trajectory_csv")
     start_slam = LaunchConfiguration("start_slam")
     start_remani = LaunchConfiguration("start_remani")
     start_remani_bridge = LaunchConfiguration("start_remani_bridge")
@@ -223,7 +224,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "rviz_config",
             default_value=PathJoinSubstitution(
-                [pkg_ocs2, "rviz", "tracer_jaka_ocs2.rviz"]
+                [pkg_ocs2, "rviz", "wbmm_ocs2_ros.rviz"]
             ),
             description="RViz configuration file.",
         ),
@@ -238,6 +239,13 @@ def generate_launch_description():
                 "Start the legacy CSV target publisher. Keep false when "
                 "using the REMANI-to-OCS2 bridge."
             ),
+        ),
+        DeclareLaunchArgument(
+            "trajectory_csv",
+            default_value=PathJoinSubstitution(
+                [pkg_ocs2, "config", "mujoco_smoke_trajectory.csv"]
+            ),
+            description="Whole-body CSV used when use_csv_target is true.",
         ),
         DeclareLaunchArgument(
             "start_slam",
@@ -417,11 +425,11 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "urdf_file",
-            default_value="/tmp/ocs2_tracer_jaka/tracer_jaka.urdf",
+            default_value="/tmp/wbmm_ocs2/tracer_jaka.urdf",
         ),
         DeclareLaunchArgument(
             "lib_folder",
-            default_value="/tmp/ocs2_tracer_jaka/auto_generated",
+            default_value="/tmp/wbmm_ocs2/auto_generated",
         ),
     ]
 
@@ -496,29 +504,29 @@ def generate_launch_description():
     # Step 4: OCS2 三件套
     # -------------------------------------------------------------------------
     mpc_node = Node(
-        package="tracer_jaka_ocs2",
-        executable="tracer_jaka_mpc_node",
-        name="tracer_jaka_mpc_node",
+        package="wbmm_ocs2_ros",
+        executable="wbmm_mpc_node",
+        name="wbmm_mpc_node",
         output="screen",
         parameters=[
             {
                 "taskFile": task_file,
                 "urdfFile": urdf_file,
-                "libFolder": lib_folder,
+                "libFolder": PathJoinSubstitution([lib_folder, "mpc"]),
                 "use_sim_time": use_sim_time,
             }
         ],
     )
 
     mrt_node = Node(
-        package="tracer_jaka_ocs2",
-        executable="tracer_jaka_mrt_node",
+        package="wbmm_ocs2_ros",
+        executable="wbmm_mrt_node",
         output="screen",
         parameters=[
             {
                 "taskFile": task_file,
                 "urdfFile": urdf_file,
-                "libFolder": lib_folder,
+                "libFolder": PathJoinSubstitution([lib_folder, "mrt"]),
                 # Simulation has no physical actuator risk; explicitly open
                 # the MRT output gate because the node default is fail-safe.
                 "command_output_enabled": True,
@@ -581,12 +589,12 @@ def generate_launch_description():
         ],
     )
     whole_body_trajectory_node = Node(
-        package='tracer_jaka_ocs2',
-        executable='tracer_jaka_whole_body_trajectory_node',
-        name='whole_body_trajectory_target_node',
+        package='wbmm_ocs2_ros',
+        executable='wbmm_whole_body_trajectory_node',
+        name='wbmm_whole_body_trajectory_node',
         output='screen',
         parameters=[{
-            'csv_file': '',
+            'csv_file': trajectory_csv,
             'robot_name': 'mobile_manipulator',
             'world_frame': 'odom',
             'state_dim': 9,
@@ -614,9 +622,9 @@ def generate_launch_description():
     )
 
     target_node = Node(
-        package="tracer_jaka_ocs2",
-        executable="tracer_jaka_target_node",
-        name="tracer_jaka_target_node",
+        package="wbmm_ocs2_ros",
+        executable="wbmm_target_node",
+        name="wbmm_target_node",
         output="screen",
         parameters=[
             {
@@ -650,9 +658,9 @@ def generate_launch_description():
     )
 
     joy_target_node = Node(
-        package="tracer_jaka_ocs2",
-        executable="tracer_jaka_joy_target_node",
-        name="tracer_jaka_joy_target_node",
+        package="wbmm_ocs2_ros",
+        executable="wbmm_joy_target_node",
+        name="wbmm_joy_target_node",
         output="screen",
         parameters=[
             {
@@ -691,9 +699,9 @@ def generate_launch_description():
     # "胡萝卜" 模式: 目标 = 当前位置 + 速度 * lookahead_time
     # 松开 LB: 底盘保持位置, 手臂→home (MPC 主动对抗重力)
     joy_whole_body_node = Node(
-        package="tracer_jaka_ocs2",
-        executable="tracer_jaka_joy_whole_body_node",
-        name="tracer_jaka_joy_whole_body_node",
+        package="wbmm_ocs2_ros",
+        executable="wbmm_joy_whole_body_node",
+        name="wbmm_joy_whole_body_node",
         output="screen",
         parameters=[
             {
