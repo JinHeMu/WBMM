@@ -1,21 +1,22 @@
-#include "whole_body_force_control/wbmm_ros_conversions.hpp"
+#include "wbmm_robot/wbmm_ros_conversions.hpp"
 
-#include "whole_body_force_control/wbmm_conversions.hpp"
+#include "wbmm_robot/wbmm_conversions.hpp"
 
 #include <Eigen/Core>
 
 #include <algorithm>
 #include <cmath>
 
-namespace whole_body_force_control
+namespace wbmm::robot
 {
 namespace
 {
 
 double toSeconds(const builtin_interfaces::msg::Time & stamp)
 {
-  return static_cast<double>(stamp.sec) +
-         1.0e-9 * static_cast<double>(stamp.nanosec);
+  const double whole_seconds = static_cast<double>(stamp.sec);
+  const double nanoseconds = static_cast<double>(stamp.nanosec);
+  return whole_seconds + 1.0e-9 * nanoseconds;
 }
 
 }  // namespace
@@ -24,8 +25,7 @@ wbmm::core::Quaternion quaternionFromRos(
   const geometry_msgs::msg::Quaternion & quaternion)
 {
   // ROS 顺序 xyzw -> core 顺序 wxyz。
-  return {
-    quaternion.w, quaternion.x, quaternion.y, quaternion.z};
+  return {quaternion.w, quaternion.x, quaternion.y, quaternion.z};
 }
 
 geometry_msgs::msg::Quaternion quaternionToRos(
@@ -96,7 +96,8 @@ std::optional<wbmm::core::WholeBodyState> wholeBodyStateFromMpcObservation(
   Eigen::VectorXd state(
     static_cast<Eigen::Index>(message.state.value.size()));
   for (Eigen::Index i = 0; i < state.size(); ++i) {
-    state[i] = static_cast<double>(message.state.value[static_cast<std::size_t>(i)]);
+    state[i] = static_cast<double>(
+      message.state.value[static_cast<std::size_t>(i)]);
   }
   wbmm::core::Header header;
   header.frame_id = frame_id;
@@ -116,8 +117,7 @@ ocs2_msgs::msg::MpcTargetTrajectories toMpcTargetTrajectories(
   message.input_trajectory.reserve(trajectory.points.size());
 
   for (const auto & point : trajectory.points) {
-    message.time_trajectory.push_back(
-      start_time + point.time_from_start);
+    message.time_trajectory.push_back(start_time + point.time_from_start);
 
     ocs2_msgs::msg::MpcState state_message;
     const Eigen::VectorXd state = toEigenState(point.state);
@@ -134,7 +134,8 @@ ocs2_msgs::msg::MpcTargetTrajectories toMpcTargetTrajectories(
       const auto count = static_cast<std::size_t>(std::min<Eigen::Index>(
           input.size(), static_cast<Eigen::Index>(input_dimension)));
       for (std::size_t i = 0; i < count; ++i) {
-        input_values[i] = static_cast<float>(input[static_cast<Eigen::Index>(i)]);
+        input_values[i] = static_cast<float>(
+          input[static_cast<Eigen::Index>(i)]);
       }
     }
     ocs2_msgs::msg::MpcInput input_message;
@@ -144,4 +145,4 @@ ocs2_msgs::msg::MpcTargetTrajectories toMpcTargetTrajectories(
   return message;
 }
 
-}  // namespace whole_body_force_control
+}  // namespace wbmm::robot

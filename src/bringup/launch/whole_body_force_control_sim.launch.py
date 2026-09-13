@@ -36,8 +36,6 @@ def generate_launch_description():
             "start_slam": "false",
             "start_remani": "false",
             "start_remani_bridge": "false",
-            "use_joy": "false",
-            "use_csv_target": "false",
             "mujoco_model": mujoco_model,
             "init_keyframe": "home",
             "task_file": PathJoinSubstitution([

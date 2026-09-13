@@ -1,4 +1,4 @@
-#include "whole_body_force_control/pinocchio_robot_model.hpp"
+#include "wbmm_robot/pinocchio_robot_model.hpp"
 
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/jacobian.hpp>
@@ -8,7 +8,7 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace whole_body_force_control
+namespace wbmm::robot
 {
 namespace
 {
@@ -281,7 +281,7 @@ bool PinocchioRobotModel::validate(
       position > limits_.joint_max[joint] + kTolerance)
     {
       return fail(
-              "Joint '" + joint_names_[joint] + "' position is outside its limits");
+        "Joint '" + joint_names_[joint] + "' position is outside its limits");
     }
   }
 
@@ -302,7 +302,7 @@ bool PinocchioRobotModel::validate(
         std::abs(velocity) > limits_.max_joint_speed[joint] + kTolerance)
       {
         return fail(
-                "Joint '" + joint_names_[joint] + "' velocity exceeds its limit");
+          "Joint '" + joint_names_[joint] + "' velocity exceeds its limit");
       }
     }
   }
@@ -361,7 +361,7 @@ bool PinocchioRobotModel::validate(
       std::abs(velocity) > limits_.max_joint_speed[joint] + 1.0e-6)
     {
       return fail(
-              "Joint '" + joint_names_[joint] + "' velocity exceeds its limit");
+        "Joint '" + joint_names_[joint] + "' velocity exceeds its limit");
     }
   }
   return true;
@@ -403,4 +403,4 @@ bool PinocchioRobotModel::sameJointSet(
   return true;
 }
 
-}  // namespace whole_body_force_control
+}  // namespace wbmm::robot

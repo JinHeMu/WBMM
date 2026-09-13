@@ -32,8 +32,6 @@ def generate_launch_description():
             # /remani_planner/set_task_execution and becomes the owner for the
             # approach/contact reference.
             'start_remani_bridge': 'true',
-            'use_joy': 'false',
-            'use_csv_target': 'false',
             'mujoco_model': os.path.join(
                 mujoco_share, 'models', 'scene_task_table.xml'),
             'init_keyframe': 'home',

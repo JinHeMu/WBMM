@@ -28,7 +28,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
-#include <std_msgs/msg/string.hpp>
 
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -49,28 +48,16 @@ using namespace std::chrono_literals;
 namespace
 {
 
-constexpr char kRobotName[] = "mobile_manipulator";
-constexpr int kPlanExpiredMaxLog = 5;
-constexpr double kMaxCommandDt = 0.05;
+  constexpr char kRobotName[] = "mobile_manipulator";
+  constexpr int kPlanExpiredMaxLog = 5;
+  constexpr double kMaxCommandDt = 0.05;
 
-bool isContactState(const std::string & state)
-{
-  return state == "guarded_approach" ||
-         state == "active_force_settling" ||
-         state == "active_force_throttled" ||
-         state == "active_force_paused" ||
-         state == "active" ||
-         state == "over_force_retreat" ||
-         state == "sensor_timeout_retreat";
-}
-
-}  // namespace
+} // namespace
 
 class WbmmMrtNode : public rclcpp::Node
 {
 public:
-  WbmmMrtNode()
-  : Node("wbmm_mrt_node")
+  WbmmMrtNode() : Node("wbmm_mrt_node")
   {
     declareParameters();
     readParameters();
@@ -84,30 +71,29 @@ public:
     // Ignore launch-level remaps for this private helper node.
     rclcpp::NodeOptions options;
     options.use_global_arguments(false);
-    ocs2Node_ = std::make_shared<rclcpp::Node>(
-      std::string(get_name()) + "_ocs2_internal", options);
+    ocs2Node_ = std::make_shared<rclcpp::Node>(std::string(get_name()) + "_ocs2_internal", options);
 
     mrt_ = std::make_unique<ocs2::MRT_ROS_Interface>(kRobotName);
     mrt_->initRollout(&interface_->getRollout());
     mrt_->launchNodes(ocs2Node_);
 
-    if (!enableViz_) {
+    if (!enableViz_)
+    {
       return;
     }
 
-    viz_ = std::make_unique<wbmm::WbmmVisualization>(
-      shared_from_this(), *interface_, worldFrame_, vizSelfCollision_);
-    vizEveryN_ = std::max(
-      1, static_cast<int>(std::round(mrtRate_ / std::max(1.0, vizRate_))));
-    RCLCPP_INFO(
-      get_logger(),
-      "Visualization enabled: every %d cycles (approximately %.1f Hz)",
-      vizEveryN_, mrtRate_ / static_cast<double>(vizEveryN_));
+    viz_ = std::make_unique<wbmm::WbmmVisualization>(shared_from_this(), *interface_, worldFrame_, vizSelfCollision_);
+
+    vizEveryN_ = std::max(1, static_cast<int>(std::round(mrtRate_ / std::max(1.0, vizRate_))));
+
+    RCLCPP_INFO(get_logger(), "Visualization enabled: every %d cycles (approximately %.1f Hz)", vizEveryN_,
+                mrtRate_ / static_cast<double>(vizEveryN_));
   }
 
   void run()
   {
-    if (!waitForRobotState()) {
+    if (!waitForRobotState())
+    {
       return;
     }
 
@@ -118,12 +104,12 @@ public:
     }
 
     resetMpc(observation);
-    if (!waitForFirstPolicy(observation)) {
+    if (!waitForFirstPolicy(observation))
+    {
       return;
     }
 
-    RCLCPP_INFO(
-      get_logger(), "Got first MPC policy. Entering MRT loop at %.1f Hz", mrtRate_);
+    RCLCPP_INFO(get_logger(), "Got first MPC policy. Entering MRT loop at %.1f Hz", mrtRate_);
     runControlLoop();
   }
 
@@ -143,16 +129,14 @@ private:
     declare_parameter<double>("mrt_loop_rate", 100.0);
     declare_parameter<double>("traj_horizon", 0.05);
 
-    declare_parameter<std::string>(
-      "base_cmd_topic", "/diff_drive_controller/cmd_vel");
+    declare_parameter<std::string>("base_cmd_topic", "/diff_drive_controller/cmd_vel");
     declare_parameter<std::string>("arm_cmd_topic", "/arm_controller/commands");
     declare_parameter<std::string>("odom_topic", "/diff_drive_controller/odom");
     declare_parameter<std::string>("joint_state_topic", "/joint_states");
     declare_parameter<bool>("use_stamped_cmd", true);
     declare_parameter<bool>("command_output_enabled", false);
-    declare_parameter<std::vector<std::string>>(
-      "arm_joint_names",
-      {"joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"});
+    declare_parameter<std::vector<std::string>>("arm_joint_names",
+                                                {"joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"});
 
     declare_parameter<std::string>("base_frame", "base_footprint");
     declare_parameter<std::string>("world_frame", "odom");
@@ -160,12 +144,8 @@ private:
     declare_parameter<bool>("use_whole_body_target", true);
 
     declare_parameter<double>("arm_max_delta_per_step", 0.50);
-    declare_parameter<double>("arm_contact_max_delta_per_step", 0.10);
-    declare_parameter<std::string>("force_control_state_topic", "");
-    declare_parameter<std::string>("contact_arm_reference_topic", "");
     declare_parameter<bool>("arm_use_velocity_integrator", false);
     declare_parameter<double>("arm_max_command_velocity", 0.50);
-    declare_parameter<double>("arm_contact_command_velocity", 0.10);
 
     declare_parameter<bool>("enable_visualization", true);
     declare_parameter<bool>("viz_self_collision", true);
@@ -189,13 +169,8 @@ private:
     useWholeBodyTarget_ = get_parameter("use_whole_body_target").as_bool();
 
     armMaxDeltaPerStep_ = get_parameter("arm_max_delta_per_step").as_double();
-    armContactMaxDeltaPerStep_ =
-      get_parameter("arm_contact_max_delta_per_step").as_double();
-    armUseVelocityIntegrator_ =
-      get_parameter("arm_use_velocity_integrator").as_bool();
+    armUseVelocityIntegrator_ = get_parameter("arm_use_velocity_integrator").as_bool();
     armMaxCommandVelocity_ = get_parameter("arm_max_command_velocity").as_double();
-    armContactCommandVelocity_ =
-      get_parameter("arm_contact_command_velocity").as_double();
 
     enableViz_ = get_parameter("enable_visualization").as_bool();
     vizSelfCollision_ = get_parameter("viz_self_collision").as_bool();
@@ -204,44 +179,38 @@ private:
 
   void validateParameters() const
   {
-    if (taskFile_.empty() || libFolder_.empty() || urdfFile_.empty()) {
-      throw std::runtime_error(
-              "taskFile / libFolder / urdfFile parameters must all be set.");
+    if (taskFile_.empty() || libFolder_.empty() || urdfFile_.empty())
+    {
+      throw std::runtime_error("taskFile / libFolder / urdfFile parameters must all be set.");
     }
-    if (!std::isfinite(mrtRate_) || mrtRate_ <= 0.0) {
+    if (!std::isfinite(mrtRate_) || mrtRate_ <= 0.0)
+    {
       throw std::runtime_error("mrt_loop_rate must be positive.");
     }
-    if (!std::isfinite(trajHorizon_) || trajHorizon_ < 0.0) {
+    if (!std::isfinite(trajHorizon_) || trajHorizon_ < 0.0)
+    {
       throw std::runtime_error("traj_horizon must not be negative.");
     }
-    if (!std::isfinite(armMaxDeltaPerStep_) || armMaxDeltaPerStep_ <= 0.0) {
+    if (!std::isfinite(armMaxDeltaPerStep_) || armMaxDeltaPerStep_ <= 0.0)
+    {
       throw std::runtime_error("arm_max_delta_per_step must be positive.");
     }
-    if (!std::isfinite(armContactMaxDeltaPerStep_) ||
-      armContactMaxDeltaPerStep_ <= 0.0)
+    if (!std::isfinite(armMaxCommandVelocity_) || armMaxCommandVelocity_ <= 0.0)
     {
-      throw std::runtime_error("arm_contact_max_delta_per_step must be positive.");
-    }
-    if (!std::isfinite(armMaxCommandVelocity_) || armMaxCommandVelocity_ <= 0.0) {
       throw std::runtime_error("arm_max_command_velocity must be positive.");
     }
-    if (!std::isfinite(armContactCommandVelocity_) ||
-      armContactCommandVelocity_ <= 0.0)
+    if (!std::isfinite(vizRate_) || vizRate_ <= 0.0)
     {
-      throw std::runtime_error("arm_contact_command_velocity must be positive.");
-    }
-    if (!std::isfinite(vizRate_) || vizRate_ <= 0.0) {
       throw std::runtime_error("viz_rate must be positive.");
     }
-    if (baseFrame_.empty() || worldFrame_.empty() || eeFrame_.empty()) {
+    if (baseFrame_.empty() || worldFrame_.empty() || eeFrame_.empty())
+    {
       throw std::runtime_error("base_frame / world_frame / ee_frame must not be empty.");
     }
-    const std::unordered_set<std::string> uniqueJointNames(
-      armJointNames_.begin(), armJointNames_.end());
+    const std::unordered_set<std::string> uniqueJointNames(armJointNames_.begin(), armJointNames_.end());
     if (uniqueJointNames.size() != armJointNames_.size() ||
-      std::any_of(
-        armJointNames_.begin(), armJointNames_.end(),
-        [](const std::string & name) {return name.empty();}))
+        std::any_of(armJointNames_.begin(), armJointNames_.end(), [](const std::string &name)
+                    { return name.empty(); }))
     {
       throw std::runtime_error("arm_joint_names must be non-empty and unique.");
     }
@@ -249,28 +218,26 @@ private:
 
   void setupRobotModel()
   {
-    interface_ = std::make_unique<
-      wbmm_ocs2::WbmmInterface>(
-      taskFile_, libFolder_, urdfFile_);
+    interface_ = std::make_unique<wbmm_ocs2::WbmmInterface>(taskFile_, libFolder_, urdfFile_);
 
-    const auto & info = interface_->getWbmmModelInfo();
+    const auto &info = interface_->getWbmmModelInfo();
     stateDim_ = info.stateDim;
     inputDim_ = info.inputDim;
     armDim_ = info.armDim;
     armQ_.assign(armJointNames_.size(), 0.0);
 
-    RCLCPP_INFO(
-      get_logger(), "OCS2 model dims: state=%zu input=%zu arm=%zu",
-      stateDim_, inputDim_, armDim_);
-    if (stateDim_ != 3 + armDim_) {
+    RCLCPP_INFO(get_logger(), "OCS2 model dims: state=%zu input=%zu arm=%zu", stateDim_, inputDim_, armDim_);
+    if (stateDim_ != 3 + armDim_)
+    {
       throw std::runtime_error("OCS2 state dimension must equal base plus arm.");
     }
-    if (inputDim_ != 2 + armDim_) {
+    if (inputDim_ != 2 + armDim_)
+    {
       throw std::runtime_error("OCS2 input dimension must equal base inputs plus arm.");
     }
-    if (armDim_ != armJointNames_.size()) {
-      throw std::runtime_error(
-              "OCS2 arm dimension does not match arm_joint_names. Check removeJoints.");
+    if (armDim_ != armJointNames_.size())
+    {
+      throw std::runtime_error("OCS2 arm dimension does not match arm_joint_names. Check removeJoints.");
     }
   }
 
@@ -285,83 +252,58 @@ private:
 
   void setupPublishers()
   {
-    if (!commandOutputEnabled_) {
-      RCLCPP_WARN(
-        get_logger(),
-        "DRY-RUN safety gate active: command publishers are disabled. "
-        "MPC/MRT computation and visualization remain active.");
+    if (!commandOutputEnabled_)
+    {
+      RCLCPP_WARN(get_logger(), "DRY-RUN safety gate active: command publishers are disabled. "
+                                "MPC/MRT computation and visualization remain active.");
       return;
     }
 
     const auto baseTopic = get_parameter("base_cmd_topic").as_string();
-    if (useStampedCmd_) {
-      baseStampedPub_ =
-        create_publisher<geometry_msgs::msg::TwistStamped>(baseTopic, 10);
-      RCLCPP_INFO(
-        get_logger(), "Publishing base commands as TwistStamped on %s",
-        baseTopic.c_str());
-    } else {
+    if (useStampedCmd_)
+    {
+      baseStampedPub_ = create_publisher<geometry_msgs::msg::TwistStamped>(baseTopic, 10);
+      RCLCPP_INFO(get_logger(), "Publishing base commands as TwistStamped on %s", baseTopic.c_str());
+    }
+    else
+    {
       basePub_ = create_publisher<geometry_msgs::msg::Twist>(baseTopic, 10);
-      RCLCPP_INFO(
-        get_logger(), "Publishing base commands as Twist on %s", baseTopic.c_str());
+      RCLCPP_INFO(get_logger(), "Publishing base commands as Twist on %s", baseTopic.c_str());
     }
 
     const auto armTopic = get_parameter("arm_cmd_topic").as_string();
-    armPub_ = create_publisher<std_msgs::msg::Float64MultiArray>(
-      armTopic, rclcpp::QoS(10).reliable());
+    armPub_ = create_publisher<std_msgs::msg::Float64MultiArray>(armTopic, rclcpp::QoS(10).reliable());
     RCLCPP_INFO(get_logger(), "Publishing arm position commands on %s", armTopic.c_str());
   }
 
   void setupSubscribers()
   {
-    odomSub_ = create_subscription<nav_msgs::msg::Odometry>(
-      get_parameter("odom_topic").as_string(), rclcpp::SensorDataQoS(),
-      [this](const nav_msgs::msg::Odometry::SharedPtr msg) {odomCallback(msg);});
+    odomSub_ =
+        create_subscription<nav_msgs::msg::Odometry>(get_parameter("odom_topic").as_string(), rclcpp::SensorDataQoS(),
+                                                     [this](const nav_msgs::msg::Odometry::SharedPtr msg)
+                                                     { odomCallback(msg); });
     jointSub_ = create_subscription<sensor_msgs::msg::JointState>(
-      get_parameter("joint_state_topic").as_string(), rclcpp::SensorDataQoS(),
-      [this](const sensor_msgs::msg::JointState::SharedPtr msg) {jointCallback(msg);});
-
-    const auto forceTopic = get_parameter("force_control_state_topic").as_string();
-    if (!forceTopic.empty()) {
-      forceStateSub_ = create_subscription<std_msgs::msg::String>(
-        forceTopic, rclcpp::QoS(10).reliable(),
-        [this](const std_msgs::msg::String::SharedPtr msg) {forceStateCallback(msg);});
-      RCLCPP_INFO(
-        get_logger(),
-        "Contact-aware arm command from %s: lead %.3f rad, slew %.3f rad/s",
-        forceTopic.c_str(), armContactMaxDeltaPerStep_, armContactCommandVelocity_);
-    }
-
-    const auto referenceTopic =
-      get_parameter("contact_arm_reference_topic").as_string();
-    if (!referenceTopic.empty()) {
-      contactReferenceSub_ = create_subscription<std_msgs::msg::Float64MultiArray>(
-        referenceTopic, rclcpp::QoS(10).reliable(),
-        [this](const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
-          contactReferenceCallback(msg);
-        });
-      RCLCPP_INFO(
-        get_logger(), "Contact arm reference subscribed from %s",
-        referenceTopic.c_str());
-    }
+        get_parameter("joint_state_topic").as_string(), rclcpp::SensorDataQoS(),
+        [this](const sensor_msgs::msg::JointState::SharedPtr msg)
+        { jointCallback(msg); });
   }
 
   void logJointOrder() const
   {
     std::ostringstream text;
-    for (size_t i = 0; i < armJointNames_.size(); ++i) {
+    for (size_t i = 0; i < armJointNames_.size(); ++i)
+    {
       text << (i == 0 ? "" : ", ") << armJointNames_[i];
     }
-    RCLCPP_INFO(
-      get_logger(), "Forward controller joint command order: [%s]",
-      text.str().c_str());
+    RCLCPP_INFO(get_logger(), "Forward controller joint command order: [%s]", text.str().c_str());
   }
 
   bool waitForRobotState()
   {
     RCLCPP_INFO(get_logger(), "Waiting for odom and complete joint_states...");
     rclcpp::Rate rate(10.0);
-    while (rclcpp::ok() && (!gotOdom_.load() || !gotJoints_.load())) {
+    while (rclcpp::ok() && (!gotOdom_.load() || !gotJoints_.load()))
+    {
       rate.sleep();
     }
     return rclcpp::ok();
@@ -380,31 +322,32 @@ private:
     return observation;
   }
 
-  void resetMpc(const ocs2::SystemObservation & observation)
+  void resetMpc(const ocs2::SystemObservation &observation)
   {
     ocs2::vector_t target;
-    if (useWholeBodyTarget_) {
+    if (useWholeBodyTarget_)
+    {
       target = observation.state;
       std::ostringstream text;
       text << target.transpose();
       RCLCPP_INFO(get_logger(), "Initial whole-body target: [%s]", text.str().c_str());
-    } else {
-      target = lookupCurrentEePose();
-      RCLCPP_INFO(
-        get_logger(),
-        "Initial EE target: pos=(%.3f, %.3f, %.3f), "
-        "quat=(%.3f, %.3f, %.3f, %.3f)",
-        target(0), target(1), target(2), target(3), target(4), target(5), target(6));
     }
-    mrt_->resetMpcNode(
-      ocs2::TargetTrajectories(
-        {0.0}, {target}, {ocs2::vector_t::Zero(inputDim_)}));
+    else
+    {
+      target = lookupCurrentEePose();
+      RCLCPP_INFO(get_logger(),
+                  "Initial EE target: pos=(%.3f, %.3f, %.3f), "
+                  "quat=(%.3f, %.3f, %.3f, %.3f)",
+                  target(0), target(1), target(2), target(3), target(4), target(5), target(6));
+    }
+    mrt_->resetMpcNode(ocs2::TargetTrajectories({0.0}, {target}, {ocs2::vector_t::Zero(inputDim_)}));
   }
 
-  bool waitForFirstPolicy(const ocs2::SystemObservation & observation)
+  bool waitForFirstPolicy(const ocs2::SystemObservation &observation)
   {
     RCLCPP_INFO(get_logger(), "Waiting for first MPC policy...");
-    while (rclcpp::ok() && !mrt_->initialPolicyReceived()) {
+    while (rclcpp::ok() && !mrt_->initialPolicyReceived())
+    {
       mrt_->setCurrentObservation(observation);
       mrt_->spinMRT();
       std::this_thread::sleep_for(50ms);
@@ -421,13 +364,15 @@ private:
     lastReport_ = startTime;
     int expiredCount = 0;
 
-    while (rclcpp::ok()) {
+    while (rclcpp::ok())
+    {
       const auto workBegin = SteadyClock::now();
       mrt_->spinMRT();
 
       auto observation = makeObservation((now() - startTime).seconds());
       mrt_->setCurrentObservation(observation);
-      if (mrt_->updatePolicy()) {
+      if (mrt_->updatePolicy())
+      {
         ++policyUpdateCount_;
       }
 
@@ -438,48 +383,54 @@ private:
     }
   }
 
-  bool readPlanEnd(double time, double & planEnd)
+  bool readPlanEnd(double time, double &planEnd)
   {
     planEnd = std::numeric_limits<double>::quiet_NaN();
-    try {
-      const auto & policy = mrt_->getPolicy();
-      if (policy.timeTrajectory_.empty()) {
+    try
+    {
+      const auto &policy = mrt_->getPolicy();
+      if (policy.timeTrajectory_.empty())
+      {
         return false;
       }
       planEnd = policy.timeTrajectory_.back();
       return std::isfinite(planEnd) && time <= planEnd;
-    } catch (const std::exception & error) {
-      RCLCPP_WARN_THROTTLE(
-        get_logger(), *get_clock(), 5000,
-        "Failed to inspect MPC policy: %s", error.what());
+    }
+    catch (const std::exception &error)
+    {
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000, "Failed to inspect MPC policy: %s", error.what());
       return false;
-    } catch (...) {
+    }
+    catch (...)
+    {
       return false;
     }
   }
 
-  bool evaluateCurrentPolicy(
-    const ocs2::SystemObservation & observation,
-    ocs2::vector_t & state, ocs2::vector_t & input)
+  bool evaluateCurrentPolicy(const ocs2::SystemObservation &observation, ocs2::vector_t &state, ocs2::vector_t &input)
   {
     size_t mode = 0;
-    try {
+    try
+    {
       mrt_->evaluatePolicy(observation.time, observation.state, state, input, mode);
       return isPolicyVectorValid(state, input);
-    } catch (const std::exception & error) {
-      RCLCPP_ERROR(
-        get_logger(), "[SAFETY] Current policy evaluation failed: %s", error.what());
-    } catch (...) {
-      RCLCPP_ERROR(
-        get_logger(), "[SAFETY] Current policy evaluation failed with unknown exception.");
+    }
+    catch (const std::exception &error)
+    {
+      RCLCPP_ERROR(get_logger(), "[SAFETY] Current policy evaluation failed: %s", error.what());
+    }
+    catch (...)
+    {
+      RCLCPP_ERROR(get_logger(), "[SAFETY] Current policy evaluation failed with unknown exception.");
     }
     return false;
   }
 
-  void executePolicy(const ocs2::SystemObservation & observation, int & expiredCount)
+  void executePolicy(const ocs2::SystemObservation &observation, int &expiredCount)
   {
     double planEnd = std::numeric_limits<double>::quiet_NaN();
-    if (!readPlanEnd(observation.time, planEnd)) {
+    if (!readPlanEnd(observation.time, planEnd))
+    {
       logExpiredPlan(observation.time, planEnd, ++expiredCount);
       stopAndHold();
       return;
@@ -488,19 +439,19 @@ private:
 
     ocs2::vector_t policyState;
     ocs2::vector_t policyInput;
-    if (!evaluateCurrentPolicy(observation, policyState, policyInput)) {
-      RCLCPP_ERROR_THROTTLE(
-        get_logger(), *get_clock(), 1000,
-        "[SAFETY] MPC current output is invalid. Stopping base and holding arm.");
+    if (!evaluateCurrentPolicy(observation, policyState, policyInput))
+    {
+      RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
+                            "[SAFETY] MPC current output is invalid. Stopping base and holding arm.");
       stopAndHold();
       return;
     }
 
     std::vector<double> armCommand;
-    if (!computeSafeArmCommand(observation.time, observation.state, armCommand)) {
-      RCLCPP_ERROR_THROTTLE(
-        get_logger(), *get_clock(), 1000,
-        "[SAFETY] Predicted arm command is unsafe. Stopping base and holding arm.");
+    if (!computeSafeArmCommand(observation.time, observation.state, armCommand))
+    {
+      RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
+                            "[SAFETY] Predicted arm command is unsafe. Stopping base and holding arm.");
       stopAndHold();
       return;
     }
@@ -512,74 +463,79 @@ private:
 
   void logExpiredPlan(double time, double planEnd, int count)
   {
-    if (count > kPlanExpiredMaxLog + 1) {
+    if (count > kPlanExpiredMaxLog + 1)
+    {
       return;
     }
-    if (count == kPlanExpiredMaxLog + 1) {
-      RCLCPP_ERROR(
-        get_logger(), "[SAFETY] MPC plan remains invalid; suppressing repeated logs.");
+    if (count == kPlanExpiredMaxLog + 1)
+    {
+      RCLCPP_ERROR(get_logger(), "[SAFETY] MPC plan remains invalid; suppressing repeated logs.");
       return;
     }
-    if (std::isfinite(planEnd)) {
-      RCLCPP_ERROR(
-        get_logger(),
-        "[SAFETY] MPC plan expired: currentTime=%.3f, planEnd=%.3f, count=%d. "
-        "Stopping base and holding arm.", time, planEnd, count);
-    } else {
-      RCLCPP_ERROR(
-        get_logger(),
-        "[SAFETY] MPC policy is empty or invalid, count=%d. "
-        "Stopping base and holding arm.", count);
+    if (std::isfinite(planEnd))
+    {
+      RCLCPP_ERROR(get_logger(),
+                   "[SAFETY] MPC plan expired: currentTime=%.3f, planEnd=%.3f, count=%d. "
+                   "Stopping base and holding arm.",
+                   time, planEnd, count);
+    }
+    else
+    {
+      RCLCPP_ERROR(get_logger(),
+                   "[SAFETY] MPC policy is empty or invalid, count=%d. "
+                   "Stopping base and holding arm.",
+                   count);
     }
   }
 
-  void updateVisualization(const ocs2::SystemObservation & observation)
+  void updateVisualization(const ocs2::SystemObservation &observation)
   {
-    if (!viz_ || ++vizCounter_ % vizEveryN_ != 0) {
+    if (!viz_ || ++vizCounter_ % vizEveryN_ != 0)
+    {
       return;
     }
-    try {
+    try
+    {
       viz_->update(observation, mrt_->getPolicy(), mrt_->getCommand());
-    } catch (const std::exception & error) {
-      RCLCPP_WARN_THROTTLE(
-        get_logger(), *get_clock(), 5000,
-        "Visualization update failed: %s", error.what());
+    }
+    catch (const std::exception &error)
+    {
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000, "Visualization update failed: %s", error.what());
     }
   }
 
-  void updateTiming(
-    const ocs2::SystemObservation & observation,
-    const std::chrono::steady_clock::time_point & workBegin)
+  void updateTiming(const ocs2::SystemObservation &observation, const std::chrono::steady_clock::time_point &workBegin)
   {
-    const double workMs = std::chrono::duration<double, std::milli>(
-      std::chrono::steady_clock::now() - workBegin).count();
+    const double workMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - workBegin).count();
     loopWorkSumMs_ += workMs;
     loopWorkMaxMs_ = std::max(loopWorkMaxMs_, workMs);
     ++loopCount_;
 
-    try {
-      const double ageMs = 1000.0 *
-        (observation.time - mrt_->getCommand().mpcInitObservation_.time);
-      if (std::isfinite(ageMs)) {
+    try
+    {
+      const double ageMs = 1000.0 * (observation.time - mrt_->getCommand().mpcInitObservation_.time);
+      if (std::isfinite(ageMs))
+      {
         planAgeSumMs_ += ageMs;
         planAgeMaxMs_ = std::max(planAgeMaxMs_, ageMs);
       }
-    } catch (...) {
+    }
+    catch (...)
+    {
       // Timing diagnostics must never interrupt control.
     }
 
     const double reportDt = (now() - lastReport_).seconds();
-    if (reportDt < 2.0 || loopCount_ == 0) {
+    if (reportDt < 2.0 || loopCount_ == 0)
+    {
       return;
     }
-    RCLCPP_INFO(
-      get_logger(),
-      "[timing] ctrl_loop=%.1f Hz (target %.1f) | work avg=%.2f ms max=%.2f ms | "
-      "MPC_policy_seen=%.1f Hz | plan_age avg=%.1f ms max=%.1f ms",
-      static_cast<double>(loopCount_) / reportDt, mrtRate_,
-      loopWorkSumMs_ / static_cast<double>(loopCount_), loopWorkMaxMs_,
-      static_cast<double>(policyUpdateCount_) / reportDt,
-      planAgeSumMs_ / static_cast<double>(loopCount_), planAgeMaxMs_);
+    RCLCPP_INFO(get_logger(),
+                "[timing] ctrl_loop=%.1f Hz (target %.1f) | work avg=%.2f ms max=%.2f ms | "
+                "MPC_policy_seen=%.1f Hz | plan_age avg=%.1f ms max=%.1f ms",
+                static_cast<double>(loopCount_) / reportDt, mrtRate_, loopWorkSumMs_ / static_cast<double>(loopCount_),
+                loopWorkMaxMs_, static_cast<double>(policyUpdateCount_) / reportDt,
+                planAgeSumMs_ / static_cast<double>(loopCount_), planAgeMaxMs_);
 
     lastReport_ = now();
     loopCount_ = 0;
@@ -592,17 +548,13 @@ private:
 
   void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
   {
-    tf2::Quaternion quaternion(
-      msg->pose.pose.orientation.x, msg->pose.pose.orientation.y,
-      msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
-    if (!std::isfinite(msg->pose.pose.position.x) ||
-      !std::isfinite(msg->pose.pose.position.y) ||
-      !std::isfinite(quaternion.x()) || !std::isfinite(quaternion.y()) ||
-      !std::isfinite(quaternion.z()) || !std::isfinite(quaternion.w()) ||
-      quaternion.length2() < 1.0e-12)
+    tf2::Quaternion quaternion(msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z,
+                               msg->pose.pose.orientation.w);
+    if (!std::isfinite(msg->pose.pose.position.x) || !std::isfinite(msg->pose.pose.position.y) ||
+        !std::isfinite(quaternion.x()) || !std::isfinite(quaternion.y()) || !std::isfinite(quaternion.z()) ||
+        !std::isfinite(quaternion.w()) || quaternion.length2() < 1.0e-12)
     {
-      RCLCPP_ERROR_THROTTLE(
-        get_logger(), *get_clock(), 1000, "Ignoring invalid odometry pose.");
+      RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000, "Ignoring invalid odometry pose.");
       return;
     }
     double roll = 0.0;
@@ -610,9 +562,9 @@ private:
     double yaw = 0.0;
     tf2::Matrix3x3(quaternion).getRPY(roll, pitch, yaw);
 
-    if (!std::isfinite(yaw)) {
-      RCLCPP_ERROR_THROTTLE(
-        get_logger(), *get_clock(), 1000, "Ignoring invalid odometry pose.");
+    if (!std::isfinite(yaw))
+    {
+      RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000, "Ignoring invalid odometry pose.");
       return;
     }
 
@@ -627,20 +579,24 @@ private:
   {
     std::vector<double> nextArmQ(armJointNames_.size(), 0.0);
     bool complete = true;
-    for (size_t i = 0; i < armJointNames_.size(); ++i) {
+    for (size_t i = 0; i < armJointNames_.size(); ++i)
+    {
       const auto match = std::find(msg->name.begin(), msg->name.end(), armJointNames_[i]);
-      if (match == msg->name.end()) {
+      if (match == msg->name.end())
+      {
         complete = false;
         continue;
       }
       const auto index = static_cast<size_t>(std::distance(msg->name.begin(), match));
-      if (index >= msg->position.size() || !std::isfinite(msg->position[index])) {
+      if (index >= msg->position.size() || !std::isfinite(msg->position[index]))
+      {
         complete = false;
         continue;
       }
       nextArmQ[i] = msg->position[index];
     }
-    if (!complete) {
+    if (!complete)
+    {
       return;
     }
     std::lock_guard<std::mutex> lock(stateMutex_);
@@ -648,46 +604,15 @@ private:
     gotJoints_.store(true);
   }
 
-  void forceStateCallback(const std_msgs::msg::String::SharedPtr msg)
-  {
-    const bool contact = isContactState(msg->data);
-    const bool previous = contactConstrained_.exchange(contact);
-    if (previous == contact) {
-      return;
-    }
-    RCLCPP_INFO(
-      get_logger(), "Arm reference mode changed to %s (force state: %s)",
-      contact ? "guarded direct-position" : "MPC velocity-integrated",
-      msg->data.c_str());
-  }
-
-  void contactReferenceCallback(
-    const std_msgs::msg::Float64MultiArray::SharedPtr msg)
-  {
-    if (msg->data.size() != armDim_ ||
-      !std::all_of(
-        msg->data.begin(), msg->data.end(),
-        [](double value) {return std::isfinite(value);}))
-    {
-      RCLCPP_ERROR_THROTTLE(
-        get_logger(), *get_clock(), 1000,
-        "Ignoring invalid contact arm reference of size %zu", msg->data.size());
-      return;
-    }
-
-    std::lock_guard<std::mutex> lock(stateMutex_);
-    contactArmReference_ = msg->data;
-    gotContactReference_.store(true);
-  }
-
-  void fillStateLocked(ocs2::vector_t & state) const
+  void fillStateLocked(ocs2::vector_t &state) const
   {
     state.resize(stateDim_);
     state.setZero();
     state(0) = baseX_;
     state(1) = baseY_;
     state(2) = baseYaw_;
-    for (size_t i = 0; i < armDim_ && i < armQ_.size(); ++i) {
+    for (size_t i = 0; i < armDim_ && i < armQ_.size(); ++i)
+    {
       state(static_cast<Eigen::Index>(3 + i)) = armQ_[i];
     }
   }
@@ -697,92 +622,83 @@ private:
     rclcpp::Rate retryRate(10.0);
     int retries = 30;
     while (rclcpp::ok() && retries-- > 0 &&
-      !tfBuffer_->canTransform(
-        worldFrame_, eeFrame_, tf2::TimePointZero, tf2::durationFromSec(0.1)))
+           !tfBuffer_->canTransform(worldFrame_, eeFrame_, tf2::TimePointZero, tf2::durationFromSec(0.1)))
     {
       retryRate.sleep();
     }
 
-    try {
-      const auto transform = tfBuffer_->lookupTransform(
-        worldFrame_, eeFrame_, tf2::TimePointZero, tf2::durationFromSec(1.0));
+    try
+    {
+      const auto transform = tfBuffer_->lookupTransform(worldFrame_, eeFrame_, tf2::TimePointZero, tf2::durationFromSec(1.0));
       ocs2::vector_t pose(7);
-      pose << transform.transform.translation.x,
-        transform.transform.translation.y,
-        transform.transform.translation.z,
-        transform.transform.rotation.x,
-        transform.transform.rotation.y,
-        transform.transform.rotation.z,
-        transform.transform.rotation.w;
+      pose << transform.transform.translation.x, transform.transform.translation.y, transform.transform.translation.z,
+          transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z,
+          transform.transform.rotation.w;
       return pose;
-    } catch (const tf2::TransformException & error) {
-      throw std::runtime_error(
-              "TF lookup " + worldFrame_ + " -> " + eeFrame_ +
-              " failed: " + error.what());
+    }
+    catch (const tf2::TransformException &error)
+    {
+      throw std::runtime_error("TF lookup " + worldFrame_ + " -> " + eeFrame_ + " failed: " + error.what());
     }
   }
 
-  bool isPolicyVectorValid(
-    const ocs2::vector_t & state, const ocs2::vector_t & input) const
+  bool isPolicyVectorValid(const ocs2::vector_t &state, const ocs2::vector_t &input) const
   {
-    return state.size() == static_cast<Eigen::Index>(stateDim_) &&
-           input.size() == static_cast<Eigen::Index>(inputDim_) &&
+    return state.size() == static_cast<Eigen::Index>(stateDim_) && input.size() == static_cast<Eigen::Index>(inputDim_) &&
            state.allFinite() && input.allFinite();
   }
 
-  bool computeSafeArmCommand(
-    double time, const ocs2::vector_t & currentState,
-    std::vector<double> & command)
+  bool computeSafeArmCommand(double time, const ocs2::vector_t &currentState, std::vector<double> &command)
   {
     command.clear();
-    try {
+    try
+    {
       ocs2::vector_t predictedState;
       ocs2::vector_t predictedInput;
-      if (!evaluateFuturePolicy(time, currentState, predictedState, predictedInput)) {
+      if (!evaluateFuturePolicy(time, currentState, predictedState, predictedInput))
+      {
         return false;
       }
 
       std::vector<double> measured;
-      std::vector<double> contactReference;
       {
         std::lock_guard<std::mutex> lock(stateMutex_);
         measured = armQ_;
-        contactReference = contactArmReference_;
       }
-      if (measured.size() != armDim_) {
+      if (measured.size() != armDim_)
+      {
         return false;
       }
 
-      const bool contact = contactConstrained_.load();
-      if (armUseVelocityIntegrator_ && !contact) {
+      if (armUseVelocityIntegrator_)
+      {
         return integrateArmCommand(time, measured, predictedInput, command);
       }
-      if (contact) {
-        integratedArmCommand_.clear();
-      }
-      return makePositionArmCommand(
-        time, measured, contactReference, predictedState, contact, command);
-    } catch (const std::exception & error) {
-      RCLCPP_ERROR(
-        get_logger(), "[SAFETY] Future policy evaluation failed: %s", error.what());
-    } catch (...) {
-      RCLCPP_ERROR(
-        get_logger(), "[SAFETY] Future policy evaluation failed with unknown exception.");
+      return makePositionArmCommand(measured, predictedState, command);
+    }
+    catch (const std::exception &error)
+    {
+      RCLCPP_ERROR(get_logger(), "[SAFETY] Future policy evaluation failed: %s", error.what());
+    }
+    catch (...)
+    {
+      RCLCPP_ERROR(get_logger(), "[SAFETY] Future policy evaluation failed with unknown exception.");
     }
     command.clear();
     return false;
   }
 
-  bool evaluateFuturePolicy(
-    double time, const ocs2::vector_t & currentState,
-    ocs2::vector_t & predictedState, ocs2::vector_t & predictedInput)
+  bool evaluateFuturePolicy(double time, const ocs2::vector_t &currentState, ocs2::vector_t &predictedState,
+                            ocs2::vector_t &predictedInput)
   {
-    const auto & policy = mrt_->getPolicy();
-    if (policy.timeTrajectory_.empty()) {
+    const auto &policy = mrt_->getPolicy();
+    if (policy.timeTrajectory_.empty())
+    {
       return false;
     }
     const double planEnd = policy.timeTrajectory_.back();
-    if (!std::isfinite(planEnd) || time > planEnd) {
+    if (!std::isfinite(planEnd) || time > planEnd)
+    {
       return false;
     }
 
@@ -791,27 +707,27 @@ private:
     const double queryTime = std::min(time + trajHorizon_, latestTime);
     size_t mode = 0;
     mrt_->evaluatePolicy(queryTime, currentState, predictedState, predictedInput, mode);
-    if (predictedState.size() < static_cast<Eigen::Index>(3 + armDim_)) {
-      RCLCPP_ERROR(
-        get_logger(), "[SAFETY] Predicted state dimension is %ld, expected >= %zu",
-        static_cast<long>(predictedState.size()), 3 + armDim_);
+    if (predictedState.size() < static_cast<Eigen::Index>(3 + armDim_))
+    {
+      RCLCPP_ERROR(get_logger(), "[SAFETY] Predicted state dimension is %ld, expected >= %zu",
+                   static_cast<long>(predictedState.size()), 3 + armDim_);
       return false;
     }
     return true;
   }
 
-  bool integrateArmCommand(
-    double time, const std::vector<double> & measured,
-    const ocs2::vector_t & predictedInput, std::vector<double> & command)
+  bool integrateArmCommand(double time, const std::vector<double> &measured, const ocs2::vector_t &predictedInput,
+                           std::vector<double> &command)
   {
-    if (predictedInput.size() < static_cast<Eigen::Index>(2 + armDim_)) {
-      RCLCPP_ERROR(
-        get_logger(), "[SAFETY] Predicted input dimension is %ld, expected >= %zu",
-        static_cast<long>(predictedInput.size()), 2 + armDim_);
+    if (predictedInput.size() < static_cast<Eigen::Index>(2 + armDim_))
+    {
+      RCLCPP_ERROR(get_logger(), "[SAFETY] Predicted input dimension is %ld, expected >= %zu",
+                   static_cast<long>(predictedInput.size()), 2 + armDim_);
       return false;
     }
 
-    if (integratedArmCommand_.size() != armDim_) {
+    if (integratedArmCommand_.size() != armDim_)
+    {
       integratedArmCommand_ = measured;
       lastArmCommandTime_ = time;
     }
@@ -819,14 +735,14 @@ private:
     lastArmCommandTime_ = time;
 
     command.resize(armDim_);
-    for (size_t i = 0; i < armDim_; ++i) {
-      const double velocity = std::clamp(
-        predictedInput(static_cast<Eigen::Index>(2 + i)),
-        -armMaxCommandVelocity_, armMaxCommandVelocity_);
-      const double next = std::clamp(
-        integratedArmCommand_[i] + dt * velocity,
-        measured[i] - armMaxDeltaPerStep_, measured[i] + armMaxDeltaPerStep_);
-      if (!std::isfinite(next)) {
+    for (size_t i = 0; i < armDim_; ++i)
+    {
+      const double velocity =
+          std::clamp(predictedInput(static_cast<Eigen::Index>(2 + i)), -armMaxCommandVelocity_, armMaxCommandVelocity_);
+      const double next = std::clamp(integratedArmCommand_[i] + dt * velocity, measured[i] - armMaxDeltaPerStep_,
+                                     measured[i] + armMaxDeltaPerStep_);
+      if (!std::isfinite(next))
+      {
         command.clear();
         return false;
       }
@@ -836,94 +752,65 @@ private:
     return true;
   }
 
-  bool makePositionArmCommand(
-    double time, const std::vector<double> & measured,
-    const std::vector<double> & contactReference,
-    const ocs2::vector_t & predictedState, bool contact,
-    std::vector<double> & command)
+  bool makePositionArmCommand(const std::vector<double> &measured, const ocs2::vector_t &predictedState,
+                              std::vector<double> &command)
   {
     command.resize(armDim_);
-    for (size_t i = 0; i < armDim_; ++i) {
-      double target = contact && gotContactReference_.load() &&
-        contactReference.size() == armDim_ ?
-        contactReference[i] : predictedState(static_cast<Eigen::Index>(3 + i));
-
-      if (!std::isfinite(target) || !std::isfinite(measured[i])) {
-        RCLCPP_ERROR(
-          get_logger(),
-          "[SAFETY] Arm joint %zu contains NaN/Inf: command=%.6f measured=%.6f",
-          i + 1, target, measured[i]);
+    for (size_t i = 0; i < armDim_; ++i)
+    {
+      const double target = predictedState(static_cast<Eigen::Index>(3 + i));
+      if (!std::isfinite(target) || !std::isfinite(measured[i]))
+      {
+        RCLCPP_ERROR(get_logger(), "[SAFETY] Arm joint %zu contains NaN/Inf: command=%.6f measured=%.6f", i + 1, target,
+                     measured[i]);
         command.clear();
         return false;
       }
-      if (contact) {
-        target = limitContactCommand(time, i, measured[i], target);
-      }
 
       const double delta = std::abs(target - measured[i]);
-      if (delta > armMaxDeltaPerStep_) {
-        RCLCPP_ERROR(
-          get_logger(),
-          "[SAFETY] Arm joint %zu command jump too large: "
-          "command=%.3f measured=%.3f delta=%.3f limit=%.3f",
-          i + 1, target, measured[i], delta, armMaxDeltaPerStep_);
+      if (delta > armMaxDeltaPerStep_)
+      {
+        RCLCPP_ERROR(get_logger(),
+                     "[SAFETY] Arm joint %zu command jump too large: "
+                     "command=%.3f measured=%.3f delta=%.3f limit=%.3f",
+                     i + 1, target, measured[i], delta, armMaxDeltaPerStep_);
         command.clear();
         return false;
       }
       command[i] = target;
     }
-
-    if (contact) {
-      lastArmCommandTime_ = time;
-    }
     return true;
   }
 
-  double limitContactCommand(
-    double time, size_t joint, double measured, double target) const
+  void publishBaseCommand(const ocs2::vector_t &input)
   {
-    const double maxLead = std::min(
-      armMaxDeltaPerStep_, armContactMaxDeltaPerStep_);
-    target = std::clamp(target, measured - maxLead, measured + maxLead);
-    if (lastGoodArmQ_.size() != armDim_) {
-      return target;
-    }
-
-    const double nominalDt = 1.0 / std::max(1.0, mrtRate_);
-    const double dt = lastArmCommandTime_ > 0.0 ?
-      std::clamp(time - lastArmCommandTime_, 0.0, kMaxCommandDt) : nominalDt;
-    const double maxChange = std::abs(armContactCommandVelocity_) * dt;
-    return std::clamp(
-      target, lastGoodArmQ_[joint] - maxChange, lastGoodArmQ_[joint] + maxChange);
-  }
-
-  void publishBaseCommand(const ocs2::vector_t & input)
-  {
-    if (input.size() < 2 || !std::isfinite(input(0)) || !std::isfinite(input(1))) {
+    if (input.size() < 2 || !std::isfinite(input(0)) || !std::isfinite(input(1)))
+    {
       publishZeroBaseCommand();
       return;
     }
     publishBase(input(0), input(1));
   }
 
-  void publishZeroBaseCommand()
-  {
-    publishBase(0.0, 0.0);
-  }
+  void publishZeroBaseCommand() { publishBase(0.0, 0.0); }
 
   void publishBase(double speed, double yawRate)
   {
-    if (!commandOutputEnabled_) {
+    if (!commandOutputEnabled_)
+    {
       return;
     }
-    if (useStampedCmd_) {
+    if (useStampedCmd_)
+    {
       geometry_msgs::msg::TwistStamped msg;
       msg.header.stamp = now();
       msg.header.frame_id = baseFrame_;
       msg.twist.linear.x = speed;
       msg.twist.angular.z = yawRate;
       baseStampedPub_->publish(msg);
-    } else {
+    }
+    else
+    {
       geometry_msgs::msg::Twist msg;
       msg.linear.x = speed;
       msg.angular.z = yawRate;
@@ -931,24 +818,22 @@ private:
     }
   }
 
-  void publishArmPositions(const std::vector<double> & positions)
+  void publishArmPositions(const std::vector<double> &positions)
   {
-    if (!commandOutputEnabled_) {
-      return;
-    }
-    if (positions.size() != armJointNames_.size()) {
-      RCLCPP_ERROR_THROTTLE(
-        get_logger(), *get_clock(), 1000,
-        "Arm command size mismatch: command=%zu, joints=%zu",
-        positions.size(), armJointNames_.size());
-      return;
-    }
-    if (!std::all_of(
-        positions.begin(), positions.end(),
-        [](double value) {return std::isfinite(value);}))
+    if (!commandOutputEnabled_)
     {
-      RCLCPP_ERROR_THROTTLE(
-        get_logger(), *get_clock(), 1000, "Arm command contains NaN/Inf");
+      return;
+    }
+    if (positions.size() != armJointNames_.size())
+    {
+      RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000, "Arm command size mismatch: command=%zu, joints=%zu",
+                            positions.size(), armJointNames_.size());
+      return;
+    }
+    if (!std::all_of(positions.begin(), positions.end(), [](double value)
+                     { return std::isfinite(value); }))
+    {
+      RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000, "Arm command contains NaN/Inf");
       return;
     }
 
@@ -960,16 +845,18 @@ private:
   void publishHoldArmCommand()
   {
     std::vector<double> hold;
-    if (lastGoodArmQ_.size() == armJointNames_.size()) {
+    if (lastGoodArmQ_.size() == armJointNames_.size())
+    {
       hold = lastGoodArmQ_;
-    } else {
+    }
+    else
+    {
       std::lock_guard<std::mutex> lock(stateMutex_);
       hold = armQ_;
     }
-    if (hold.size() != armJointNames_.size()) {
-      RCLCPP_ERROR_THROTTLE(
-        get_logger(), *get_clock(), 1000,
-        "Cannot publish arm hold command: invalid command size.");
+    if (hold.size() != armJointNames_.size())
+    {
+      RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000, "Cannot publish arm hold command: invalid command size.");
       return;
     }
     publishArmPositions(hold);
@@ -995,10 +882,8 @@ private:
   bool useWholeBodyTarget_{true};
 
   double armMaxDeltaPerStep_{0.50};
-  double armContactMaxDeltaPerStep_{0.10};
   bool armUseVelocityIntegrator_{false};
   double armMaxCommandVelocity_{0.50};
-  double armContactCommandVelocity_{0.10};
   double lastArmCommandTime_{0.0};
   std::vector<std::string> armJointNames_;
 
@@ -1032,33 +917,32 @@ private:
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr armPub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odomSub_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr jointSub_;
-  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr forceStateSub_;
-  rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr contactReferenceSub_;
 
   std::mutex stateMutex_;
   std::atomic<bool> gotOdom_{false};
   std::atomic<bool> gotJoints_{false};
-  std::atomic<bool> contactConstrained_{false};
-  std::atomic<bool> gotContactReference_{false};
   double baseX_{0.0};
   double baseY_{0.0};
   double baseYaw_{0.0};
   std::vector<double> armQ_;
   std::vector<double> lastGoodArmQ_;
   std::vector<double> integratedArmCommand_;
-  std::vector<double> contactArmReference_;
 };
 
-int main(int argc, char ** argv)
+int main(int argc, char **argv)
 {
   rclcpp::init(argc, argv);
 
   std::shared_ptr<WbmmMrtNode> node;
-  try {
+  try
+  {
     node = std::make_shared<WbmmMrtNode>();
     node->initMrt();
-  } catch (const std::exception & error) {
-    if (node) {
+  }
+  catch (const std::exception &error)
+  {
+    if (node)
+    {
       RCLCPP_FATAL(node->get_logger(), "MRT initialization failed: %s", error.what());
     }
     rclcpp::shutdown();
@@ -1067,24 +951,30 @@ int main(int argc, char ** argv)
 
   rclcpp::executors::SingleThreadedExecutor executor;
   executor.add_node(node);
-  std::thread spinner([&executor]() {
-      try {
-        executor.spin();
-      } catch (...) {
-        // The control thread owns shutdown and reports its own failures.
-      }
-    });
+  std::thread spinner([&executor]()
+                      {
+    try {
+      executor.spin();
+    } catch (...) {
+      // The control thread owns shutdown and reports its own failures.
+    } });
 
-  try {
+  try
+  {
     node->run();
-  } catch (const std::exception & error) {
+  }
+  catch (const std::exception &error)
+  {
     RCLCPP_ERROR(node->get_logger(), "MRT loop exception: %s", error.what());
-  } catch (...) {
+  }
+  catch (...)
+  {
     RCLCPP_ERROR(node->get_logger(), "MRT loop stopped by an unknown exception.");
   }
 
   executor.cancel();
-  if (spinner.joinable()) {
+  if (spinner.joinable())
+  {
     spinner.join();
   }
   node->shutdownOcs2();

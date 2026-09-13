@@ -6,7 +6,7 @@
 
 #include <string>
 
-namespace whole_body_force_control
+namespace wbmm::robot
 {
 
 // ============================================================================
@@ -50,7 +50,8 @@ public:
     double displacement, double base_share, double max_base_delta,
     double max_joint_delta) const;
 
-  // 六轴修正量按名义末端局部系解释：前三维是平移[m]，后三维是旋转向量[rad]。
+  // 六轴修正量按名义末端局部系解释：
+  // 前三维是平移[m]，后三维是旋转向量[rad]。
   // 底盘仍只分担平移在自身航向上的分量；转动修正全部由机械臂完成。
   [[nodiscard]] Eigen::VectorXd correctedState6D(
     const Eigen::VectorXd & state,
@@ -83,4 +84,4 @@ private:
   wbmm::core::ClockDomain clock_;
 };
 
-}  // namespace whole_body_force_control
+}  // namespace wbmm::robot

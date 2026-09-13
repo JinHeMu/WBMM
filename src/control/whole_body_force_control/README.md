@@ -1,7 +1,8 @@
 # whole_body_force_control
 
 通用移动机械臂力控制包，不依赖 WipePlanner 的任务几何、覆盖路径或状态机。
-本包只拥有力控算法和配置；MuJoCo 闭环验证入口为
+本包只拥有力控算法、ROS 节点和配置；机器人模型、全身运动学与消息转换已抽到
+`src/robot/wbmm_robot`。MuJoCo 闭环验证入口为
 `tracer_jaka_bringup/force_control_mujoco_test.launch.py`。
 
 ## 功能边界
@@ -14,8 +15,8 @@
   `x_target=(F_measured-F_desired)/K`，带低通、限速和位移限幅。
 - `CartesianComplianceController`：六个相互独立的导纳通道，轴顺序固定为
   `[Fx,Fy,Fz,Tx,Ty,Tz] -> [dx,dy,dz,rx,ry,rz]`。
-- `WholeBodyKinematics`：用完整 6D IK 实现末端平移和转动修正；底盘只分担
-  平移在当前航向上的分量，转动修正由机械臂实现。
+- `wbmm_robot::WholeBodyKinematics`：用完整 6D IK 实现末端平移和转动修正；
+  底盘只分担平移在当前航向上的分量，转动修正由机械臂实现。
 - `whole_body_force_control_node`：接收力传感器和 OCS2 观测，发布完整9D状态、
   8D输入参考。
 
@@ -40,7 +41,7 @@
 - 发布前先构造并校验 `wbmm::core::WholeBodyTrajectory`，
   再转换为 `MpcTargetTrajectories`；
 - 转换后先调用 `wbmm::core::validate(...)`，再调用
-  `PinocchioRobotModel::validate(...)`（关节名称、顺序、限位）；校验失败按
+  `wbmm_robot::PinocchioRobotModel::validate(...)`（关节名称、顺序、限位）；校验失败按
   fail-closed 丢弃该帧，并打印带 `RobotModel` 原因的节流日志。
 
 新增参数：
@@ -86,7 +87,7 @@ ros2 launch tracer_jaka_bringup force_control_mujoco_test.launch.py \
 `require_wrench_frame` 默认在 6D 模式开启，没有 `frame_id` 或 TF 不可用时会拒绝
 该帧数据。已经收到过数据后，力传感器或 OCS2 观测一旦超时会锁存故障、撤销
 `armed`，并在参考输出门已打开时发送“保持当前观测”的参考；不会把失联伪装成
-零力继续运动。故障排除后需调用 `/whole_body_force_control/enable` 重新使能。
+零力继续运动。故障排除后需通过重启节点或上层重新以 `armed=true` 启动；当前版本不提供动态 enable 服务。
 
 为了兼容已有仿真和实机配置，默认 `admittance_axes: [legacy]`，继续使用原来的
 `force_axis`、`absolute_force` 和 `response_body_x/y/z` 标量路径。
@@ -170,11 +171,8 @@ ros2 topic pub -r 50 /whole_body_force_control/fake_wrench \
 ros2 launch tracer_jaka_bringup whole_body_force_control_real.launch.py   jaka_read_only:=false   command_output_enabled:=true   safety_release:=true   force_reference_output_enabled:=true   force_control_armed:=false   force_params_file:=$(ros2 pkg prefix whole_body_force_control)/share/whole_body_force_control/config/force_follow_infinite_real.yaml
 ```
 
-启动稳定后，再手动使能：
-
-```bash
-ros2 service call /whole_body_force_control/enable   std_srvs/srv/SetBool "{data: true}"
-```
+当前版本不提供 `/whole_body_force_control/enable` 服务，`armed` 由启动参数控制；
+需要在故障后重新 armed 时，重启该节点或由上层重新启动。
 
 该配置启用了 `force_velocity_mode: true`：推/拉力超过 `force_deadband` 时，
 机器人以 `max_velocity` 持续沿力的方向移动；撤力后停止在当前位姿，不回弹。
@@ -196,8 +194,6 @@ ros2 launch tracer_jaka_bringup whole_body_force_control_real.launch.py
 
 - `/whole_body_force_control/control_state`：`DISABLED`、`SETTLING`、`ACTIVE`
   或 `FAULT_*`；
-- `/whole_body_force_control/enable`：`std_srvs/srv/SetBool`，仅在 OCS2 观测和
-  wrench 都新鲜且没有其他 OCS2 目标发布者时允许 armed；
 - `/whole_body_force_control/status`：控制量与底盘/末端实际跟踪量；
 - `/mobile_manipulator_mpc_target`：唯一的 OCS2 参考接口。
 
@@ -218,7 +214,7 @@ ros2 launch tracer_jaka_bringup force_control_mujoco_test.launch.py \
 - `max_offset`, `max_velocity`, `force_timeout`
 - `observation_timeout`, `armed`, `reference_output_enabled`
 - `enforce_single_target_owner`, `force_scale`, `wrench_scale_6d`
-- `hard_wrench_limit`, `control_state_topic`, `enable_service`
+- `hard_wrench_limit`, `control_state_topic`
 - `response_body_x/y/z`, `base_share`, `max_base_delta`, `max_joint_delta`
 - `admittance_axes`, `constant_force_axes`, `absolute_wrench_axes`
 - `desired_wrench`, `mass_6d`, `damping_6d`, `stiffness_6d`

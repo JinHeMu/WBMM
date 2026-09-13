@@ -1,5 +1,5 @@
-#include "whole_body_force_control/wbmm_conversions.hpp"
-#include "whole_body_force_control/wbmm_ros_conversions.hpp"
+#include "wbmm_robot/wbmm_conversions.hpp"
+#include "wbmm_robot/wbmm_ros_conversions.hpp"
 
 #include <gtest/gtest.h>
 
@@ -48,13 +48,13 @@ TEST(WbmmRosConversions, QuaternionRoundTripPreservesRosOrder)
   ros.z = 0.3;
   ros.w = 0.9;
 
-  const auto core = whole_body_force_control::quaternionFromRos(ros);
+  const auto core = wbmm::robot::quaternionFromRos(ros);
   EXPECT_DOUBLE_EQ(core.w, 0.9);
   EXPECT_DOUBLE_EQ(core.x, 0.1);
   EXPECT_DOUBLE_EQ(core.y, 0.2);
   EXPECT_DOUBLE_EQ(core.z, 0.3);
 
-  const auto back = whole_body_force_control::quaternionToRos(core);
+  const auto back = wbmm::robot::quaternionToRos(core);
   EXPECT_DOUBLE_EQ(back.x, ros.x);
   EXPECT_DOUBLE_EQ(back.y, ros.y);
   EXPECT_DOUBLE_EQ(back.z, ros.z);
@@ -69,7 +69,7 @@ TEST(WbmmRosConversions, MpcObservationConvertsToWholeBodyState)
     1.0F, 2.0F, 0.5F, 0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F};
 
   const auto state =
-    whole_body_force_control::wholeBodyStateFromMpcObservation(
+    wbmm::robot::wholeBodyStateFromMpcObservation(
     message, jointNames(), "odom", wbmm::core::ClockDomain::kOcs2Mpc);
 
   ASSERT_TRUE(state.has_value());
@@ -92,7 +92,7 @@ TEST(WbmmRosConversions, MpcObservationRejectsWrongSizeOrBadStamp)
   message.time = 1.0;
   message.state.value = {0.0F, 0.0F, 0.0F};
   EXPECT_FALSE(
-    whole_body_force_control::wholeBodyStateFromMpcObservation(
+    wbmm::robot::wholeBodyStateFromMpcObservation(
       message, jointNames(), "odom",
       wbmm::core::ClockDomain::kOcs2Mpc).has_value());
 
@@ -100,7 +100,7 @@ TEST(WbmmRosConversions, MpcObservationRejectsWrongSizeOrBadStamp)
     0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F};
   message.time = -1.0;
   EXPECT_FALSE(
-    whole_body_force_control::wholeBodyStateFromMpcObservation(
+    wbmm::robot::wholeBodyStateFromMpcObservation(
       message, jointNames(), "odom",
       wbmm::core::ClockDomain::kOcs2Mpc).has_value());
 }
@@ -114,7 +114,7 @@ TEST(WbmmRosConversions, NonFiniteObservationFailsCoreValidation)
   message.state.value[3] = std::numeric_limits<float>::quiet_NaN();
 
   const auto state =
-    whole_body_force_control::wholeBodyStateFromMpcObservation(
+    wbmm::robot::wholeBodyStateFromMpcObservation(
     message, jointNames(), "odom", wbmm::core::ClockDomain::kOcs2Mpc);
   ASSERT_TRUE(state.has_value());
   EXPECT_FALSE(wbmm::core::validate(*state));
@@ -132,7 +132,7 @@ TEST(WbmmRosConversions, WrenchUsesFallbackFrameAndConvertsUnits)
   message.wrench.torque.y = 0.2;
   message.wrench.torque.z = 0.3;
 
-  const auto wrench = whole_body_force_control::wrenchFromRos(
+  const auto wrench = wbmm::robot::wrenchFromRos(
     message, wbmm::core::ClockDomain::kSystem, "tool0");
   ASSERT_TRUE(wrench.has_value());
   EXPECT_EQ(wrench->header.frame_id, "tool0");
@@ -144,7 +144,7 @@ TEST(WbmmRosConversions, WrenchUsesFallbackFrameAndConvertsUnits)
   EXPECT_TRUE(wbmm::core::validate(*wrench));
 
   EXPECT_FALSE(
-    whole_body_force_control::wrenchFromRos(
+    wbmm::robot::wrenchFromRos(
       message, wbmm::core::ClockDomain::kSystem).has_value());
 }
 
@@ -164,13 +164,13 @@ TEST(WbmmRosConversions, WholeBodyTrajectoryConvertsToMpcTargetTrajectories)
       1.0, 2.0, 0.5, 0.1, names, 5.0 + time,
       wbmm::core::ClockDomain::kOcs2Mpc);
     point.feedforward_input =
-      whole_body_force_control::makeZeroWholeBodyInput(
+      wbmm::robot::makeZeroWholeBodyInput(
       names, 5.0 + time, wbmm::core::ClockDomain::kOcs2Mpc);
     trajectory.points.push_back(std::move(point));
   }
 
   const auto message =
-    whole_body_force_control::toMpcTargetTrajectories(trajectory, 5.0, 8);
+    wbmm::robot::toMpcTargetTrajectories(trajectory, 5.0, 8);
   ASSERT_EQ(message.time_trajectory.size(), 2U);
   ASSERT_EQ(message.state_trajectory.size(), 2U);
   ASSERT_EQ(message.input_trajectory.size(), 2U);
@@ -195,13 +195,13 @@ TEST(WbmmRosConversions, EigenStateRoundTripMatchesCoreContract)
   header.frame_id = "odom";
   header.clock = wbmm::core::ClockDomain::kSystem;
 
-  const auto core = whole_body_force_control::toCoreState(state, names, header);
+  const auto core = wbmm::robot::toCoreState(state, names, header);
   ASSERT_TRUE(core.has_value());
-  EXPECT_TRUE(whole_body_force_control::toEigenState(*core).isApprox(state));
+  EXPECT_TRUE(wbmm::robot::toEigenState(*core).isApprox(state));
 
   Eigen::VectorXd wrong_size(8);
   wrong_size.setZero();
   EXPECT_FALSE(
-    whole_body_force_control::toCoreState(
+    wbmm::robot::toCoreState(
       wrong_size, names, header).has_value());
 }

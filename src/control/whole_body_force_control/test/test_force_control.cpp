@@ -1,7 +1,7 @@
 #include "whole_body_force_control/controllers.hpp"
-#include "whole_body_force_control/pinocchio_robot_model.hpp"
-#include "whole_body_force_control/wbmm_conversions.hpp"
-#include "whole_body_force_control/whole_body_kinematics.hpp"
+#include "wbmm_robot/pinocchio_robot_model.hpp"
+#include "wbmm_robot/wbmm_conversions.hpp"
+#include "wbmm_robot/whole_body_kinematics.hpp"
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <gtest/gtest.h>
@@ -37,17 +37,17 @@ std::string tracerJakaUrdfPath()
   return WHOLE_BODY_FORCE_CONTROL_TEST_URDF_FALLBACK;
 }
 
-std::shared_ptr<whole_body_force_control::PinocchioRobotModel> sharedRobotModel()
+std::shared_ptr<wbmm::robot::PinocchioRobotModel> sharedRobotModel()
 {
   static const auto model =
-    std::make_shared<whole_body_force_control::PinocchioRobotModel>(
+    std::make_shared<wbmm::robot::PinocchioRobotModel>(
     tracerJakaUrdfPath());
   return model;
 }
 
-std::unique_ptr<whole_body_force_control::WholeBodyKinematics> makeKinematics()
+std::unique_ptr<wbmm::robot::WholeBodyKinematics> makeKinematics()
 {
-  return std::make_unique<whole_body_force_control::WholeBodyKinematics>(
+  return std::make_unique<wbmm::robot::WholeBodyKinematics>(
     sharedRobotModel(), "tool0");
 }
 
@@ -68,14 +68,15 @@ wbmm::core::WholeBodyState coreState(
   header.stamp = 0.0;
   header.clock = wbmm::core::ClockDomain::kSystem;
   const auto converted =
-    whole_body_force_control::toCoreState(state, joint_names, header);
+    wbmm::robot::toCoreState(state, joint_names, header);
   if (!converted.has_value()) {
     throw std::invalid_argument("test state dimension does not match joint names");
   }
   return *converted;
 }
 
-// 对 9D 状态沿 8D 输入做精确一步积分(底盘用单轮车闭式解，关节用线性积分)，
+// 对 9D 状态沿 8D 输入做精确一步积分
+// (底盘用单轮车闭式解，关节用线性积分)，
 // 用于对 frameJacobian 做中心差分校验。
 Eigen::VectorXd integrateState(
   const Eigen::VectorXd & state, const Eigen::VectorXd & input, double dt)
@@ -298,10 +299,12 @@ TEST(PinocchioRobotModel, ForwardKinematicsMapsJointsByName)
 
   wbmm::core::Pose ordered_pose;
   wbmm::core::Pose reversed_pose;
-  ASSERT_TRUE(model->forwardKinematics(
-    coreState(seed, model->jointNames()), "tool0", ordered_pose));
-  ASSERT_TRUE(model->forwardKinematics(
-    coreState(reversed, reversed_names), "tool0", reversed_pose));
+  ASSERT_TRUE(
+    model->forwardKinematics(
+      coreState(seed, model->jointNames()), "tool0", ordered_pose));
+  ASSERT_TRUE(
+    model->forwardKinematics(
+      coreState(reversed, reversed_names), "tool0", reversed_pose));
 
   EXPECT_TRUE(
     (rotationOf(ordered_pose) - rotationOf(reversed_pose)).norm() < 1.0e-12);
@@ -311,10 +314,12 @@ TEST(PinocchioRobotModel, ForwardKinematicsMapsJointsByName)
 
   Eigen::MatrixXd ordered_jacobian(6, 8);
   Eigen::MatrixXd reversed_jacobian(6, 8);
-  ASSERT_TRUE(model->frameJacobian(
-    coreState(seed, model->jointNames()), "tool0", ordered_jacobian));
-  ASSERT_TRUE(model->frameJacobian(
-    coreState(reversed, reversed_names), "tool0", reversed_jacobian));
+  ASSERT_TRUE(
+    model->frameJacobian(
+      coreState(seed, model->jointNames()), "tool0", ordered_jacobian));
+  ASSERT_TRUE(
+    model->frameJacobian(
+      coreState(reversed, reversed_names), "tool0", reversed_jacobian));
 
   EXPECT_TRUE(
     reversed_jacobian.leftCols(2).isApprox(ordered_jacobian.leftCols(2), 1.0e-12));
@@ -367,10 +372,12 @@ TEST(PinocchioRobotModel, JacobianMatchesExactFiniteDifference)
   for (const auto & input : inputs) {
     wbmm::core::Pose plus_pose;
     wbmm::core::Pose minus_pose;
-    ASSERT_TRUE(model->forwardKinematics(
-      coreState(integrateState(seed, input, step), names), "tool0", plus_pose));
-    ASSERT_TRUE(model->forwardKinematics(
-      coreState(integrateState(seed, input, -step), names), "tool0", minus_pose));
+    ASSERT_TRUE(
+      model->forwardKinematics(
+        coreState(integrateState(seed, input, step), names), "tool0", plus_pose));
+    ASSERT_TRUE(
+      model->forwardKinematics(
+        coreState(integrateState(seed, input, -step), names), "tool0", minus_pose));
 
     const Eigen::Vector3d plus_position(
       plus_pose.position.x, plus_pose.position.y, plus_pose.position.z);

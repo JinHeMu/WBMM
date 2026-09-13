@@ -37,7 +37,6 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     LaunchConfiguration,
     PathJoinSubstitution,
-    PythonExpression,
 )
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -97,9 +96,6 @@ def generate_launch_description():
     viewer = LaunchConfiguration("viewer")
     use_rviz = LaunchConfiguration("use_rviz")
     rviz_config = LaunchConfiguration("rviz_config")
-    use_joy = LaunchConfiguration("use_joy")
-    use_csv_target = LaunchConfiguration("use_csv_target")
-    trajectory_csv = LaunchConfiguration("trajectory_csv")
     start_slam = LaunchConfiguration("start_slam")
     start_remani = LaunchConfiguration("start_remani")
     start_remani_bridge = LaunchConfiguration("start_remani_bridge")
@@ -187,38 +183,10 @@ def generate_launch_description():
             description="Per-joint velocity limit for the position-command integrator.",
         ),
         DeclareLaunchArgument(
-            "arm_contact_command_velocity",
-            default_value="0.10",
-            description="Per-joint slew limit for guarded/contact position references.",
-        ),
-        DeclareLaunchArgument(
             "arm_max_delta_per_step",
             default_value="0.50",
             description=(
-                "Maximum position-command lead relative to the measured joint "
-                "state. Contact pipelines should keep this small."
-            ),
-        ),
-        DeclareLaunchArgument(
-            "arm_contact_max_delta_per_step",
-            default_value="0.10",
-            description=(
-                "Maximum position-command lead while force contact is active."
-            ),
-        ),
-        DeclareLaunchArgument(
-            "force_control_state_topic",
-            default_value="",
-            description=(
-                "Optional std_msgs/String state used to enable the contact "
-                "command-lead limit."
-            ),
-        ),
-        DeclareLaunchArgument(
-            "contact_arm_reference_topic",
-            default_value="",
-            description=(
-                "Optional six-joint reference used while force contact is active."
+                "Maximum position-command lead relative to the measured joint state."
             ),
         ),
         DeclareLaunchArgument(
@@ -227,25 +195,6 @@ def generate_launch_description():
                 [pkg_ocs2, "rviz", "wbmm_ocs2_ros.rviz"]
             ),
             description="RViz configuration file.",
-        ),
-        DeclareLaunchArgument(
-            "use_joy",
-            default_value="true",
-        ),
-        DeclareLaunchArgument(
-            "use_csv_target",
-            default_value="false",
-            description=(
-                "Start the legacy CSV target publisher. Keep false when "
-                "using the REMANI-to-OCS2 bridge."
-            ),
-        ),
-        DeclareLaunchArgument(
-            "trajectory_csv",
-            default_value=PathJoinSubstitution(
-                [pkg_ocs2, "config", "mujoco_smoke_trajectory.csv"]
-            ),
-            description="Whole-body CSV used when use_csv_target is true.",
         ),
         DeclareLaunchArgument(
             "start_slam",
@@ -540,19 +489,9 @@ def generate_launch_description():
                 "arm_max_command_velocity": ParameterValue(
                     LaunchConfiguration("arm_max_command_velocity"),
                     value_type=float),
-                "arm_contact_command_velocity": ParameterValue(
-                    LaunchConfiguration("arm_contact_command_velocity"),
-                    value_type=float),
                 "arm_max_delta_per_step": ParameterValue(
                     LaunchConfiguration("arm_max_delta_per_step"),
                     value_type=float),
-                "arm_contact_max_delta_per_step": ParameterValue(
-                    LaunchConfiguration("arm_contact_max_delta_per_step"),
-                    value_type=float),
-                "force_control_state_topic": LaunchConfiguration(
-                    "force_control_state_topic"),
-                "contact_arm_reference_topic": LaunchConfiguration(
-                    "contact_arm_reference_topic"),
                 "traj_num_points": 5,
 
                 "use_stamped_cmd": False,
@@ -588,39 +527,6 @@ def generate_launch_description():
             }
         ],
     )
-    whole_body_trajectory_node = Node(
-        package='wbmm_ocs2_ros',
-        executable='wbmm_whole_body_trajectory_node',
-        name='wbmm_whole_body_trajectory_node',
-        output='screen',
-        parameters=[{
-            'csv_file': trajectory_csv,
-            'robot_name': 'mobile_manipulator',
-            'world_frame': 'odom',
-            'state_dim': 9,
-            'input_dim': 8,
-            'base_dim': 3,
-            'arm_dim': 6,
-            # CSV 没有 time 列时才用到:
-            'linear_speed': 0.15,
-            'angular_speed': 0.30,
-            'joint_speed': 0.50,
-            'min_dt': 0.10,
-            'time_scale': 1.0,       # >1 = 整体放慢
-            'start_lead': 1.0,
-            'auto_publish': True,
-            'auto_publish_delay': 1.0,
-            'prepend_current_state': True,
-            'hold_time_at_end': 3.0,
-        }
-        ],
-        # REMANI and the CSV player must never publish OCS2 targets together.
-        condition=IfCondition(PythonExpression([
-            "'", use_csv_target, "'.lower() == 'true' and '",
-            start_remani, "'.lower() == 'false'",
-        ])),
-    )
-
     target_node = Node(
         package="wbmm_ocs2_ros",
         executable="wbmm_target_node",
@@ -636,102 +542,6 @@ def generate_launch_description():
                 "use_sim_time": use_sim_time,
             }
         ],
-    )
-
-    # -------------------------------------------------------------------------
-    # 可选：手柄驱动
-    # -------------------------------------------------------------------------
-    joy_driver = Node(
-        package="joy",
-        executable="joy_node",
-        name="joy_node",
-        parameters=[
-            {
-                "device_id": 0,
-                "deadzone": 0.05,
-                "autorepeat_rate": 20.0,
-                "use_sim_time": use_sim_time,
-            }
-        ],
-        condition=IfCondition(use_joy),
-        output="screen",
-    )
-
-    joy_target_node = Node(
-        package="wbmm_ocs2_ros",
-        executable="wbmm_joy_target_node",
-        name="wbmm_joy_target_node",
-        output="screen",
-        parameters=[
-            {
-                "robot_name": "mobile_manipulator",
-                "marker_frame": "odom",
-
-                # 建议和 target_node 保持一致。
-                # 如果你的 URDF 里实际末端 frame 叫 gripper_center_link，
-                # 再改回 gripper_center_link。
-                "ee_frame": "tool0",
-
-                "input_dim": 8,
-                "joy_topic": "/joy",
-                "publish_rate": 50.0,
-
-                "linear_speed": 0.15,
-                "angular_speed": 0.6,
-                "deadzone": 0.10,
-
-                "use_sim_time": use_sim_time,
-
-                # PS4 / PS5 手柄可以在这里覆盖映射
-                # "axis_x": 1,
-                # "axis_y": 0,
-                # "axis_z": 4,
-                # "axis_yaw": 3,
-                # "button_deadman": 4,
-                # "button_reset": 0,
-                # "button_home": 1,
-            }
-        ],
-        condition=IfCondition(use_joy),
-    )
-
-    # 手柄控制底盘全身轨迹 (左摇杆前进/后退, 右摇杆转向)
-    # "胡萝卜" 模式: 目标 = 当前位置 + 速度 * lookahead_time
-    # 松开 LB: 底盘保持位置, 手臂→home (MPC 主动对抗重力)
-    joy_whole_body_node = Node(
-        package="wbmm_ocs2_ros",
-        executable="wbmm_joy_whole_body_node",
-        name="wbmm_joy_whole_body_node",
-        output="screen",
-        parameters=[
-            {
-                "robot_name": "mobile_manipulator",
-                "world_frame": "odom",
-                "publish_rate": 50.0,
-                "linear_speed_max": 0.4,       # 最大线速度 [m/s]
-                "angular_speed_max": 1.0,      # 最大角速度 [rad/s]
-                "deadzone": 0.10,
-                "lookahead_time": 1.5,          # 胡萝卜前视距离 [s]
-                "trajectory_horizon": 2.0,      # 轨迹总时长 [s]
-                "lead_time": 0.05,
-                "num_waypoints": 5,             # 航点数 (显式编码速度)
-                "state_dim": 9,
-                "input_dim": 8,
-                "base_dim": 3,
-                "arm_dim": 6,
-                "joy_topic": "/joy",
-                # 手柄映射
-                "axis_linear": 1,       # 左摇杆 Y → 前进/后退
-                "axis_angular": 3,      # 右摇杆 X → 转向
-                "button_deadman": 4,     # LB → 安全开关
-                "button_arm_home": 0,    # A → 臂归 home
-                "button_arm_hold": 1,    # B → 臂保持当前构型
-                # 机械臂 home 位姿
-                "arm_home": [-0.515, 1.5707, -1.5707, 1.5707, 1.5707, 0.254],
-                "use_sim_time": use_sim_time,
-            }
-        ],
-        condition=IfCondition(use_joy),
     )
 
     # -------------------------------------------------------------------------
@@ -787,9 +597,6 @@ def generate_launch_description():
             mpc_node,
             mrt_node,
             #target_node,
-            #joy_driver,
-            #joy_target_node,
-            #joy_whole_body_node,
         ],
     )
 
@@ -855,6 +662,5 @@ def generate_launch_description():
             remani_delayed,
             map_to_odom_tf,
             rviz_delayed,
-            whole_body_trajectory_node,
         ]
     )

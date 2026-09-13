@@ -10,7 +10,6 @@ whole_body_force_control:
     wrench_topic: /whole_body_force_control/fake_wrench
     status_topic: /whole_body_force_control/status
     control_state_topic: /whole_body_force_control/control_state
-    enable_service: /whole_body_force_control/enable
 
     # First whole-body test is deliberately one-dimensional.  A signed Fx
     # drives motion along the current base heading, so both the differential

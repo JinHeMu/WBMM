@@ -10,7 +10,6 @@ whole_body_force_control:
     wrench_topic: /fts_broadcaster/wrench
     status_topic: /whole_body_force_control/status
     control_state_topic: /whole_body_force_control/control_state
-    enable_service: /whole_body_force_control/enable
 
     # Calibrate force_axis / force_scale with the robot read-only before motion.
     # This first profile maps signed tool Fx to the base forward direction.
@@ -38,4 +37,3 @@ whole_body_force_control:
     observation_timeout: 0.20
     capture_settle_time: 1.0
     hard_wrench_limit: [15.0, 15.0, 15.0, 2.0, 2.0, 2.0]
-

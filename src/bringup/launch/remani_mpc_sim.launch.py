@@ -53,11 +53,9 @@ def generate_launch_description():
             # 可视化/系统组合
             'viewer': LaunchConfiguration('viewer'),
             'use_rviz': LaunchConfiguration('use_rviz'),
-            'use_joy': 'false',
             # REMANI 默认在 odom 系规划，不需要 SLAM；EKF 仍提供 odom->base。
             'start_slam': LaunchConfiguration('start_slam'),
             # REMANI 拥有 MPC target，不能再启动 CSV target。
-            'use_csv_target': 'false',
             'start_remani': 'true',
             'start_remani_bridge': 'true',
             'remani_planner_frame': 'odom',

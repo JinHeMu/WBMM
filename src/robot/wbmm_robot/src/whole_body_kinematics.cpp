@@ -1,6 +1,6 @@
-#include "whole_body_force_control/whole_body_kinematics.hpp"
+#include "wbmm_robot/whole_body_kinematics.hpp"
 
-#include "whole_body_force_control/pinocchio_robot_model.hpp"
+#include "wbmm_robot/pinocchio_robot_model.hpp"
 
 #include <Eigen/Cholesky>
 #include <Eigen/Geometry>
@@ -10,7 +10,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace whole_body_force_control
+namespace wbmm::robot
 {
 namespace
 {
@@ -72,7 +72,8 @@ WholeBodyKinematics::WholeBodyKinematics(
             "WholeBodyKinematics requires base pose plus arm joints");
   }
 
-  // 用零状态检查 frame 是否存在；具体机器人校验仍由 RobotModel::validate 负责。
+  // 用零状态检查 frame 是否存在；
+  // 具体机器人校验仍由 RobotModel::validate 负责。
   wbmm::core::Pose pose;
   if (!framePose(makeState(Eigen::VectorXd::Zero(stateDimension())), pose)) {
     throw std::runtime_error("End-effector frame not found: " + ee_frame_);
@@ -206,8 +207,9 @@ Eigen::VectorXd WholeBodyKinematics::correctedState(
   const Eigen::Vector2d base_displacement = heading * base_distance;
 
   // ---- B. 目标位姿 ---------------------------------------------------------
-  // 底盘已经承担 base_displacement，末端最终目标仍必须是"名义位置 + 完整期望
-  // 位移"；机械臂在底盘移动后的新基座下解算剩余的关节修正。
+  // 底盘已经承担 base_displacement，末端最终目标仍必须是
+  // "名义位置 + 完整期望位移"；机械臂在底盘移动后的新基座下
+  // 解算剩余的关节修正。
   Eigen::VectorXd corrected = state;
   corrected.head<2>() += base_displacement;
   const Eigen::Vector3d target_position =
@@ -351,4 +353,4 @@ Eigen::Matrix3d WholeBodyKinematics::frameRotation(
   return rotationOf(pose.orientation);
 }
 
-}  // namespace whole_body_force_control
+}  // namespace wbmm::robot

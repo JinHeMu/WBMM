@@ -63,7 +63,6 @@ def generate_launch_description():
             'viewer': LaunchConfiguration('viewer'),
             'use_rviz': LaunchConfiguration('use_rviz'),
             'rviz_config': rviz_file,
-            'use_joy': 'false',
             'start_slam': 'false',
             'start_remani': 'true',
             'task_file': task_file,

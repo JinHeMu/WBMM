@@ -121,57 +121,6 @@ target_link_libraries(wbmm_target_node
   Boost::log_setup
 )
 
-# ---- Target publisher ----
-add_executable(wbmm_joy_target_node src/wbmm_joy_target_node.cpp)
-ament_target_dependencies(wbmm_joy_target_node ${common_deps})
-target_link_libraries(wbmm_joy_target_node
-  Eigen3::Eigen
-  Boost::system
-  Boost::filesystem
-  Boost::thread
-  Boost::log
-  Boost::log_setup
-)
-
-
-add_executable(csv_path_visualizer_node src/csv_path_visualizer_node.cpp)
-ament_target_dependencies(csv_path_visualizer_node ${common_deps})
-target_link_libraries(csv_path_visualizer_node
-  Eigen3::Eigen
-  Boost::system
-  Boost::filesystem
-  Boost::thread
-  Boost::log
-  Boost::log_setup
-)
-
-add_executable(wbmm_whole_body_trajectory_node
-  src/wbmm_whole_body_trajectory_node.cpp
-)
-ament_target_dependencies(wbmm_whole_body_trajectory_node ${common_deps})
-target_link_libraries(wbmm_whole_body_trajectory_node
-  Eigen3::Eigen
-  Boost::system
-  Boost::filesystem
-  Boost::thread
-  Boost::log
-  Boost::log_setup
-)
-
-# ---- Joy whole-body trajectory node ----
-add_executable(wbmm_joy_whole_body_node
-  src/wbmm_joy_whole_body_node.cpp
-)
-ament_target_dependencies(wbmm_joy_whole_body_node ${common_deps})
-target_link_libraries(wbmm_joy_whole_body_node
-  Eigen3::Eigen
-  Boost::system
-  Boost::filesystem
-  Boost::thread
-  Boost::log
-  Boost::log_setup
-)
-
 # ---- REMANI polynomial trajectory -> OCS2 whole-body reference ----
 add_executable(remani_to_ocs2_reference_bridge
   src/remani_to_ocs2_reference_bridge.cpp
@@ -193,11 +142,7 @@ install(TARGETS
   wbmm_mpc_node
   wbmm_mrt_node
   wbmm_target_node
-  wbmm_joy_target_node
-  wbmm_whole_body_trajectory_node
-  wbmm_joy_whole_body_node
   remani_to_ocs2_reference_bridge
-  csv_path_visualizer_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

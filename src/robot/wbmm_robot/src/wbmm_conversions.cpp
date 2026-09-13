@@ -1,8 +1,8 @@
-#include "whole_body_force_control/wbmm_conversions.hpp"
+#include "wbmm_robot/wbmm_conversions.hpp"
 
 #include <stdexcept>
 
-namespace whole_body_force_control
+namespace wbmm::robot
 {
 
 std::optional<wbmm::core::WholeBodyState> toCoreState(
@@ -125,4 +125,4 @@ wbmm::core::WholeBodyInput makeZeroWholeBodyInput(
   return result;
 }
 
-}  // namespace whole_body_force_control
+}  // namespace wbmm::robot

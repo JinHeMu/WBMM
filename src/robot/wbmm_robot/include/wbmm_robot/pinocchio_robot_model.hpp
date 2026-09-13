@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace whole_body_force_control
+namespace wbmm::robot
 {
 
 // ============================================================================
@@ -86,4 +86,4 @@ private:
   wbmm::core::RobotLimits limits_;
 };
 
-}  // namespace whole_body_force_control
+}  // namespace wbmm::robot

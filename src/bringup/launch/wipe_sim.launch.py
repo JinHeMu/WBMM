@@ -232,7 +232,6 @@ def generate_launch_description():
                 'remani_max_consecutive_planning_failures':
                     LaunchConfiguration(
                         'remani_max_consecutive_planning_failures'),
-                'use_csv_target': 'false',
                 # The arm controller accepts absolute joint positions. Contact
                 # execution must not send a far-future state to a stiff
                 # position controller, so keep only a 20-ms policy lead. The
@@ -240,18 +239,8 @@ def generate_launch_description():
                 'mrt_traj_horizon': '0.02',
                 'arm_use_velocity_integrator': 'true',
                 'arm_max_command_velocity': '0.25',
-                # Final approach, force correction, and safety retreat all use
-                # a direct position reference. Bound the handover/output slew
-                # so none of those modes can create a one-cycle arm step.
-                'arm_contact_command_velocity': '0.10',
-                # Keep the free-space adapter responsive, then prevent it from
-                # winding up a large lead while the tool is wall-constrained.
+                # Keep the free-space adapter responsive.
                 'arm_max_delta_per_step': '0.50',
-                'arm_contact_max_delta_per_step': '0.10',
-                'force_control_state_topic':
-                    '/wipe_planner/force_control_state',
-                'contact_arm_reference_topic':
-                    '/wipe_planner/contact_arm_reference',
                 'task_file': LaunchConfiguration('contact_task_file'),
             }.items()),
         TimerAction(period=12.0, actions=[Node(

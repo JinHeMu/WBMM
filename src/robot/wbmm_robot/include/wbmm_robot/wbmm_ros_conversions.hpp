@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-namespace whole_body_force_control
+namespace wbmm::robot
 {
 
 // ============================================================================
@@ -65,4 +65,4 @@ wholeBodyStateFromMpcObservation(
   double start_time,
   std::size_t input_dimension);
 
-}  // namespace whole_body_force_control
+}  // namespace wbmm::robot

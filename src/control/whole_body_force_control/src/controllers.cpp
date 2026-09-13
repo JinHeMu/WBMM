@@ -11,7 +11,7 @@ Vector6d transformWrench(
   const Eigen::Vector3d & target_to_source)
 {
   if (!source_wrench.allFinite() || !target_rotation_source.allFinite() ||
-      !target_to_source.allFinite())
+    !target_to_source.allFinite())
   {
     throw std::invalid_argument("wrench transform input is non-finite");
   }
@@ -33,7 +33,7 @@ Vector6d transformWrench(
 double rateLimitedStep(double current, double target, double max_rate, double dt)
 {
   if (!std::isfinite(current) || !std::isfinite(target) ||
-      !std::isfinite(max_rate) || !std::isfinite(dt))
+    !std::isfinite(max_rate) || !std::isfinite(dt))
   {
     return current;
   }
@@ -45,13 +45,21 @@ double rateLimitedStep(double current, double target, double max_rate, double dt
 // 这样 update() 无需反复判断参数合法性,只专注状态积分;
 // 非法配置(如 mass=0)在这里被兜住,而不是运行期炸掉。
 AdmittanceController::AdmittanceController(
-  double desired_force, double mass, double damping, double stiffness,
-  double max_offset, double max_velocity, double filter_alpha,
+  double desired_force,
+  double mass,
+  double damping,
+  double stiffness,
+  double max_offset,
+  double max_velocity,
+  double filter_alpha,
   bool clamp_nonnegative)
-: desired_force_(clamp_nonnegative ? std::max(0.0, desired_force) : desired_force),
+: desired_force_(
+    clamp_nonnegative ? std::max(0.0, desired_force) : desired_force),
   mass_(std::max(1.0e-6, mass)),
-  damping_(std::max(0.0, damping)), stiffness_(std::max(0.0, stiffness)),
-  max_offset_(std::abs(max_offset)), max_velocity_(std::abs(max_velocity)),
+  damping_(std::max(0.0, damping)),
+  stiffness_(std::max(0.0, stiffness)),
+  max_offset_(std::abs(max_offset)),
+  max_velocity_(std::abs(max_velocity)),
   alpha_(std::clamp(filter_alpha, 0.0, 1.0)),
   clamp_nonnegative_(clamp_nonnegative)
 {}
@@ -96,7 +104,7 @@ double AdmittanceController::update(double measured_force, double dt)
   dt = std::clamp(dt, 0.0, 0.05);  // 调度抖动防御(同 rateLimitedStep)
   const double acceleration =
     (filtered_force_ - desired_force_ - damping_ * velocity_ -
-     stiffness_ * offset_) / mass_;
+    stiffness_ * offset_) / mass_;
   velocity_ = std::clamp(
     velocity_ + dt * acceleration, -max_velocity_, max_velocity_);
   const double previous_offset = offset_;
@@ -104,7 +112,7 @@ double AdmittanceController::update(double measured_force, double dt)
   // offset 撞到钳位边界:清掉朝边界的速度分量("非弹性碰撞"),
   // 避免速度积累后在边界来回抖
   if ((offset_ >= max_offset_ && velocity_ > 0.0) ||
-      (offset_ <= -max_offset_ && velocity_ < 0.0))
+    (offset_ <= -max_offset_ && velocity_ < 0.0))
   {
     velocity_ = 0.0;
   }
@@ -125,12 +133,19 @@ void AdmittanceController::reset(double measured_force)
 }
 
 ForceFollower::ForceFollower(
-  double desired_force, double stiffness, double max_offset,
-  double max_velocity, double filter_alpha, bool clamp_nonnegative,
-  bool velocity_mode, double force_deadband)
-: desired_force_(clamp_nonnegative ? std::max(0.0, desired_force) : desired_force),
+  double desired_force,
+  double stiffness,
+  double max_offset,
+  double max_velocity,
+  double filter_alpha,
+  bool clamp_nonnegative,
+  bool velocity_mode,
+  double force_deadband)
+: desired_force_(
+    clamp_nonnegative ? std::max(0.0, desired_force) : desired_force),
   stiffness_(std::max(1.0e-6, stiffness)),
-  max_offset_(std::abs(max_offset)), max_velocity_(std::abs(max_velocity)),
+  max_offset_(std::abs(max_offset)),
+  max_velocity_(std::abs(max_velocity)),
   alpha_(std::clamp(filter_alpha, 0.0, 1.0)),
   clamp_nonnegative_(clamp_nonnegative),
   velocity_mode_(velocity_mode),
@@ -163,7 +178,8 @@ double ForceFollower::update(double measured_force, double dt)
   dt = std::clamp(dt, 0.0, 0.05);
 
   if (velocity_mode_) {
-    // 速度型“无限”力跟随：不追求 F/K 的有限平衡点，也不因 max_offset 停止。
+    // 速度型“无限”力跟随：不追求 F/K 的有限平衡点，
+    // 也不因 max_offset 停止。
     // 有符号力误差超过死区时，offset 以 max_velocity 向力的方向持续积分；
     // 撤力后速度回到 0，机器人停在当前位置（不会弹回名义点）。
     const double error = filtered_force_ - desired_force_;

@@ -26,17 +26,23 @@ class WholeBodyForceControlTest(Node):
         self.ready_timeout = float(
             self.declare_parameter("ready_timeout", 25.0).value
         )
-        self.wrench_topic = str(self.declare_parameter(
-            "wrench_topic", "/whole_body_force_control/fake_wrench").value)
-        self.wrench_frame = str(self.declare_parameter(
-            "wrench_frame", "tool0").value)
-        self.test_profile = str(self.declare_parameter(
-            "test_profile", "signed_regression").value)
+        self.wrench_topic = str(
+            self.declare_parameter(
+                "wrench_topic", "/whole_body_force_control/fake_wrench"
+            ).value
+        )
+        self.wrench_frame = str(
+            self.declare_parameter("wrench_frame", "tool0").value
+        )
+        self.test_profile = str(
+            self.declare_parameter("test_profile", "signed_regression").value
+        )
         low_force = float(self.declare_parameter("low_force", 5.0).value)
         high_force = float(self.declare_parameter("high_force", 12.0).value)
         pull_force = float(self.declare_parameter("pull_force", -8.0).value)
         baseline_duration = float(
-            self.declare_parameter("baseline_duration", 4.0).value)
+            self.declare_parameter("baseline_duration", 4.0).value
+        )
         if self.test_profile in ("continuous_20s", "continuous_infinite"):
             continuous_force = float(
                 self.declare_parameter("continuous_force", 7.0).value)
@@ -49,30 +55,46 @@ class WholeBodyForceControlTest(Node):
             if continuous_force <= 0.0:
                 raise ValueError("continuous_force must be positive")
             if continuous_duration < 20.0:
-                raise ValueError("continuous_duration must be at least 20 seconds")
+                raise ValueError(
+                    "continuous_duration must be at least 20 seconds"
+                )
         elif self.test_profile == "signed_regression":
+            low_force_duration = float(
+                self.declare_parameter("low_force_duration", 10.0).value
+            )
+            high_force_duration = float(
+                self.declare_parameter("high_force_duration", 15.0).value
+            )
+            release_duration = float(
+                self.declare_parameter("release_duration", 10.0).value
+            )
+            pull_duration = float(
+                self.declare_parameter("pull_duration", 12.0).value
+            )
+            final_release_duration = float(
+                self.declare_parameter("final_release_duration", 10.0).value
+            )
             self.stages = (
                 ("baseline", 0.0, baseline_duration),
-                ("low_push", low_force, float(
-                    self.declare_parameter("low_force_duration", 10.0).value)),
-                ("high_push", high_force, float(
-                    self.declare_parameter("high_force_duration", 15.0).value)),
-                ("release", 0.0, float(
-                    self.declare_parameter("release_duration", 10.0).value)),
-                ("pull", pull_force, float(
-                    self.declare_parameter("pull_duration", 12.0).value)),
-                ("final_release", 0.0, float(
-                    self.declare_parameter("final_release_duration", 10.0).value)),
+                ("low_push", low_force, low_force_duration),
+                ("high_push", high_force, high_force_duration),
+                ("release", 0.0, release_duration),
+                ("pull", pull_force, pull_duration),
+                ("final_release", 0.0, final_release_duration),
             )
             if low_force <= 0.0 or high_force <= low_force or pull_force >= 0.0:
                 raise ValueError(
-                    "high_force must be greater than low_force > 0 and pull_force < 0")
+                    "high_force must be greater than low_force > 0 "
+                    "and pull_force < 0"
+                )
         else:
             raise ValueError(
                 "test_profile must be signed_regression, continuous_20s, "
                 "or continuous_infinite")
         if any(duration <= 1.0 for _, _, duration in self.stages):
-            raise ValueError("every force stage must last longer than one second")
+            raise ValueError(
+                "every force stage must last longer than one second"
+            )
 
         self.publisher = self.create_publisher(
             WrenchStamped, self.wrench_topic, 10)
@@ -90,20 +112,22 @@ class WholeBodyForceControlTest(Node):
         self.stage_index = 0
         self.latest_status = None
         self.samples = {name: deque(maxlen=100) for name, _, _ in self.stages}
-        self.trajectory_samples = {
-            name: [] for name, _, _ in self.stages
-        }
+        self.trajectory_samples = {name: [] for name, _, _ in self.stages}
         self.unexpected_collision = False
         self.control_state = "UNKNOWN"
         self.control_fault = None
         self.finished = False
 
     def status_callback(self, message):
-        if len(message.data) >= 9 and all(math.isfinite(x) for x in message.data):
+        if len(message.data) >= 9 and all(
+            math.isfinite(x) for x in message.data
+        ):
             self.latest_status = list(message.data[:9])
 
     def collision_callback(self, message):
-        self.unexpected_collision = self.unexpected_collision or bool(message.data)
+        self.unexpected_collision = (
+            self.unexpected_collision or bool(message.data)
+        )
 
     def control_state_callback(self, message):
         self.control_state = message.data
@@ -123,16 +147,22 @@ class WholeBodyForceControlTest(Node):
         if self.latest_status is None:
             self.publish_force(0.0)
             if time.monotonic() - self.created_at > self.ready_timeout:
-                self.finish(False, ["timed out waiting for force-control status"])
+                self.finish(
+                    False, ["timed out waiting for force-control status"]
+                )
             return
         now = time.monotonic()
         if self.stage_started_at is None:
             self.stage_started_at = now
-            self.get_logger().info("Starting generic whole-body force validation")
+            self.get_logger().info(
+                "Starting generic whole-body force validation"
+            )
         name, force, duration = self.stages[self.stage_index]
         self.publish_force(force)
         elapsed = now - self.stage_started_at
-        self.trajectory_samples[name].append((elapsed, list(self.latest_status)))
+        self.trajectory_samples[name].append(
+            (elapsed, list(self.latest_status))
+        )
         if elapsed >= max(0.0, duration - 1.0):
             self.samples[name].append(self.latest_status)
         if elapsed < duration:
@@ -165,11 +195,15 @@ class WholeBodyForceControlTest(Node):
         final_release = means["final_release"]
         failures = []
         if not high[1] > low[1] + 0.020:
-            failures.append("high-force offset did not exceed low-force by 20 mm")
+            failures.append(
+                "high-force offset did not exceed low-force by 20 mm"
+            )
         if not high[4] > low[4] + 0.005:
             failures.append("base displacement did not increase with force")
         if not high[5] > low[5] + 0.010:
-            failures.append("end-effector displacement did not increase with force")
+            failures.append(
+                "end-effector displacement did not increase with force"
+            )
         if not high[4] > 0.010:
             failures.append("base did not participate by at least 10 mm")
         if not high[6] > 0.010:
@@ -179,7 +213,9 @@ class WholeBodyForceControlTest(Node):
         if not abs(release[5]) < max(0.010, abs(high[5]) * 0.60):
             failures.append("end effector did not return after force release")
         if not pull[1] < -0.020:
-            failures.append("negative pull did not produce a negative reference")
+            failures.append(
+                "negative pull did not produce a negative reference"
+            )
         if not pull[4] < -0.005:
             failures.append("base did not participate in negative pull")
         if not pull[6] < -0.005:
@@ -240,17 +276,27 @@ class WholeBodyForceControlTest(Node):
             arm_progress = windows[index][6] - windows[index - 1][6]
             if not base_progress > minimum_base_window_progress:
                 failures.append(
-                    f"base stopped following between 5 s windows {index} and {index + 1}")
+                    f"base stopped following between 5 s windows "
+                    f"{index} and {index + 1}"
+                )
             if not arm_progress > minimum_arm_window_progress:
                 failures.append(
-                    f"arm stopped following between 5 s windows {index} and {index + 1}")
+                    f"arm stopped following between 5 s windows "
+                    f"{index} and {index + 1}"
+                )
         final_mean = self.mean_sample("continuous_push")
         if not final_mean[4] > 4.50:
-            failures.append("base final displacement was not greater than 4.50 m")
+            failures.append(
+                "base final displacement was not greater than 4.50 m"
+            )
         if not final_mean[6] > 0.070:
-            failures.append("arm final displacement was not greater than 70 mm")
+            failures.append(
+                "arm final displacement was not greater than 70 mm"
+            )
         if not final_mean[5] > 4.60:
-            failures.append("end-effector final displacement was not greater than 4.60 m")
+            failures.append(
+                "end-effector final displacement was not greater than 4.60 m"
+            )
         if any(abs(window[8]) > 0.010 for window in windows):
             failures.append("base lateral slip exceeded 10 mm")
         if self.unexpected_collision:

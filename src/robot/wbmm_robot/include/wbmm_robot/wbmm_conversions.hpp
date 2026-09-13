@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace whole_body_force_control
+namespace wbmm::robot
 {
 
 // ============================================================================
@@ -59,4 +59,4 @@ namespace whole_body_force_control
   double stamp,
   wbmm::core::ClockDomain clock);
 
-}  // namespace whole_body_force_control
+}  // namespace wbmm::robot

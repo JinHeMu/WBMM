@@ -72,19 +72,39 @@ double rateLimitedStep(double current, double target, double max_rate, double dt
 class AdmittanceController
 {
 public:
-  AdmittanceController(double desired_force, double mass, double damping,
-                       double stiffness, double max_offset,
-                       double max_velocity, double filter_alpha,
-                       bool clamp_nonnegative = true);
+  AdmittanceController(
+    double desired_force,
+    double mass,
+    double damping,
+    double stiffness,
+    double max_offset,
+    double max_velocity,
+    double filter_alpha,
+    bool clamp_nonnegative = true);
   // 每个控制周期调用一次:输入本轮实测力 → 输出本轮修正位移 offset(米)
   double update(double measured_force, double dt);
   // 复位:offset/速度清零,并用当前实测力初始化滤波器(避免复位后跳变)
   void reset(double measured_force = 0.0);
 
-  double offset() const {return offset_;}
-  double velocity() const {return velocity_;}
-  double measuredForce() const {return filtered_force_;}
-  double desiredForce() const {return desired_force_;}
+  double offset() const
+  {
+    return offset_;
+  }
+
+  double velocity() const
+  {
+    return velocity_;
+  }
+
+  double measuredForce() const
+  {
+    return filtered_force_;
+  }
+
+  double desiredForce() const
+  {
+    return desired_force_;
+  }
 
 private:
   double desired_force_;   // 期望力/力矩；旧标量模式钳位到 ≥ 0
@@ -92,7 +112,8 @@ private:
   double damping_;         // 虚拟阻尼 [N·s/m],钳位到 ≥ 0
   double stiffness_;       // 虚拟刚度 [N/m],钳位到 ≥ 0
   double max_offset_;      // offset 钳位幅值:安全边界,防止导纳把人"推穿"板面
-  double max_velocity_;    // 修正速度钳位:参考连续性 —— MPC 只能跟上限速后的参考
+  // 修正速度钳位:参考连续性 —— MPC 只能跟上限速后的参考
+  double max_velocity_;
   double alpha_;           // 力滤波系数(指数滑动平均):α=1 不过滤,α→0 越平滑
   double filtered_force_{0.0};  // 低通滤波后的力
   double offset_{0.0};          // 修正位移(导纳输出),单位 m
@@ -119,17 +140,32 @@ private:
 class ForceFollower
 {
 public:
-  ForceFollower(double desired_force, double stiffness, double max_offset,
-                double max_velocity, double filter_alpha,
-                bool clamp_nonnegative = true,
-                bool velocity_mode = false,
-                double force_deadband = 0.0);
+  ForceFollower(
+    double desired_force,
+    double stiffness,
+    double max_offset,
+    double max_velocity,
+    double filter_alpha,
+    bool clamp_nonnegative = true,
+    bool velocity_mode = false,
+    double force_deadband = 0.0);
   // 每个控制周期调用一次:输入本轮实测力 → 输出本轮修正位移 offset(米)
   double update(double measured_force, double dt);
   void reset(double measured_force = 0.0);
-  double offset() const {return offset_;}
-  double velocity() const {return velocity_;}
-  double measuredForce() const {return filtered_force_;}
+  double offset() const
+  {
+    return offset_;
+  }
+
+  double velocity() const
+  {
+    return velocity_;
+  }
+
+  double measuredForce() const
+  {
+    return filtered_force_;
+  }
 
 private:
   double desired_force_;   // 期望力 [N]
@@ -142,8 +178,9 @@ private:
   double velocity_{0.0};   // 后向差分估算,只用于观测/上报,不参与积分
   bool initialized_{false};
   bool clamp_nonnegative_{true};
-  bool velocity_mode_{false};  // true=速度型无限力跟随,不再受 max_offset/刚度平衡点限制
-  double force_deadband_{0.0}; // 速度型模式下的力死区
+  // true=速度型无限力跟随,不再受 max_offset/刚度平衡点限制
+  bool velocity_mode_{false};
+  double force_deadband_{0.0};  // 速度型模式下的力死区
 };
 
 // 六轴笛卡尔顺应控制器。轴顺序固定为
@@ -167,11 +204,30 @@ public:
   Vector6d update(const Vector6d & measured_wrench, double dt);
   void reset(const Vector6d & measured_wrench = Vector6d::Zero());
 
-  const Vector6d & offset() const {return offset_;}
-  const Vector6d & velocity() const {return velocity_;}
-  const Vector6d & measuredWrench() const {return filtered_wrench_;}
-  const AxisMask6d & admittanceAxes() const {return admittance_axes_;}
-  const AxisMask6d & constantForceAxes() const {return constant_force_axes_;}
+  const Vector6d & offset() const
+  {
+    return offset_;
+  }
+
+  const Vector6d & velocity() const
+  {
+    return velocity_;
+  }
+
+  const Vector6d & measuredWrench() const
+  {
+    return filtered_wrench_;
+  }
+
+  const AxisMask6d & admittanceAxes() const
+  {
+    return admittance_axes_;
+  }
+
+  const AxisMask6d & constantForceAxes() const
+  {
+    return constant_force_axes_;
+  }
 
 private:
   AxisMask6d admittance_axes_{};

@@ -2,7 +2,7 @@
 """Run REMANI for Tracer+JAKA and bridge its polynomial output to OCS2.
 
 The OCS2 MPC/MRT nodes and the robot drivers are intentionally not included;
-start them with tracer_jaka_ocs2/ocs2_sim.launch.py or ocs2_real.launch.py.
+start them with wbmm_ocs2_ros/ocs2_sim.launch.py or ocs2_real.launch.py.
 """
 
 import importlib.util
@@ -192,7 +192,7 @@ def generate_launch_description():
     )
 
     bridge = Node(
-        package='tracer_jaka_ocs2',
+        package='wbmm_ocs2_ros',
         executable='remani_to_ocs2_reference_bridge',
         name='remani_to_ocs2_reference_bridge',
         output='screen',

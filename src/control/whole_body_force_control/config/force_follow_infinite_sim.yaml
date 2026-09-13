@@ -16,7 +16,6 @@ whole_body_force_control:
     wrench_topic: /whole_body_force_control/fake_wrench
     status_topic: /whole_body_force_control/status
     control_state_topic: /whole_body_force_control/control_state
-    enable_service: /whole_body_force_control/enable
 
     force_axis: x
     absolute_force: false
