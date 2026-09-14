@@ -545,21 +545,21 @@
         </body>
         <body name="jaka_base_link" pos="0 0 0.221" quat="0.7073883 0 0 -0.7068252">
           <body name="Link_0" pos="0 0 0">
-            <inertial pos="0.0009637 0 0.019555" mass="1.0392" diaginertia="0.0048763 0.0068003 0.010618"/>
+            <inertial pos="0.0009637 0 0.019555" mass="0.905" diaginertia="0.0048763 0.0068003 0.010618"/>
             <geom pos="0 0 0" group="1" contype="0" conaffinity="0" material="Link_0_mat" type="mesh" mesh="Link_0" />
             <geom name="link0_sphere" pos="0 0 0.12"
                   rgba="0.9373 0.2667 0.2667 1" group="3"
                   contype="1" conaffinity="1" type="sphere" size="0.085" />
             <body name="Link_1" pos="0 0 0.12015">
               <joint name="joint_1" type="hinge" axis="0 0 1" limited="true" range="-6.28 6.28" damping="1" frictionloss="0.5"/>
-              <inertial pos="0 0.0033226 -0.001509" mass="1.5135" diaginertia="0.044302 0.043091 0.030523"/>
+              <inertial pos="0 0.0033226 -0.001509" mass="2.877" diaginertia="0.044302 0.043091 0.030523"/>
               <geom pos="0 0 0" group="1" contype="0" conaffinity="0" material="Link_1_mat" type="mesh" mesh="Link_1" />
               <geom name="link1_sphere" pos="0 0.17 0"
                     rgba="0.9373 0.2667 0.2667 1" group="3"
                     contype="1" conaffinity="1" type="sphere" size="0.075" />
               <body name="Link_2" pos="0 0.14315 0" quat="0.7071055 0.7071081 0 0">
                 <joint name="joint_2" type="hinge" axis="0 0 1" limited="true" range="-1.48 4.62" damping="1" frictionloss="0.5"/>
-                <inertial pos="0.215 0 -0.14315" mass="1.5847" diaginertia="0.10377 1.5964 1.5689"/>
+                <inertial pos="0.215 0 -0.14315" mass="7.293" diaginertia="0.10377 1.5964 1.5689"/>
                 <geom pos="0 0 0.14315" group="1" contype="0" conaffinity="0" material="Link_2_mat" type="mesh" mesh="Link_2" />
                 <geom name="link2_sphere_1" pos="0.14 0 0"
                       rgba="0.9373 0.2667 0.2667 1" group="3"
@@ -569,7 +569,7 @@
                       contype="1" conaffinity="1" type="sphere" size="0.065" />
                 <body name="Link_3" pos="0.43 0 0.14315">
                   <joint name="joint_3" type="hinge" axis="0 0 1" limited="true" range="-3.05 3.05" damping="1" frictionloss="0.5"/>
-                  <inertial pos="0.19087 0 -0.010587" mass="1.8069" diaginertia="0.022066 0.41632 0.41071"/>
+                  <inertial pos="0.19087 0 -0.010587" mass="1.707" diaginertia="0.022066 0.41632 0.41071"/>
                   <geom pos="0 0 0" group="1" contype="0" conaffinity="0" material="Link_3_mat" type="mesh" mesh="Link_3" />
                   <geom name="link3_elbow_upper" pos="0 0 -0.02"
                         rgba="0.9373 0.2667 0.2667 1" group="3"
@@ -588,21 +588,21 @@
                         contype="1" conaffinity="1" type="sphere" size="0.06" />
                   <body name="Link_4" pos="0.3685 -0.0000119 -0.114">
                     <joint name="joint_4" type="hinge" axis="0 0 1" limited="true" range="-1.48 4.62" damping="0.5" frictionloss="0.3"/>
-                    <inertial pos="0 -0.0058004 0.0026717" mass="1.5525" diaginertia="0.0092564 0.0052251 0.0089683"/>
+                    <inertial pos="0 -0.0058004 0.0026717" mass="1.184" diaginertia="0.0092564 0.0052251 0.0089683"/>
                     <geom pos="0 0 0" group="1" contype="0" conaffinity="0" material="Link_4_mat" type="mesh" mesh="Link_4" />
                     <geom name="link4_sphere" pos="0 0 0"
                           rgba="0.9373 0.2667 0.2667 1" group="3"
                           contype="1" conaffinity="1" type="sphere" size="0.05" />
                     <body name="Link_5" pos="0 -0.1135 0" quat="0.7071055 0.7071081 0 0">
                       <joint name="joint_5" type="hinge" axis="0 0 1" limited="true" range="-6.28 6.28" damping="0.5" frictionloss="0.3"/>
-                      <inertial pos="0 -0.0028889 -0.0023424" mass="1.3339" diaginertia="0.012993 0.0058454 0.0127"/>
+                      <inertial pos="0 -0.0028889 -0.0023424" mass="1.228" diaginertia="0.012993 0.0058454 0.0127"/>
                       <geom pos="0 0 0" group="1" contype="0" conaffinity="0" material="Link_5_mat" type="mesh" mesh="Link_5" />
                       <geom name="link5_sphere" pos="0 -0.035 0"
                             rgba="0.9373 0.2667 0.2667 1" group="3"
                             contype="1" conaffinity="1" type="sphere" size="0.05" />
                       <body name="Link_6" pos="0 0.107 0" quat="0.7071055 -0.7071081 0 0">
                         <joint name="joint_6" type="hinge" axis="0 0 1" limited="true" range="-6.28 6.28" damping="0.5" frictionloss="0.3"/>
-                        <inertial pos="0 0 -0.021245" mass="1.4169" diaginertia="0.0007185 0.0007238 0.0011337"/>
+                        <inertial pos="0 0 -0.021245" mass="0.289" diaginertia="0.0007185 0.0007238 0.0011337"/>
                         <geom pos="0 0 0" group="1" contype="0" conaffinity="0" material="Link_6_mat" type="mesh" mesh="Link_6" />
                         <geom name="link6_sphere" pos="0 0 -0.01"
                               rgba="0.9373 0.2667 0.2667 1" group="3"

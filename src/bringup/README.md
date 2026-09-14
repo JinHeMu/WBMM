@@ -1,16 +1,6 @@
 # tracer_jaka_bringup
 
-完整系统组合只允许从本包启动。仿真/实机入口总表和包边界见
-[`docs/launch_ownership.md`](../../../docs/launch_ownership.md)。真实擦拭统一入口为：
-
-```bash
-ros2 launch tracer_jaka_bringup wipe_real_pipeline.launch.py
-```
-
-默认保持 `jaka_read_only:=true`、`command_output_enabled:=false`、
-`safety_release:=false`、`auto_goal:=false` 和
-`force_control_enabled:=false`。任何实机命令输出还必须显式设置第三道
-`safety_release:=true`；组合不一致时 launch 会在创建硬件/控制节点前拒绝启动。
+本包负责仿真/实机组合启动入口与参数装配。
 
 ## REMANI MPC 仿真（单入口）
 

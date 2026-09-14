@@ -1,7 +1,7 @@
 #include "whole_body_force_control/controllers.hpp"
-#include "wbmm_robot/pinocchio_robot_model.hpp"
-#include "wbmm_robot/wbmm_conversions.hpp"
-#include "wbmm_robot/whole_body_kinematics.hpp"
+#include "wbmm_pinocchio/pinocchio_robot_model.hpp"
+#include "wbmm_ros_interfaces/wbmm_conversions.hpp"
+#include "wbmm_pinocchio/whole_body_kinematics.hpp"
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <gtest/gtest.h>
@@ -37,17 +37,17 @@ std::string tracerJakaUrdfPath()
   return WHOLE_BODY_FORCE_CONTROL_TEST_URDF_FALLBACK;
 }
 
-std::shared_ptr<wbmm::robot::PinocchioRobotModel> sharedRobotModel()
+std::shared_ptr<wbmm::pinocchio::PinocchioRobotModel> sharedRobotModel()
 {
   static const auto model =
-    std::make_shared<wbmm::robot::PinocchioRobotModel>(
+    std::make_shared<wbmm::pinocchio::PinocchioRobotModel>(
     tracerJakaUrdfPath());
   return model;
 }
 
-std::unique_ptr<wbmm::robot::WholeBodyKinematics> makeKinematics()
+std::unique_ptr<wbmm::pinocchio::WholeBodyKinematics> makeKinematics()
 {
-  return std::make_unique<wbmm::robot::WholeBodyKinematics>(
+  return std::make_unique<wbmm::pinocchio::WholeBodyKinematics>(
     sharedRobotModel(), "tool0");
 }
 
@@ -68,7 +68,7 @@ wbmm::core::WholeBodyState coreState(
   header.stamp = 0.0;
   header.clock = wbmm::core::ClockDomain::kSystem;
   const auto converted =
-    wbmm::robot::toCoreState(state, joint_names, header);
+    wbmm::ros_interfaces::toCoreState(state, joint_names, header);
   if (!converted.has_value()) {
     throw std::invalid_argument("test state dimension does not match joint names");
   }

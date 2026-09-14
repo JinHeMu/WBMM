@@ -30,8 +30,6 @@ setup(
         'console_scripts': [
             'mjcf_to_esdf = grid_map.mjcf_to_esdf:main',
             'esdf_rviz_publisher = grid_map.esdf_rviz_node:main',
-            'annotate_board = grid_map.annotate_board:main',
-            'board_marker = grid_map.board_marker:main',
         ],
     },
 )

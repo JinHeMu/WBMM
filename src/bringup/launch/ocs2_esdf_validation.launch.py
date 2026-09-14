@@ -40,7 +40,6 @@ def generate_launch_description():
     ocs2_share = get_package_share_directory('wbmm_ocs2_ros')
     bringup_share = get_package_share_directory('tracer_jaka_bringup')
     mujoco_share = get_package_share_directory('tracer_jaka_mujoco')
-    wipe_share = get_package_share_directory('wipe_planner')
     sim_launch = os.path.join(
         bringup_share, 'launch', 'ocs2_sim.launch.py')
     task_file = os.path.join(ocs2_share, 'config', 'task_esdf_only.info')
@@ -145,19 +144,6 @@ def generate_launch_description():
         }],
     )
 
-    # Blue board-region overlay from wipe_task.yaml, shown in the validation
-    # RViz without any extra terminal.
-    board_marker = Node(
-        package='grid_map',
-        executable='board_marker',
-        name='board_marker',
-        output='log',
-        arguments=[
-            '--task-file', LaunchConfiguration('wipe_task_file'),
-            '--frame', 'odom',
-        ],
-    )
-
     return LaunchDescription([
         DeclareLaunchArgument(
             'frame_id',
@@ -226,15 +212,9 @@ def generate_launch_description():
             'remani_manipulator_max_acc', default_value='3.14'),
         DeclareLaunchArgument(
             'remani_freeze_manipulator', default_value='false'),
-        DeclareLaunchArgument(
-            'wipe_task_file',
-            default_value=os.path.join(wipe_share, 'config', 'wipe_task.yaml'),
-            description=(
-                'wipe_task.yaml used by the board-region overlay marker.')),
         OpaqueFunction(function=_validate_map_inputs),
         simulator_and_planner,
         saved_esdf_visualization,
         saved_2d_map_server,
         map_lifecycle_manager,
-        board_marker,
     ])

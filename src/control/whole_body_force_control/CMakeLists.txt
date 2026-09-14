@@ -14,7 +14,8 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(wbmm_core REQUIRED)
-find_package(wbmm_robot REQUIRED)
+find_package(wbmm_pinocchio REQUIRED)
+find_package(wbmm_ros_interfaces REQUIRED)
 
 # 力控算法核心：只包含力控控制器，不包含机器人模型/运动学/ROS 转换。
 add_library(${PROJECT_NAME}_core
@@ -24,10 +25,14 @@ target_include_directories(${PROJECT_NAME}_core PUBLIC
   $<INSTALL_INTERFACE:include>)
 target_link_libraries(${PROJECT_NAME}_core PUBLIC Eigen3::Eigen)
 
-add_executable(whole_body_force_control_node src/node.cpp)
+add_executable(whole_body_force_control_node
+  src/node.cpp
+  src/node_config.cpp
+  src/node_ros_io.cpp)
 target_link_libraries(whole_body_force_control_node
   ${PROJECT_NAME}_core
-  wbmm_robot::wbmm_robot
+  wbmm_pinocchio::wbmm_pinocchio
+  wbmm_ros_interfaces::wbmm_ros_interfaces
   wbmm_core::wbmm_core)
 ament_target_dependencies(whole_body_force_control_node
   geometry_msgs ocs2_msgs rclcpp std_msgs tf2_ros)
@@ -51,15 +56,16 @@ if(BUILD_TESTING)
   ament_add_gtest(test_force_control test/test_force_control.cpp)
   target_link_libraries(test_force_control
     ${PROJECT_NAME}_core
-    wbmm_robot::wbmm_robot)
+    wbmm_pinocchio::wbmm_pinocchio
+    wbmm_ros_interfaces::wbmm_ros_interfaces)
   ament_target_dependencies(test_force_control ament_index_cpp)
   # 测试只依赖 package share 里的 URDF；fallback 仅用于未安装描述的源码工作区。
   target_compile_definitions(test_force_control PRIVATE
-    WHOLE_BODY_FORCE_CONTROL_TEST_URDF_FALLBACK="${CMAKE_CURRENT_SOURCE_DIR}/../../robot/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf")
+    WHOLE_BODY_FORCE_CONTROL_TEST_URDF_FALLBACK="${CMAKE_CURRENT_SOURCE_DIR}/../../robotics/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf")
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
 ament_export_libraries(${PROJECT_NAME}_core)
-ament_export_dependencies(Eigen3 wbmm_robot wbmm_core)
+ament_export_dependencies(Eigen3 wbmm_pinocchio wbmm_ros_interfaces wbmm_core)
 ament_package()

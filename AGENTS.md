@@ -57,7 +57,7 @@ vendor/
 要求：
 
 - 先写清目标、边界、输入输出和测试方式；
-- 优先复用现有 `wbmm_core`、`ta_wbmp`、`wbmm_visualization`、`tracer_jaka_ocs2`；
+- 优先复用现有 `wbmm_core`、`wbmm_visualization`、`tracer_jaka_ocs2`；
 - 不为未来假想需求提前抽象接口；
 - 先出现第二个真实实现，再抽接口；
 - 不修改 `vendor/`，除非用户明确要求并单独审查；

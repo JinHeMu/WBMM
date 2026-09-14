@@ -10,7 +10,8 @@
   <depend>eigen</depend>
   <depend>geometry_msgs</depend>
   <depend>ocs2_msgs</depend>
-  <depend>wbmm_robot</depend>
+  <depend>wbmm_pinocchio</depend>
+  <depend>wbmm_ros_interfaces</depend>
   <depend>rclcpp</depend>
   <exec_depend>rclpy</exec_depend>
   <depend>std_msgs</depend>

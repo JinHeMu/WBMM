@@ -122,13 +122,12 @@ TEST(WbmmCore, TrajectoryDurationUsesLastPointTime)
 TEST(WbmmCore, PhaseScheduleUsesExplicitTimeAndTask)
 {
   wbmm::core::PhaseSchedule phases{
-    {0.0, 1.0, wbmm::core::ExecutionPhase::kNavigate, "navigate", false},
-    {1.0, 2.0, wbmm::core::ExecutionPhase::kExecution, "wipe", true}};
+    {0.0, 1.0, wbmm::core::ExecutionPhase::kNavigate, "navigate"},
+    {1.0, 2.0, wbmm::core::ExecutionPhase::kExecution, "execute"}};
 
   ASSERT_EQ(phases.size(), 2U);
   EXPECT_DOUBLE_EQ(phases.back().start_time, 1.0);
-  EXPECT_EQ(phases.back().task_id, "wipe");
-  EXPECT_TRUE(phases.back().contact);
+  EXPECT_EQ(phases.back().task_id, "execute");
 }
 
 TEST(WbmmCore, RobotModelJacobianMapsEightInputsToSpatialVelocity)
@@ -396,8 +395,8 @@ TEST(WbmmCoreValidation, ValidatesTwistAndWrench)
 TEST(WbmmCoreValidation, ValidatesPhaseSchedule)
 {
   wbmm::core::PhaseSchedule schedule{
-    {0.0, 1.0, wbmm::core::ExecutionPhase::kNavigate, "navigate", false},
-    {1.0, 2.0, wbmm::core::ExecutionPhase::kExecution, "execute", true}};
+    {0.0, 1.0, wbmm::core::ExecutionPhase::kNavigate, "navigate"},
+    {1.0, 2.0, wbmm::core::ExecutionPhase::kExecution, "execute"}};
 
   EXPECT_TRUE(wbmm::core::validate(schedule, 2.0).ok);
 

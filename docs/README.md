@@ -96,6 +96,7 @@ docs/
 |---|---|
 | `README.md` | 文档编写契约、公式、图片、目录约定 |
 | `math_contract.md` | 输入输出、坐标系、轨迹定义、任务定义、力控定义 |
+| [frame_contract.md](frame_contract.md) | 坐标系契约草案：实际 TF 树、map/odom 分工、变换方向、末端与传感器、速度与 wrench、待审查差异 |
 | `wbmm_data_structures_guide.md` | 从 wbmm_core、TA-WBMP、REMANI 到 OCS2 MPC 的核心数据结构、转换关系、环境与碰撞数据 |
 | `human_review_standard.md` | 人工审查标准、审查流程、审查清单 |
 | `agent_output_standard.md` | Agent 输出文档标准、禁止事项、交付检查表 |

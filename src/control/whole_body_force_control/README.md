@@ -1,9 +1,19 @@
 # whole_body_force_control
 
-通用移动机械臂力控制包，不依赖 WipePlanner 的任务几何、覆盖路径或状态机。
-本包只拥有力控算法、ROS 节点和配置；机器人模型、全身运动学与消息转换已抽到
-`src/robot/wbmm_robot`。MuJoCo 闭环验证入口为
+通用移动机械臂力控制包，只负责力控算法、ROS 节点和配置。
+机器人模型、全身运动学与消息转换已抽到
+`src/robotics/wbmm_pinocchio` 与 `src/robotics/wbmm_ros_interfaces`。MuJoCo 闭环验证入口为
 `tracer_jaka_bringup/force_control_mujoco_test.launch.py`。
+
+## 节点代码结构
+
+- `src/node.hpp`：`WholeBodyForceControlNode` 类声明、配置和运行状态。
+- `src/node.cpp`：模型/控制器装配、定时器、`update()` 控制周期、故障检查与锁存、`main()`。
+- `src/node_config.cpp`：参数默认值、legacy / 六轴配置解析、轴掩码和校验。
+- `src/node_ros_io.cpp`：订阅回调、观测/wrench 转换与校验、TF、参考轨迹和状态发布。
+- `src/controllers.cpp`：不依赖 ROS 的力控算法。
+
+阅读建议：看控制流程主要看 `node.cpp`；调参数看 `node_config.cpp`；查消息、坐标变换和发布看 `node_ros_io.cpp`。
 
 ## 功能边界
 
@@ -15,7 +25,7 @@
   `x_target=(F_measured-F_desired)/K`，带低通、限速和位移限幅。
 - `CartesianComplianceController`：六个相互独立的导纳通道，轴顺序固定为
   `[Fx,Fy,Fz,Tx,Ty,Tz] -> [dx,dy,dz,rx,ry,rz]`。
-- `wbmm_robot::WholeBodyKinematics`：用完整 6D IK 实现末端平移和转动修正；
+- `wbmm::pinocchio::WholeBodyKinematics`：用完整 6D IK 实现末端平移和转动修正；
   底盘只分担平移在当前航向上的分量，转动修正由机械臂实现。
 - `whole_body_force_control_node`：接收力传感器和 OCS2 观测，发布完整9D状态、
   8D输入参考。
@@ -41,7 +51,7 @@
 - 发布前先构造并校验 `wbmm::core::WholeBodyTrajectory`，
   再转换为 `MpcTargetTrajectories`；
 - 转换后先调用 `wbmm::core::validate(...)`，再调用
-  `wbmm_robot::PinocchioRobotModel::validate(...)`（关节名称、顺序、限位）；校验失败按
+  `wbmm::pinocchio::PinocchioRobotModel::validate(...)`（关节名称、顺序、限位）；校验失败按
   fail-closed 丢弃该帧，并打印带 `RobotModel` 原因的节流日志。
 
 新增参数：
@@ -180,7 +190,7 @@ ros2 launch tracer_jaka_bringup whole_body_force_control_real.launch.py   jaka_r
 
 ## 实机部署
 
-实机入口不启动 WipePlanner 或 REMANI：
+实机入口只启动力控相关节点：
 
 ```bash
 ros2 launch tracer_jaka_bringup whole_body_force_control_real.launch.py

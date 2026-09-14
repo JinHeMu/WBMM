@@ -218,7 +218,7 @@ def generate_launch_description():
             default_value="true",
             description=(
                 "Start the legacy direct REMANI-to-OCS2 bridge. Set false "
-                "when another planner such as wipe_planner owns the MPC target."
+                "when another planner owns the MPC target."
             ),
         ),
         DeclareLaunchArgument(

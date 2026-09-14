@@ -2,7 +2,7 @@
 
 > Status: DRAFT
 > Author: Agent  
-> Reviewer: TBD  
+> Reviewer: Jinhemu
 > Reviewed at: TBD  
 > Warning: 本文档尚未经过人工审查，不能作为实现依据。
 
@@ -505,22 +505,25 @@ $$
 $$
 \mathcal{T}_{\text{task}} =
 \left\{
-(t_i, {}^{w}T_{ee,i}^{des}, \mathbf{n}_i, \mathbf{t}_i, c_i)
+(t_i, {}^{w}T_{ee,i}^{des}, \mathbf{n}_i, \mathbf{t}_i)
 \right\}_{i=0}^{N}
 $$
 
 其中：
 
+- $t_i$：任务点相对轨迹起点的时间；
 - ${}^{w}T_{ee,i}^{des}$：期望末端位姿；
 - $\mathbf{n}_i$：任务表面法向；
-- $\mathbf{t}_i$：任务切向；
-- $c_i \in \{0,1\}$：接触标志。
+- $\mathbf{t}_i$：任务切向。
 
+> `TaskTrajectory` 只表示单纯的任务轨迹：时间、期望末端位姿、表面法向和切向；当前版本不包含接触标志，也不包含执行相位。
 > 第一版任务轨迹只给位置和姿态，不给末端速度。  
 > 末端速度由后续规划/优化或执行层根据时间参数自行得到。  
 > 力控不作为规划轨迹的一部分，而是在执行层对已经规划好的 `WholeBodyTrajectory` 生成修正量。
 
-### 5.2 任务相位
+### 5.2 任务相位（用于后续轨迹评判）
+
+`TaskTrajectory` 本身不携带相位。相位是在后续把导航轨迹和任务轨迹结合起来做统一评判时，用来标识长序列不同功能段的独立结构。
 
 任务相位定义为：
 
@@ -540,7 +543,7 @@ $$
 
 $$
 \mathcal{P} =
-\{(t_i^{\text{start}}, t_i^{\text{end}}, \phi_i, \text{task\_id}_i, c_i)\}
+\{(t_i^{\text{start}}, t_i^{\text{end}}, \phi_i, \text{task\_id}_i)\}
 $$
 
 相位不仅表示权重调度，还可以改变约束结构：
@@ -772,9 +775,9 @@ FAULT
 | ${}^{w}T_{ee}$ | 6 | 末端位姿 | `Pose` |
 | ${}^{w}V_{ee}$ | 6 | 末端空间速度 | `Twist` |
 | $\mathcal{F}$ | 6 | 力/力矩 | `Wrench` |
-| $\mathcal{T}_{\text{task}}$ | variable | 任务参考序列 | `TaskTrajectory` |
+| $\mathcal{T}_{\text{task}}$ | variable | 纯任务轨迹参考序列 | `TaskTrajectory` |
 | $\mathcal{X}$ | variable | 全身名义轨迹 | `WholeBodyTrajectory` |
-| $\mathcal{P}$ | variable | 相位时间表 | `PhaseSchedule` |
+| $\mathcal{P}$ | variable | 后续轨迹评判用的相位时间表 | `PhaseSchedule` |
 | $x_{\text{ref}}$ | 9 | OCS2 参考状态 | `MpcTargetTrajectories` |
 | $u_{\text{ref}}$ | 8 | OCS2 参考输入 | `MpcTargetTrajectories` |
 
@@ -823,7 +826,7 @@ src/core/wbmm_core/include/wbmm_core/validation.hpp
 | OCS2 问题装配 | `src/control/wbmm_ocs2/include/wbmm_ocs2/WbmmInterface.h`、`src/control/wbmm_ocs2/src/WbmmInterface.cpp` |
 | OCS2 全身参考代价 | `src/control/wbmm_ocs2/include/wbmm_ocs2/cost/WholeBodyTrajectoryCost.h`、`src/control/wbmm_ocs2/src/cost/WholeBodyTrajectoryCost.cpp` |
 | OCS2 ROS 求解与执行适配 | `src/control/wbmm_ocs2_ros/src/WbmmMpcNode.cpp`、`src/control/wbmm_ocs2_ros/src/WbmmMrtNode.cpp` |
-| 任务轨迹生成 | `src/planning/ta_wbmp`、`src/applications/wiping/wipe_planner` |
+| 任务轨迹与相位数据结构 | `src/core/wbmm_core/include/wbmm_core/trajectory.hpp` |
 | REMANI 算法 | `src/vendor/remani_planner` |
 | OCS2 算法 | `src/vendor/ocs2_ros2` |
 
@@ -851,6 +854,7 @@ $$
 - `SearchResult` 提供拓扑和初值；
 - `WholeBodyTrajectory` 是规划完成后唯一的机器人名义运动轨迹；
 - `OCS2 Reference` 是 OCS2 可跟踪的滚动参考；
-- `WholeBodyCommand` 是最终发给机器人/仿真器的控制命令。
+- `WholeBodyCommand` 是最终发给机器人/仿真器的控制命令；
+- 执行相位不在 `TaskTrajectory` 内，而是在后续把导航轨迹和任务轨迹合并评判时使用。
 
 所有后续代码、实验和可视化都必须以本文档定义的坐标系、维度、单位和语义为准。

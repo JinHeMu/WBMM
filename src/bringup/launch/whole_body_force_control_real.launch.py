@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Independent real-hardware OCS2 + whole-body force-follow bringup.
 
-No WipePlanner or REMANI target bridge is started. This launch uses the OCS2
-real-motion gates plus the force controller's own arm switch.
+No REMANI target bridge is started. This launch uses the OCS2 real-motion gates
+plus the force controller's own arm switch.
 """
 
 from launch import LaunchDescription

@@ -6,7 +6,6 @@
 > Reviewed at: TBD  
 > Warning: 本文档尚未经过人工审查，不能作为实现依据。
 
-本文档回答一个核心问题：一份“机器人、轨迹、地图或碰撞数据”在 WBMM 仓库中，到了 `wbmm_core`、TA-WBMP、REMANI、REMANI→OCS2 桥和 OCS2 MPC 后，分别以什么结构存在、维度如何变化、由谁生产和消费，以及源码在哪里。
 
 本文档以当前仓库源码为依据。数学与坐标系总契约仍以 [`math_contract.md`](math_contract.md) 为准。
 
@@ -39,7 +38,6 @@ $$
 | 层级 | 主要对象 | 它回答的问题 |
 |---|---|---|
 | `wbmm_core` | `WholeBodyState`、`WholeBodyInput`、`TaskTrajectory`、`WholeBodyTrajectory` | 跨规划器/控制器应怎样统一表达数据 |
-| TA-WBMP | `TaskTrajectory`、`Plan`、`CandidateMetrics` | 任务表面上要做什么、从哪个全身构型进入 |
 | REMANI | `PathNode`、`FlatTrajData`、`Trajectory<7>`、`SingulTrajData` | 如何搜索并优化无碰撞的全身参考 |
 | Bridge | `PolynomialSample`、`AssembledTrajectory` | 如何把 REMANI 8D 多项式变成 OCS2 9D/8D 参考 |
 | OCS2 | `SystemObservation`、`TargetTrajectories`、`OptimalControlProblem`、`PrimalSolution` | MPC 当前看到什么、追踪什么、求出了什么 |
@@ -58,7 +56,6 @@ $$
 
 ```mermaid
 flowchart LR
-    Task[任务 YAML / TaskTrajectory] --> TA[TA-WBMP Plan]
     TA --> Goal[WholeBodyGoal\nbase pose + named joints]
     Goal --> FSM[REMANIReplanFSM]
     Odom[Odometry] --> FSM
@@ -84,7 +81,7 @@ flowchart LR
 - 参考链：任务目标 → REMANI 规划轨迹 → OCS2 `TargetTrajectories`；
 - 反馈链：里程计/关节状态 → `SystemObservation` → MPC/MRT → 执行命令。
 
-环境数据目前没有贯穿全链的唯一对象，详见第 9 节。
+环境数据目前没有贯穿全链的唯一对象，详见第 8 节。
 
 ---
 
@@ -239,10 +236,12 @@ WholeBodyState
 
 $$
 \mathcal T_{task}=
-\{t_i,{}^WT_{ee,i}^{des},\mathbf t_i,\mathbf n_i,c_i\}_{i=0}^{N}
+\{t_i,{}^WT_{ee,i}^{des},\mathbf t_i,\mathbf n_i\}_{i=0}^{N}
 $$
 
-对应 `TaskTrajectoryPoint`：`time_from_start`、`pose`、`tangent`、`surface_normal`、`contact`。源码：[`trajectory.hpp:13`](../src/core/wbmm_core/include/wbmm_core/trajectory.hpp#L13)。
+对应 `TaskTrajectoryPoint`：`time_from_start`、`pose`、`tangent`、`surface_normal`。源码：[`trajectory.hpp:13`](../src/core/wbmm_core/include/wbmm_core/trajectory.hpp#L13)。
+
+`TaskTrajectoryPoint` 不携带 `contact`，也不携带执行相位。相位是在后续把导航轨迹和任务轨迹合并评判时使用的独立结构。
 
 `WholeBodyTrajectory` 表示“机器人全身如何运动”：
 
@@ -311,60 +310,9 @@ RobotModel      <-> Pinocchio-backed implementation
 
 ---
 
-## 5. TA-WBMP：任务级数据
+## 5. REMANI：搜索、优化和轨迹容器
 
-TA-WBMP 位于任务生成和全身入口选择层。它的对象与 `wbmm_core` 同名但不是同一个 C++ 类型。
-
-### 5.1 `TaskTrajectory`
-
-TA-WBMP 的任务轨迹由以下部分组成：
-
-| 结构 | 内容 | 源码 |
-|---|---|---|
-| `TaskWaypoint` | progress、位姿、切向、法向、名义速度、接触标志 | [`task_trajectory.hpp:20`](../src/planning/ta_wbmp/include/ta_wbmp/task_trajectory.hpp#L20) |
-| `TaskGeometry` | 平面/曲面中心、法向、局部轴、边界、半径 | [`task_trajectory.hpp:32`](../src/planning/ta_wbmp/include/ta_wbmp/task_trajectory.hpp#L32) |
-| `MpcExecutionConfig` | 参考发布率、窗口、采样步长、跟踪阈值 | [`task_trajectory.hpp:45`](../src/planning/ta_wbmp/include/ta_wbmp/task_trajectory.hpp#L45) |
-| `ForceExecutionConfig` | 力轴、期望力、导纳参数和安全限幅 | [`task_trajectory.hpp:54`](../src/planning/ta_wbmp/include/ta_wbmp/task_trajectory.hpp#L54) |
-| `TaskTrajectory` | 名称、frame、类型、几何、执行配置、点序列 | [`task_trajectory.hpp:86`](../src/planning/ta_wbmp/include/ta_wbmp/task_trajectory.hpp#L86) |
-
-这里的 `ForceExecutionConfig` 是执行参数，不会把力加入 OCS2 的 9D 状态或 REMANI 的 8D 平坦输出。
-
-### 5.2 `Plan`
-
-`Plan` 是 TA-WBMP 的聚合结果，包含：
-
-- 时间参数化的 `Waypoint` 序列；
-- 任务目标与法向；
-- 简化圆障碍 `obstacles=[x,y,r]`；
-- 任务表面几何；
-- 候选构型评估；
-- `remani_navigation_goal`；
-- `task_entry_state`；
-- 各阶段起始索引和 `PlanReport`。
-
-源码：[`planner.hpp:28`](../src/planning/ta_wbmp/include/ta_wbmp/planner.hpp#L28) 与 [`planner.hpp:68`](../src/planning/ta_wbmp/include/ta_wbmp/planner.hpp#L68)。
-
-候选代价输入 `CandidateMetrics` 记录任务误差、关节裕量、可操作度、最小奇异值、底盘/手臂路径长度、导航代价等。源码：[`cost.hpp:10`](../src/planning/ta_wbmp/include/ta_wbmp/cost.hpp#L10)。
-
-### 5.3 状态有效性
-
-`WholeBodyStateValidityChecker` 是 TA-WBMP 注入碰撞/环境检查的扩展点。当前有：
-
-- `AcceptAllStateValidityChecker`：全部接受，仅适合演示或隔离测试；
-- `UrdfSelfCollisionStateValidityChecker`：检查 URDF 自碰撞；
-- 环境/ESDF 检查：接口允许注入，但当前头文件中没有共享 REMANI ESDF 的具体实现。
-
-源码：[`extensions.hpp:11`](../src/planning/ta_wbmp/include/ta_wbmp/extensions.hpp#L11)。
-
-`CURRENT`：TA-WBMP 的 `Plan.obstacles` 是二维简化圆障碍，并不等价于 REMANI 的 3D ESDF，也不等价于 OCS2 的 COAL 几何体。
-
-`TBD`：生产链是否始终注入了与 REMANI 同源的环境检查器，需要逐个 launch/入口做运行配置审查；仅看接口不能确认。
-
----
-
-## 6. REMANI：搜索、优化和轨迹容器
-
-### 6.1 REMANI 的 8D 平坦输出
+### 5.1 REMANI 的 8D 平坦输出
 
 REMANI 优化的多项式输出不是 9D 状态，而是：
 
@@ -386,7 +334,7 @@ $$
 
 其中 `singul=+1` 表示前进，`singul=-1` 表示倒车。
 
-### 6.2 前端搜索节点
+### 5.2 前端搜索节点
 
 | 对象 | 主要数据 | 作用 | 源码 |
 |---|---|---|---|
@@ -403,7 +351,7 @@ Kino A* 搜索结果进一步整理为：
 
 源码：[`plan_container.hpp:14`](../src/vendor/remani_planner/traj_utils/include/traj_utils/plan_container.hpp#L14)。
 
-### 6.3 边界状态矩阵
+### 5.3 边界状态矩阵
 
 REMANI 的起终端状态矩阵采用：
 
@@ -417,7 +365,7 @@ $$
 
 源码中 `FlatTrajData.start_state` 的注释为 `(8,4)`，规划管理器用 `headState/tailState` 保存 `[pos, vel, acc, jerk]`。对应位置：[`plan_container.hpp:22`](../src/vendor/remani_planner/traj_utils/include/traj_utils/plan_container.hpp#L22) 与 [`planner_manager.cpp:163`](../src/vendor/remani_planner/plan_manage/src/planner_manager.cpp#L163)。
 
-### 6.4 分段七次多项式
+### 5.4 分段七次多项式
 
 `poly_traj::Piece<7>` 的每个输出维度是一条七次多项式：
 
@@ -447,7 +395,7 @@ $$
 
 上式是对源码权重与回调职责的结构化概括，不代表代码中存在完全相同名字的一条总公式。
 
-### 6.5 轨迹容器
+### 5.5 轨迹容器
 
 | 类型 | 内容 | 生命周期 |
 |---|---|---|
@@ -460,7 +408,7 @@ $$
 
 `MMPlannerManager` 聚合 `GridMap`、`TrajContainer`、`PolyTrajOptimizer` 和 `MMConfig`。源码：[`planner_manager.h:19`](../src/vendor/remani_planner/plan_manage/include/plan_manage/planner_manager.h#L19)。
 
-### 6.6 运行状态 `MMState`
+### 5.6 运行状态 `MMState`
 
 `MMState` 是从多项式采样出的运行快照，包含：
 
@@ -473,7 +421,7 @@ $$
 
 注意：`MMState` 是 REMANI 内部便利结构，不等价于 `wbmm_core::WholeBodyState`，也不等价于 `ocs2::SystemObservation`。
 
-### 6.7 FSM 数据
+### 5.7 FSM 数据
 
 `REMANIReplanFSM` 保存：
 
@@ -489,9 +437,9 @@ $$
 
 ---
 
-## 7. REMANI → OCS2 桥：最关键的转换层
+## 6. REMANI → OCS2 桥：最关键的转换层
 
-### 7.1 ROS 多项式消息
+### 6.1 ROS 多项式消息
 
 `PolynomialTraj` 每条消息表示一个恒定运动方向的 section：
 
@@ -504,7 +452,7 @@ $$
 
 REMANI 直接把 Eigen 列主序系数矩阵复制到 `data`。源码：[`remani_replan_fsm.cpp:1370`](../src/vendor/remani_planner/plan_manage/src/remani_replan_fsm.cpp#L1370)。
 
-### 7.2 桥内部结构
+### 6.2 桥内部结构
 
 | 类型 | 字段 | 用途 | 源码 |
 |---|---|---|---|
@@ -512,7 +460,7 @@ REMANI 直接把 Eigen 列主序系数矩阵复制到 `data`。源码：[`remani
 | `TrajectorySection` | ID、方向、piece 数组 | 一条 REMANI section | [`bridge.cpp:103`](../src/control/wbmm_ocs2_ros/src/remani_to_ocs2_reference_bridge.cpp#L103) |
 | `AssembledTrajectory` | 起始 ROS 时间、section 数组、总时长、代次 | 已按 ID 拼接的完整参考 | [`bridge.cpp:127`](../src/control/wbmm_ocs2_ros/src/remani_to_ocs2_reference_bridge.cpp#L127) |
 
-### 7.3 多项式求值
+### 6.3 多项式求值
 
 桥按最高次项在前的顺序求值：
 
@@ -532,7 +480,7 @@ $$
 
 源码：[`bridge.cpp:153`](../src/control/wbmm_ocs2_ros/src/remani_to_ocs2_reference_bridge.cpp#L153)。
 
-### 7.4 坐标系变换
+### 6.4 坐标系变换
 
 桥优先查询 `planner_frame -> target_frame` 的动态 TF；失败时回退到固定二维变换参数。二维刚体变换为：
 
@@ -550,7 +498,7 @@ $$
 
 源码：[`bridge.cpp:654`](../src/control/wbmm_ocs2_ros/src/remani_to_ocs2_reference_bridge.cpp#L654) 与 [`bridge.cpp:773`](../src/control/wbmm_ocs2_ros/src/remani_to_ocs2_reference_bridge.cpp#L773)。
 
-### 7.5 从平坦导数恢复 OCS2 输入
+### 6.5 从平坦导数恢复 OCS2 输入
 
 速度足够大时：
 
@@ -576,7 +524,7 @@ $$
 
 源码：[`bridge.cpp:805`](../src/control/wbmm_ocs2_ros/src/remani_to_ocs2_reference_bridge.cpp#L805)。
 
-### 7.6 滚动参考窗口
+### 6.6 滚动参考窗口
 
 桥发布 `TargetTrajectories` 时，第一个点锚定最新观测状态，后续点按 `sample_dt` 在 `reference_horizon` 内采样：
 
@@ -590,9 +538,9 @@ $$
 
 ---
 
-## 8. OCS2 MPC：观测、参考、问题和解
+## 7. OCS2 MPC：观测、参考、问题和解
 
-### 8.1 基础数值类型
+### 7.1 基础数值类型
 
 OCS2 使用动态 Eigen 类型：
 
@@ -603,7 +551,7 @@ OCS2 使用动态 Eigen 类型：
 
 源码：[`Types.h:44`](../src/vendor/ocs2_ros2/core/ocs2_core/include/ocs2_core/Types.h#L44)。
 
-### 8.2 `SystemObservation`
+### 7.2 `SystemObservation`
 
 MPC 当前观测为：
 
@@ -617,7 +565,7 @@ SystemObservation
 
 源码：[`SystemObservation.h:38`](../src/vendor/ocs2_ros2/mpc/ocs2_mpc/include/ocs2_mpc/SystemObservation.h#L38)。ROS 消息对应 [`MpcObservation.msg`](../src/vendor/ocs2_ros2/robotics/ocs2_msgs/msg/MpcObservation.msg)。
 
-### 8.3 `TargetTrajectories`
+### 7.3 `TargetTrajectories`
 
 参考由三条等长时间序列组成：
 
@@ -637,7 +585,7 @@ TargetTrajectories
 
 两者同时开启会被 `WbmmInterface` 拒绝，因为同一个数组不能同时具有两种语义。源码：[`WbmmInterface.cpp:195`](../src/control/wbmm_ocs2/src/WbmmInterface.cpp#L195)。
 
-### 8.4 `WbmmModelInfo`
+### 7.4 `WbmmModelInfo`
 
 `WbmmModelInfo` 保存：
 
@@ -649,7 +597,7 @@ TargetTrajectories
 
 源码：[`WbmmModelInfo.h:52`](../src/control/wbmm_ocs2/include/wbmm_ocs2/WbmmModelInfo.h#L52)。工厂函数要求 Pinocchio `nq=nv=9`，并在 URDF 根链路前加入 `PX/PY/RZ` 平面关节。源码：[`FactoryFunctions.cpp:98`](../src/control/wbmm_ocs2/src/FactoryFunctions.cpp#L98)。
 
-### 8.5 `OptimalControlProblem`
+### 7.5 `OptimalControlProblem`
 
 OCS2 的问题容器聚合：
 
@@ -689,7 +637,7 @@ yaw 误差使用最短角距离。无效或空参考会回退到初始状态保�
 
 输入代价使用 $R\in\mathbb{R}^{8\times8}$；关节位置限位来自 URDF，输入速度限位来自 `task.info`。组装位置：[`WbmmInterface.cpp:309`](../src/control/wbmm_ocs2/src/WbmmInterface.cpp#L309) 与 [`WbmmInterface.cpp:591`](../src/control/wbmm_ocs2/src/WbmmInterface.cpp#L591)。
 
-### 8.6 `PreComputation`
+### 7.6 `PreComputation`
 
 `WbmmPreComputation` 持有 Pinocchio 模型和映射，在 cost/constraint 请求前缓存：
 
@@ -700,7 +648,7 @@ yaw 误差使用最短角距离。无效或空参考会回退到初始状态保�
 
 源码：[`PreComputation.h:44`](../src/control/wbmm_ocs2/include/wbmm_ocs2/PreComputation.h#L44) 与 [`PreComputation.cpp:59`](../src/control/wbmm_ocs2/src/PreComputation.cpp#L59)。
 
-### 8.7 `PrimalSolution` 与性能指标
+### 7.7 `PrimalSolution` 与性能指标
 
 MPC 求解结果 `PrimalSolution` 包含：
 
@@ -719,20 +667,19 @@ MRT 使用当前观测求值 policy；若 policy 空、过期、非有限或预�
 
 ---
 
-## 9. 环境与碰撞数据结构
+## 8. 环境与碰撞数据结构
 
-### 9.1 必须分开的四套环境表示
+### 8.1 必须分开的四套环境表示
 
 | 表示 | 数据结构 | 消费者 | 是否与其他层自动同步 |
 |---|---|---|---|
-| TA-WBMP 简化环境 | `Plan.obstacles: Vector3d(x,y,r)` | TA-WBMP 自身 | 否 |
 | REMANI 规划环境 | `GridMap` 的 occupancy + ESDF buffer | Kino A*、RRT、轨迹优化、`MMConfig` | 同一 REMANI 内共享 |
 | OCS2 环境几何 | `Obstacle{geometry,transform,minimumDistance}` | OCS2 环境碰撞软约束 | 否，不读取 REMANI ESDF |
 | RViz 显示环境 | `PointCloud2/OccupancyGrid/Marker` | 人工观察 | 只显示，不参与规划 |
 
 这四者外观可能相同，但数据所有权和安全含义不同。
 
-### 9.2 REMANI `GridMap`
+### 8.2 REMANI `GridMap`
 
 `MappingParameters` 保存地图几何和传感器参数：
 
@@ -771,7 +718,7 @@ $$
 
 源码：[`grid_map.h:594`](../src/vendor/remani_planner/plan_env/include/plan_env/grid_map.h#L594) 与 [`grid_map.cpp:2148`](../src/vendor/remani_planner/plan_env/src/grid_map.cpp#L2148)。
 
-### 9.3 静态 ESDF NPZ 数据合同
+### 8.3 静态 ESDF NPZ 数据合同
 
 REMANI 静态加载器要求 NPZ 至少包含：
 
@@ -811,7 +758,7 @@ $$
 
 `CURRENT`：REMANI C++ 静态加载器读取核心六字段，不单独读取 `observed` 和 `unknown_is_occupied`；未知空间策略已经在导出时折叠进 `esdf/occupancy`。
 
-### 9.4 静态地图坐标系规则
+### 8.4 静态地图坐标系规则
 
 加载器要求归档 `frame_id` 与规划器 `grid_map.frame_id` 完全一致，否则直接报错；只支持可选固定 XYZ 平移，不在加载时旋转/重采样 ESDF。源码：[`grid_map.cpp:552`](../src/vendor/remani_planner/plan_env/src/grid_map.cpp#L552)。
 
@@ -821,7 +768,7 @@ $$
 - `map -> odom` 的动态变化由 REMANI→OCS2 bridge 转换轨迹参考；
 - 不能只改 `frame_id` 字符串来假装地图已经变换。
 
-### 9.5 REMANI 机器人碰撞模型
+### 8.5 REMANI 机器人碰撞模型
 
 `MMConfig` 保存：
 
@@ -853,7 +800,7 @@ $$
 
 源码：[`mm_config.cpp:1558`](../src/vendor/remani_planner/mm_config/src/mm_config.cpp#L1558)。日志中的 `start (1) is not free` 因而表示“初始状态发生机械臂－环境碰撞”，不是“第 1 个起点”。
 
-### 9.6 OCS2 环境几何
+### 8.6 OCS2 环境几何
 
 OCS2 的 `EnvironmentGeometryInterface::Obstacle` 保存：
 
@@ -887,7 +834,7 @@ $$
 
 `CURRENT`：默认 `task.info` 中 `environmentCollision.activate=false`。参见 [`task.info:294`](../src/control/wbmm_ocs2_ros/config/task.info#L294)。因此不能因为 REMANI 正在使用 ESDF，就推断 OCS2 同时在做环境碰撞约束。
 
-### 9.7 自碰撞
+### 8.7 自碰撞
 
 REMANI 自碰撞采用采样球之间的欧氏距离：
 
@@ -899,7 +846,7 @@ OCS2 自碰撞采用 URDF/Pinocchio 几何和配置的 link/object pair，并以
 
 两者都称“自碰撞”，但离散几何、pair 选择和安全裕量不自动共享。
 
-### 9.8 显示数据不是规划数据
+### 8.8 显示数据不是规划数据
 
 `esdf_visualizer.py` 把 nvblox 服务返回的三维数组转成 `PointCloud2(x,y,z,intensity)`；`intensity` 是距离值。源码：[`esdf_visualizer.py:128`](../src/map/my_nvblox_bringup/my_nvblox_bringup/esdf_visualizer.py#L128)。
 
@@ -909,9 +856,9 @@ OCS2 自碰撞采用 URDF/Pinocchio 几何和配置的 link/object pair，并以
 
 ---
 
-## 10. 跨层转换清单
+## 9. 跨层转换清单
 
-### 10.1 `WholeBodyGoal` → REMANI
+### 9.1 `WholeBodyGoal` → REMANI
 
 ```text
 base_pose.position.x/y -> end_pt[0:1]
@@ -922,7 +869,7 @@ joint_positions        -> end_pt[2:7]
 
 必须保持按名映射，缺关节应拒绝，不能补零或静默重排。
 
-### 10.2 REMANI 多项式 → OCS2 参考
+### 9.2 REMANI 多项式 → OCS2 参考
 
 ```text
 PolynomialTraj sections
@@ -933,7 +880,7 @@ PolynomialTraj sections
   -> TargetTrajectories(time, state[9], input[8])
 ```
 
-### 10.3 ROS 观测 → OCS2
+### 9.3 ROS 观测 → OCS2
 
 ```text
 Odometry pose.x/y/yaw + named JointState.position
@@ -945,7 +892,7 @@ Odometry pose.x/y/yaw + named JointState.position
 
 `TBD`：具体实机与不同仿真入口对 `SystemObservation.input` 的测量、估计或回填策略可能不同，应在对应 MRT launch 的人工审查中确认。
 
-### 10.4 OCS2 policy → 执行器
+### 9.4 OCS2 policy → 执行器
 
 ```text
 policyInput[0:1] -> 底盘 v/omega
@@ -956,33 +903,32 @@ policyInput[0:1] -> 底盘 v/omega
 
 ---
 
-## 11. 当前最值得警惕的数据断点
+## 10. 当前最值得警惕的数据断点
 
-### 11.1 `wbmm_core` 与实际算法包尚未统一接入
+### 10.1 `wbmm_core` 与实际算法包尚未统一接入
 
 `CURRENT`：core 有强类型、名字、frame、clock、revision；REMANI/OCS2 主链主要使用裸 `Eigen::VectorXd`、独立结构和 ROS 消息。
 
 风险：维度正确不等于语义正确，例如 8D 可能是 REMANI 平坦输出，也可能是 OCS2 输入。
 
-### 11.2 环境没有唯一真源
+### 10.2 环境没有唯一真源
 
-`CURRENT`：REMANI ESDF、OCS2 手工几何、TA-WBMP 简化障碍和 RViz 显示是不同对象。
 
 风险：一个层安全、另一个层未检查；地图更新后轨迹或 MPC 约束仍引用旧环境。
 
 `PROPOSED`：以共享环境快照 ID 和碰撞模型 ID 贯穿搜索结果、全身轨迹和执行门，但本次不实现。
 
-### 11.3 相同数组字段有两种参考语义
+### 10.3 相同数组字段有两种参考语义
 
 `TargetTrajectories.stateTrajectory` 既可能是 9D 全身状态，也可能是 7D 末端位姿。当前 `WbmmInterface` 已加互斥检查，但阅读 bag/日志时仍必须先确认 task 配置。
 
-### 11.4 frame 在部分层是显式字段、部分层是外部配置
+### 10.4 frame 在部分层是显式字段、部分层是外部配置
 
 `wbmm_core` 和 ROS 消息显式带 `frame_id`；OCS2 裸向量不带 frame；REMANI 内部 Eigen 向量也不带 frame，依赖 `planning_frame` 和 `GridMap.frame_id`。
 
 风险：只复制数值、不做刚体变换，会产生看似维度正确的错误轨迹。
 
-### 11.5 未知空间策略在导出时固化
+### 10.5 未知空间策略在导出时固化
 
 nvblox 的未知空间是否视为占据，会在 NPZ 导出时写进 `esdf/occupancy`。REMANI 加载后只看到结果，不再知道原始 nvblox sentinel。
 
@@ -990,15 +936,13 @@ nvblox 的未知空间是否视为占据，会在 NPZ 导出时写进 `esdf/occu
 
 ---
 
-## 12. 源码导航表
+## 11. 源码导航表
 
 | 想查什么 | 首选入口 |
 |---|---|
 | 统一状态、输入、位姿、wrench | `src/core/wbmm_core/include/wbmm_core/types.hpp` |
 | 任务轨迹、全身轨迹、搜索结果 | `src/core/wbmm_core/include/wbmm_core/trajectory.hpp` |
 | 9D/8D 数学与 frame 合同 | `docs/math_contract.md` |
-| TA-WBMP 任务与执行参数 | `src/planning/ta_wbmp/include/ta_wbmp/task_trajectory.hpp` |
-| TA-WBMP 计划和候选数据 | `src/planning/ta_wbmp/include/ta_wbmp/planner.hpp` |
 | REMANI FSM 状态和 ROS 接口 | `src/vendor/remani_planner/plan_manage/include/plan_manage/remani_replan_fsm.h` |
 | REMANI Manager 聚合对象 | `src/vendor/remani_planner/plan_manage/include/plan_manage/planner_manager.h` |
 | Kino A* 节点 | `src/vendor/remani_planner/path_searching/include/path_searching/kino_astar.h` |
@@ -1017,7 +961,7 @@ nvblox 的未知空间是否视为占据，会在 NPZ 导出时写进 `esdf/occu
 
 ---
 
-## 13. 人工审查清单
+## 12. 人工审查清单
 
 本文档进入 `APPROVED` 前，建议至少逐条确认：
 
@@ -1033,10 +977,9 @@ nvblox 的未知空间是否视为占据，会在 NPZ 导出时写进 `esdf/occu
 
 ---
 
-## 14. 不确定项
+## 13. 不确定项
 
 1. `environment_revision` / `collision_model_revision` 当前未形成规划到执行的版本闭环。
-2. TA-WBMP 在每个生产 launch 中是否注入同源 ESDF 检查器，需按入口运行配置确认。
 3. 不同 MRT 后端如何形成 `SystemObservation.input`，需分别审查仿真和实机节点配置。
 4. REMANI 碰撞球与 OCS2 URDF/COAL 几何是否在当前平台上达到一致覆盖，尚无统一自动对比结果。
 5. 本文是静态源码梳理，没有执行实机、接触或安全验证。

@@ -16,12 +16,10 @@ struct TaskTrajectoryPoint
   Pose pose;
 
   // Nominal task geometry only.
-  // Force control is an execution-layer correction on the planned nominal trajectory,
-  // not a field of the planned task trajectory.
+  // Force control and contact handling are execution-layer concerns on the
+  // planned nominal trajectory, not fields of TaskTrajectory.
   Vector3 tangent;
   Vector3 surface_normal;
-
-  bool contact{false};
 };
 
 struct TaskTrajectory
@@ -30,13 +28,14 @@ struct TaskTrajectory
   std::vector<TaskTrajectoryPoint> points;
 };
 
+// Phase is not part of TaskTrajectory. It is used later when navigation and
+// task trajectories are combined for trajectory evaluation.
 struct PhaseSegment
 {
   double start_time{0.0};
   double end_time{0.0};
   ExecutionPhase phase{ExecutionPhase::kIdle};
   std::string task_id;
-  bool contact{false};
 };
 
 using PhaseSchedule = std::vector<PhaseSegment>;

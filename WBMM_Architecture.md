@@ -264,8 +264,6 @@ src/
 │   └── test/
 ├── visual/wbmm_visualization/         # 已有，保留
 ├── control/tracer_jaka_ocs2/          # 已有，OCS2 Adapter
-├── planning/ta_wbmp/                  # 原型，逐步迁移
-├── applications/wiping/wipe_planner/  # 具体任务生成
 ├── bringup/                           # launch/config 总装
 └── vendor/
     ├── remani_planner/
