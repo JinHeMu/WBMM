@@ -142,7 +142,10 @@ def generate_launch_description():
         .robot_description_semantic(
             file_path="config/tracer_jaka_zu5.srdf")
         .trajectory_execution(file_path="config/moveit_controllers.yaml")
-        .planning_pipelines(pipelines=["ompl"])
+        .planning_pipelines(
+            default_planning_pipeline="chomp",
+            pipelines=["ompl", "chomp"],
+        )
         .to_moveit_configs()
     )
 
@@ -211,7 +214,6 @@ def generate_launch_description():
     controller_manager = Node(
         package="controller_manager",
         executable="ros2_control_node",
-        name="controller_manager",
         condition=IfCondition(is_real),
         parameters=[
             moveit_config.robot_description,
