@@ -33,7 +33,7 @@ def _expand(backend: str) -> ET.Element:
             f"control_backend:={backend}",
             "robot_ip:=192.0.2.10",
             "local_ip:=192.0.2.20",
-            "jaka_read_only:=true",
+            "hardware_write:=false",
         ],
         check=True,
         capture_output=True,
@@ -118,7 +118,7 @@ class RobotDescriptionTest(unittest.TestCase):
         }
         self.assertEqual(real_params["robot_ip"], "192.0.2.10")
         self.assertEqual(real_params["local_ip"], "192.0.2.20")
-        self.assertEqual(real_params["read_only"].lower(), "true")
+        self.assertEqual(real_params["hardware_write"].lower(), "false")
         self.assertIsNotNone(
             real.find("ros2_control/sensor[@name='tcp_fts_sensor']")
         )

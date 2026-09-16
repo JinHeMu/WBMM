@@ -181,6 +181,12 @@ void WholeBodyForceControlNode::loadParameters()
       "observation_timeout", 0.25);
   parameters_.capture_settle_time = declare_parameter<double>(
       "capture_settle_time", 1.0);
+  const int tare_samples = declare_parameter<int>("tare_samples", 50);
+  if (tare_samples <= 0)
+  {
+    throw std::runtime_error("tare_samples must be positive");
+  }
+  parameters_.tare_samples = static_cast<std::size_t>(tare_samples);
   parameters_.armed = declare_parameter<bool>("armed", false);
   parameters_.reference_output_enabled = declare_parameter<bool>(
       "reference_output_enabled", false);
@@ -286,6 +292,12 @@ void WholeBodyForceControlNode::loadParameters()
   if ((parameters_.hard_wrench_limit.array() <= 0.0).any())
   {
     throw std::runtime_error("hard_wrench_limit values must be positive");
+  }
+  parameters_.max_wrench_rate = vector6Parameter(
+      *this, "max_wrench_rate", Vector6d::Zero());
+  if ((parameters_.max_wrench_rate.array() < 0.0).any())
+  {
+    throw std::runtime_error("max_wrench_rate values must be non-negative");
   }
 
   parameters_.target_topic = parameters_.robot_name + "_mpc_target";

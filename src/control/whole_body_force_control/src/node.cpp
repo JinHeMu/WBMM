@@ -23,12 +23,13 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
       robot_model_, parameters_.ee_frame, parameters_.state_frame,
       wbmm::core::ClockDomain::kOcs2Mpc);
 
+  configureForceProcessor();
+
   cartesian_controller_ = std::make_unique<CartesianComplianceController>(
       parameters_.admittance_axes, parameters_.constant_force_axes,
       parameters_.desired_wrench, parameters_.mass_6d,
       parameters_.damping_6d, parameters_.stiffness_6d,
       parameters_.max_offset_6d, parameters_.max_velocity_6d,
-      parameters_.filter_alpha_6d,
       parameters_.control_mode == "force_follow");
 
   const double legacy_desired =
@@ -38,15 +39,14 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
   admittance_ = std::make_unique<AdmittanceController>(
       legacy_desired, parameters_.mass, parameters_.damping,
       parameters_.stiffness, parameters_.max_offset,
-      parameters_.max_velocity, parameters_.filter_alpha,
-      parameters_.absolute_force);
+      parameters_.max_velocity, parameters_.absolute_force);
   force_follower_ = std::make_unique<ForceFollower>(
       legacy_desired, parameters_.stiffness, parameters_.max_offset,
-      parameters_.max_velocity, parameters_.filter_alpha,
-      parameters_.absolute_force, parameters_.force_velocity_mode,
-      parameters_.force_deadband);
+      parameters_.max_velocity, parameters_.absolute_force,
+      parameters_.force_velocity_mode, parameters_.force_deadband);
 
   createRosInterfaces();
+  force_processor_.startTare();
 
   const auto start_time = std::chrono::steady_clock::now();
   last_update_ = start_time;
@@ -70,11 +70,13 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
   publishControlState(parameters_.armed ? "WAITING_FOR_DATA" : "DISABLED");
 }
 
-bool WholeBodyForceControlNode::wrenchLimitExceeded() const
+void WholeBodyForceControlNode::requestFault(const std::string &reason)
 {
-  return (measuredWrenchVector().cwiseAbs().array() >
-          parameters_.hard_wrench_limit.array())
-      .any();
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!fault_latched_ && !pending_fault_) {
+    pending_fault_ = true;
+    pending_fault_reason_ = reason;
+  }
 }
 
 void WholeBodyForceControlNode::latchFault(const std::string &reason)
@@ -87,6 +89,7 @@ void WholeBodyForceControlNode::latchFault(const std::string &reason)
   fault_reason_ = reason;
   parameters_.armed = false;
   nominal_captured_ = false;
+  force_processor_.reset();
   admittance_->reset(measured_force_);
   force_follower_->reset(measured_force_);
   cartesian_controller_->reset(measuredWrenchVector());
@@ -103,10 +106,6 @@ void WholeBodyForceControlNode::checkFaults(
   else if (parameters_.armed && wrench_timed_out)
   {
     latchFault("WRENCH_TIMEOUT");
-  }
-  else if (parameters_.armed && wrenchLimitExceeded())
-  {
-    latchFault("WRENCH_LIMIT");
   }
   else if (parameters_.armed && parameters_.enforce_single_target_owner &&
            foreignTargetPublisherPresent())
@@ -183,12 +182,33 @@ void WholeBodyForceControlNode::updateLegacyReference(
   filtered_wrench[index] = primary_force;
 }
 
+void WholeBodyForceControlNode::configureForceProcessor()
+{
+  ForceProcessorConfig config;
+  config.tare_samples = parameters_.tare_samples;
+  config.filter_alpha = parameters_.filter_alpha_6d;
+  config.scale = parameters_.wrench_scale_6d;
+  config.absolute_axes = parameters_.absolute_wrench_axes;
+  config.hard_limit_enabled = true;
+  config.hard_wrench_limit = parameters_.hard_wrench_limit;
+  config.max_wrench_rate = parameters_.max_wrench_rate;
+  force_processor_.setConfig(config);
+}
+
 void WholeBodyForceControlNode::update()
 {
   const auto wall_now = std::chrono::steady_clock::now();
   const double dt = std::chrono::duration<double>(wall_now - last_update_).count();
   last_update_ = wall_now;
   std::lock_guard<std::mutex> lock(mutex_);
+
+  if (pending_fault_)
+  {
+    const std::string reason = pending_fault_reason_;
+    pending_fault_ = false;
+    pending_fault_reason_.clear();
+    latchFault(reason);
+  }
 
   // Data check.
   if (!observation_received_)
@@ -197,6 +217,14 @@ void WholeBodyForceControlNode::update()
         parameters_.armed ? "WAITING_FOR_OBSERVATION" : "DISABLED");
     return;
   }
+
+  if (force_processor_.taring())
+  {
+    publishControlState("TARING");
+    publishReference(observationStateLocked());
+    return;
+  }
+
   const Eigen::VectorXd measured_state = observationStateLocked();
   const Vector6d measured_wrench = measuredWrenchVector();
   const bool observation_timed_out =

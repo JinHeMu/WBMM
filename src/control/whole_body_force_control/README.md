@@ -11,7 +11,8 @@
 - `src/node.cpp`：模型/控制器装配、定时器、`update()` 控制周期、故障检查与锁存、`main()`。
 - `src/node_config.cpp`：参数默认值、legacy / 六轴配置解析、轴掩码和校验。
 - `src/node_ros_io.cpp`：订阅回调、观测/wrench 转换与校验、TF、参考轨迹和状态发布。
-- `src/controllers.cpp`：不依赖 ROS 的力控算法。
+- `src/force_processor.cpp`：力预处理流水线：自动 tare、TF 坐标变换、滤波、有限性和安全限幅。
+- `src/controllers.cpp`：不依赖 ROS 的力控算法；控制器不再做内部滤波。
 
 阅读建议：看控制流程主要看 `node.cpp`；调参数看 `node_config.cpp`；查消息、坐标变换和发布看 `node_ros_io.cpp`。
 
@@ -22,13 +23,37 @@
   - `F_desired=0`：普通外力导纳；
   - `F_desired>0`：恒力误差导纳。
 - `ForceFollower`：无阻尼项的准静态跟随
-  `x_target=(F_measured-F_desired)/K`，带低通、限速和位移限幅。
+  `x_target=(F_measured-F_desired)/K`，输入假设已由 `ForceProcessor` 滤波。
 - `CartesianComplianceController`：六个相互独立的导纳通道，轴顺序固定为
   `[Fx,Fy,Fz,Tx,Ty,Tz] -> [dx,dy,dz,rx,ry,rz]`。
 - `wbmm::pinocchio::WholeBodyKinematics`：用完整 6D IK 实现末端平移和转动修正；
   底盘只分担平移在当前航向上的分量，转动修正由机械臂实现。
 - `whole_body_force_control_node`：接收力传感器和 OCS2 观测，发布完整9D状态、
   8D输入参考。
+
+## 力处理流水线
+
+所有原始 FTS 先经过 `ForceProcessor`：
+
+```text
+raw FTS
+  ↓
+自动 tare（启动后采样 N 帧）
+  ↓
+TF: message.frame_id -> ee_frame
+  ↓
+scale / absolute
+  ↓
+低通滤波
+  ↓
+finite / hard limit / max rate 安全检查
+  ↓
+Admittance / ForceFollower / CartesianComplianceController
+  ↓
+whole-body reference -> MPC
+```
+
+控制器内部不再做滤波；它们只接收已经处理好的 wrench。
 
 ## 控制模式
 
@@ -131,6 +156,24 @@ ros2 launch tracer_jaka_bringup force_control_20s_follow_test.launch.py
 - 配置：`config/force_follow_infinite_sim.yaml`
 - 场景：`models/scene_force_follow_infinite.xml`
 
+该入口直接并列启动 MuJoCo bridge、robot_state_publisher、OCS2 MPC/MRT、
+whole-body force control 和可选 RViz，不再包含通用的 `ocs2_sim.launch.py`，
+因此也没有 SLAM、REMANI 或 REMANI bridge 开关。对外仅保留三个参数：
+
+| 参数 | 默认值 | 含义 |
+|---|---:|---|
+| `viewer` | `true` | 是否打开 MuJoCo 原生窗口 |
+| `use_rviz` | `true` | 是否打开力控专用 RViz |
+| `profile` | `infinite` | 实验档位：`infinite` 或 `20s` |
+
+```bash
+ros2 launch tracer_jaka_bringup whole_body_force_control_sim.launch.py \
+  viewer:=true use_rviz:=true profile:=infinite
+```
+
+仿真/实机不做成隐藏的布尔参数：本入口始终只启动仿真，实机继续使用独立的
+`whole_body_force_control_real.launch.py`。
+
 原理：
 
 - 与有限弹性位移不同，不再在 `force / stiffness` 或小 `max_offset` 处停住；
@@ -178,7 +221,7 @@ ros2 topic pub -r 50 /whole_body_force_control/fake_wrench \
 若要在开阔实机环境中验证“持续受力持续跟随”，可显式使用实机无限力跟随配置：
 
 ```bash
-ros2 launch tracer_jaka_bringup whole_body_force_control_real.launch.py   jaka_read_only:=false   command_output_enabled:=true   safety_release:=true   force_reference_output_enabled:=true   force_control_armed:=false   force_params_file:=$(ros2 pkg prefix whole_body_force_control)/share/whole_body_force_control/config/force_follow_infinite_real.yaml
+ros2 launch tracer_jaka_bringup whole_body_force_control_real.launch.py   hardware_write:=true   force_reference_output_enabled:=true   force_control_armed:=false   force_params_file:=$(ros2 pkg prefix whole_body_force_control)/share/whole_body_force_control/config/force_follow_infinite_real.yaml
 ```
 
 当前版本不提供 `/whole_body_force_control/enable` 服务，`armed` 由启动参数控制；
@@ -198,7 +241,7 @@ ros2 launch tracer_jaka_bringup whole_body_force_control_real.launch.py
 
 默认是只读、无底盘命令、无 OCS2 目标输出、未 armed 的观察模式。完整的分阶段
 检查、运动放行命令、停止方法和验收标准见
-[`docs/whole_body_force_control_real_deployment.md`](../../../../docs/whole_body_force_control_real_deployment.md)。
+[`docs/whole_body_force_control_real_deployment.md`](../../../docs/whole_body_force_control_real_deployment.md)。
 
 运行时状态：
 
@@ -224,7 +267,8 @@ ros2 launch tracer_jaka_bringup force_control_mujoco_test.launch.py \
 - `max_offset`, `max_velocity`, `force_timeout`
 - `observation_timeout`, `armed`, `reference_output_enabled`
 - `enforce_single_target_owner`, `force_scale`, `wrench_scale_6d`
-- `hard_wrench_limit`, `control_state_topic`
+- `hard_wrench_limit`, `max_wrench_rate`, `tare_samples`, `control_state_topic`
+- `filter_alpha`, `filter_alpha_6d`：统一由 `ForceProcessor` 使用
 - `response_body_x/y/z`, `base_share`, `max_base_delta`, `max_joint_delta`
 - `admittance_axes`, `constant_force_axes`, `absolute_wrench_axes`
 - `desired_wrench`, `mass_6d`, `damping_6d`, `stiffness_6d`

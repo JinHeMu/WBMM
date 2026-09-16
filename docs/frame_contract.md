@@ -267,8 +267,8 @@ $$
 
 | 路径 | CURRENT 行为 | 契约含义与限制 |
 |---|---|---|
-| [JAKA 驱动](../src/drivers/arm/jaka_hardware_interface/src/jaka_hardware_interface.cpp) | 原始量减 bias，使用硬编码旋转和参数力臂转为 tool0，再滤波/死区 | 该矩阵不是运行时从 URDF/TF 读取；与实际安装、URDF 的一致性须标定确认 |
-| [实机 F/T broadcaster](../src/robotics/tracer_jaka_description/config/fts_broadcaster_humble.yaml) | `frame_id: tool0` | 已是 tool0 值，不应再次当作原始 sensor wrench 变换 |
+| [JAKA 驱动](../src/drivers/arm/jaka_hardware_interface/src/jaka_hardware_interface.cpp) | 直接透传 EDG 原始 F/T 数值，不做清零、换系、滤波、死区或过期检测 | 原始数值的坐标系、单位和符号须结合 JAKA/传感器资料与实机标定确认，不能在此处默认为 tool0 wrench |
+| [实机 F/T broadcaster](../src/robotics/tracer_jaka_description/config/ros2_controllers.yaml) | `frame_id: jaka_se_vi_200_link` | EDG 原始传感器 wrench，进入力控流程后仍需按契约完成标定、变换与有效性检查 |
 | [仿真 F/T broadcaster](../src/sim/tracer_jaka_mujoco/tracer_jaka_mujoco/fts_sensor.py) | 从 `tcp_fts_site` 读数，按配置填 header；默认 frame 由 bridge 配为 `jk_se_vi_200_link` | 填 header 本身不执行换系；必须检查 site 与所声明 frame 的原点、方向一致 |
 | [力控 ROS I/O](../src/control/whole_body_force_control/src/node_ros_io.cpp) | Cartesian 模式转到 `ee_frame`；同名直接使用；其他 frame 查询最新 TF 后做完整 wrench 变换 | 该路径中的 compliance frame 默认是 tool0，不代表独立 task_frame；非 Cartesian 模式直接返回数值，不能套用同等 frame 检查保证 |
 

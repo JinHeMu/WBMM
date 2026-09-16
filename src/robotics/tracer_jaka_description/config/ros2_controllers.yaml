@@ -54,5 +54,4 @@ base_controller:
 fts_broadcaster:
   ros__parameters:
     sensor_name: tcp_fts_sensor
-    # Real JAKA hardware exports the already transformed tool0 wrench.
-    frame_id: tool0
+    frame_id: jaka_se_vi_200_link

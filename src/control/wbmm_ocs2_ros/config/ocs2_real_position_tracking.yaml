@@ -1,0 +1,43 @@
+# Whole-body position-tracking OCS2 profile for real-robot hardware.
+# This file only tunes OCS2 tracking/command limits.
+# Sensing and reference generation live in their owner packages.
+wbmm_mpc_node:
+  ros__parameters:
+    use_sim_time: false
+
+wbmm_mrt_node:
+  ros__parameters:
+    use_sim_time: false
+    command_output_enabled: false
+    mrt_loop_rate: 100.0
+    traj_horizon: 0.10
+    arm_use_velocity_integrator: false
+    arm_max_command_velocity: 0.08
+    arm_max_delta_per_step: 0.03
+    use_stamped_cmd: false
+    base_cmd_topic: /cmd_vel
+    odom_topic: /odom
+    joint_state_topic: /joint_states
+    arm_cmd_topic: /arm_controller/commands
+    base_frame: base_footprint
+    world_frame: odom
+    ee_frame: tool0
+    arm_joint_names:
+      - joint_1
+      - joint_2
+      - joint_3
+      - joint_4
+      - joint_5
+      - joint_6
+    enable_visualization: true
+    viz_self_collision: true
+    viz_rate: 20.0
+
+wbmm_target_node:
+  ros__parameters:
+    use_sim_time: false
+    robot_name: mobile_manipulator
+    marker_frame: odom
+    ee_frame: tool0
+    marker_scale: 0.3
+    input_dim: 8

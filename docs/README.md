@@ -100,6 +100,8 @@ docs/
 | `wbmm_data_structures_guide.md` | 从 wbmm_core、TA-WBMP、REMANI 到 OCS2 MPC 的核心数据结构、转换关系、环境与碰撞数据 |
 | `human_review_standard.md` | 人工审查标准、审查流程、审查清单 |
 | `agent_output_standard.md` | Agent 输出文档标准、禁止事项、交付检查表 |
+| [project_map.md](project_map.md) | 当前目录与 bringup 启动地图：common 算法端、sim/real 外层组合和精简后的参数边界 |
+| [whole_body_force_control_real_deployment.md](whole_body_force_control_real_deployment.md) | Whole-body force control 首轮实机测试部署说明：只读影子、FTS 清零、Z 轴测试、未来安全项 |
 
 ## 6. 修改原则
 

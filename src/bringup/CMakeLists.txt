@@ -7,7 +7,15 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 
-install(DIRECTORY launch config rviz
+# Source launch files are organized into common/sim/real for clarity, but
+# install them flat into share/<pkg>/launch so the existing
+# `ros2 launch <pkg> <name>.launch.py` interface keeps working.
+install(DIRECTORY launch/common/ launch/sim/ launch/real/
+  DESTINATION share/${PROJECT_NAME}/launch
+  FILES_MATCHING PATTERN "*.launch.py"
+)
+
+install(DIRECTORY config rviz
   DESTINATION share/${PROJECT_NAME}
   PATTERN "__pycache__" EXCLUDE
   PATTERN "*.pyc" EXCLUDE
@@ -28,6 +36,18 @@ if(BUILD_TESTING)
     localized_real_safety_gate
     test/test_localized_real_safety_gate.py
     TIMEOUT 30
+  )
+  ament_add_pytest_test(
+    common_launch
+    test/test_common_launch.py
+    TIMEOUT 30
+    APPEND_ENV ROS_LOG_DIR=${CMAKE_CURRENT_BINARY_DIR}/common_launch_logs
+  )
+  ament_add_pytest_test(
+    force_control_configs
+    test/test_force_control_configs.py
+    TIMEOUT 30
+    APPEND_ENV ROS_LOG_DIR=${CMAKE_CURRENT_BINARY_DIR}/force_config_logs
   )
   add_test(
     NAME force_control_real_safety_gate

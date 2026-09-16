@@ -25,11 +25,9 @@ using wbmm::ros_interfaces::wrenchFromRos;
 
 void WholeBodyForceControlNode::createRosInterfaces()
 {
-  if (parameters_.cartesian_mode)
-  {
-    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(get_clock());
-    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
-  }
+  // TF is always needed for raw-FTS frame -> ee_frame coordinate transform.
+  tf_buffer_ = std::make_unique<tf2_ros::Buffer>(get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
   const auto reliable = rclcpp::QoS(1).reliable();
   target_publisher_ = create_publisher<ocs2_msgs::msg::MpcTargetTrajectories>(
@@ -94,85 +92,91 @@ void WholeBodyForceControlNode::observationCallback(
 void WholeBodyForceControlNode::wrenchCallback(
     const geometry_msgs::msg::WrenchStamped::SharedPtr message)
 {
-  if (parameters_.cartesian_mode && parameters_.require_wrench_frame &&
-      message->header.frame_id.empty())
-  {
-    RCLCPP_WARN_THROTTLE(
-        get_logger(), *get_clock(), 2000,
-        "Dropping 6D wrench without frame_id; expected %s",
-        parameters_.ee_frame.c_str());
-    return;
-  }
-
-  // 旧标量模式允许空 frame；core 合同要求非空，因此用 ee_frame_ 作为
-  // 纯标签 fallback，不做任何坐标变换（与旧行为一致）。
-  auto converted = wrenchFromRos(
+  auto raw = wrenchFromRos(
       *message, wbmm::core::ClockDomain::kSystem, parameters_.ee_frame);
-  if (!converted.has_value())
-  {
+  if (!raw.has_value()) {
     RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
         "Dropping malformed wrench message");
     return;
   }
-  auto validation = wbmm::core::validate(*converted);
-  if (!validation.ok)
-  {
+
+  auto validation = wbmm::core::validate(*raw);
+  if (!validation.ok) {
     RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
-        "Dropping invalid wrench: %s", validation.message.c_str());
+        "Dropping invalid raw wrench: %s", validation.message.c_str());
     return;
   }
 
-  if (parameters_.cartesian_mode)
-  {
-    const auto transformed = wrenchInComplianceFrame(*message);
-    if (!transformed)
-    {
-      return;
+  Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
+  Eigen::Vector3d translation = Eigen::Vector3d::Zero();
+  if (!getWrenchTransform(*message, rotation, translation)) {
+    if (parameters_.armed) {
+      requestFault("WRENCH_TRANSFORM");
     }
-    *converted = toCoreWrench(*transformed, converted->header);
-    converted->header.frame_id = parameters_.ee_frame;
-    validation = wbmm::core::validate(*converted);
-    if (!validation.ok)
-    {
-      RCLCPP_WARN_THROTTLE(
-          get_logger(), *get_clock(), 2000,
-          "Dropping invalid transformed wrench: %s",
-          validation.message.c_str());
-      return;
-    }
+    return;
   }
 
-  applyWrenchScaleAndAbsolute(*converted);
-  const Vector6d wrench = toEigenWrench(*converted);
-  double measured_force =
-      wrench[parameters_.force_axis_index] * parameters_.force_scale;
-  if (parameters_.absolute_force)
+  const auto wall_now = std::chrono::steady_clock::now();
+  double dt = 1.0 / std::max(1.0, parameters_.loop_rate);
   {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (wrench_received_) {
+      dt = std::chrono::duration<double>(wall_now - last_wrench_).count();
+    }
+  }
+  dt = std::clamp(dt, 1.0e-4, 0.05);
+
+  const auto processed = force_processor_.process(
+      *raw, rotation, translation, dt);
+  if (processed.taring) {
+    RCLCPP_INFO_THROTTLE(
+        get_logger(), *get_clock(), 1000,
+        "Auto-tare in progress: %zu/%zu samples",
+        processed.tare_samples_collected,
+        force_processor_.tareSamplesRequired());
+    return;
+  }
+  if (!processed.ok) {
+    if (processed.hard_limit_exceeded) {
+      requestFault("WRENCH_LIMIT");
+    } else if (parameters_.armed) {
+      requestFault("WRENCH_INVALID");
+    } else {
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 2000,
+          "Dropping wrench rejected by ForceProcessor");
+    }
+    return;
+  }
+
+  wbmm::core::Wrench wrench = processed.wrench;
+  wrench.header.frame_id = parameters_.ee_frame;
+  validation = wbmm::core::validate(wrench);
+  if (!validation.ok) {
+    RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Dropping invalid processed wrench: %s", validation.message.c_str());
+    return;
+  }
+
+  const Vector6d wrench_values = toEigenWrench(wrench);
+  double measured_force =
+      wrench_values[parameters_.force_axis_index] * parameters_.force_scale;
+  if (parameters_.absolute_force) {
     measured_force = std::abs(measured_force);
   }
 
   std::lock_guard<std::mutex> lock(mutex_);
-  measured_wrench_core_ = *converted;
+  measured_wrench_core_ = wrench;
   measured_force_ = measured_force;
   wrench_received_ = true;
-  last_wrench_ = std::chrono::steady_clock::now();
-}
-
-void WholeBodyForceControlNode::applyWrenchScaleAndAbsolute(
-    wbmm::core::Wrench &wrench) const
-{
-  std::array<double *, 6> values{
-      &wrench.force.x, &wrench.force.y, &wrench.force.z,
-      &wrench.torque.x, &wrench.torque.y, &wrench.torque.z};
-  for (std::size_t i = 0; i < 6; ++i)
-  {
-    *values[i] *= parameters_.wrench_scale_6d[i];
-    if (parameters_.absolute_wrench_axes[i])
-    {
-      *values[i] = std::abs(*values[i]);
-    }
+  last_wrench_ = wall_now;
+  if (processed.rate_limited) {
+    RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Wrench input rate-limited by ForceProcessor safety check");
   }
 }
 
@@ -181,33 +185,37 @@ Vector6d WholeBodyForceControlNode::measuredWrenchVector() const
   return toEigenWrench(measured_wrench_core_);
 }
 
-std::optional<Vector6d> WholeBodyForceControlNode::wrenchInComplianceFrame(
-    const geometry_msgs::msg::WrenchStamped &message)
+bool WholeBodyForceControlNode::getWrenchTransform(
+    const geometry_msgs::msg::WrenchStamped &message,
+    Eigen::Matrix3d &rotation,
+    Eigen::Vector3d &translation)
 {
-  Vector6d source;
-  source << message.wrench.force.x, message.wrench.force.y,
-      message.wrench.force.z, message.wrench.torque.x,
-      message.wrench.torque.y, message.wrench.torque.z;
-  if (!parameters_.cartesian_mode)
-  {
-    return source;
-  }
-  if (message.header.frame_id.empty())
-  {
-    if (parameters_.require_wrench_frame)
-    {
+  rotation.setIdentity();
+  translation.setZero();
+
+  if (message.header.frame_id.empty()) {
+    if (parameters_.require_wrench_frame) {
       RCLCPP_WARN_THROTTLE(
           get_logger(), *get_clock(), 2000,
-          "Dropping 6D wrench without frame_id; expected %s",
+          "Dropping raw wrench without frame_id; expected source frame -> %s",
           parameters_.ee_frame.c_str());
-      return std::nullopt;
+      return false;
     }
-    return source;
+    return true;
   }
-  if (message.header.frame_id == parameters_.ee_frame)
-  {
-    return source;
+
+  if (message.header.frame_id == parameters_.ee_frame) {
+    return true;
   }
+
+  if (!tf_buffer_) {
+    RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Cannot transform wrench %s -> %s: TF buffer is not initialized",
+        message.header.frame_id.c_str(), parameters_.ee_frame.c_str());
+    return false;
+  }
+
   try
   {
     const auto transform = tf_buffer_->lookupTransform(
@@ -216,29 +224,28 @@ std::optional<Vector6d> WholeBodyForceControlNode::wrenchInComplianceFrame(
     Eigen::Quaterniond quaternion(
         rotation_message.w, rotation_message.x,
         rotation_message.y, rotation_message.z);
-    if (quaternion.norm() < 1.0e-9)
-    {
+    if (quaternion.norm() < 1.0e-9) {
       RCLCPP_WARN_THROTTLE(
           get_logger(), *get_clock(), 2000,
-          "Dropping 6D wrench: %s -> %s has invalid rotation",
+          "Cannot transform wrench: %s -> %s has invalid rotation",
           message.header.frame_id.c_str(), parameters_.ee_frame.c_str());
-      return std::nullopt;
+      return false;
     }
     quaternion.normalize();
-    const Eigen::Matrix3d rotation = quaternion.toRotationMatrix();
+    rotation = quaternion.toRotationMatrix();
     const auto &translation_message = transform.transform.translation;
-    const Eigen::Vector3d target_to_source(
-        translation_message.x, translation_message.y, translation_message.z);
-    return transformWrench(source, rotation, target_to_source);
+    translation << translation_message.x, translation_message.y,
+        translation_message.z;
+    return true;
   }
   catch (const tf2::TransformException &exception)
   {
     RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
-        "Dropping 6D wrench: cannot transform %s -> %s: %s",
+        "Cannot transform wrench %s -> %s: %s",
         message.header.frame_id.c_str(), parameters_.ee_frame.c_str(),
         exception.what());
-    return std::nullopt;
+    return false;
   }
 }
 

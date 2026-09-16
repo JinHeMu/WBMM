@@ -1,7 +1,7 @@
 whole_body_force_control:
   ros__parameters:
-    # Commissioning mode: measured external force is mapped directly to a
-    # bounded displacement reference.  No constant-force target is active.
+    # 仿真唯一配置：有符号 tool0/Fx 驱动持续跟随；撤力后停在当前位姿。
+    # 仅用于开阔 MuJoCo 场景，不得用于实机。
     control_mode: force_follow
     armed: true
     reference_output_enabled: true
@@ -11,9 +11,7 @@ whole_body_force_control:
     status_topic: /whole_body_force_control/status
     control_state_topic: /whole_body_force_control/control_state
 
-    # First whole-body test is deliberately one-dimensional.  A signed Fx
-    # drives motion along the current base heading, so both the differential
-    # base and arm can contribute without requesting lateral base velocity.
+    # Fx 的符号映射到底盘当前朝向，不请求差速底盘横向速度。
     force_axis: x
     absolute_force: false
     force_scale: 1.0
@@ -24,13 +22,19 @@ whole_body_force_control:
     constant_force_axes: [none]
     absolute_wrench_axes: [none]
 
-    stiffness: 150.0
-    max_offset: 0.08
-    max_velocity: 0.035
+    force_velocity_mode: true
+    force_deadband: 0.5
+
+    # 持续跟随不使用弹性平衡终点；保留原仿真档位的参数值。
+    stiffness: 1.0
+    max_offset: 1000000.0
+    max_velocity: 0.25
     filter_alpha: 0.25
-    base_share: 0.40
-    max_base_delta: 0.04
-    max_joint_delta: 0.25
+
+    # 长距离运动主要由底盘承担，机械臂增量仍受限。
+    base_share: 0.98
+    max_base_delta: 1000000.0
+    max_joint_delta: 0.60
 
     loop_rate: 50.0
     force_timeout: 0.50

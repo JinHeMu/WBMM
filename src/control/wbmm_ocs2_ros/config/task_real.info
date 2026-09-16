@@ -290,7 +290,8 @@ selfCollision
 ; ============================================================================
 environmentCollision
 {
-  activate            true
+  ; 测试阶段先关闭所有环境障碍物，避免静态测试障碍影响实机力控调试。
+  activate            false
 
   mu                  1e-3
   delta               1e-3

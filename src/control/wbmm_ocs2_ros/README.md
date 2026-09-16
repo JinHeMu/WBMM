@@ -62,7 +62,7 @@ x = [\,x_b,\; y_b,\; \theta_b,\; q_1,\; \dots,\; q_6\,]^\top \in \mathbb{R}^{9}
 u = [\,v,\; \omega,\; \dot q_1,\; \dots,\; \dot q_6\,]^\top \in \mathbb{R}^{8}
 \]
 
-当前 `task.info` 启用全身轨迹代价，因此 `TargetTrajectories.desiredState`
+当前 `task_sim.info` 启用全身轨迹代价，因此 `TargetTrajectories.desiredState`
 编码 9D 全身状态：
 
 \[
@@ -89,7 +89,7 @@ source install/setup.bash
 
 ## 4. 必做事项 (踩坑提醒)
 
-### 4.1 在 `config/task.info` 里填轮子 joint 名
+### 4.1 在 `config/task_sim.info` 里填轮子 joint 名
 
 `manipulatorModelType=1` 时 OCS2 不会建模轮子, 必须把所有车轮 / 转向 joint 列在 `removeJoints` 里, 否则 Pinocchio 会把它们当成 "arm DoF":
 
@@ -105,13 +105,13 @@ removeJoints {
 
 ### 4.2 自检 `selfCollision.collisionLinkPairs` 里的 link 名
 
-`task.info` 里写了 `base_link / urbase_base_link / Link_2..6 / gripper_base_link`, 这些必须在你 URDF 里真的存在 (而且要带 `<collision>` 几何), 否则 OCS2 会段错误。可以用:
+`task_sim.info` 里写了 `base_link / urbase_base_link / Link_2..6 / gripper_base_link`, 这些必须在你 URDF 里真的存在 (而且要带 `<collision>` 几何), 否则 OCS2 会段错误。可以用:
 
 ```bash
 xacro tracer_jaka.urdf.xacro | grep -E '<link name='
 ```
 
-把不存在的对从 `task.info` 删掉。
+把不存在的对从 `task_sim.info` 删掉。
 
 ### 4.3 关掉原 `gazebo.launch.py` 的双 RViz
 
@@ -129,7 +129,7 @@ condition=IfCondition(use_rviz),
 
 第一次启动会调用 CppAD 自动生成微分 (`recompileLibraries=true`)。MPC 与 MRT
 分别使用 `lib_folder/mpc` 和 `lib_folder/mrt`，避免两个进程并发改写同一动态库；
-根目录默认是 `/tmp/wbmm_ocs2/auto_generated`。如果修改了 `task.info` 中影响
+根目录默认是 `/tmp/wbmm_ocs2/auto_generated`。如果修改了 `task_sim.info` 中影响
 动力学的参数，应使用新的生成目录或清理对应缓存后重新生成。
 
 ## 5. 跑起来
@@ -287,7 +287,7 @@ ros2 run tf2_ros tf2_echo odom base_footprint
 
 ### 低桌穿越场景
 
-当前 `models/scene.xml`、`config/task.info` 和
+当前 `models/scene.xml`、`config/task_sim.info` 和
 `tracer_jaka_zu5_scene_esdf.npz` 使用同一套低桌环境。尺寸来自
 `tracer_jaka_zu5.urdf` 的碰撞几何：
 
@@ -378,7 +378,7 @@ ros2 topic echo /arm_controller/commands
 
 ## 8. 调权重
 
-效果不好时常改这几个 (`config/task.info`):
+效果不好时常改这几个 (`config/task_sim.info`):
 
 - `endEffector.muPosition / muOrientation` - 越大跟踪越凶, 但容易颤
 - `inputCost.R.base.wheelBasedMobileManipulator.scaling` - 越大 base 越懒得动 (会让机械臂自己够)
@@ -392,7 +392,7 @@ wbmm_ocs2_ros/
 ├── package.xml
 ├── README.md
 ├── config/
-│   └── task.info                # OCS2 配置 (你给的, 加了 removeJoints 注释)
+│   └── task_sim.info                # OCS2 配置 (你给的, 加了 removeJoints 注释)
 ├── launch/
 │   ├── ocs2_sim.launch.py       # Gazebo + OCS2 全套
 │   └── ocs2_only.launch.py      # 仅 OCS2 (Gazebo 已在跑)

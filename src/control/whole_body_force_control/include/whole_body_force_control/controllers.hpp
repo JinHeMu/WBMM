@@ -42,7 +42,7 @@ double rateLimitedStep(double current, double target, double max_rate, double dt
 //
 //        M·ẍ + D·ẋ + K·x = F_measured − F_desired          (1)
 //
-//      F_measured : 单轴力/力矩读数，类内部还会低通滤波
+//      F_measured : 已经由 ForceProcessor 处理过的单轴力/力矩读数
 //      F_desired  : 期望力
 //      x (offset) : 修正位移,>0 表示朝推力方向"推深"进接触面
 //      M          : 虚拟质量 [kg]    —— 惯量,平滑参考运动
@@ -79,11 +79,10 @@ public:
     double stiffness,
     double max_offset,
     double max_velocity,
-    double filter_alpha,
     bool clamp_nonnegative = true);
   // 每个控制周期调用一次:输入本轮实测力 → 输出本轮修正位移 offset(米)
   double update(double measured_force, double dt);
-  // 复位:offset/速度清零,并用当前实测力初始化滤波器(避免复位后跳变)
+  // 复位:offset/速度清零,并记录当前实测力作为观测值。
   void reset(double measured_force = 0.0);
 
   double offset() const
@@ -98,7 +97,7 @@ public:
 
   double measuredForce() const
   {
-    return filtered_force_;
+    return measured_force_;
   }
 
   double desiredForce() const
@@ -114,11 +113,9 @@ private:
   double max_offset_;      // offset 钳位幅值:安全边界,防止导纳把人"推穿"板面
   // 修正速度钳位:参考连续性 —— MPC 只能跟上限速后的参考
   double max_velocity_;
-  double alpha_;           // 力滤波系数(指数滑动平均):α=1 不过滤,α→0 越平滑
-  double filtered_force_{0.0};  // 低通滤波后的力
+  double measured_force_{0.0};  // 已由 ForceProcessor 处理过的输入力
   double offset_{0.0};          // 修正位移(导纳输出),单位 m
   double velocity_{0.0};        // 修正速度,单位 m/s
-  bool initialized_{false};     // 首帧需用实测力初始化滤波器
   bool clamp_nonnegative_{true};  // 旧标量接触力用幅值;6D 模式保留符号
 };
 
@@ -145,7 +142,6 @@ public:
     double stiffness,
     double max_offset,
     double max_velocity,
-    double filter_alpha,
     bool clamp_nonnegative = true,
     bool velocity_mode = false,
     double force_deadband = 0.0);
@@ -164,7 +160,7 @@ public:
 
   double measuredForce() const
   {
-    return filtered_force_;
+    return measured_force_;
   }
 
 private:
@@ -172,11 +168,9 @@ private:
   double stiffness_;       // 虚拟刚度 [N/m],钳位到 ≥ 1e-6(防止除零)
   double max_offset_;      // offset 钳位幅值
   double max_velocity_;    // 充当"爬坡速率":决定修正响应的快慢
-  double alpha_;           // 力滤波系数(同上方)
-  double filtered_force_{0.0};
+  double measured_force_{0.0};  // 已由 ForceProcessor 处理过的输入力
   double offset_{0.0};
   double velocity_{0.0};   // 后向差分估算,只用于观测/上报,不参与积分
-  bool initialized_{false};
   bool clamp_nonnegative_{true};
   // true=速度型无限力跟随,不再受 max_offset/刚度平衡点限制
   bool velocity_mode_{false};
@@ -198,7 +192,6 @@ public:
     const Vector6d & stiffness,
     const Vector6d & max_offset,
     const Vector6d & max_velocity,
-    const Vector6d & filter_alpha,
     bool force_follow = false);
 
   Vector6d update(const Vector6d & measured_wrench, double dt);
@@ -216,7 +209,7 @@ public:
 
   const Vector6d & measuredWrench() const
   {
-    return filtered_wrench_;
+    return measured_wrench_;
   }
 
   const AxisMask6d & admittanceAxes() const
@@ -237,7 +230,7 @@ private:
   std::array<std::unique_ptr<ForceFollower>, 6> followers_;
   Vector6d offset_{Vector6d::Zero()};
   Vector6d velocity_{Vector6d::Zero()};
-  Vector6d filtered_wrench_{Vector6d::Zero()};
+  Vector6d measured_wrench_{Vector6d::Zero()};
 };
 
 }  // namespace whole_body_force_control

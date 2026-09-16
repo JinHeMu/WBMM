@@ -1,7 +1,7 @@
 whole_body_force_control:
   ros__parameters:
-    # Real-hardware commissioning profile.  Launch overrides armed/output;
-    # both remain false unless the operator explicitly opens the gates.
+    # 实机唯一配置：沿用首轮 Z 向测试设置，默认只读/禁止参考输出。
+    # 上电自动清零期间必须无外力；TF、方向和安全限值须现场人工确认。
     control_mode: force_follow
     armed: false
     reference_output_enabled: false
@@ -11,29 +11,35 @@ whole_body_force_control:
     status_topic: /whole_body_force_control/status
     control_state_topic: /whole_body_force_control/control_state
 
-    # Calibrate force_axis / force_scale with the robot read-only before motion.
-    # This first profile maps signed tool Fx to the base forward direction.
-    force_axis: x
+    # ForceProcessor：自动清零、消息 frame -> ee_frame 变换和低通滤波。
+    # 不包含重力补偿；校准后使用带符号的 tool0/Fz。
+    tare_samples: 100
+    require_wrench_frame: true
+    force_axis: z
     absolute_force: false
     force_scale: 1.0
-    response_body_x: 1.0
+    response_body_x: 0.0
     response_body_y: 0.0
-    response_body_z: 0.0
+    response_body_z: 1.0
     admittance_axes: [legacy]
     constant_force_axes: [none]
     absolute_wrench_axes: [none]
 
-    # Conservative hand-guiding limits.  Increase only after recorded tests.
+    # 首轮实机采用有限位移跟随，不启用无限行程。
+    force_velocity_mode: false
     stiffness: 400.0
     max_offset: 0.020
     max_velocity: 0.010
     filter_alpha: 0.15
-    base_share: 0.35
-    max_base_delta: 0.010
-    max_joint_delta: 0.080
+    # 差速底盘不能沿 Z 平移，底盘不参与此次测试。
+    base_share: 0.0
+    max_base_delta: 0.0
+    max_joint_delta: 0.050
 
     loop_rate: 50.0
     force_timeout: 0.10
     observation_timeout: 0.20
     capture_settle_time: 1.0
     hard_wrench_limit: [15.0, 15.0, 15.0, 2.0, 2.0, 2.0]
+    # 单位为 N/s、Nm/s；0 表示关闭对应轴变化率限制。
+    max_wrench_rate: [20.0, 20.0, 20.0, 5.0, 5.0, 5.0]

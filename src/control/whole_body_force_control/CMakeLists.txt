@@ -17,13 +17,16 @@ find_package(wbmm_core REQUIRED)
 find_package(wbmm_pinocchio REQUIRED)
 find_package(wbmm_ros_interfaces REQUIRED)
 
-# 力控算法核心：只包含力控控制器，不包含机器人模型/运动学/ROS 转换。
+# 力控算法核心：力处理 + 力控控制器，不包含机器人模型/运动学/ROS 转换。
 add_library(${PROJECT_NAME}_core
-  src/controllers.cpp)
+  src/controllers.cpp
+  src/force_processor.cpp)
 target_include_directories(${PROJECT_NAME}_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-target_link_libraries(${PROJECT_NAME}_core PUBLIC Eigen3::Eigen)
+target_link_libraries(${PROJECT_NAME}_core PUBLIC
+  Eigen3::Eigen
+  wbmm_core::wbmm_core)
 
 add_executable(whole_body_force_control_node
   src/node.cpp
@@ -44,8 +47,9 @@ install(TARGETS ${PROJECT_NAME}_core
 install(TARGETS whole_body_force_control_node
   RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
-install(DIRECTORY config DESTINATION share/${PROJECT_NAME}
-  PATTERN "__pycache__" EXCLUDE)
+# Only the two supported deployment configurations are installed.
+install(FILES config/force_follow_sim.yaml config/force_follow_real.yaml
+  DESTINATION share/${PROJECT_NAME}/config)
 install(PROGRAMS scripts/whole_body_force_control_test.py
   DESTINATION lib/${PROJECT_NAME})
 

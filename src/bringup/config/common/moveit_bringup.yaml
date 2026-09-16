@@ -1,0 +1,9 @@
+# Top-level MoveIt bringup node parameters.
+# Hardware/runtime interfaces such as backend, robot IP, RViz and Servo gates
+# stay as launch arguments; only node tuning belongs here.
+dh_ag95_driver:
+  ros__parameters:
+    baudrate: 115200
+    gripper_id: 1
+    max_position: 100.0
+    max_force: 100.0

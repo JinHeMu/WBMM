@@ -18,8 +18,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <cmath>
-#include <Eigen/Dense>
 
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/handle.hpp"
@@ -31,8 +29,6 @@
 // JAKA SDK Headers
 #include "jaka_driver/JAKAZuRobot.h"
 #include "jaka_driver/jktypes.h"
-
-#include "jaka_hardware_interface/ft_compensator.hpp" // 新增
 
 namespace jaka_hardware_interface
 {
@@ -65,42 +61,28 @@ private:
 
   // JAKA Robot Object
   JAKAZuRobot robot_;
-  
+
   // IP Config
   std::string robot_ip_;
   std::string local_ip_; // PC IP for EDG UDP
-  bool read_only_ = false; // Read EDG state without enabling servo or sending commands
+  bool hardware_write_ = false; // true: enable servo and write commands; false: read-only EDG telemetry
 
   // Data storage
   EDGState edg_state_;        // EDG 全量状态
   JointValue joint_cmd_;      // 发送给 EDG 的指令
 
-  // States (Position, Velocity, Effort)
+  // States (Position, Velocity)
   std::vector<double> hw_position_states_;
   std::vector<double> hw_velocity_states_;
 
-  // 存储 6 维力数据的向量
+  // Raw force/torque states.
+  // The hardware interface only exposes the raw values from EDG.
+  // Zeroing, coordinate transform, filtering, deadband and stale detection
+  // are intentionally handled by the separate force process.
   std::vector<double> hw_fts_states_;
 
   // Commands (Position only as per URDF)
   std::vector<double> hw_position_commands_;
-
-  FTCompensator ft_compensator_; 
-  
-  // 建议增加一个变量存储原始（未补偿）数据，用于调试
-  std::vector<double> hw_fts_raw_;
-  std::vector<double> ft_bias_;      // 存储零点偏移量
-  bool bias_initialized_ = false;    // 标记是否已经完成了零点校准    
-  std::vector<double> r_t_s_;
-
-  // 死区阈值
-  double deadband_force_ = 0.0;
-  double deadband_torque_ = 0.0;
-
-  // 滤波系数
-  double filter_alpha_ = 0.0; 
-
-
 };
 
 }  // namespace jaka_hardware_interface

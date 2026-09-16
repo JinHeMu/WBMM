@@ -1,4 +1,5 @@
 #include "whole_body_force_control/controllers.hpp"
+#include "whole_body_force_control/force_processor.hpp"
 #include "wbmm_pinocchio/pinocchio_robot_model.hpp"
 #include "wbmm_ros_interfaces/wbmm_conversions.hpp"
 #include "wbmm_pinocchio/whole_body_kinematics.hpp"
@@ -116,7 +117,7 @@ Eigen::Matrix3d rotationOf(const wbmm::core::Pose & pose)
 TEST(AdmittanceController, PassiveAdmittanceIsBoundedAndReturnsToZero)
 {
   whole_body_force_control::AdmittanceController controller(
-    0.0, 3.0, 45.0, 150.0, 0.08, 0.035, 1.0);
+    0.0, 3.0, 45.0, 150.0, 0.08, 0.035);
   for (int i = 0; i < 1000; ++i) {
     controller.update(12.0, 0.01);
   }
@@ -130,7 +131,7 @@ TEST(AdmittanceController, PassiveAdmittanceIsBoundedAndReturnsToZero)
 TEST(AdmittanceController, ConstantForceUsesMeasuredMinusDesiredError)
 {
   whole_body_force_control::AdmittanceController controller(
-    10.0, 2.0, 30.0, 100.0, 0.05, 0.02, 1.0);
+    10.0, 2.0, 30.0, 100.0, 0.05, 0.02);
   for (int i = 0; i < 500; ++i) {
     controller.update(10.0, 0.01);
   }
@@ -149,7 +150,7 @@ TEST(AdmittanceController, ConstantForceUsesMeasuredMinusDesiredError)
 TEST(ForceFollower, TracksForceWithoutDampingTerm)
 {
   whole_body_force_control::ForceFollower follower(
-    0.0, 150.0, 0.08, 0.035, 1.0);
+    0.0, 150.0, 0.08, 0.035);
   for (int i = 0; i < 500; ++i) {
     follower.update(5.0, 0.02);
   }
@@ -167,7 +168,7 @@ TEST(ForceFollower, TracksForceWithoutDampingTerm)
 TEST(ForceFollower, PreservesSignedPushAndPullWhenRequested)
 {
   whole_body_force_control::ForceFollower follower(
-    0.0, 200.0, 0.05, 0.10, 1.0, false);
+    0.0, 200.0, 0.05, 0.10, false);
   for (int i = 0; i < 100; ++i) {
     follower.update(-6.0, 0.01);
   }
@@ -181,7 +182,7 @@ TEST(ForceFollower, PreservesSignedPushAndPullWhenRequested)
 TEST(ForceFollower, VelocityModeKeepsFollowingWhileForceIsPresent)
 {
   whole_body_force_control::ForceFollower follower(
-    0.0, 1.0, 1000.0, 0.10, 1.0, false, true, 0.2);
+    0.0, 1.0, 1000.0, 0.10, false, true, 0.2);
   for (int i = 0; i < 100; ++i) {
     follower.update(5.0, 0.01);
   }
@@ -207,10 +208,9 @@ TEST(CartesianComplianceController, SelectsIndependentSixAxisAdmittance)
   const Vector6d stiffness = Vector6d::Constant(100.0);
   const Vector6d max_offset = Vector6d::Constant(0.2);
   const Vector6d max_velocity = Vector6d::Constant(0.5);
-  const Vector6d alpha = Vector6d::Ones();
   whole_body_force_control::CartesianComplianceController controller(
     admittance, constant_force, desired, mass, damping, stiffness,
-    max_offset, max_velocity, alpha);
+    max_offset, max_velocity);
 
   Vector6d wrench;
   wrench << 2.0, 100.0, 5.0, 100.0, -3.0, 100.0;
@@ -235,7 +235,7 @@ TEST(CartesianComplianceController, RejectsConstantForceOnRigidAxis)
     whole_body_force_control::CartesianComplianceController(
       admittance, constant_force, Vector6d::Zero(), Vector6d::Ones(),
       Vector6d::Ones(), Vector6d::Ones(), Vector6d::Ones(),
-      Vector6d::Ones(), Vector6d::Ones()),
+      Vector6d::Ones()),
     std::invalid_argument);
 }
 
@@ -487,4 +487,126 @@ TEST(WholeBodyKinematics, RejectsWrongStateDimension)
     kinematics->correctedState(
       wrong, Eigen::Vector3d::UnitX(), 0.01, 0.4, 0.03, 0.2),
     std::invalid_argument);
+}
+
+TEST(ForceProcessor, AutoTareAndProcessedOutput)
+{
+  using whole_body_force_control::ForceProcessor;
+  using whole_body_force_control::ForceProcessorConfig;
+  using whole_body_force_control::Vector6d;
+
+  ForceProcessorConfig config;
+  config.tare_samples = 3;
+  config.filter_alpha = Vector6d::Ones();
+  config.scale = Vector6d::Ones();
+  config.hard_wrench_limit = Vector6d::Constant(100.0);
+  ForceProcessor processor(config);
+  processor.startTare();
+
+  wbmm::core::Wrench raw;
+  raw.header.frame_id = "sensor_frame";
+  raw.force.x = 10.0;
+  const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
+  const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
+
+  auto result = processor.process(raw, rotation, translation, 0.01);
+  EXPECT_TRUE(result.taring);
+  result = processor.process(raw, rotation, translation, 0.01);
+  EXPECT_TRUE(result.taring);
+  result = processor.process(raw, rotation, translation, 0.01);
+  ASSERT_TRUE(result.ok);
+  EXPECT_NEAR(result.wrench.force.x, 0.0, 1.0e-12);
+
+  raw.force.x = 12.0;
+  result = processor.process(raw, rotation, translation, 0.01);
+  ASSERT_TRUE(result.ok);
+  EXPECT_NEAR(result.wrench.force.x, 2.0, 1.0e-12);
+}
+
+TEST(ForceProcessor, LowPassFilterUsesConfiguredAlpha)
+{
+  using whole_body_force_control::ForceProcessor;
+  using whole_body_force_control::ForceProcessorConfig;
+  using whole_body_force_control::Vector6d;
+
+  ForceProcessorConfig config;
+  config.filter_alpha = Vector6d::Constant(0.5);
+  config.scale = Vector6d::Ones();
+  config.hard_wrench_limit = Vector6d::Constant(100.0);
+  ForceProcessor processor(config);
+
+  wbmm::core::Wrench raw;
+  raw.force.x = 10.0;
+  const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
+  const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
+
+  auto result = processor.process(raw, rotation, translation, 0.01);
+  ASSERT_TRUE(result.ok);
+  EXPECT_NEAR(result.wrench.force.x, 10.0, 1.0e-12);
+
+  raw.force.x = 20.0;
+  result = processor.process(raw, rotation, translation, 0.01);
+  ASSERT_TRUE(result.ok);
+  EXPECT_NEAR(result.wrench.force.x, 15.0, 1.0e-12);
+}
+
+TEST(ForceProcessor, TransformIncludesLeverArmTorque)
+{
+  using whole_body_force_control::ForceProcessor;
+  using whole_body_force_control::ForceProcessorConfig;
+  using whole_body_force_control::Vector6d;
+
+  ForceProcessorConfig config;
+  config.filter_alpha = Vector6d::Ones();
+  config.scale = Vector6d::Ones();
+  config.hard_wrench_limit = Vector6d::Constant(100.0);
+  ForceProcessor processor(config);
+
+  wbmm::core::Wrench raw;
+  raw.force.x = 1.0;
+  const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
+  const Eigen::Vector3d translation(0.0, 0.0, 1.0);
+
+  const auto result = processor.process(raw, rotation, translation, 0.01);
+  ASSERT_TRUE(result.ok);
+  EXPECT_NEAR(result.wrench.force.x, 1.0, 1.0e-12);
+  EXPECT_NEAR(result.wrench.torque.y, 1.0, 1.0e-12);
+}
+
+TEST(ForceProcessor, HardLimitAndRateLimitAreReported)
+{
+  using whole_body_force_control::ForceProcessor;
+  using whole_body_force_control::ForceProcessorConfig;
+  using whole_body_force_control::Vector6d;
+
+  ForceProcessorConfig config;
+  config.filter_alpha = Vector6d::Ones();
+  config.scale = Vector6d::Ones();
+  config.hard_wrench_limit = Vector6d::Constant(5.0);
+  ForceProcessor processor(config);
+
+  wbmm::core::Wrench raw;
+  raw.force.x = 10.0;
+  const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
+  const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
+
+  auto result = processor.process(raw, rotation, translation, 0.01);
+  EXPECT_FALSE(result.ok);
+  EXPECT_TRUE(result.hard_limit_exceeded);
+
+  ForceProcessorConfig rate_config;
+  rate_config.filter_alpha = Vector6d::Ones();
+  rate_config.scale = Vector6d::Ones();
+  rate_config.hard_wrench_limit = Vector6d::Constant(100.0);
+  rate_config.max_wrench_rate = Vector6d::Constant(1.0);
+  ForceProcessor rate_processor(rate_config);
+
+  raw.force.x = 10.0;
+  result = rate_processor.process(raw, rotation, translation, 0.1);
+  ASSERT_TRUE(result.ok);
+  raw.force.x = 20.0;
+  result = rate_processor.process(raw, rotation, translation, 0.1);
+  ASSERT_TRUE(result.ok);
+  EXPECT_TRUE(result.rate_limited);
+  EXPECT_NEAR(result.wrench.force.x, 10.1, 1.0e-12);
 }

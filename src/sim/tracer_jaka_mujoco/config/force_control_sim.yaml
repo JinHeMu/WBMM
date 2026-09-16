@@ -1,0 +1,16 @@
+mujoco_bridge:
+  ros__parameters:
+    # This focused stack reads raw MuJoCo wheel odometry directly, so the
+    # bridge owns odom -> base_footprint and no EKF/SLAM node is required.
+    publish_odom_tf: true
+    odom_topic: /wheel/odometry
+    odom_frame: odom
+    base_frame: base_footprint
+    init_keyframe: home
+
+    # The force-follow demo injects a fake wrench and does not consume mapping
+    # or perception topics. Keep unrelated simulated sensors disabled.
+    lidar.enable: false
+    imu.enable: false
+    camera.enable: false
+    fts.enable: false

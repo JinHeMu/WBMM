@@ -51,7 +51,6 @@ AdmittanceController::AdmittanceController(
   double stiffness,
   double max_offset,
   double max_velocity,
-  double filter_alpha,
   bool clamp_nonnegative)
 : desired_force_(
     clamp_nonnegative ? std::max(0.0, desired_force) : desired_force),
@@ -60,20 +59,16 @@ AdmittanceController::AdmittanceController(
   stiffness_(std::max(0.0, stiffness)),
   max_offset_(std::abs(max_offset)),
   max_velocity_(std::abs(max_velocity)),
-  alpha_(std::clamp(filter_alpha, 0.0, 1.0)),
   clamp_nonnegative_(clamp_nonnegative)
 {}
 
 // ----------------------------------------------------------------------------
 // 导纳模型的一步积分(Semi-implicit Euler,也称 symplectic Euler):
 //
-//   1. 力滤波(指数滑动平均,一阶低通)
-//        F_fil ← α·F + (1−α)·F_fil
-//      首帧用实测力直接初始化滤波器,避免从 0 起步产生的暂态冲击。
-//      α 取自 YAML filter_alpha(默认 0.25):越小越平滑、响应越慢。
+//   1. 输入力已经由 ForceProcessor 完成 tare、TF 变换、滤波和限幅。
 //
-//   2. 动力学积分(公式: M·ẍ + D·ẋ + K·x = F_fil − F_des)
-//        a = (F_fil − F_des − D·v − K·x) / M
+//   2. 动力学积分(公式: M·ẍ + D·ẋ + K·x = F_measured − F_des)
+//        a = (F_measured − F_des − D·v − K·x) / M
 //        v ← clamp(v + dt·a, ±max_velocity)
 //        x ← clamp(x + dt·v, ±max_offset)
 //      Semi-implicit 与显式 Euler 的区别:先用"新"速度更新位置。
@@ -95,15 +90,10 @@ double AdmittanceController::update(double measured_force, double dt)
   if (clamp_nonnegative_) {
     measured_force = std::max(0.0, measured_force);
   }
-  if (!initialized_) {
-    filtered_force_ = measured_force;  // 首帧:直接用测量初始化,无暂态
-    initialized_ = true;
-  } else {
-    filtered_force_ = alpha_ * measured_force + (1.0 - alpha_) * filtered_force_;
-  }
+  measured_force_ = measured_force;
   dt = std::clamp(dt, 0.0, 0.05);  // 调度抖动防御(同 rateLimitedStep)
   const double acceleration =
-    (filtered_force_ - desired_force_ - damping_ * velocity_ -
+    (measured_force_ - desired_force_ - damping_ * velocity_ -
     stiffness_ * offset_) / mass_;
   velocity_ = std::clamp(
     velocity_ + dt * acceleration, -max_velocity_, max_velocity_);
@@ -126,10 +116,9 @@ double AdmittanceController::update(double measured_force, double dt)
 
 void AdmittanceController::reset(double measured_force)
 {
-  filtered_force_ = clamp_nonnegative_ ? std::max(0.0, measured_force) : measured_force;
+  measured_force_ = clamp_nonnegative_ ? std::max(0.0, measured_force) : measured_force;
   offset_ = 0.0;
   velocity_ = 0.0;
-  initialized_ = true;
 }
 
 ForceFollower::ForceFollower(
@@ -137,7 +126,6 @@ ForceFollower::ForceFollower(
   double stiffness,
   double max_offset,
   double max_velocity,
-  double filter_alpha,
   bool clamp_nonnegative,
   bool velocity_mode,
   double force_deadband)
@@ -146,7 +134,6 @@ ForceFollower::ForceFollower(
   stiffness_(std::max(1.0e-6, stiffness)),
   max_offset_(std::abs(max_offset)),
   max_velocity_(std::abs(max_velocity)),
-  alpha_(std::clamp(filter_alpha, 0.0, 1.0)),
   clamp_nonnegative_(clamp_nonnegative),
   velocity_mode_(velocity_mode),
   force_deadband_(std::abs(force_deadband))
@@ -155,9 +142,9 @@ ForceFollower::ForceFollower(
 // ----------------------------------------------------------------------------
 // 准静态力跟随的一步:
 //
-//   1. 同样的力滤波(首帧初始化)。
-//   2. 静力平衡:    x_target = (F_fil − F_des) / K
-//      含义:要把刚度 K 的弹簧压出 F_fil − F_des 牛的力需要多大形变。
+//   1. 输入力已经由 ForceProcessor 完成 tare、TF 变换、滤波和限幅。
+//   2. 静力平衡:    x_target = (F_measured − F_des) / K
+//      含义:要把刚度 K 的弹簧压出 F_measured − F_des 牛的力需要多大形变。
 //      与 AdmittanceController 的稳态解相同,但每个周期直接朝目标逼近,
 //      不带质量/阻尼,因此不存在振荡模态。
 //   3. 限速逼近:    offset ← rateLimitedStep(offset, x_target, max_velocity)
@@ -169,12 +156,7 @@ double ForceFollower::update(double measured_force, double dt)
   if (clamp_nonnegative_) {
     measured_force = std::max(0.0, measured_force);
   }
-  if (!initialized_) {
-    filtered_force_ = measured_force;  // 首帧直接采用,避免暂态
-    initialized_ = true;
-  } else {
-    filtered_force_ = alpha_ * measured_force + (1.0 - alpha_) * filtered_force_;
-  }
+  measured_force_ = measured_force;
   dt = std::clamp(dt, 0.0, 0.05);
 
   if (velocity_mode_) {
@@ -182,7 +164,7 @@ double ForceFollower::update(double measured_force, double dt)
     // 也不因 max_offset 停止。
     // 有符号力误差超过死区时，offset 以 max_velocity 向力的方向持续积分；
     // 撤力后速度回到 0，机器人停在当前位置（不会弹回名义点）。
-    const double error = filtered_force_ - desired_force_;
+    const double error = measured_force_ - desired_force_;
     double command_velocity = 0.0;
     if (error > force_deadband_) {
       command_velocity = max_velocity_;
@@ -195,7 +177,7 @@ double ForceFollower::update(double measured_force, double dt)
   }
 
   const double target_offset = std::clamp(
-    (filtered_force_ - desired_force_) / stiffness_,
+    (measured_force_ - desired_force_) / stiffness_,
     -max_offset_, max_offset_);
   const double previous_offset = offset_;
   offset_ = rateLimitedStep(offset_, target_offset, max_velocity_, dt);
@@ -205,10 +187,9 @@ double ForceFollower::update(double measured_force, double dt)
 
 void ForceFollower::reset(double measured_force)
 {
-  filtered_force_ = clamp_nonnegative_ ? std::max(0.0, measured_force) : measured_force;
+  measured_force_ = clamp_nonnegative_ ? std::max(0.0, measured_force) : measured_force;
   offset_ = 0.0;
   velocity_ = 0.0;
-  initialized_ = true;
 }
 
 CartesianComplianceController::CartesianComplianceController(
@@ -220,7 +201,6 @@ CartesianComplianceController::CartesianComplianceController(
   const Vector6d & stiffness,
   const Vector6d & max_offset,
   const Vector6d & max_velocity,
-  const Vector6d & filter_alpha,
   bool force_follow)
 : admittance_axes_(admittance_axes),
   constant_force_axes_(constant_force_axes),
@@ -233,33 +213,30 @@ CartesianComplianceController::CartesianComplianceController(
     const double desired = constant_force_axes_[i] ? desired_wrench[i] : 0.0;
     admittance_[i] = std::make_unique<AdmittanceController>(
       desired, mass[i], damping[i], stiffness[i], max_offset[i],
-      max_velocity[i], filter_alpha[i], false);
+      max_velocity[i], false);
     followers_[i] = std::make_unique<ForceFollower>(
-      desired, stiffness[i], max_offset[i], max_velocity[i],
-      filter_alpha[i], false);
+      desired, stiffness[i], max_offset[i], max_velocity[i], false);
   }
 }
 
 Vector6d CartesianComplianceController::update(
   const Vector6d & measured_wrench, double dt)
 {
+  measured_wrench_ = measured_wrench;
   for (std::size_t i = 0; i < 6; ++i) {
     if (!admittance_axes_[i]) {
       admittance_[i]->reset(measured_wrench[i]);
       followers_[i]->reset(measured_wrench[i]);
       offset_[i] = 0.0;
       velocity_[i] = 0.0;
-      filtered_wrench_[i] = measured_wrench[i];
       continue;
     }
     if (force_follow_) {
       offset_[i] = followers_[i]->update(measured_wrench[i], dt);
       velocity_[i] = followers_[i]->velocity();
-      filtered_wrench_[i] = followers_[i]->measuredForce();
     } else {
       offset_[i] = admittance_[i]->update(measured_wrench[i], dt);
       velocity_[i] = admittance_[i]->velocity();
-      filtered_wrench_[i] = admittance_[i]->measuredForce();
     }
   }
   return offset_;
@@ -273,7 +250,7 @@ void CartesianComplianceController::reset(const Vector6d & measured_wrench)
   }
   offset_.setZero();
   velocity_.setZero();
-  filtered_wrench_ = measured_wrench;
+  measured_wrench_ = measured_wrench;
 }
 
 }  // namespace whole_body_force_control

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "whole_body_force_control/controllers.hpp"
+#include "whole_body_force_control/force_processor.hpp"
 #include "wbmm_pinocchio/pinocchio_robot_model.hpp"
 #include "wbmm_pinocchio/whole_body_kinematics.hpp"
 
@@ -83,6 +84,7 @@ private:
     double observation_timeout{0.25};
     double capture_settle_time{1.0};
     double force_scale{1.0};
+    std::size_t tare_samples{50};
 
     Eigen::Vector3d response_body{Eigen::Vector3d::UnitX()};
     AxisMask6d admittance_axes{};
@@ -97,9 +99,11 @@ private:
     Vector6d filter_alpha_6d{Vector6d::Zero()};
     Vector6d wrench_scale_6d{Vector6d::Ones()};
     Vector6d hard_wrench_limit{Vector6d::Ones()};
+    Vector6d max_wrench_rate{Vector6d::Zero()};
   };
 
   void loadParameters();
+  void configureForceProcessor();
   void createRosInterfaces();
   static std::string enabledAxes(const AxisMask6d &mask);
 
@@ -107,13 +111,14 @@ private:
       const ocs2_msgs::msg::MpcObservation::SharedPtr message);
   void wrenchCallback(
       const geometry_msgs::msg::WrenchStamped::SharedPtr message);
-  void applyWrenchScaleAndAbsolute(wbmm::core::Wrench &wrench) const;
   Vector6d measuredWrenchVector() const;
-  std::optional<Vector6d> wrenchInComplianceFrame(
-      const geometry_msgs::msg::WrenchStamped &message);
+  bool getWrenchTransform(
+      const geometry_msgs::msg::WrenchStamped &message,
+      Eigen::Matrix3d &rotation,
+      Eigen::Vector3d &translation);
   Eigen::VectorXd observationStateLocked() const;
   bool foreignTargetPublisherPresent() const;
-  bool wrenchLimitExceeded() const;
+  void requestFault(const std::string &reason);
 
   void latchFault(const std::string &reason);
   void publishControlState(const std::string &state);
@@ -153,6 +158,7 @@ private:
   std::unique_ptr<AdmittanceController> admittance_;
   std::unique_ptr<ForceFollower> force_follower_;
   std::unique_ptr<CartesianComplianceController> cartesian_controller_;
+  ForceProcessor force_processor_;
 
   // Input cache.
   std::mutex mutex_;
@@ -170,7 +176,9 @@ private:
   // Control state.
   bool fault_latched_{false};
   bool nominal_captured_{false};
+  bool pending_fault_{false};
   std::string fault_reason_;
+  std::string pending_fault_reason_;
   std::string last_control_state_;
   Eigen::Vector3d response_world_{Eigen::Vector3d::UnitX()};
   Eigen::Vector3d nominal_ee_{Eigen::Vector3d::Zero()};

@@ -1,0 +1,52 @@
+# Owned by wbmm_ocs2_ros. Bringup deployments select this profile via
+# the OCS2 config_file launch argument.
+# OCS2 MPC/MRT node parameters for the MuJoCo simulation pipeline.
+#
+# Path-like parameters (taskFile / urdfFile / libFolder) and use_sim_time are
+# injected by common/ocs2.launch.py. All tunable numeric values live
+# here so the launch file stays a thin composition entry point.
+wbmm_mpc_node:
+  ros__parameters:
+    use_sim_time: true
+
+wbmm_mrt_node:
+  ros__parameters:
+    use_sim_time: true
+    # Simulation has no physical actuator risk; the top-level launch may still
+    # override this through command_output_enabled.
+    command_output_enabled: true
+
+    mrt_loop_rate: 125.0
+    traj_horizon: 1.0
+    arm_use_velocity_integrator: false
+    arm_max_command_velocity: 0.50
+    arm_max_delta_per_step: 0.50
+
+    use_stamped_cmd: false
+    base_cmd_topic: /base_controller/cmd_vel
+    odom_topic: /odometry/filtered
+    joint_state_topic: /joint_states
+    arm_cmd_topic: /arm_controller/commands
+    base_frame: base_footprint
+    world_frame: odom
+    ee_frame: tool0
+    arm_joint_names:
+      - joint_1
+      - joint_2
+      - joint_3
+      - joint_4
+      - joint_5
+      - joint_6
+
+    enable_visualization: true
+    viz_self_collision: true
+    viz_rate: 20.0
+
+wbmm_target_node:
+  ros__parameters:
+    use_sim_time: true
+    robot_name: mobile_manipulator
+    marker_frame: odom
+    ee_frame: tool0
+    marker_scale: 0.3
+    input_dim: 8

@@ -15,10 +15,11 @@
 #include "jaka_hardware_interface/jaka_hardware_interface.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include <array>
+#include <chrono>
 #include <cmath>
+#include <limits>
 #include <thread>
-// 确保包含 Eigen 头文件（若头文件中已包含可忽略）
-#include <Eigen/Dense>
 
 using namespace std;
 
@@ -56,67 +57,27 @@ namespace jaka_hardware_interface
       return CallbackReturn::ERROR;
     }
 
-    // Optional state-only mode for mapping/localization validation.  The
-    // interface still logs in and reads EDG data, but it never enables servo
-    // mode or sends joint commands.
-    auto it_read_only = info_.hardware_parameters.find("read_only");
-    if (it_read_only != info_.hardware_parameters.end())
+    // Real-motion gate.  The interface always logs in and reads EDG data.
+    // When hardware_write is false it never enables servo mode or sends joint
+    // commands.
+    auto it_hardware_write = info_.hardware_parameters.find("hardware_write");
+    if (it_hardware_write != info_.hardware_parameters.end())
     {
-      const auto &value = it_read_only->second;
-      read_only_ = value == "true" || value == "True" || value == "1";
+      const auto &value = it_hardware_write->second;
+      hardware_write_ = value == "true" || value == "True" || value == "1";
     }
-
-    // 3. 获取力传感器偏置初始值（后续将在 on_activate 中被动态零偏覆盖）
-    ft_bias_.resize(6, 0.0);
-    std::vector<std::string> bias_keys = {"ft_bias_fx", "ft_bias_fy", "ft_bias_fz", "ft_bias_tx", "ft_bias_ty", "ft_bias_tz"};
-    std::vector<double> default_biases = {-9.80, -6.78, -6.00, 0.54, -0.63, 0.03};
-
-    for (size_t i = 0; i < bias_keys.size(); ++i)
-    {
-      auto it_bias = info_.hardware_parameters.find(bias_keys[i]);
-      ft_bias_[i] = (it_bias != info_.hardware_parameters.end()) ? std::stod(it_bias->second) : default_biases[i];
-    }
-
-    // 4. 获取力臂向量参数 (r_t_s)
-    r_t_s_.resize(3, 0.0);
-    std::vector<std::string> r_t_s_keys = {"r_t_s_x", "r_t_s_y", "r_t_s_z"};
-    std::vector<double> default_r_t_s = {0.000, -0.05, -0.4}; // 默认值
-
-    for (size_t i = 0; i < r_t_s_keys.size(); ++i)
-    {
-      auto it_r = info_.hardware_parameters.find(r_t_s_keys[i]);
-      r_t_s_[i] = (it_r != info_.hardware_parameters.end()) ? std::stod(it_r->second) : default_r_t_s[i];
-    }
-
-    // 5. 获取死区阈值 (ft_deadband_force, ft_deadband_torque)
-    auto it_db_f = info_.hardware_parameters.find("ft_deadband_force");
-    deadband_force_ = (it_db_f != info_.hardware_parameters.end()) ? std::stod(it_db_f->second) : 1.0;
-
-    auto it_db_t = info_.hardware_parameters.find("ft_deadband_torque");
-    deadband_torque_ = (it_db_t != info_.hardware_parameters.end()) ? std::stod(it_db_t->second) : 0.2;
-
-    // 6. 获取滤波系数
-    auto it_alpha = info_.hardware_parameters.find("ft_filter_alpha");
-    filter_alpha_ = (it_alpha != info_.hardware_parameters.end()) ? std::stod(it_alpha->second) : 0.2;
-
-    RCLCPP_INFO(rclcpp::get_logger("JakaHardwareInterface"),
-                "FTS Params Loaded - Deadband: [F:%.2f, T:%.2f], Alpha: %.2f",
-                deadband_force_, deadband_torque_, filter_alpha_);
-                
-    RCLCPP_INFO(rclcpp::get_logger("JakaHardwareInterface"),
-                "Force Arm Vector Loaded: [%.3f, %.3f, %.3f]",
-                r_t_s_[0], r_t_s_[1], r_t_s_[2]);
 
     hw_position_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
     hw_velocity_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
     hw_position_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 
-    hw_fts_states_.resize(6, 0.0); // 输出给ROS的数据 (初始为0)
-    hw_fts_raw_.resize(6, 0.0);    // 原始数据容器
+    // Raw force/torque values are exposed through state interfaces.
+    // All force processing is handled by a separate force process.
+    hw_fts_states_.resize(6, 0.0);
 
     RCLCPP_INFO(rclcpp::get_logger("JakaHardwareInterface"),
-                "Jaka EDG Interface Init: Robot=%s, Local=%s, ReadOnly=%s",
-                robot_ip_.c_str(), local_ip_.c_str(), read_only_ ? "true" : "false");
+                "Jaka EDG Interface Init: Robot=%s, Local=%s, HardwareWrite=%s",
+                robot_ip_.c_str(), local_ip_.c_str(), hardware_write_ ? "true" : "false");
 
     return CallbackReturn::SUCCESS;
   }
@@ -227,57 +188,18 @@ namespace jaka_hardware_interface
       const rclcpp_lifecycle::State & /*previous_state*/)
   {
     RCLCPP_INFO(rclcpp::get_logger("JakaHardwareInterface"), "Activating... (Ensuring EDG is running)");
-    if (read_only_)
+    if (!hardware_write_)
     {
       RCLCPP_WARN(rclcpp::get_logger("JakaHardwareInterface"),
-                  "Read-only mode: servo mode will not be enabled and no joint commands will be sent.");
+                  "hardware_write=false: servo mode will not be enabled and no joint commands will be sent.");
     }
     else
     {
       robot_.servo_move_enable(true); // 机器人上电/使能
     }
 
-    std::fill(hw_fts_states_.begin(), hw_fts_states_.end(), 0.0);
-
-    // ================== 上电后动态获取零偏 ==================
-    RCLCPP_INFO(rclcpp::get_logger("JakaHardwareInterface"), "Calibrating FT Sensor zero-drift...");
-    std::array<double, 6> ft_sum = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    int sample_count = 50;  // 采样 50 次
-    int valid_samples = 0;
-
-    for (int i = 0; i < sample_count; ++i)
-    {
-      if (robot_.edg_get_stat(&edg_state_) == ERR_SUCC)
-      {
-        ft_sum[0] += edg_state_.torqSensor.fx;
-        ft_sum[1] += edg_state_.torqSensor.fy;
-        ft_sum[2] += edg_state_.torqSensor.fz;
-        ft_sum[3] += edg_state_.torqSensor.tx;
-        ft_sum[4] += edg_state_.torqSensor.ty;
-        ft_sum[5] += edg_state_.torqSensor.tz;
-        valid_samples++;
-      }
-      // 等待 10ms，总采样时间约 500ms
-      std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
-    }
-
-    if (valid_samples > 0)
-    {
-      // 更新动态零偏，覆盖从参数文件读入的默认零偏
-      for (int i = 0; i < 6; ++i)
-      {
-        ft_bias_[i] = ft_sum[i] / valid_samples;
-      }
-      RCLCPP_INFO(rclcpp::get_logger("JakaHardwareInterface"),
-                  "FT Calibration Success! Calculated Bias: [F:%.2f, %.2f, %.2f, T:%.2f, %.2f, %.2f]",
-                  ft_bias_[0], ft_bias_[1], ft_bias_[2], ft_bias_[3], ft_bias_[4], ft_bias_[5]);
-    }
-    else
-    {
-      RCLCPP_WARN(rclcpp::get_logger("JakaHardwareInterface"),
-                  "FT Calibration failed! Continuing with parameter-based defaults.");
-    }
-    // ==========================================================
+    // FTS raw data is intentionally not zeroed or processed here.
+    // The separate force process owns tare, transform, filtering and safety.
 
     // 再次同步，因为从 Configure 到 Activate 可能有时间差
     robot_.edg_get_stat(&edg_state_);
@@ -294,7 +216,7 @@ namespace jaka_hardware_interface
   {
     RCLCPP_INFO(rclcpp::get_logger("JakaHardwareInterface"), "Deactivating... Stopping EDG");
 
-    if (!read_only_)
+    if (hardware_write_)
     {
       robot_.servo_move_enable(false);
     }
@@ -309,69 +231,41 @@ namespace jaka_hardware_interface
   {
     // 使用 EDG 接口读取全量数据
     errno_t ret = robot_.edg_get_stat(&edg_state_);
-
-    if (ret == ERR_SUCC)
+    if (ret != ERR_SUCC)
     {
-      // A. 更新关节状态
-      for (size_t i = 0; i < info_.joints.size() && i < 6; ++i)
-      {
-        hw_position_states_[i] = edg_state_.jointVal.jVal[i];
-        hw_velocity_states_[i] = edg_state_.jointVel.jVel[i];
-      }
-
-      // B. 更新力传感器数据
-      if (hw_fts_states_.size() == 6)
-      {
-        // 1. 原始力/力矩 (Raw 减去 在on_activate中计算出的动态Bias)
-        Eigen::Vector3d F_sensor(edg_state_.torqSensor.fx - ft_bias_[0],
-                                 edg_state_.torqSensor.fy - ft_bias_[1],
-                                 edg_state_.torqSensor.fz - ft_bias_[2]);
-        Eigen::Vector3d M_sensor(edg_state_.torqSensor.tx - ft_bias_[3],
-                                 edg_state_.torqSensor.ty - ft_bias_[4],
-                                 edg_state_.torqSensor.tz - ft_bias_[5]);
-
-        // 2. 构建旋转矩阵 R_sensor_to_tool
-        // TODO: 如果你后续需要，也可以把这个矩阵提取成参数。目前保持硬编码。
-        Eigen::Matrix3d R_s_t;
-        R_s_t <<  0.707, -0.707,  0.000,
-                  0.664,  0.664,  0.342,
-                 -0.242, -0.242,  0.940;
-
-        // 3. 构建力臂向量 r (tool0 到 sensor 的位移，由参数初始化)
-        Eigen::Vector3d r_t_s(r_t_s_[0], r_t_s_[1], r_t_s_[2]);
-
-        // 4. 物理变换
-        // F_tool = R * F_sensor
-        Eigen::Vector3d F_tool = R_s_t * F_sensor;
-
-        // M_tool = R * M_sensor + (r x F_tool)
-        Eigen::Vector3d M_tool = R_s_t * M_sensor + r_t_s.cross(F_tool);
-
-        // 5. 滤波与输出给导纳控制器
-        std::array<double, 6> compensated_ft = {F_tool.x(), F_tool.y(), F_tool.z(),
-                                                M_tool.x(), M_tool.y(), M_tool.z()};
-
-        for (int i = 0; i < 6; ++i)
-        {
-          // 1. 低通滤波 (防止导纳控制震荡)
-          hw_fts_states_[i] = filter_alpha_ * compensated_ft[i] + (1.0 - filter_alpha_) * hw_fts_states_[i];
-
-          // 2. 死区处理 (防止静止时的微小漂移触发运动)
-          double db = (i < 3) ? deadband_force_ : deadband_torque_;
-          if (std::abs(hw_fts_states_[i]) < db)
-          {
-            hw_fts_states_[i] = 0.0;
-          }
-        }
-      }
+      // Keep the last measured values.  A separate force process owns FTS
+      // validity/stale detection; this hardware interface no longer performs
+      // any force processing.
+      return hardware_interface::return_type::OK;
     }
+
+    // A. 更新关节状态
+    for (size_t i = 0; i < info_.joints.size() && i < 6; ++i)
+    {
+      hw_position_states_[i] = edg_state_.jointVal.jVal[i];
+      hw_velocity_states_[i] = edg_state_.jointVel.jVel[i];
+    }
+
+    // B. Raw FTS passthrough.
+    // No zeroing, no coordinate transform, no filtering, no deadband and no
+    // stale detection here.  Those belong to the separate force process.
+    if (hw_fts_states_.size() == 6)
+    {
+      hw_fts_states_[0] = edg_state_.torqSensor.fx;
+      hw_fts_states_[1] = edg_state_.torqSensor.fy;
+      hw_fts_states_[2] = edg_state_.torqSensor.fz;
+      hw_fts_states_[3] = edg_state_.torqSensor.tx;
+      hw_fts_states_[4] = edg_state_.torqSensor.ty;
+      hw_fts_states_[5] = edg_state_.torqSensor.tz;
+    }
+
     return hardware_interface::return_type::OK;
   }
 
   hardware_interface::return_type JakaHardwareInterface::write(
       const rclcpp::Time &, const rclcpp::Duration & /*period*/)
   {
-    if (read_only_)
+    if (!hardware_write_)
     {
       return hardware_interface::return_type::OK;
     }

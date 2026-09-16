@@ -13,6 +13,7 @@ def load_launch_module():
     launch_file = (
         Path(__file__).resolve().parents[1]
         / 'launch'
+        / 'real'
         / 'remani_mpc_localized_real.launch.py'
     )
     spec = importlib.util.spec_from_file_location(
@@ -27,9 +28,6 @@ def make_context(map_file, esdf_file):
     """Construct the safe read-only launch context used by L5 checks."""
     context = LaunchContext()
     context.launch_configurations.update({
-        'safety_release': 'false',
-        'jaka_read_only': 'true',
-        'command_output_enabled': 'false',
         'map_file': str(map_file),
         'start_remani': 'true',
         'static_esdf_file': str(esdf_file),
