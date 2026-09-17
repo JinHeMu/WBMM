@@ -80,6 +80,29 @@ def test_moveit_uses_only_hardware_write_as_motion_gate():
         assert 'hardware_write' in args
 
 
+def test_real_ros2_control_keeps_controller_names_and_uses_canonical_config():
+    path = LAUNCH_FILES['hardware_interface.launch.py']
+    content = path.read_text(encoding='utf-8')
+    tree = ast.parse(content)
+    manager_nodes = []
+    for call in ast.walk(tree):
+        if not (isinstance(call, ast.Call) and
+                isinstance(call.func, ast.Name) and call.func.id == 'Node'):
+            continue
+        keywords = {keyword.arg: keyword.value for keyword in call.keywords}
+        package = keywords.get('package')
+        executable = keywords.get('executable')
+        if (isinstance(package, ast.Constant) and
+                package.value == 'controller_manager' and
+                isinstance(executable, ast.Constant) and
+                executable.value == 'ros2_control_node'):
+            manager_nodes.append(keywords)
+
+    assert len(manager_nodes) == 1
+    assert 'name' not in manager_nodes[0]
+    assert '"--param-file", jaka_controllers' in content
+
+
 def describe_actions(actions, context, visited):
     """Resolve bringup composition, but never execute Node/Process actions."""
     for action in actions:

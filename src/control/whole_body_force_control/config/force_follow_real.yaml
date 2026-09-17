@@ -23,26 +23,26 @@ whole_body_force_control:
       wrench_scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
       # Fail-closed before tare/filtering; real commissioning stays below
       # 15 N so a broken force reading cannot command motion.
-      hard_force_norm_limit: 15.0
-      hard_wrench_limit: [15.0, 15.0, 15.0, 2.0, 2.0, 2.0]
-      max_wrench_rate: [20.0, 20.0, 20.0, 5.0, 5.0, 5.0]
+      hard_force_norm_limit: 50.0
+      hard_wrench_limit: [50.0, 50.0, 50.0, 2.0, 2.0, 2.0]
+      max_wrench_rate: [100.0, 100.0, 100.0, 5.0, 5.0, 5.0]
       force_timeout: 0.10
 
     admittance:
       enable: false
       output: false
-      selected_axes: [true, true, true, false, false, false]  # world x/y/z only
+      selected_axes: [true, false, false, false, false, false]  # world x/y/z only
       mass: [3.0, 3.0, 3.0, 0.3, 0.3, 0.3]
       # For selected axes with stiffness > 0, damping_ratio can be used
       # instead of damping; damping_ratio -> D = 2*zeta*sqrt(M*S).
       damping: [45.0, 45.0, 45.0, 4.5, 4.5, 4.5]
-      stiffness: [400.0, 400.0, 400.0, 0.0, 0.0, 0.0]
-      max_offset: [0.020, 0.020, 0.020, 0.15, 0.15, 0.15]
-      max_velocity: [0.010, 0.010, 0.010, 0.15, 0.15, 0.15]
+      stiffness: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      max_offset: [1000.0, 1000.0, 2.0, 0.15, 0.15, 0.15]
+      max_velocity: [0.050, 0.050, 0.050, 0.15, 0.15, 0.15]
 
     whole_body:
       # Real pass keeps a bounded differential-base share along heading.
-      base_share: 0.2
+      base_share: 0.6
       max_base_delta: 0.2
       max_base_velocity: 0.20
       max_joint_delta: 0.050

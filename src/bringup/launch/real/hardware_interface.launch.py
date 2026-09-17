@@ -94,7 +94,10 @@ def generate_launch_description():
     jaka_controller_manager = Node(
         package="controller_manager",
         executable="ros2_control_node",
-        name="controller_manager",
+        # Keep the executable's default node name.  A __node remap here is
+        # inherited by dynamically loaded controllers and would rename every
+        # controller to "controller_manager", preventing their named sections
+        # in ros2_controllers.yaml from being applied.
         output="screen",
         parameters=[
             jaka_robot_description,

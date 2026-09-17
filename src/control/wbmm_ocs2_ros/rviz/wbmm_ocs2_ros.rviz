@@ -14,7 +14,7 @@ Panels:
         - /MarkerArray2
         - /MarkerArray3
       Splitter Ratio: 0.5
-    Tree Height: 700
+    Tree Height: 431
   - Class: rviz_common/Views
     Expanded:
       - /Current View1
@@ -328,16 +328,6 @@ Visualization Manager:
         All Enabled: false
         Link_0:
           Value: true
-        Link_1:
-          Value: true
-        Link_2:
-          Value: true
-        Link_3:
-          Value: true
-        Link_4:
-          Value: true
-        Link_5:
-          Value: true
         Link_6:
           Value: true
         Link_6_45:
@@ -378,8 +368,6 @@ Visualization Manager:
           Value: true
         left_wheel_link:
           Value: true
-        map:
-          Value: true
         odom:
           Value: true
         right_wheel_link:
@@ -404,59 +392,46 @@ Visualization Manager:
       Show Axes: true
       Show Names: false
       Tree:
-        map:
-          odom:
-            base_footprint:
-              base_link:
-                aluminium_2_base_link:
+        odom:
+          base_footprint:
+            base_link:
+              aluminium_2_base_link:
+                {}
+              aluminium_3_base_link:
+                {}
+              aluminium_4_base_link:
+                {}
+              aluminium_base_link:
+                {}
+              d455_link:
+                {}
+              fl_castor_link:
+                fl_wheel_link:
                   {}
-                aluminium_3_base_link:
+              fr_castor_link:
+                fr_wheel_link:
                   {}
-                aluminium_4_base_link:
+              imu_link:
+                {}
+              inertial_link:
+                {}
+              jaka_base_link:
+                Link_0:
                   {}
-                aluminium_base_link:
+              laser_link:
+                {}
+              left_wheel_link:
+                {}
+              right_wheel_link:
+                {}
+              rl_castor_link:
+                rl_wheel_link:
                   {}
-                d455_link:
+              rr_castor_link:
+                rr_wheel_link:
                   {}
-                fl_castor_link:
-                  fl_wheel_link:
-                    {}
-                fr_castor_link:
-                  fr_wheel_link:
-                    {}
-                imu_link:
-                  {}
-                inertial_link:
-                  {}
-                jaka_base_link:
-                  Link_0:
-                    Link_1:
-                      Link_2:
-                        Link_3:
-                          Link_4:
-                            Link_5:
-                              Link_6:
-                                Link_6_45:
-                                  jk_se_vi_200_link:
-                                    tool0_and_camera_link:
-                                      d435i_link:
-                                        {}
-                                      tool0:
-                                        {}
-                laser_link:
-                  {}
-                left_wheel_link:
-                  {}
-                right_wheel_link:
-                  {}
-                rl_castor_link:
-                  rl_wheel_link:
-                    {}
-                rr_castor_link:
-                  rr_wheel_link:
-                    {}
-                urbase_base_link:
-                  {}
+              urbase_base_link:
+                {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -503,8 +478,7 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        Base Trajectory: true
-        EE Trajectory: false
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -516,8 +490,7 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        Reference Base Trajectory: true
-        Reference EE Trajectory: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -531,10 +504,7 @@ Visualization Manager:
           Enabled: true
           Name: Start and Goal
           Namespaces:
-            gaol/urdf_base_collision_spheres: true
-            gaol/urdf_collision_spheres: true
-            start/urdf_base_collision_spheres: true
-            start/urdf_collision_spheres: true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -546,8 +516,7 @@ Visualization Manager:
           Enabled: true
           Name: Front-end Whole-body Trajectory
           Namespaces:
-            vis_mm_front_end/urdf_base_collision_spheres: true
-            vis_mm_front_end/urdf_collision_spheres: true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -559,8 +528,7 @@ Visualization Manager:
           Enabled: true
           Name: Optimized Whole-body Trajectory
           Namespaces:
-            vis_mm_back_end/urdf_base_collision_spheres: true
-            vis_mm_back_end/urdf_collision_spheres: true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -572,7 +540,7 @@ Visualization Manager:
           Enabled: true
           Name: Global Trajectory
           Namespaces:
-            "": true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -585,7 +553,7 @@ Visualization Manager:
           Enabled: true
           Name: Kinodynamic AStar Path
           Namespaces:
-            "": true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -598,7 +566,7 @@ Visualization Manager:
           Enabled: true
           Name: Optimized Control Points
           Namespaces:
-            "": true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -611,8 +579,7 @@ Visualization Manager:
           Enabled: true
           Name: Current REMANI Robot Model
           Namespaces:
-            vis_mm_odom/urdf_base_collision_spheres: true
-            vis_mm_odom/urdf_collision_spheres: true
+            {}
           Topic:
             Depth: 1
             Durability Policy: Transient Local
@@ -625,7 +592,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 255; 255; 255
-    Fixed Frame: map
+    Fixed Frame: odom
     Frame Rate: 30
   Name: root
   Tools:
@@ -671,20 +638,20 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6747969388961792
+      Pitch: 0.6697969436645508
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
       Yaw: 1.4768201112747192
     Saved: ~
 Window Geometry:
   Displays:
-    collapsed: true
-  Height: 1284
-  Hide Left Dock: true
+    collapsed: false
+  Height: 752
+  Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd00000001000000000000036400000468fc0200000004fb000000100044006900730070006c006100790073000000006e0000032a0000018200fffffffb0000000a0056006900650077007300000003a4000001320000013200fffffffb0000000a0049006d0061006700650200000a16000004c4000001f7000000ebfb0000000a0049006d0061006700650200000a16000005ac000001f7000000eb000006540000046800000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000001000000000000036400000296fc0200000004fb000000100044006900730070006c006100790073010000003d000001ec000000c900fffffffb0000000a00560069006500770073010000022f000000a4000000a400fffffffb0000000a0049006d0061006700650200000a16000004c4000001f7000000ebfb0000000a0049006d0061006700650200000a16000005ac000001f7000000eb000002010000029600000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Views:
-    collapsed: true
-  Width: 1620
-  X: 1565
-  Y: 358
+    collapsed: false
+  Width: 1387
+  X: 301
+  Y: 114
