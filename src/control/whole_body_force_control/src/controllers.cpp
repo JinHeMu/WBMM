@@ -31,12 +31,10 @@ AdmittanceController::AdmittanceController(
   double mass,
   double damping,
   double stiffness,
-  double max_offset,
   double max_velocity)
 : mass_(std::max(1.0e-6, mass)),
   damping_(std::max(0.0, damping)),
   stiffness_(std::max(0.0, stiffness)),
-  max_offset_(std::abs(max_offset)),
   max_velocity_(std::abs(max_velocity))
 {}
 
@@ -50,13 +48,7 @@ double AdmittanceController::update(double measured_force, double dt)
   velocity_ = std::clamp(
     velocity_ + dt * acceleration, -max_velocity_, max_velocity_);
   const double previous_offset = offset_;
-  offset_ = std::clamp(offset_ + dt * velocity_, -max_offset_, max_offset_);
-
-  if ((offset_ >= max_offset_ && velocity_ > 0.0) ||
-    (offset_ <= -max_offset_ && velocity_ < 0.0))
-  {
-    velocity_ = 0.0;
-  }
+  offset_ += dt * velocity_;
   if (dt <= 0.0) {
     offset_ = previous_offset;
   }
@@ -75,14 +67,14 @@ bool AdmittanceController::limitOffset(double reachable_offset)
   if (!std::isfinite(reachable_offset)) {
     return false;
   }
-  const double bounded =
-    std::clamp(reachable_offset, -max_offset_, max_offset_);
+  const double bounded = reachable_offset;
 
   // Only shrink an existing correction in the same direction.  Letting a
   // saturated reachable value flip the sign would itself create a jump, and
   // the regular admittance dynamics must remain free to reverse the motion.
   const bool same_direction =
-    offset_ == 0.0 || bounded == 0.0 || std::signbit(offset_) == std::signbit(bounded);
+    offset_ == 0.0 || bounded == 0.0 ||
+    std::signbit(offset_) == std::signbit(bounded);
   // The IK/kinematics solve carries a few micrometres of numerical error.
   // A 0.1 mm / 0.0057 deg deadband prevents that error from looking like
   // saturation while still stopping real workspace windup almost immediately.
@@ -102,13 +94,12 @@ CartesianComplianceController::CartesianComplianceController(
   const Vector6d & mass,
   const Vector6d & damping,
   const Vector6d & stiffness,
-  const Vector6d & max_offset,
   const Vector6d & max_velocity)
 : admittance_axes_(admittance_axes)
 {
   for (std::size_t i = 0; i < 6; ++i) {
     admittance_[i] = std::make_unique<AdmittanceController>(
-      mass[i], damping[i], stiffness[i], max_offset[i], max_velocity[i]);
+      mass[i], damping[i], stiffness[i], max_velocity[i]);
   }
 }
 

@@ -21,7 +21,6 @@ void ForceProcessor::setConfig(const ForceProcessorConfig & config)
   for (Eigen::Index i = 0; i < 6; ++i) {
     config_.filter_alpha[i] = std::clamp(config_.filter_alpha[i], 0.0, 1.0);
     config_.hard_wrench_limit[i] = std::abs(config_.hard_wrench_limit[i]);
-    config_.max_wrench_rate[i] = std::max(0.0, config_.max_wrench_rate[i]);
   }
 }
 
@@ -72,8 +71,7 @@ wbmm::core::Wrench ForceProcessor::toWrench(
 ForceProcessorResult ForceProcessor::process(
   const wbmm::core::Wrench & raw_source,
   const Eigen::Matrix3d & target_rotation_source,
-  const Eigen::Vector3d & target_to_source,
-  double dt)
+  const Eigen::Vector3d & target_to_source)
 {
   ForceProcessorResult result;
   result.wrench.header = raw_source.header;
@@ -161,19 +159,6 @@ ForceProcessorResult ForceProcessor::process(
   {
     result.hard_limit_exceeded = true;
     return result;
-  }
-
-  for (Eigen::Index i = 0; i < 6; ++i) {
-    const double max_rate = config_.max_wrench_rate[i];
-    if (max_rate <= 0.0 || dt <= 0.0) {
-      continue;
-    }
-    const double max_step = max_rate * dt;
-    const double delta = filtered_wrench_[i] - last_output_[i];
-    if (std::abs(delta) > max_step) {
-      filtered_wrench_[i] = last_output_[i] + std::copysign(max_step, delta);
-      result.rate_limited = true;
-    }
   }
 
   last_output_ = filtered_wrench_;

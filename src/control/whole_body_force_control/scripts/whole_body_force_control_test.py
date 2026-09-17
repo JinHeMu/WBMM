@@ -102,12 +102,12 @@ class WholeBodyForceControlTest(Node):
         self.publisher = self.create_publisher(
             WrenchStamped, self.wrench_topic, 10)
         self.create_subscription(
-            Float64MultiArray, "/whole_body_force_control/status",
+            Float64MultiArray, "/whole_body_force_control/correction",
             self.status_callback, 10)
         self.create_subscription(
             Bool, "/mujoco/unexpected_collision", self.collision_callback, 10)
         self.create_subscription(
-            String, "/whole_body_force_control/control_state",
+            String, "/whole_body_force_control/states",
             self.control_state_callback, 10)
         self.timer = self.create_timer(0.02, self.tick)
         self.created_at = time.monotonic()

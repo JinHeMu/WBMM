@@ -182,13 +182,6 @@ void WholeBodyForceControlNode::loadParameters()
     }
   }
 
-  parameters_.max_offset = vector6Parameter(
-      *this, "admittance.max_offset",
-      (Vector6d() << 0.08, 0.08, 0.08, 0.15, 0.15, 0.15).finished());
-  if ((parameters_.max_offset.array() <= 0.0).any()) {
-    throw std::runtime_error("admittance.max_offset values must be positive");
-  }
-
   parameters_.max_velocity = vector6Parameter(
       *this, "admittance.max_velocity",
       (Vector6d() << 0.035, 0.035, 0.035, 0.15, 0.15, 0.15).finished());
@@ -233,13 +226,6 @@ void WholeBodyForceControlNode::loadParameters()
         "non-negative (0 disables the norm check)");
   }
 
-  parameters_.max_wrench_rate = vector6Parameter(
-      *this, "force_sensor.max_wrench_rate", Vector6d::Zero());
-  if ((parameters_.max_wrench_rate.array() < 0.0).any()) {
-    throw std::runtime_error(
-        "force_sensor.max_wrench_rate values must be non-negative");
-  }
-
   const int tare_samples = declare_parameter<int>(
       "force_sensor.tare_samples", 50);
   if (tare_samples <= 0) {
@@ -247,8 +233,6 @@ void WholeBodyForceControlNode::loadParameters()
   }
   parameters_.tare_samples = static_cast<std::size_t>(tare_samples);
 
-  parameters_.require_wrench_frame = declare_parameter<bool>(
-      "force_sensor.require_wrench_frame", true);
   parameters_.force_timeout = declare_parameter<double>(
       "force_sensor.force_timeout", 0.25);
   if (!std::isfinite(parameters_.force_timeout) ||
@@ -259,28 +243,19 @@ void WholeBodyForceControlNode::loadParameters()
 
   parameters_.base_share = declare_parameter<double>(
       "whole_body.base_share", 0.4);
-  parameters_.max_base_delta = declare_parameter<double>(
-      "whole_body.max_base_delta", 0.04);
   parameters_.max_base_velocity = declare_parameter<double>(
       "whole_body.max_base_velocity", 0.5);
-  parameters_.max_joint_delta = declare_parameter<double>(
-      "whole_body.max_joint_delta", 0.25);
   parameters_.max_joint_velocity = declare_parameter<double>(
       "whole_body.max_joint_velocity", 1.0);
   if (!std::isfinite(parameters_.base_share) ||
-      !std::isfinite(parameters_.max_base_delta) ||
       !std::isfinite(parameters_.max_base_velocity) ||
-      !std::isfinite(parameters_.max_joint_delta) ||
       !std::isfinite(parameters_.max_joint_velocity)) {
     throw std::runtime_error("whole_body parameters must be finite");
   }
-  if (parameters_.max_base_delta < 0.0 ||
-      parameters_.max_base_velocity <= 0.0 ||
-      parameters_.max_joint_delta < 0.0 ||
+  if (parameters_.max_base_velocity <= 0.0 ||
       parameters_.max_joint_velocity <= 0.0) {
     throw std::runtime_error(
-        "whole_body max_base_delta/max_joint_delta must be non-negative and "
-        "max_base_velocity/max_joint_velocity must be positive");
+        "whole_body max_base_velocity/max_joint_velocity must be positive");
   }
 
   parameters_.observation_timeout = declare_parameter<double>(
@@ -320,10 +295,10 @@ void WholeBodyForceControlNode::loadParameters()
         "output.reference_horizon/reference_dt/input_dimension are invalid");
   }
 
-  parameters_.status_topic = declare_parameter<std::string>(
-      "topics.status", "/whole_body_force_control/status");
-  parameters_.control_state_topic = declare_parameter<std::string>(
-      "topics.control_state", "/whole_body_force_control/control_state");
+  parameters_.correction_topic = declare_parameter<std::string>(
+      "topics.correction", "/whole_body_force_control/correction");
+  parameters_.state_topic = declare_parameter<std::string>(
+      "topics.states", "/whole_body_force_control/states");
   parameters_.wrench_topic = declare_parameter<std::string>(
       "topics.wrench", "/whole_body_force_control/wrench");
   parameters_.target_topic = parameters_.robot_name + "_mpc_target";

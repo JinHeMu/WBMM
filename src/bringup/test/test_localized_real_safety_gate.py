@@ -13,11 +13,10 @@ def load_launch_module():
     launch_file = (
         Path(__file__).resolve().parents[1]
         / 'launch'
-        / 'real'
-        / 'remani_mpc_localized_real.launch.py'
+        / 'remani_mpc_localized.launch.py'
     )
     spec = importlib.util.spec_from_file_location(
-        'remani_mpc_localized_real', launch_file
+        'remani_mpc_localized', launch_file
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

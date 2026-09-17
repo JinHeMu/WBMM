@@ -62,11 +62,11 @@ public:
   // 六轴修正量按状态 frame(world/odom)解释：
   // 前三维是状态系平移[m]，后三维是绕状态系轴的旋转向量[rad]。
   // 旋转修正在名义姿态左侧作用：R_target = exp(world_rotation) * R_nominal。
+  // 不设置人为底盘/关节相对偏移上限；关节只受 RobotModel 硬限位和 IK 可达性约束。
   [[nodiscard]] Eigen::VectorXd correctedStateWorld6D(
     const Eigen::VectorXd & state,
     const Eigen::Matrix<double, 6, 1> & world_correction,
-    double base_share, double max_base_delta,
-    double max_joint_delta) const;
+    double base_share) const;
 
   // 计算给定 9D 状态下 EE 在该状态 frame 中的位置/姿态,用于状态上报/调试
   // (node.cpp 用它算实际 EE 位移,评估修正是否到位)。

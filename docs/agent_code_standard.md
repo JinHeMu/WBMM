@@ -88,27 +88,23 @@ Planner / Optimizer / Controller 在哪里？
 
 ## 6.1 自研 ROS 适配包
 
-节点参数、`task`、`info`、实验 profile 放在功能包自己的 `config/` 下。
+仿真/开发默认参数、算法自身默认 `task`/`info` 放在功能包自己的 `config/` 下。
 
 当前示例：
 
 ```text
 src/control/wbmm_ocs2_ros/config/
   ocs2_sim.yaml
-  ocs2_real.yaml
-  ocs2_real_position_tracking.yaml
   task_sim.info
-  task_real.info
-  task_real_conservative.info
 
 src/control/whole_body_force_control/config/
   force_follow_sim.yaml
-  force_follow_real.yaml
 ```
 
-## 6.2 第三方 wrapper
+## 6.2 部署 profile 与第三方 wrapper
 
-第三方算法配置统一放 bringup：
+实机部署 profile 和第三方算法配置统一放 bringup。目录名已经表达 `real`，
+因此文件名不再重复 `_real` 后缀：
 
 ```text
 src/bringup/config/common/
@@ -121,14 +117,18 @@ src/bringup/config/sim/
   remani_sim.yaml
 
 src/bringup/config/real/
-  ekf_real.yaml
-  slam_toolbox_real.yaml
-  remani_real.yaml
+  ocs2.yaml
+  task.info
+  force_control.yaml
+  ekf.yaml
+  slam_toolbox.yaml
+  remani.yaml
   d455_esdf_record_qos.yaml
 ```
 
 适用于：
 
+- 自研 OCS2 / 力控的实机部署 profile
 - `robot_localization`
 - `slam_toolbox`
 - MoveIt / MoveIt Servo
@@ -139,7 +139,7 @@ src/bringup/config/real/
 
 - OCS2 配置只放 MPC/MRT、话题、frame、关节名、位置跟踪和命令限幅。
 - OCS2 配置不得混入力控轴、刚度、阻尼、wrench、admittance、offset 等力控参数。
-- 力控参数必须归 `whole_body_force_control/config/`。
+- 力控仿真默认参数归 `whole_body_force_control/config/`；实机部署 profile 归 `src/bringup/config/real/force_control.yaml`。
 - 不得在多个包复制同一份参数文件。
 - 不得让 launch 和 YAML 同时控制同一个数值。
 
@@ -165,61 +165,91 @@ YAML 承担：
 
 # 7. Bringup Launch 协议
 
-## 7.1 目录分层
+## 7.1 目录扁平化
+
+所有核心 launch 文件直接放在：
 
 ```text
-src/bringup/launch/common/    # 算法与通用功能
-src/bringup/launch/sim/       # 仿真部署
-src/bringup/launch/real/      # 实机部署
+src/bringup/launch/
+  <name>.launch.py
 ```
 
-源码分目录，但安装平铺到：
+安装后对应：
 
 ```text
-share/tracer_jaka_bringup/launch/
+share/tracer_jaka_bringup/launch/<name>.launch.py
 ```
 
-因此启动命令仍使用：
+不再使用 `launch/common/`、`launch/real/`、`launch/sim/` 分层，也不在文件名中使用
+`_real` / `_sim` 后缀。参数文件仍可放在 `config/common/`、`config/real/`、
+`config/sim/`。
 
-```bash
-ros2 launch tracer_jaka_bringup <name>.launch.py
+## 7.2 backend launch 协议
+
+只有两个 launch 可以启动硬件或仿真：
+
+```text
+src/bringup/launch/wbmm_hardware_interface.launch.py
+src/bringup/launch/mujoco_hardware_interface.launch.py
 ```
 
-## 7.2 common 协议
+- 二者都实现 [`config/common/interface.yaml`](../src/bringup/config/common/interface.yaml)。
+- 实机接口负责 Tracer、JAKA、IMU、LiDAR、FTS 和 `robot_state_publisher`。
+- 仿真接口负责 MuJoCo bridge、`/clock`、仿真传感器和 `robot_state_publisher`。
+- 其他核心 launch 默认不得启动二者。
+- `d435_camera.launch.py` / `d455_camera.launch.py` 是可选相机传感器入口，
+  只启动相机驱动，不启动机器人、`controller_manager` 或算法，不属于核心 backend 选择。
 
-`common/*.launch.py`：
+## 7.3 算法 launch 协议
 
-- 只启动算法或通用节点；
-- 不启动 MuJoCo、实机驱动、controller_manager；
+其余核心 launch：
+
+```text
+localization.launch.py
+ocs2.launch.py
+remani.launch.py
+remani_mpc.launch.py
+remani_mpc_localized.launch.py
+whole_body_force_control.launch.py
+whole_body_force_control_profiles.launch.py
+moveit.launch.py
+servo.launch.py
+```
+
+必须满足：
+
+- 只启动算法或工具节点；
+- 不启动硬件、MuJoCo、传感器驱动或 `controller_manager`；
 - 不声明 `backend`；
-- 不内置 sim/real 专属默认路径；
-- 必要参数由部署层显式传入；
-- 缺参数必须 fail-closed。
+- 使用 canonical topic、frame 和 action；
+- 必要参数由调用者显式传入，缺参数必须 fail-closed。
 
-## 7.3 sim / real 协议
+## 7.4 可选总入口
 
-- `sim/` 负责 MuJoCo、仿真状态源和仿真命令消费者。
-- `real/` 负责真实硬件、驱动、controller_manager 和真实传感器。
-- sim/real 通过 `common/` 组合算法。
-- sim 入口不得启动实机硬件，real 入口不得启动 MuJoCo。
+`wbmm.launch.py` 是唯一允许按 `hardware_backend:=none|real|mujoco` 选择 backend 的
+入口：
 
-## 7.4 hardware interface 唯一所有权
+- 默认 `hardware_backend:=none`；
+- 默认不启动任何算法；
+- 选择 backend 时也只调用 7.2 的两个 backend launch 之一。
+
+## 7.5 hardware interface 唯一所有权
 
 - 一个 launch 树只允许一个 `controller_manager`。
 - 唯一所有者：
 
 ```text
-src/bringup/launch/real/hardware_interface.launch.py
+src/bringup/launch/wbmm_hardware_interface.launch.py
 ```
 
-- `ocs2_real.launch.py`、`moveit_real.launch.py`、`real_slam.launch.py` 不得重复创建 `controller_manager`。
+- 其他 launch 不得重复创建 `controller_manager`。
 - 控制器加载顺序：
 
 ```text
 joint_state_broadcaster -> optional arm_controller -> fts_broadcaster
 ```
 
-## 7.5 命令接口所有权
+## 7.6 命令接口所有权
 
 同一时刻只能有一个机械臂命令所有者：
 
@@ -228,7 +258,7 @@ joint_state_broadcaster -> optional arm_controller -> fts_broadcaster
 - MoveIt Servo：`arm_controller`，同时关闭轨迹执行
 - 不允许 MoveIt 轨迹执行和 Servo 同时控制机械臂
 
-## 7.6 实机安全门
+## 7.7 实机安全门
 
 唯一用户级实机写入门：
 

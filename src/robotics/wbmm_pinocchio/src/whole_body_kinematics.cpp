@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 
@@ -334,19 +335,16 @@ Eigen::VectorXd WholeBodyKinematics::correctedState6D(
 Eigen::VectorXd WholeBodyKinematics::correctedStateWorld6D(
   const Eigen::VectorXd & state,
   const Eigen::Matrix<double, 6, 1> & world_correction,
-  double base_share, double max_base_delta, double max_joint_delta) const
+  double base_share) const
 {
   requireStateDimension(state);
   if (!state.allFinite() || !world_correction.allFinite() ||
-    !std::isfinite(base_share) || !std::isfinite(max_base_delta) ||
-    !std::isfinite(max_joint_delta))
+    !std::isfinite(base_share))
   {
     throw std::invalid_argument(
             "world-frame whole-body correction input is non-finite");
   }
   base_share = std::clamp(base_share, 0.0, 1.0);
-  max_base_delta = std::abs(max_base_delta);
-  max_joint_delta = std::abs(max_joint_delta);
 
   const wbmm::core::WholeBodyState nominal_state = makeState(state);
   wbmm::core::Pose nominal_pose;
@@ -362,8 +360,7 @@ Eigen::VectorXd WholeBodyKinematics::correctedStateWorld6D(
   const Eigen::Vector2d heading(std::cos(state[2]), std::sin(state[2]));
   const double requested_base_distance = base_share *
     heading.dot(desired_world_translation.head<2>());
-  const double base_distance = std::clamp(
-    requested_base_distance, -max_base_delta, max_base_delta);
+  const double base_distance = requested_base_distance;
   const Eigen::Vector2d base_displacement = heading * base_distance;
 
   Eigen::VectorXd corrected = state;
@@ -406,7 +403,8 @@ Eigen::VectorXd WholeBodyKinematics::correctedStateWorld6D(
     const Eigen::Matrix<double, 6, 1> delta = pose_jacobian.transpose() *
       (pose_jacobian * pose_jacobian.transpose() +
       1.0e-5 * Eigen::Matrix<double, 6, 6>::Identity()).ldlt().solve(error);
-    q = boundedJointStep(nominal_q, q, delta, max_joint_delta);
+    q = boundedJointStep(
+      nominal_q, q, delta, std::numeric_limits<double>::infinity());
   }
   corrected.tail(arm_dimension) = q;
   return corrected;

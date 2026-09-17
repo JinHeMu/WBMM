@@ -2,7 +2,7 @@
 """Real-robot AMCL + map_server localization in the map frame.
 
 This launch provides map -> odom. It is intended to be used together with
-real_slam.launch.py(start_slam:=false) so slam_toolbox mapping does not
+a hardware/simulation backend plus the EKF stack with SLAM disabled so slam_toolbox mapping does not
 compete for the map->odom transform.
 """
 

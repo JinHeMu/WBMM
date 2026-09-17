@@ -4,7 +4,7 @@ IMU_publisher:
         baud_rate: 115200
         frame_id: "imu_link"
         imu_switch: TRUE
-        imu_topic: "/IMU_data"
+        imu_topic: "/imu/data"
         euler_switch: FALSE
         euler_topic: "/euler_data"
         magnetic_switch: FALSE

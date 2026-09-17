@@ -117,7 +117,7 @@ Eigen::Matrix3d rotationOf(const wbmm::core::Pose & pose)
 TEST(AdmittanceController, PassiveAdmittanceIsBoundedAndReturnsToZero)
 {
   whole_body_force_control::AdmittanceController controller(
-    3.0, 45.0, 150.0, 0.08, 0.035);
+    3.0, 45.0, 150.0, 0.035);
   for (int i = 0; i < 1000; ++i) {
     controller.update(12.0, 0.01);
   }
@@ -131,7 +131,7 @@ TEST(AdmittanceController, PassiveAdmittanceIsBoundedAndReturnsToZero)
 TEST(AdmittanceController, ZeroStiffnessFollowsWhileForceIsPresent)
 {
   whole_body_force_control::AdmittanceController controller(
-    1.0, 10.0, 0.0, 2.0, 0.5);
+    1.0, 10.0, 0.0, 0.5);
   for (int i = 0; i < 200; ++i) {
     controller.update(5.0, 0.01);
   }
@@ -149,7 +149,7 @@ TEST(AdmittanceController, ZeroStiffnessFollowsWhileForceIsPresent)
 TEST(AdmittanceController, LimitOffsetStopsIntegratorWindup)
 {
   whole_body_force_control::AdmittanceController controller(
-    1.0, 10.0, 0.0, 2.0, 0.5);
+    1.0, 10.0, 0.0, 0.5);
   for (int i = 0; i < 200; ++i) {
     controller.update(5.0, 0.01);
   }
@@ -176,10 +176,9 @@ TEST(CartesianComplianceController, SelectsIndependentSixAxisAdmittance)
   const Vector6d mass = Vector6d::Constant(1.0);
   const Vector6d damping = Vector6d::Constant(20.0);
   const Vector6d stiffness = Vector6d::Constant(100.0);
-  const Vector6d max_offset = Vector6d::Constant(0.2);
   const Vector6d max_velocity = Vector6d::Constant(0.5);
   whole_body_force_control::CartesianComplianceController controller(
-    admittance, mass, damping, stiffness, max_offset, max_velocity);
+    admittance, mass, damping, stiffness, max_velocity);
 
   Vector6d wrench;
   wrench << 2.0, 100.0, 5.0, 100.0, -3.0, 100.0;
@@ -404,7 +403,7 @@ TEST(WholeBodyKinematics, RealizesWorldFrameRotationCorrection)
   Eigen::Matrix<double, 6, 1> correction = Eigen::Matrix<double, 6, 1>::Zero();
   correction[5] = 0.020;
   const Eigen::VectorXd corrected = kinematics->correctedStateWorld6D(
-    seed, correction, 0.0, 0.03, 0.20);
+    seed, correction, 0.0);
   const Eigen::Matrix3d expected_rotation =
     Eigen::AngleAxisd(0.020, Eigen::Vector3d::UnitZ()).toRotationMatrix() *
     initial_rotation;
@@ -454,10 +453,9 @@ TEST(WholeBodyKinematics, WorldFrameSensorZAdmittancePreservesSignAndReturnsToNo
   const Vector6d mass = Vector6d::Constant(3.0);
   const Vector6d damping = Vector6d::Constant(45.0);
   const Vector6d stiffness = Vector6d::Constant(400.0);
-  const Vector6d max_offset = Vector6d::Constant(0.020);
   const Vector6d max_velocity = Vector6d::Constant(0.010);
   CartesianComplianceController controller(
-    axes, mass, damping, stiffness, max_offset, max_velocity);
+    axes, mass, damping, stiffness, max_velocity);
 
   for (const double force : {2.0, -2.0}) {
     controller.reset();
@@ -475,7 +473,7 @@ TEST(WholeBodyKinematics, WorldFrameSensorZAdmittancePreservesSignAndReturnsToNo
     EXPECT_TRUE(correction.tail<3>().isZero(1.0e-12));
 
     const Eigen::VectorXd reference = kinematics.correctedStateWorld6D(
-      seed, correction, 0.0, 0.0, 0.050);
+      seed, correction, 0.0);
     const Eigen::Vector3d displacement =
       kinematics.framePosition(reference) - initial_position;
     EXPECT_LT((displacement - correction.head<3>()).norm(), 1.0e-4);
@@ -507,7 +505,7 @@ TEST(WholeBodyKinematics, NominalFrameWorldTranslationIsKinematicsExact)
 
   const Eigen::Vector3d nominal_position = kinematics->framePosition(seed);
   const Eigen::VectorXd reference = kinematics->correctedStateWorld6D(
-    seed, world_correction, 0.4, 0.04, 0.6);
+    seed, world_correction, 0.4);
   const Eigen::Vector3d achieved_world =
     kinematics->framePosition(reference) - nominal_position;
   EXPECT_LT(
@@ -558,16 +556,16 @@ TEST(ForceProcessor, AutoTareAndProcessedOutput)
   const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
   const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
 
-  auto result = processor.process(raw, rotation, translation, 0.01);
+  auto result = processor.process(raw, rotation, translation);
   EXPECT_TRUE(result.taring);
-  result = processor.process(raw, rotation, translation, 0.01);
+  result = processor.process(raw, rotation, translation);
   EXPECT_TRUE(result.taring);
-  result = processor.process(raw, rotation, translation, 0.01);
+  result = processor.process(raw, rotation, translation);
   ASSERT_TRUE(result.ok);
   EXPECT_NEAR(result.wrench.force.x, 0.0, 1.0e-12);
 
   raw.force.x = 12.0;
-  result = processor.process(raw, rotation, translation, 0.01);
+  result = processor.process(raw, rotation, translation);
   ASSERT_TRUE(result.ok);
   EXPECT_NEAR(result.wrench.force.x, 2.0, 1.0e-12);
 }
@@ -589,12 +587,12 @@ TEST(ForceProcessor, LowPassFilterUsesConfiguredAlpha)
   const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
   const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
 
-  auto result = processor.process(raw, rotation, translation, 0.01);
+  auto result = processor.process(raw, rotation, translation);
   ASSERT_TRUE(result.ok);
   EXPECT_NEAR(result.wrench.force.x, 10.0, 1.0e-12);
 
   raw.force.x = 20.0;
-  result = processor.process(raw, rotation, translation, 0.01);
+  result = processor.process(raw, rotation, translation);
   ASSERT_TRUE(result.ok);
   EXPECT_NEAR(result.wrench.force.x, 15.0, 1.0e-12);
 }
@@ -616,13 +614,13 @@ TEST(ForceProcessor, TransformIncludesLeverArmTorque)
   const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
   const Eigen::Vector3d translation(0.0, 0.0, 1.0);
 
-  const auto result = processor.process(raw, rotation, translation, 0.01);
+  const auto result = processor.process(raw, rotation, translation);
   ASSERT_TRUE(result.ok);
   EXPECT_NEAR(result.wrench.force.x, 1.0, 1.0e-12);
   EXPECT_NEAR(result.wrench.torque.y, 1.0, 1.0e-12);
 }
 
-TEST(ForceProcessor, HardLimitAndRateLimitAreReported)
+TEST(ForceProcessor, HardLimitIsReported)
 {
   using whole_body_force_control::ForceProcessor;
   using whole_body_force_control::ForceProcessorConfig;
@@ -639,25 +637,10 @@ TEST(ForceProcessor, HardLimitAndRateLimitAreReported)
   const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
   const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
 
-  auto result = processor.process(raw, rotation, translation, 0.01);
+  auto result = processor.process(raw, rotation, translation);
   EXPECT_FALSE(result.ok);
   EXPECT_TRUE(result.hard_limit_exceeded);
 
-  ForceProcessorConfig rate_config;
-  rate_config.filter_alpha = Vector6d::Ones();
-  rate_config.scale = Vector6d::Ones();
-  rate_config.hard_wrench_limit = Vector6d::Constant(100.0);
-  rate_config.max_wrench_rate = Vector6d::Constant(1.0);
-  ForceProcessor rate_processor(rate_config);
-
-  raw.force.x = 10.0;
-  result = rate_processor.process(raw, rotation, translation, 0.1);
-  ASSERT_TRUE(result.ok);
-  raw.force.x = 20.0;
-  result = rate_processor.process(raw, rotation, translation, 0.1);
-  ASSERT_TRUE(result.ok);
-  EXPECT_TRUE(result.rate_limited);
-  EXPECT_NEAR(result.wrench.force.x, 10.1, 1.0e-12);
 }
 
 TEST(ForceProcessor, RawForceNormLimitStopsDuringTare)
@@ -681,13 +664,13 @@ TEST(ForceProcessor, RawForceNormLimitStopsDuringTare)
   const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
   const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
 
-  auto result = processor.process(raw, rotation, translation, 0.01);
+  auto result = processor.process(raw, rotation, translation);
   ASSERT_TRUE(result.taring);
   EXPECT_FALSE(result.hard_limit_exceeded);
 
   raw.force.x = 3.1;
   raw.force.y = 4.1;
-  result = processor.process(raw, rotation, translation, 0.01);
+  result = processor.process(raw, rotation, translation);
   EXPECT_FALSE(result.ok);
   EXPECT_TRUE(result.hard_limit_exceeded);
   EXPECT_FALSE(result.taring);

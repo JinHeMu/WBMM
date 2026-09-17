@@ -34,7 +34,6 @@ public:
     double mass,
     double damping,
     double stiffness,
-    double max_offset,
     double max_velocity);
 
   double update(double measured_force, double dt);
@@ -66,7 +65,6 @@ private:
   double mass_;
   double damping_;
   double stiffness_;
-  double max_offset_;
   double max_velocity_;
   double measured_force_{0.0};
   double offset_{0.0};
@@ -83,7 +81,6 @@ public:
     const Vector6d & mass,
     const Vector6d & damping,
     const Vector6d & stiffness,
-    const Vector6d & max_offset,
     const Vector6d & max_velocity);
 
   Vector6d update(const Vector6d & measured_wrench, double dt);

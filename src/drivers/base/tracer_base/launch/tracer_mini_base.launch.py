@@ -19,7 +19,7 @@ def generate_launch_description():
                                            description='Odometry frame id')
     base_link_frame_arg = DeclareLaunchArgument('base_frame', default_value='base_link',
                                                 description='Base link frame id')
-    odom_topic_arg = DeclareLaunchArgument('odom_topic_name', default_value='odom',
+    odom_topic_arg = DeclareLaunchArgument('odom_topic_name', default_value='/wheel/odometry',
                                            description='Odometry topic name')
     is_tracer_mini_arg = DeclareLaunchArgument('is_tracer_mini', default_value='true',
                                           description='Scout mini model')

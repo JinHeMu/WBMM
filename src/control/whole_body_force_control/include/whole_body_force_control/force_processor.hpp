@@ -26,7 +26,6 @@ struct ForceProcessorConfig
   // Euclidean norm of raw Fx/Fy/Fz [N].  Checked before tare and filtering so
   // a large step stops immediately.  <=0 disables this particular check.
   double hard_force_norm_limit{20.0};
-  Vector6d max_wrench_rate{Vector6d::Zero()};  // <=0 disables that axis
 };
 
 struct ForceProcessorResult
@@ -34,7 +33,6 @@ struct ForceProcessorResult
   bool ok{false};
   bool taring{false};
   bool hard_limit_exceeded{false};
-  bool rate_limited{false};
   std::size_t tare_samples_collected{0};
   wbmm::core::Wrench wrench;
 };
@@ -54,8 +52,7 @@ public:
   ForceProcessorResult process(
     const wbmm::core::Wrench & raw_source,
     const Eigen::Matrix3d & target_rotation_source,
-    const Eigen::Vector3d & target_to_source,
-    double dt);
+    const Eigen::Vector3d & target_to_source);
 
   [[nodiscard]] bool taring() const {return tare_active_;}
   [[nodiscard]] std::size_t tareSamplesCollected() const {return tare_count_;}

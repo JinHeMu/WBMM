@@ -7,12 +7,11 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 
-# Source launch files are organized into common/sim/real for clarity, but
-# install them flat into share/<pkg>/launch so the existing
-# `ros2 launch <pkg> <name>.launch.py` interface keeps working.
-install(DIRECTORY launch/common/ launch/sim/ launch/real/
+# Launch files are backend-agnostic and live directly in launch/.
+install(DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
   FILES_MATCHING PATTERN "*.launch.py"
+  PATTERN "__pycache__" EXCLUDE
 )
 
 install(DIRECTORY config rviz

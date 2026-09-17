@@ -832,7 +832,7 @@ $$
 
 障碍物从 `task.info` 构造时一次性加载；类本身提供动态增删/移动 API，但当前没有对应 ROS 服务/话题接口。加载位置：[`WbmmInterface.cpp:797`](../src/control/wbmm_ocs2/src/WbmmInterface.cpp#L797)。
 
-`CURRENT`：默认 `task.info` 中 `environmentCollision.activate=false`。参见 [`task.info:294`](../src/control/wbmm_ocs2_ros/config/task.info#L294)。因此不能因为 REMANI 正在使用 ESDF，就推断 OCS2 同时在做环境碰撞约束。
+`CURRENT`：默认 `task.info` 中 `environmentCollision.activate=false`。参见 [`task.info:294`](../src/bringup/config/real/task.info#L294)。因此不能因为 REMANI 正在使用 ESDF，就推断 OCS2 同时在做环境碰撞约束。
 
 ### 8.7 自碰撞
 

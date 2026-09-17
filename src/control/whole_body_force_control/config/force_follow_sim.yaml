@@ -7,13 +7,12 @@ whole_body_force_control:
 
     topics:
       wrench: /whole_body_force_control/fake_wrench
-      status: /whole_body_force_control/status
-      control_state: /whole_body_force_control/control_state
+      correction: /whole_body_force_control/correction
+      states: /whole_body_force_control/states
 
     force_sensor:
       sensor_frame: jk_se_vi_200_link
       tcp_frame: tool0
-      require_wrench_frame: true
       tf_lookup_timeout: 0.05
       tf_fallback_to_latest: true
       tare_samples: 50
@@ -23,7 +22,6 @@ whole_body_force_control:
       # before tare/filtering, so a >20 N step cannot create any motion.
       hard_force_norm_limit: 20.0
       hard_wrench_limit: [20.0, 20.0, 20.0, 4.0, 4.0, 4.0]
-      max_wrench_rate: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
       force_timeout: 0.50
 
     admittance:
@@ -33,15 +31,12 @@ whole_body_force_control:
       mass: [3.0, 3.0, 3.0, 0.3, 0.3, 0.3]
       damping: [45.0, 45.0, 45.0, 4.5, 4.5, 4.5]
       stiffness: [150.0, 150.0, 150.0, 0.0, 0.0, 0.0]
-      max_offset: [0.080, 0.080, 0.080, 0.15, 0.15, 0.15]
       max_velocity: [0.035, 0.035, 0.035, 0.15, 0.15, 0.15]
 
     whole_body:
       # 差速底盘只承担传感器位移在航向上的投影，其余由机械臂完成。
       base_share: 0.40
-      max_base_delta: 0.040
       max_base_velocity: 0.50
-      max_joint_delta: 0.60
       max_joint_velocity: 0.50
 
     safety:

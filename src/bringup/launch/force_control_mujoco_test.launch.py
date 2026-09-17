@@ -23,11 +23,18 @@ def generate_launch_description():
     bringup = FindPackageShare("tracer_jaka_bringup")
     run_test = LaunchConfiguration("run_test")
 
-    simulation = IncludeLaunchDescription(
+    hardware = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(PathJoinSubstitution([
-            bringup, "launch", "whole_body_force_control_sim.launch.py"])),
+            bringup, "launch", "mujoco_hardware_interface.launch.py"])),
         launch_arguments={
             "viewer": LaunchConfiguration("viewer"),
+            "start_camera": "false",
+        }.items(),
+    )
+    algorithms = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(PathJoinSubstitution([
+            bringup, "launch", "whole_body_force_control_profiles.launch.py"])),
+        launch_arguments={
             "use_rviz": LaunchConfiguration("use_rviz"),
             "profile": "sensor_z",
         }.items(),
@@ -90,7 +97,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "report_file",
             default_value="/tmp/whole_body_force_control_test_report.json"),
-        simulation,
+        hardware,
+        algorithms,
         delayed_tester,
         stop_after_test,
     ])

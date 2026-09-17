@@ -131,7 +131,7 @@ private:
 
     declare_parameter<std::string>("base_cmd_topic", "/diff_drive_controller/cmd_vel");
     declare_parameter<std::string>("arm_cmd_topic", "/arm_controller/commands");
-    declare_parameter<std::string>("odom_topic", "/diff_drive_controller/odom");
+    declare_parameter<std::string>("odom_topic", "/wheel/odometry");
     declare_parameter<std::string>("joint_state_topic", "/joint_states");
     declare_parameter<bool>("use_stamped_cmd", true);
     declare_parameter<bool>("command_output_enabled", false);

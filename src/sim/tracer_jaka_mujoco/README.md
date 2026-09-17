@@ -155,7 +155,13 @@ sudo apt install ros-humble-robot-localization ros-humble-slam-toolbox
 cd /home/a/WBMM
 colcon build --packages-select tracer_jaka_mujoco --symlink-install
 source install/setup.bash
-ros2 launch tracer_jaka_bringup slam_sim.launch.py
+# Start MuJoCo backend first.
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py
+# Then run the algorithm-only localization stack with sim configs.
+ros2 launch tracer_jaka_bringup localization.launch.py \
+  start_ekf:=true start_slam:=true \
+  ekf_config:=$(ros2 pkg prefix tracer_jaka_bringup)/share/tracer_jaka_bringup/config/sim/ekf_sim.yaml \
+  slam_config:=$(ros2 pkg prefix tracer_jaka_bringup)/share/tracer_jaka_bringup/config/sim/slam_toolbox_sim.yaml
 ```
 
 如果 `ekf_node` 报
@@ -175,11 +181,13 @@ ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \
   "{linear: {x: 0.20}, angular: {z: 0.25}}"
 ```
 
-For the real robot, the integrated launch uses Tracer `/odom`, Hipnuc
-`/IMU_data`, Lakibeam `/scan`, and starts all three drivers:
+For the real robot, the integrated launch uses Tracer `/wheel/odometry`, Hipnuc
+`/imu/data`, Lakibeam `/scan`, and starts all three drivers:
 
 ```bash
-ros2 launch tracer_jaka_bringup real_slam.launch.py
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py
+# then start the EKF stack separately with the canonical interface:
+ros2 launch tracer_jaka_bringup localization.launch.py
 ```
 
 The URDF provides `base_footprint -> laser_link` and

@@ -26,13 +26,13 @@ def generate_launch_description():
         "/camera/d455/color/camera_info",
         "/tf",
         "/tf_static",
-        "/odom",
+        "/wheel/odometry",
         "/odometry/filtered",
         "/joint_states",
         "/map",
         "/map_metadata",
         "/scan",
-        "/IMU_data",
+        "/imu/data",
     ]
 
     recorder = ExecuteProcess(

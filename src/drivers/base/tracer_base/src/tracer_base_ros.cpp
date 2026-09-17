@@ -21,7 +21,7 @@ TracerBaseRos::TracerBaseRos(std::string node_name)
 
   this->declare_parameter("odom_frame", rclcpp::ParameterValue("odom"));
   this->declare_parameter("base_frame", rclcpp::ParameterValue("base_link"));
-  this->declare_parameter("odom_topic_name", rclcpp::ParameterValue("odom"));
+  this->declare_parameter("odom_topic_name", rclcpp::ParameterValue("/wheel/odometry"));
   this->declare_parameter("publish_odom_tf", rclcpp::ParameterValue(true));
 
   this->declare_parameter("is_tracer_mini", rclcpp::ParameterValue(false));

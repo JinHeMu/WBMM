@@ -32,7 +32,7 @@
 
 ### 2.1 定位实机入口的主链 [CURRENT]
 
-以下来自 [定位实机入口](../src/bringup/launch/remani_mpc_localized_real.launch.py) 与 [机器人 URDF](../src/robotics/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf)。箭头表示 **TF 父 → 子**；它不是点坐标换算的方向。
+以下来自 [定位实机入口](../src/bringup/launch/remani_mpc_localized.launch.py) 与 [机器人 URDF](../src/robotics/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf)。箭头表示 **TF 父 → 子**；它不是点坐标换算的方向。
 
 ```mermaid
 flowchart TD
@@ -56,7 +56,7 @@ flowchart TD
 
 | TF 边或内容 | 发布责任 [CURRENT] | 契约要求 [PROPOSED] |
 |---|---|---|
-| `map → odom` | 定位入口由 AMCL 提供；建图由 slam_toolbox 提供；`ocs2_sim.launch.py` 不启动 SLAM 时启用固定变换发布者 | 三种来源按运行模式互斥 |
+| `map → odom` | 定位入口由 AMCL 提供；建图由 slam_toolbox 提供；`ocs2.launch.py` 不启动 SLAM 时启用固定变换发布者 | 三种来源按运行模式互斥 |
 | `odom → base_footprint` | EKF 入口由 EKF 提供，定位实机入口关闭 MRT 所包含链路的里程计 TF 输出 | 同一运行模式只能有一个权威发布者；轮速消息仍可作为 EKF 输入 |
 | `base_footprint → base_link` 及机器人固定边 | robot_state_publisher 按 URDF 发布 | 安装外参以加载的 URDF 为准，不叠加同名静态 TF |
 | `Link_0 → … → Link_6` | robot_state_publisher 根据 URDF 和关节状态计算 | `joint_1…joint_6` 是关节名称，TF 连杆名称是 `Link_1…Link_6` |
@@ -91,16 +91,16 @@ flowchart TD
 ### 3.1 不把参数名当 frame 名 [CURRENT]
 
 - [MRT](../src/control/wbmm_ocs2_ros/src/WbmmMrtNode.cpp) 的 `world_frame` 默认值为 `odom`；含义是“控制参考系参数”，不是必须存在名为 `world` 的 TF。
-- [EKF 实机配置](../src/bringup/config/ekf_real.yaml) 的 `world_frame: odom` 同样如此。
-- [MuJoCo 桥接](../src/sim/tracer_jaka_mujoco/tracer_jaka_mujoco/mujoco_bridge_node.py) 从平面关节 `qpos` 读取 x、y、yaw 作为里程计，默认标为 `odom`。当前 [OCS2 仿真入口](../src/bringup/launch/ocs2_sim.launch.py) 注明 MuJoCo 世界与发布里程计使用同一原点；这是具体仿真配置关系，不能推广为实机的 `world = map = odom`。
+- [EKF 实机配置](../src/bringup/config/real/ekf.yaml) 的 `world_frame: odom` 同样如此。
+- [MuJoCo 桥接](../src/sim/tracer_jaka_mujoco/tracer_jaka_mujoco/mujoco_bridge_node.py) 从平面关节 `qpos` 读取 x、y、yaw 作为里程计，默认标为 `odom`。当前 [OCS2 仿真入口](../src/bringup/launch/ocs2.launch.py) 注明 MuJoCo 世界与发布里程计使用同一原点；这是具体仿真配置关系，不能推广为实机的 `world = map = odom`。
 - 数学公式中的上标 `w` 只表示所选参考系。本文改用 `G` 指代明确选定的全局/局部参考系；每条链路必须把 `G` 落实为 `map` 或 `odom` 等实际值。
 
 ### 3.2 按入口选择，而非全仓库统一成一个名字
 
 | 入口/场景 | 规划参考系 | OCS2/MRT 参考系 | 变换边界 |
 |---|---|---|---|
-| `remani_mpc_localized_real.launch.py` [CURRENT] | `map`；静态 ESDF 明确检查 `frame_id=map` | `odom` | 里程计 relay 将 pose 转入 map；轨迹 bridge 将参考转回 odom |
-| `remani_mpc_sim.launch.py` [CURRENT] | `odom` | `odom` | 显式配置同系；不需要动态 map/odom 轨迹转换 |
+| `remani_mpc_localized.launch.py` [CURRENT] | `map`；静态 ESDF 明确检查 `frame_id=map` | `odom` | 里程计 relay 将 pose 转入 map；轨迹 bridge 将参考转回 odom |
+| `remani_mpc.launch.py` [CURRENT] | `odom` | `odom` | 显式配置同系；不需要动态 map/odom 轨迹转换 |
 | 其他 launch / 手工启动 [TBD] | 核对最终参数和实际消息 | 核对 observation 与 target 所属系 | 不能继承上面任一行的假设 |
 
 [PROPOSED] 固定地图和固定工件优先在 `map` 描述；短期连续控制在 `odom` 描述。地图、ESDF、任务、规划状态必须在同一参考系或经过显式转换。不能仅把 ESDF 的 `frame_id` 从 odom 改成 map；其原点、体素坐标和实际几何也必须匹配。
@@ -270,7 +270,7 @@ $$
 | [JAKA 驱动](../src/drivers/arm/jaka_hardware_interface/src/jaka_hardware_interface.cpp) | 直接透传 EDG 原始 F/T 数值，不做清零、换系、滤波、死区或过期检测 | 原始数值的坐标系、单位和符号须结合 JAKA/传感器资料与实机标定确认，不能在此处默认为 tool0 wrench |
 | [实机 F/T broadcaster](../src/robotics/tracer_jaka_description/config/ros2_controllers.yaml) | `frame_id: jk_se_vi_200_link` | EDG 原始传感器 wrench，进入力控流程后按传感器原点处理；仍需标定与有效性检查 |
 | [仿真 F/T broadcaster](../src/sim/tracer_jaka_mujoco/tracer_jaka_mujoco/fts_sensor.py) | 从 `tcp_fts_site` 读数，按配置填 header；默认 frame 由 bridge 配为 `jk_se_vi_200_link` | 填 header 本身不执行换系；必须检查 site 与所声明 frame 的原点、方向一致 |
-| [力控 ROS I/O](../src/control/whole_body_force_control/src/node_ros_io.cpp) | 2026-09-17：直接接收 `sensor_frame` 下的 wrench，不再转换到 TCP；frame 不匹配时拒绝 | `sensor_frame` 默认为 `jk_se_vi_200_link`；实机只开启 fz 导纳，在名义传感器系生成修正，通过该 link 的 FK/Jacobian 转成全身参考 |
+| [力控 ROS I/O](../src/control/whole_body_force_control/src/node_ros_io.cpp) | 接收 `sensor_frame` 下的原始 wrench，通过 TF 完整变换到 `tcp_frame`（含力臂力矩），在名义 TCP 系做导纳，再把修正量转到 `state_frame`；frame 为空或不等于 `sensor_frame` 时拒绝。发布 `correction` 修正量数组和 `states` 控制状态。 | `sensor_frame` 默认 `jk_se_vi_200_link`，`tcp_frame` 默认 `tool0`；修正量没有固定 `max_offset`，由关节硬限位、IK 可达性 anti-windup 和 MPC 碰撞约束限制。 |
 
 [CURRENT] 当前 [MuJoCo 模型](../src/sim/tracer_jaka_mujoco/models/tracer_jaka_zu5_robot.xml) 将 `tcp_fts_site` 放在 tool-side body，局部四元数抵消该 body 相对传感器父系的旋转，使 site 与仿真 `jk_se_vi_200_link` 同原点、同轴。注意该 MJCF 的腕部固定四元数与 URDF 表中的安装旋转并非逐项相同；仿真内部 site/header 对齐不等于仿真与实机外参已对齐，须列入 F06 联合核验。
 
@@ -286,7 +286,7 @@ $$
 
 [CURRENT] URDF 中包含 `d455_link`、`d435i_link`、`laser_link`、`imu_link`。其中 IMU 安装 yaw 约为 π，不能直接把原始 IMU X 分量当成车体 X 分量。
 
-[CURRENT] [仿真相机](../src/sim/tracer_jaka_mujoco/tracer_jaka_mujoco/camera_sensor.py) 根据 MuJoCo camera 位姿计算 optical 方向，并可从 `base_footprint` 直接发布到 `d455_depth_optical_frame`、`d455_color_optical_frame`。因此“真实相机链必然和仿真链逐边相同”不是当前保证。实机 [D455](../src/bringup/launch/d455_real.launch.py) 和 [D435](../src/bringup/launch/d435_real.launch.py) 启动相机驱动；实际 optical 子树需运行时核验。
+[CURRENT] [仿真相机](../src/sim/tracer_jaka_mujoco/tracer_jaka_mujoco/camera_sensor.py) 根据 MuJoCo camera 位姿计算 optical 方向，并可从 `base_footprint` 直接发布到 `d455_depth_optical_frame`、`d455_color_optical_frame`。因此“真实相机链必然和仿真链逐边相同”不是当前保证。实机 [D455](../src/bringup/launch/d455_camera.launch.py) 和 [D435](../src/bringup/launch/d435_camera.launch.py) 启动相机驱动；实际 optical 子树需运行时核验。
 
 [CURRENT] MuJoCo bridge 的激光默认 `lidar.frame_id` 是 `lidar_link`，而上述 URDF link 为 `laser_link`。这些不是自动别名；最终 launch 是否覆盖参数、真实驱动 header 和运行 TF 是否连通，应逐入口核对。
 

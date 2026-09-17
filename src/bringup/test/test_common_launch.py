@@ -1,4 +1,4 @@
-"""Check the algorithm-only common launches without starting any ROS node."""
+"""Static composition checks for the backend-agnostic WBMM launch tree."""
 
 import ast
 import importlib.util
@@ -11,10 +11,28 @@ from launch.actions import (
 from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
 import numpy as np
 import pytest
+import yaml
 
 
 BRINGUP = Path(__file__).resolve().parents[1]
-LAUNCH_FILES = {path.name: path for path in (BRINGUP / 'launch').rglob('*.launch.py')}
+LAUNCH_DIR = BRINGUP / 'launch'
+LAUNCH_FILES = {path.name: path for path in LAUNCH_DIR.glob('*.launch.py')}
+
+CORE_ALGORITHM_LAUNCHES = {
+    'localization.launch.py',
+    'moveit.launch.py',
+    'ocs2.launch.py',
+    'remani.launch.py',
+    'servo.launch.py',
+    'whole_body_force_control.launch.py',
+    'remani_mpc.launch.py',
+    'remani_mpc_localized.launch.py',
+}
+
+BACKEND_LAUNCHES = {
+    'wbmm_hardware_interface.launch.py',
+    'mujoco_hardware_interface.launch.py',
+}
 
 
 def load_module(path):
@@ -35,24 +53,45 @@ def launch_arguments(path):
     }
 
 
-def test_common_launches_are_algorithm_only():
-    forbidden_packages = {'controller_manager', 'tracer_base', 'hipnuc_imu',
-                          'lakibeam1', 'tracer_jaka_mujoco', 'dh_gripper_driver'}
-    for path in (BRINGUP / 'launch' / 'common').glob('*.launch.py'):
+def test_core_algorithm_launches_do_not_start_backends():
+    forbidden_packages = {
+        'controller_manager', 'tracer_base', 'hipnuc_imu', 'lakibeam1',
+        'realsense2_camera', 'tracer_jaka_mujoco', 'dh_gripper_driver',
+    }
+    forbidden_launch_includes = {
+        'wbmm_hardware_interface.launch.py',
+        'mujoco_hardware_interface.launch.py',
+        }
+    for name in CORE_ALGORITHM_LAUNCHES:
+        path = LAUNCH_FILES[name]
         assert 'backend' not in launch_arguments(path)
-        tree = ast.parse(path.read_text(encoding='utf-8'))
+        content = path.read_text(encoding='utf-8')
+        assert not any(include in content for include in forbidden_launch_includes)
+        tree = ast.parse(content)
         packages = {
             keyword.value.value
             for call in ast.walk(tree)
             if isinstance(call, ast.Call)
             for keyword in call.keywords
-            if keyword.arg == 'package' and isinstance(keyword.value, ast.Constant)
+            if keyword.arg == 'package'
+            and isinstance(keyword.value, ast.Constant)
         }
-        assert not packages.intersection(forbidden_packages)
+        assert not packages.intersection(forbidden_packages), name
+
+
+def test_wbmm_top_level_defaults_to_no_backend():
+    path = LAUNCH_FILES['wbmm.launch.py']
+    content = path.read_text(encoding='utf-8')
+    assert 'default_value="none"' in content
+    assert 'start_localization", default_value="false"' in content
+    assert 'start_ocs2", default_value="false"' in content
+    assert 'start_remani", default_value="false"' in content
+    assert 'start_force_control", default_value="false"' in content
+    assert 'start_moveit", default_value="false"' in content
 
 
 def test_removed_entry_and_offset_arguments_have_no_bringup_references():
-    assert not (BRINGUP / 'launch' / 'common' / 'bringup.launch.py').exists()
+    assert not (LAUNCH_DIR / 'bringup.launch.py').exists()
     for path in LAUNCH_FILES.values():
         content = path.read_text(encoding='utf-8')
         assert 'bringup.launch.py' not in content
@@ -72,16 +111,14 @@ def test_remani_requires_tf_between_different_frames():
 
 
 def test_moveit_uses_only_hardware_write_as_motion_gate():
-    common_args = launch_arguments(LAUNCH_FILES['moveit.launch.py'])
-    real_args = launch_arguments(LAUNCH_FILES['moveit_real.launch.py'])
-    for args in (common_args, real_args):
-        assert 'allow_trajectory_execution' not in args
-        assert 'safety_release' not in args
-        assert 'hardware_write' in args
+    args = launch_arguments(LAUNCH_FILES['moveit.launch.py'])
+    assert 'allow_trajectory_execution' not in args
+    assert 'safety_release' not in args
+    assert 'hardware_write' in args
 
 
 def test_real_ros2_control_keeps_controller_names_and_uses_canonical_config():
-    path = LAUNCH_FILES['hardware_interface.launch.py']
+    path = LAUNCH_FILES['wbmm_hardware_interface.launch.py']
     content = path.read_text(encoding='utf-8')
     tree = ast.parse(content)
     manager_nodes = []
@@ -104,7 +141,7 @@ def test_real_ros2_control_keeps_controller_names_and_uses_canonical_config():
 
 
 def describe_actions(actions, context, visited):
-    """Resolve bringup composition, but never execute Node/Process actions."""
+    """Resolve launch composition, but never execute Node/Process actions."""
     for action in actions:
         if action.condition is not None and not action.condition.evaluate(context):
             continue
@@ -130,15 +167,18 @@ def describe_actions(actions, context, visited):
                     context, normalize_to_list_of_substitutions(value))
             visited.add(name)
             module = load_module(LAUNCH_FILES[name])
-            describe_actions(module.generate_launch_description().entities, child, visited)
+            describe_actions(
+                module.generate_launch_description().entities, child, visited)
 
 
 @pytest.mark.parametrize('entry', [
-    'ocs2_sim.launch.py', 'remani_mpc_sim.launch.py',
-    'ocs2_esdf_validation.launch.py', 'ocs2_real.launch.py',
-    'remani_mpc_real.launch.py', 'remani_mpc_localized_real.launch.py',
-    'slam_sim.launch.py', 'real_slam.launch.py',
-    'moveit_sim.launch.py', 'moveit_real.launch.py', 'servo.launch.py',
+    'wbmm_hardware_interface.launch.py',
+    'mujoco_hardware_interface.launch.py',
+    'wbmm.launch.py',
+    'whole_body_force_control.launch.py',
+    'remani_mpc.launch.py',
+    'remani_mpc_localized.launch.py',
+    'servo.launch.py',
 ])
 def test_deployment_composition_resolves_without_starting_nodes(entry, tmp_path):
     map_file = tmp_path / 'site.yaml'
@@ -147,11 +187,63 @@ def test_deployment_composition_resolves_without_starting_nodes(entry, tmp_path)
     np.savez_compressed(esdf_file, frame_id=np.str_('map'))
     context = LaunchContext()
     context.launch_configurations.update({
-        'map_file': str(map_file), 'static_esdf_file': str(esdf_file),
-        'esdf_file': str(esdf_file), 'map2d_yaml': str(map_file),
+        'map_file': str(map_file),
+        'static_esdf_file': str(esdf_file),
+        'esdf_file': str(esdf_file),
+        'map2d_yaml': str(map_file),
         'publish_ply_mesh': 'false',
     })
     module = load_module(LAUNCH_FILES[entry])
     visited = set()
     describe_actions(module.generate_launch_description().entities, context, visited)
     assert 'bringup.launch.py' not in visited
+
+
+def test_canonical_interface_contract_matches_real_hardware_defaults():
+    contract = yaml.safe_load(
+        (BRINGUP / 'config' / 'common' / 'interface.yaml').read_text(
+            encoding='utf-8'))['wbmm_ros_interface']
+    topics = contract['topics']
+
+    real_launch = (
+        LAUNCH_DIR / 'wbmm_hardware_interface.launch.py').read_text(
+        encoding='utf-8')
+    mujoco_launch = (
+        LAUNCH_DIR / 'mujoco_hardware_interface.launch.py').read_text(
+        encoding='utf-8')
+
+    assert topics['wheel_odometry']['name'] == '/wheel/odometry'
+    assert topics['imu']['name'] == '/imu/data'
+    for content in (real_launch, mujoco_launch):
+        assert topics['wheel_odometry']['name'] in content
+        assert topics['imu']['name'] in content
+        assert topics['scan']['name'] in content
+        assert topics['fts_wrench']['name'] in content
+    assert '/IMU_data' not in real_launch
+    assert 'default_value="/odom"' not in real_launch
+
+    imu_config = yaml.safe_load(
+        (BRINGUP.parent / 'drivers' / 'sensors' / 'hipnuc_imu' / 'config'
+         / 'hipnuc_config.yaml').read_text(encoding='utf-8'))
+    assert (imu_config['IMU_publisher']['ros__parameters']['imu_topic']
+            == topics['imu']['name'])
+
+    ekf_config = yaml.safe_load(
+        (BRINGUP / 'config' / 'real' / 'ekf.yaml').read_text(
+            encoding='utf-8'))['ekf_filter_node']['ros__parameters']
+    assert ekf_config['odom0'] == topics['wheel_odometry']['name']
+    assert ekf_config['imu0'] == topics['imu']['name']
+
+
+@pytest.mark.parametrize('backend, expected_launch', [
+    ('real', 'wbmm_hardware_interface.launch.py'),
+    ('mujoco', 'mujoco_hardware_interface.launch.py'),
+])
+def test_wbmm_backend_composition_declares_all_forwarded_args(
+        backend, expected_launch):
+    context = LaunchContext()
+    context.launch_configurations.update({'hardware_backend': backend})
+    module = load_module(LAUNCH_FILES['wbmm.launch.py'])
+    visited = set()
+    describe_actions(module.generate_launch_description().entities, context, visited)
+    assert expected_launch in visited

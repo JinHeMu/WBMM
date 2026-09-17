@@ -87,10 +87,10 @@ void WholeBodyForceControlNode::createRosInterfaces()
   const auto reliable = rclcpp::QoS(1).reliable();
   target_publisher_ = create_publisher<ocs2_msgs::msg::MpcTargetTrajectories>(
       parameters_.target_topic, reliable);
-  status_publisher_ = create_publisher<std_msgs::msg::Float64MultiArray>(
-      parameters_.status_topic, rclcpp::QoS(10));
-  control_state_publisher_ = create_publisher<std_msgs::msg::String>(
-      parameters_.control_state_topic,
+  correction_publisher_ = create_publisher<std_msgs::msg::Float64MultiArray>(
+      parameters_.correction_topic, rclcpp::QoS(10));
+  state_publisher_ = create_publisher<std_msgs::msg::String>(
+      parameters_.state_topic,
       rclcpp::QoS(1).reliable().transient_local());
   observation_subscription_ = create_subscription<ocs2_msgs::msg::MpcObservation>(
       parameters_.robot_name + "_mpc_observation",
@@ -168,9 +168,8 @@ void WholeBodyForceControlNode::wrenchCallback(
 
   // Raw wrench is measured in sensor_frame.  It is transformed to tcp_frame
   // with the full lever-arm term, then admittance is solved in tcp_frame.
-  if ((message->header.frame_id.empty() && parameters_.require_wrench_frame) ||
-      (!message->header.frame_id.empty() &&
-       message->header.frame_id != parameters_.sensor_frame)) {
+  if (message->header.frame_id.empty() ||
+      message->header.frame_id != parameters_.sensor_frame) {
     RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
         "Rejecting wrench frame '%s'; expected sensor frame '%s'",
@@ -228,17 +227,8 @@ void WholeBodyForceControlNode::wrenchCallback(
   }
 
   const auto wall_now = std::chrono::steady_clock::now();
-  double dt = 1.0 / std::max(1.0, parameters_.loop_rate);
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (wrench_received_) {
-      dt = std::chrono::duration<double>(wall_now - last_wrench_).count();
-    }
-  }
-  dt = std::clamp(dt, 1.0e-4, 0.05);
-
   const auto processed = force_processor_.process(
-      *raw, tcp_rotation_sensor, sensor_origin_in_tcp, dt);
+      *raw, tcp_rotation_sensor, sensor_origin_in_tcp);
   if (processed.taring) {
     RCLCPP_INFO_THROTTLE(
         get_logger(), *get_clock(), 1000,
@@ -274,11 +264,6 @@ void WholeBodyForceControlNode::wrenchCallback(
   measured_wrench_core_ = wrench;
   wrench_received_ = true;
   last_wrench_ = wall_now;
-  if (processed.rate_limited) {
-    RCLCPP_WARN_THROTTLE(
-        get_logger(), *get_clock(), 2000,
-        "Wrench input rate-limited by ForceProcessor safety check");
-  }
 }
 
 Vector6d WholeBodyForceControlNode::measuredWrenchVector() const
@@ -305,16 +290,16 @@ bool WholeBodyForceControlNode::foreignTargetPublisherPresent() const
   return false;
 }
 
-void WholeBodyForceControlNode::publishControlState(const std::string &state)
+void WholeBodyForceControlNode::publishState(const std::string &state)
 {
-  if (state == last_control_state_)
+  if (state == last_state_)
   {
     return;
   }
-  last_control_state_ = state;
+  last_state_ = state;
   std_msgs::msg::String message;
   message.data = state;
-  control_state_publisher_->publish(message);
+  state_publisher_->publish(message);
 }
 
 void WholeBodyForceControlNode::publishReference(
@@ -376,7 +361,7 @@ void WholeBodyForceControlNode::publishReference(
           static_cast<std::size_t>(parameters_.input_dimension)));
 }
 
-void WholeBodyForceControlNode::publishStatus(
+void WholeBodyForceControlNode::publishCorrection(
     const Eigen::VectorXd &reference,
     const Eigen::VectorXd &measured_state,
     double primary_force,
@@ -428,31 +413,31 @@ void WholeBodyForceControlNode::publishStatus(
           .cwiseAbs()
           .maxCoeff();
 
-  std_msgs::msg::Float64MultiArray status;
-  status.data = {
+  std_msgs::msg::Float64MultiArray correction_msg;
+  correction_msg.data = {
       primary_force, primary_offset, base_reference,
       ee_reference - base_reference, measured_base, measured_ee,
       measured_ee - measured_base, max_joint_motion, lateral_base};
   for (Eigen::Index i = 0; i < 6; ++i)
   {
-    status.data.push_back(filtered_wrench[i]);
+    correction_msg.data.push_back(filtered_wrench[i]);
   }
   for (Eigen::Index i = 0; i < 6; ++i)
   {
-    status.data.push_back(correction[i]);
+    correction_msg.data.push_back(correction[i]);
   }
   for (Eigen::Index i = 0; i < 6; ++i)
   {
-    status.data.push_back(cartesian_controller_->velocity()[i]);
+    correction_msg.data.push_back(cartesian_controller_->velocity()[i]);
   }
   for (std::size_t i = 0; i < 6; ++i)
   {
-    status.data.push_back(parameters_.admittance_axes[i] ? 1.0 : 0.0);
+    correction_msg.data.push_back(parameters_.admittance_axes[i] ? 1.0 : 0.0);
   }
-  status.data.push_back(parameters_.admittance_enabled ? 1.0 : 0.0);
-  status.data.push_back(parameters_.reference_output_enabled ? 1.0 : 0.0);
-  status.data.push_back(fault_latched_ ? 1.0 : 0.0);
-  status_publisher_->publish(status);
+  correction_msg.data.push_back(parameters_.admittance_enabled ? 1.0 : 0.0);
+  correction_msg.data.push_back(parameters_.reference_output_enabled ? 1.0 : 0.0);
+  correction_msg.data.push_back(fault_latched_ ? 1.0 : 0.0);
+  correction_publisher_->publish(correction_msg);
 }
 
 }  // namespace whole_body_force_control

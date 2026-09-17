@@ -50,7 +50,7 @@ namespace hipnuc_driver
 				this->declare_parameter<std::string>("serial_port", "/dev/ttyUSB0");
 				this->declare_parameter<int>("baud_rate", 115200);
 				this->declare_parameter<std::string>("frame_id", "base_link");
-				this->declare_parameter<std::string>("imu_topic", "/IMU_data");
+				this->declare_parameter<std::string>("imu_topic", "/imu/data");
 				this->declare_parameter<std::string>("euler_topic", "/euler_data");
 				this->declare_parameter<std::string>("magnetic_topic", "/magnetic_data");
 				this->declare_parameter<std::string>("temperature_topic", "/temperature_data");

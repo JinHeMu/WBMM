@@ -1,4 +1,12 @@
-# WBMM 项目空间地图与启动入口
+# WBMM 项目与启动地图
+
+> CURRENT（2026-09-17）：launch 目录已扁平化，不再使用 `launch/common`、`launch/real`、
+> `launch/sim`，也不再用 `_real` / `_sim` 文件名。硬件/仿真只能由
+> `wbmm_hardware_interface.launch.py` 与 `mujoco_hardware_interface.launch.py` 启动；
+> 其余核心 launch 只启动算法并消费 `config/common/interface.yaml` 定义的接口。
+> `wbmm.launch.py` 是可选总入口，默认 `hardware_backend:=none`。
+> 下文部分是旧版部署记录，具体路径以当前 launch 目录和接口文档为准。
+
 
 > Status: DRAFT  
 > Author: Agent  
@@ -12,7 +20,7 @@
 | 目录 | 当前职责 |
 |---|---|
 | `src/core/` | `wbmm_core` 公共数据与契约实现 |
-| `src/planning/` | `search/`、`optimize/` 的规划目录；具体运行接入状态 TBD |
+| `src/planning/` | `search/` 中的 `wbmm_search` 提供离线差速底盘 Kino A*、测试和绘图；`optimize/` 尚为空，运行控制链接入 TBD |
 | `src/control/` | OCS2 模型、ROS 跟踪接口和全身力控 |
 | `src/robotics/` | 机器人描述、Pinocchio、ROS 接口、MoveIt 配置 |
 | `src/map/` | 定位、地图、ESDF 与地图可视化 |
@@ -20,6 +28,11 @@
 | `src/sim/` | MuJoCo 模型与状态/命令接口 |
 | `src/vendor/` | REMANI、OCS2 等外部后端，本次未修改 |
 | `src/bringup/` | 启动编排、部署参数与就绪检查 |
+
+离线搜索入口：`wbmm_search/kino_astar_demo` → 底盘搜索 → CSV →
+`plot_kino_astar.py`。仅生成搜索初值，不发布 ROS 参考或机器人命令。
+默认要求底盘碰撞回调，示例显式关闭碰撞检查；详情见
+[差速底盘 Kino A*](kino_astar.md)。
 
 ## 2. CURRENT：common 只启动算法
 
@@ -61,7 +74,7 @@ real/remani_mpc_real.launch.py
 
 real/remani_mpc_localized_real.launch.py
   -> real/real_slam.launch.py start_slam=false
-  -> tracer_jaka_localization/localization_real.launch.py
+  -> tracer_jaka_localization/amcl_localization.launch.py
   -> odom_to_map_relay.py
   -> real/ocs2_real.launch.py
   -> common/remani.launch.py

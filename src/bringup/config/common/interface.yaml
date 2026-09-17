@@ -1,0 +1,100 @@
+# WBMM common ROS interface contract.
+#
+# This file is the single source of truth for backend-independent topic,
+# frame and rate naming. Real and MuJoCo hardware interfaces must implement
+# this contract. Algorithm launch files consume this contract and must not
+# branch on real/sim backend.
+wbmm_ros_interface:
+  version: 1
+  status: normative
+
+  topics:
+    base_command:
+      name: /cmd_vel
+      type: geometry_msgs/msg/Twist
+      direction: algorithms_to_hardware
+      required: true
+    arm_command:
+      name: /arm_controller/commands
+      type: std_msgs/msg/Float64MultiArray
+      direction: algorithms_to_hardware
+      required: true
+    arm_trajectory_action:
+      name: /arm_trajectory_controller/follow_joint_trajectory
+      type: control_msgs/action/FollowJointTrajectory
+      direction: algorithms_to_hardware
+      required: false
+    joint_states:
+      name: /joint_states
+      type: sensor_msgs/msg/JointState
+      direction: hardware_to_algorithms
+      required: true
+    wheel_odometry:
+      name: /wheel/odometry
+      type: nav_msgs/msg/Odometry
+      direction: hardware_to_algorithms
+      required: true
+    imu:
+      name: /imu/data
+      type: sensor_msgs/msg/Imu
+      direction: hardware_to_algorithms
+      required: true
+    scan:
+      name: /scan
+      type: sensor_msgs/msg/LaserScan
+      direction: hardware_to_algorithms
+      required: true
+    fts_wrench:
+      name: /fts_broadcaster/wrench
+      type: geometry_msgs/msg/WrenchStamped
+      direction: hardware_to_algorithms
+      required: true
+    sim_clock:
+      name: /clock
+      type: rosgraph_msgs/msg/Clock
+      direction: mujoco_backend_to_algorithms
+      required: false
+    camera:
+      color_image:
+        name: /camera/d455/color/image_raw
+        type: sensor_msgs/msg/Image
+        direction: hardware_to_algorithms
+        required: false
+      depth_image:
+        name: /camera/d455/depth/image_raw
+        type: sensor_msgs/msg/Image
+        direction: hardware_to_algorithms
+        required: false
+      color_camera_info:
+        name: /camera/d455/color/camera_info
+        type: sensor_msgs/msg/CameraInfo
+        direction: hardware_to_algorithms
+        required: false
+      depth_camera_info:
+        name: /camera/d455/depth/camera_info
+        type: sensor_msgs/msg/CameraInfo
+        direction: hardware_to_algorithms
+        required: false
+
+  frames:
+    map: map
+    odom: odom
+    base: base_footprint
+    imu: imu_link
+    lidar: laser_link
+    fts: jk_se_vi_200_link
+    end_effector: tool0
+
+  rates_hz:
+    joint_states: 100.0
+    wheel_odometry: 50.0
+    imu: 100.0
+    scan: 30.0
+    fts_wrench: 125.0
+
+  services:
+    controller_manager:
+      namespace: /controller_manager
+      note: >-
+        Standard ros2_control services. They are implementation-specific and
+        must not be required by algorithm nodes.

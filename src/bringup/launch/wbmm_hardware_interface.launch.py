@@ -201,7 +201,7 @@ def generate_launch_description():
         DeclareLaunchArgument("start_base", default_value="true"),
         DeclareLaunchArgument(
             "start_robot_state_publisher", default_value="true"),
-        DeclareLaunchArgument("start_arm_pose", default_value="true"),
+        DeclareLaunchArgument("start_arm_pose", default_value="false"),
         DeclareLaunchArgument("start_imu", default_value="true"),
         DeclareLaunchArgument("start_lidar", default_value="true"),
         DeclareLaunchArgument(
@@ -229,13 +229,13 @@ def generate_launch_description():
         DeclareLaunchArgument("jaka_local_ip", default_value="10.5.5.127"),
         DeclareLaunchArgument("can_port", default_value="can0"),
         DeclareLaunchArgument("serial_port", default_value="/dev/ttyUSB0"),
-        DeclareLaunchArgument("wheel_odom_topic", default_value="/odom"),
+        DeclareLaunchArgument("wheel_odom_topic", default_value="/wheel/odometry"),
         DeclareLaunchArgument(
             "publish_odom_tf", default_value="false",
             description=(
                 "Publish odom -> base_footprint from tracer_base. Keep false "
                 "when robot_localization owns that transform.")),
-        DeclareLaunchArgument("imu_topic", default_value="/IMU_data"),
+        DeclareLaunchArgument("imu_topic", default_value="/imu/data"),
         DeclareLaunchArgument("scan_topic", default_value="/scan"),
         DeclareLaunchArgument("lidar_host_ip", default_value="0.0.0.0"),
         DeclareLaunchArgument(

@@ -10,8 +10,9 @@
 > 启动时自动 tare、低通滤波、有限性检查和现有 wrench 限值检查；当前节点不做 TCP 换系。
 > 实机前仍需确认传感器 frame 与 URDF/TF 的轴定义和自动 tare 时工具确实无外力。
 
-> CURRENT（配置收敛，2026-09-16）：`whole_body_force_control/config/` 只保留
-> `force_follow_sim.yaml` 和 `force_follow_real.yaml`；实机入口默认读取后者。
+> CURRENT（配置收敛，2026-09-16）：力控功能包只保留
+> `force_follow_sim.yaml`；实机配置统一放到
+> `tracer_jaka_bringup/config/real/force_control.yaml`，实机入口默认读取它。
 > real 先测试传感器 Z 轴导纳柔顺，不启用无限行程，底盘参考分担保持为零。
 >
 > CURRENT（安全门收敛）：real launch 现在只使用 `hardware_write` 作为唯一
@@ -19,6 +20,11 @@
 > 命令输出。不再有 `command_output_enabled` / `safety_release`。
 > 下文旧阶段 C/D 的描述来自历史接口，不能直接执行；单一开关下不存在
 > “只打开参考输出但禁止 JAKA 写”的中间态。配置收敛没有修改或验证硬件安全链。
+
+> CURRENT（2026-09-17）：`whole_body_force_control.launch.py` 现在只启动力控和
+> OCS2 算法，不再启动实机硬件。实机测试必须先启动
+> `wbmm_hardware_interface.launch.py`；仿真测试先启动
+> `mujoco_hardware_interface.launch.py`。旧 `*_real` / `*_sim` 启动文件名已废弃。
 
 ## CURRENT：传感器原点单轴导纳（2026-09-17）
 
@@ -36,8 +42,9 @@ $$
 $F_z$ 为去偏置、滤波后的传感器 Z 向力，$\delta_z$ 为名义传感器系下的位移（m）。
 平移方向使用名义传感器姿态旋转到 `odom`，并通过 6D IK 保持名义传感器姿态。
 正 Fz 沿传感器 +Z 柔顺；撤力后回到名义位置。仍采用 20 mm 位移边界、10 mm/s
-参考速度边界、0.05 rad 关节参考偏移边界，底盘分担为零，所有实机开关默认关闭。
-配置文件仍叫 `force_follow_real.yaml`，本轮只改变其模式和传感器参考，不改文件名。
+参考速度边界、0.05 rad 关节参考偏移边界，底盘分担 0.6，所有实机开关默认关闭。
+实机配置文件已统一到 `tracer_jaka_bringup/config/real/force_control.yaml`，
+文件名去掉 `_real` 后缀；本轮只改变其模式和传感器参考。
 
 [CURRENT] 三个相关包定向构建通过，23 项核心单元测试、24 项配置/安全门/启动组合
 测试通过。隔离 ROS 合成输入验证了 +2 N → +5 mm、−2 N → −5 mm、撤力回零，
@@ -50,22 +57,22 @@ $F_z$ 为去偏置、滤波后的传感器 Z 向力，$\delta_z$ 为名义传感
 本轮修改范围（相对于仓库根目录）：
 
 - 力控节点：`src/control/whole_body_force_control/src/node.hpp`、`node.cpp`、`node_config.cpp`、`node_ros_io.cpp`。
-- 配置：`src/control/whole_body_force_control/config/force_follow_real.yaml`、`force_follow_sim.yaml`；`src/robotics/tracer_jaka_description/config/ros2_controllers.yaml`。
+- 配置：`src/bringup/config/real/force_control.yaml`、`src/control/whole_body_force_control/config/force_follow_sim.yaml`；`src/robotics/tracer_jaka_description/config/ros2_controllers.yaml`。
 - 构建依赖：`src/control/whole_body_force_control/CMakeLists.txt`、`package.xml`。
-- 力控入口：`src/bringup/launch/real/whole_body_force_control_real.launch.py`；`src/bringup/launch/sim/whole_body_force_control_sim.launch.py`、`force_control_mujoco_test.launch.py`、`force_control_20s_follow_test.launch.py`、`force_control_infinite_follow_test.launch.py`。
+- 力控入口：`src/bringup/launch/whole_body_force_control.launch.py`；`src/bringup/launch/whole_body_force_control_profiles.launch.py`、`force_control_mujoco_test.launch.py`、`force_control_20s_follow_test.launch.py`、`force_control_infinite_follow_test.launch.py`。
 - 假力输入与回归：`src/control/whole_body_force_control/scripts/whole_body_force_control_test.py`、`test/test_force_control.cpp`；`src/bringup/test/test_force_control_configs.py`。
 - 说明：`docs/whole_body_force_control_real_deployment.md`、`docs/frame_contract.md`。
 
 ## 0. CURRENT：唯一的两个力控配置
 
-| 文件（位于 `src/control/whole_body_force_control/config/`） | 用途 |
+| 文件 | 用途 |
 |---|---|
-| `force_follow_sim.yaml` | 开阔 MuJoCo 仿真，带符号 Fx 持续跟随，撤力后停止；不可用于实机 |
-| `force_follow_real.yaml` | 首轮实机传感器 Fz 单轴导纳柔顺，底盘分担为零，armed 与参考输出默认关闭 |
+| `src/control/whole_body_force_control/config/force_follow_sim.yaml` | 开阔 MuJoCo 仿真，带符号 Fx 持续跟随，撤力后停止；不可用于实机 |
+| `src/bringup/config/real/force_control.yaml` | 首轮实机传感器 Fz 单轴导纳柔顺，底盘分担 0.6，armed 与参考输出默认关闭 |
 
 仿真启动入口的 `profile=infinite` / `20s` 共用同一 YAML。
-20 秒有限行程回归仅覆盖 `force_velocity_mode=false`、`force_deadband=0`、
-`max_offset=5.20`、`max_base_delta=5.10`，不再复制整份参数文件。
+20 秒有限行程回归现在由 `admittance.stiffness` 的弹性平衡点决定，
+不再使用 `max_offset` / `max_base_delta` 这类固定最大位移参数。
 其他试验轴或 6D 模式需人工审查后修改对应的唯一配置；不保留第三份示例配置。
 
 历史验证边界（2026-09-16 配置清理）：当时检查了 YAML 有效参数与清理前默认仿真、20 秒仿真、
@@ -112,7 +119,7 @@ OCS2 MPC / MRT
 5. 确认没有意外底盘平面运动；
 6. 确认力信号超时、FTS stale、目标发布者冲突时能进入故障保持。
 
-> 注意：传感器 Z 轴不一定是世界竖直轴，其方向随传感器姿态变化。本轮在捕获的名义传感器局部系定义柔顺偏移，并保持名义传感器姿态。差速底盘只能在平面内运动；本轮保留 `base_share=0` 和 `max_base_delta=0`，不分配底盘参考位移。它们不是底盘硬件隔离开关。
+> 注意：传感器 Z 轴不一定是世界竖直轴，其方向随传感器姿态变化。本轮在捕获的名义 TCP 系定义柔顺偏移，并保持名义姿态。差速底盘只能在平面内运动；`base_share` 决定底盘在航向方向上的分担比例，底盘位移不再由固定 `max_base_delta` 限制，而由上游路径/碰撞/MPC 约束限制。
 
 ---
 
@@ -121,7 +128,7 @@ OCS2 MPC / MRT
 实机入口是：
 
 ```bash
-ros2 launch tracer_jaka_bringup whole_body_force_control_real.launch.py
+ros2 launch tracer_jaka_bringup whole_body_force_control.launch.py
 ```
 
 默认参数：
@@ -180,14 +187,14 @@ source install/setup.bash
 - JAKA `robot_ip` 与 `local_ip` 必须与实际网络一致。
 - `can_port` 必须与实际底盘 CAN 设备一致。
 - 确认没有其他进程占用 CAN。
-- 确认 `tracer_base_node` 能正常读取 `/odom`。
+- 确认 `tracer_base_node` 能正常读取 `/wheel/odometry`。
 - 确认 JAKA EDG 数据能正常读取。
 - 确认 `/fts_broadcaster/wrench` 有数据。
 
 检查命令示例：
 
 ```bash
-ros2 topic hz /odom
+ros2 topic hz /wheel/odometry
 ros2 topic hz /joint_states
 ros2 topic hz /fts_broadcaster/wrench
 ros2 topic echo /fts_broadcaster/wrench --once
@@ -220,7 +227,6 @@ ros2 topic echo /fts_broadcaster/wrench --once
    - 有限性检查；
    - `hard_force_norm_limit`：在 tare/滤波前检查原始 `Fx/Fy/Fz` 范数，超过阈值立即故障锁存并 hold；
    - `hard_wrench_limit` 逐轴硬限幅；
-   - `max_wrench_rate` 变化率限制；
    - 超限时进入故障锁存并 hold；
    - whole-body IK 不可达时导纳积分器做 anti-windup，避免释放外力后出现隐藏参考跳变。
 
@@ -232,7 +238,7 @@ ros2 topic echo /fts_broadcaster/wrench
 
 - 自动 tare 期间工具端必须无外力；
 - 必须确认 FTS frame 为 `jk_se_vi_200_link`，其 TF 原点和轴方向准确；
-- 确认 `filter_alpha`、`hard_force_norm_limit`、`hard_wrench_limit`、`max_wrench_rate` 已按测试配置设置。
+- 确认 `filter_alpha`、`hard_force_norm_limit`、`hard_wrench_limit` 已按测试配置设置。
 
 ---
 
@@ -241,7 +247,7 @@ ros2 topic echo /fts_broadcaster/wrench
 目标：验证话题、TF、观测和命令所有权，不产生任何运动。
 
 ```bash
-ros2 launch tracer_jaka_bringup whole_body_force_control_real.launch.py
+ros2 launch tracer_jaka_bringup whole_body_force_control.launch.py
 ```
 
 该启动默认：
@@ -258,7 +264,7 @@ force_control_armed=false
 2. `/mobile_manipulator_mpc_target` 不应有意外发布者；
 3. `/fts_broadcaster/wrench` 稳定输出；
 4. `/mobile_manipulator_mpc_observation` 稳定输出；
-5. `/whole_body_force_control/control_state` 对应为 `DISABLED`；
+5. `/whole_body_force_control/states` 对应为 `DISABLED`；
 6. TF `odom -> base_footprint -> jk_se_vi_200_link` 正常；
 7. RViz 中机器人状态与实际一致。
 
@@ -282,31 +288,26 @@ ros2 run tracer_jaka_bringup readiness_check.py \
 使用唯一的实机配置（现已包含 Z 测试设置）：
 
 ```text
-src/control/whole_body_force_control/config/force_follow_real.yaml
+src/bringup/config/real/force_control.yaml
 ```
 
 该配置的特点：
 
-- `control_mode: admittance`
-- `sensor_frame: jk_se_vi_200_link`
-- `admittance_axes: [fz]`
-- `mass: 3.0`、`damping: 45.0`、`stiffness: 400.0`
-- `force_axis: z`
-- `absolute_force: false`
-- `response_body_x: 0`
-- `response_body_y: 0`
-- `response_body_z: 1`
-- `base_share: 0`
-- `max_base_delta: 0`
-- `max_joint_delta: 0.05`
-- `max_offset: 0.02`
-- `max_velocity: 0.01`
+- `admittance.enable: false`、`admittance.output: false`
+- `force_sensor.sensor_frame: jk_se_vi_200_link`
+- `force_sensor.tcp_frame: tool0`
+- `admittance.selected_axes: [true, false, false, false, false, false]`
+- `mass: 3.0`、`damping: 45.0`、`stiffness: 0.0`
+- `whole_body.base_share: 0.6`
+- `whole_body.max_base_velocity: 0.20`
+- `whole_body.max_joint_velocity: 0.50`
+- `admittance.max_velocity: [0.50, 0.50, 0.50, 0.15, 0.15, 0.15]`
 
 仍然保持只读，不打开参考输出：
 
 ```bash
-ros2 launch tracer_jaka_bringup whole_body_force_control_real.launch.py \
-  force_params_file:=$(ros2 pkg prefix whole_body_force_control)/share/whole_body_force_control/config/force_follow_real.yaml
+ros2 launch tracer_jaka_bringup whole_body_force_control.launch.py \
+  force_params_file:=$(ros2 pkg prefix tracer_jaka_bringup)/share/tracer_jaka_bringup/config/real/force_control.yaml
 ```
 
 检查 `jk_se_vi_200_link/Fz`：
@@ -352,11 +353,11 @@ force_control_armed=true
 命令示例：
 
 ```bash
-ros2 launch tracer_jaka_bringup whole_body_force_control_real.launch.py \
+ros2 launch tracer_jaka_bringup whole_body_force_control.launch.py \
   hardware_write:=true \
   force_reference_output_enabled:=true \
   force_control_armed:=true \
-  force_params_file:=$(ros2 pkg prefix whole_body_force_control)/share/whole_body_force_control/config/force_follow_real.yaml
+  force_params_file:=$(ros2 pkg prefix tracer_jaka_bringup)/share/tracer_jaka_bringup/config/real/force_control.yaml
 ```
 
 首次测试建议：
@@ -375,8 +376,8 @@ ros2 launch tracer_jaka_bringup whole_body_force_control_real.launch.py \
 | 正 Fz | 沿名义传感器 +Z 产生受限导纳偏移 |
 | 负 Fz | 方向相反 |
 | 松手 | 参考回到名义位置附近，不应持续漂移 |
-| 最大位移 | 不超过 `max_offset` 附近 |
-| 底盘 | 不应出现 X/Y 平面运动，因为 Z 测试配置 `max_base_delta=0` |
+| 最大位移 | 由关节硬限位、IK 可达性和 MPC 碰撞约束共同限制 |
+| 底盘 | 底盘参考按 `base_share` 分配，并由上游路径/碰撞/MPC 约束限制 |
 | 关节 | 不应出现突变、抖动或撞限位 |
 | 控制状态 | 正常时 `ACTIVE`，故障时 `FAULT_*` |
 | 力超时 | FTS 数据停止后应进入故障并保持 |
@@ -440,7 +441,7 @@ ros2 launch tracer_jaka_bringup whole_body_force_control_real.launch.py \
 | FTS 一直为零 | 零偏采样是否在外力下执行；工具是否安装；deadband 是否过大 |
 | FTS 一直不变 | JAKA `read()` 是否失败；FTS stale 检测是否置 NaN；`latchFault` 是否触发 |
 | 控制状态一直 WAITING | observation 或 wrench 是否超时；MPC/MRT 是否已启动 |
-| 控制状态 FAULT | 查看 `/whole_body_force_control/control_state` 和节点日志 |
+| 控制状态 FAULT | 查看 `/whole_body_force_control/states` 和节点日志 |
 | `/cmd_vel` 无输出 | `hardware_write` 是否为 `true`；OCS2 是否已启动 |
 | JAKA 不动 | `hardware_write` 是否仍为 true；`arm_controller` 是否 spawn；`edg_servo_j` 是否报错 |
 | 机器人意外运动 | 立即急停；检查目标发布者数量、FTS 零点、`response_body_z` 符号 |

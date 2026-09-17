@@ -11,11 +11,10 @@ def load_launch_module():
     launch_file = (
         Path(__file__).resolve().parents[1]
         / "launch"
-        / "real"
-        / "whole_body_force_control_real.launch.py"
+        / "whole_body_force_control.launch.py"
     )
     spec = importlib.util.spec_from_file_location(
-        "whole_body_force_control_real", launch_file)
+        "whole_body_force_control", launch_file)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

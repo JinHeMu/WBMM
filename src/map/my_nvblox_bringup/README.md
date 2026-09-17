@@ -76,7 +76,7 @@ with frame names connected to the fixed `d455_link` in the robot URDF:
 
 ```bash
 source /home/a/WBMM/install/setup.bash
-ros2 launch tracer_jaka_bringup d455_real.launch.py
+ros2 launch tracer_jaka_bringup d455_camera.launch.py
 ```
 
 Then run nvblox inside the Isaac ROS container:

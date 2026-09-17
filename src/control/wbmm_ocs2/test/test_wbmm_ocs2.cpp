@@ -146,7 +146,7 @@ TEST(WbmmInterface, AssemblesProblemAndRegistersTerms)
 #ifndef WBMM_OCS2_TEST_TASK_FILE
 #error "WBMM_OCS2_TEST_TASK_FILE must be defined"
 #endif
-  // 使用与 wbmm_ocs2_ros/config/task.info 相同的任务配置快照。
+  // 使用与 src/bringup/config/real/task.info 相同的任务配置快照。
   // 构造过程会生成/编译 CppAD 库并组装 cost/constraint/dynamics。
   wbmm_ocs2::WbmmInterface interface(
     WBMM_OCS2_TEST_TASK_FILE, "/tmp/wbmm_ocs2_interface_test_lib",

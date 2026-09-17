@@ -22,7 +22,7 @@ mujoco_bridge:
     spin_wheels: true         # 仅视觉：让轮子转
 
     # ---- 发布频率 ----
-    publish_rate: 100.0       # /joint_states /odom /tf
+    publish_rate: 100.0       # /joint_states /wheel/odometry /tf
     clock_rate: 250.0         # /clock
 
     # ---- 坐标系 ----

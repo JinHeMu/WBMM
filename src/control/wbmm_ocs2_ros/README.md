@@ -1,3 +1,8 @@
+> CURRENT（2026-09-17）：bringup launch 已扁平化。`ocs2_sim.launch.py` /
+> `ocs2_real.launch.py` 已删除；统一使用 `ocs2.launch.py` 算法入口，并由
+> `wbmm_hardware_interface.launch.py` 或 `mujoco_hardware_interface.launch.py`
+> 提供反馈/命令接口。本文下方旧命令仅作历史参考。
+
 # wbmm_ocs2_ros
 
 export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$(ros2 pkg prefix tracer_jaka_gazebo)/share
@@ -21,7 +26,7 @@ MuJoCo、实机驱动、定位、REMANI 与任务的组合入口已统一移动�
                         │  (Gazebo + ros2_control)    │
                         └───────────┬─────────────────┘
                                     │
-            /diff_drive_controller/odom │  /joint_states
+            /wheel/odometry │  /joint_states
                                     │
                          ┌──────────▼──────────┐
                          │      wbmm_mrt       │
@@ -371,7 +376,7 @@ ros2 topic echo /arm_controller/commands
 | `mrt_loop_rate`     | 100 Hz | MRT 控制环频率 (= cmd_vel 发布频率) |
 | `traj_horizon`      | 0.1 s  | 给 JTC 的轨迹采样时窗 |
 | `traj_num_points`   | 5      | 时窗内采样点数 |
-| `odom_topic`        | `/diff_drive_controller/odom` | 底盘位姿来源 |
+| `odom_topic`        | `/wheel/odometry` | 底盘位姿来源 |
 | `joint_state_topic` | `/joint_states`               | 关节读数来源 |
 | `base_cmd_topic`    | `/diff_drive_controller/cmd_vel` | TwistStamped |
 | `arm_cmd_topic`     | `/arm_controller/commands` | MuJoCo JTC 的 `Float64MultiArray` 位置命令入口 |

@@ -1,81 +1,66 @@
 # tracer_jaka_bringup
 
-本包负责仿真/实机组合启动入口与参数装配。
+本包负责 WBMM 的硬件接口、算法入口与参数装配。当前 launch 文件已扁平化，不再使用
+`common/`、`real/`、`sim/` 目录，也不再使用 `_real` / `_sim` 文件名后缀。
 
-## REMANI MPC 仿真（单入口）
+## 统一 backend 架构
 
-`remani_mpc_sim.launch.py` 封装 MuJoCo + EKF + REMANI + REMANI→OCS2 bridge +
-`wbmm_ocs2_ros` MPC/MRT，默认在 `odom` 坐标系规划，并在 30 s 后自动发送一个
-已验证可行的 demo goal `(0.0, 1.2, yaw=0)`：
+只有两个 launch 可以启动硬件或仿真：
 
 ```bash
-# 可视化仿真（自动发送 demo goal）
-ros2 launch tracer_jaka_bringup remani_mpc_sim.launch.py
-
-# 无头验证
-ros2 launch tracer_jaka_bringup remani_mpc_sim.launch.py \
-  viewer:=false use_rviz:=false
-
-# 交互模式：自己用 RViz 的 2D Goal 或发 /goal_pose
-ros2 launch tracer_jaka_bringup remani_mpc_sim.launch.py \
-  publish_demo_goal:=false
+ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py
 ```
 
-数据流：
+其他核心 launch 只启动算法，并消费统一 ROS 接口
+[`config/common/interface.yaml`](config/common/interface.yaml)：
 
 ```text
-MuJoCo + EKF
-  -> REMANI planner (static ESDF, odom)
-  -> remani_to_ocs2_reference_bridge
-  -> wbmm_ocs2_ros MPC/MRT
-  -> MuJoCo base + arm
+/cmd_vel
+/arm_controller/commands
+/joint_states
+/wheel/odometry
+/imu/data
+/scan
+/fts_broadcaster/wrench
 ```
 
-可调参数：`goal_x`、`goal_y`、`goal_yaw`、`goal_delay`、`publish_demo_goal`、
-`viewer`、`use_rviz`。该入口内部固定使用 odom-only REMANI profile，不暴露
-`start_slam` 切换；需要 SLAM map 时请使用 `ocs2_sim.launch.py` 并显式设置
-`start_slam:=true`。
+算法入口：
 
-## MoveIt：仿真与实机分开入口
+- `localization.launch.py`：EKF + 可选 slam_toolbox
+- `ocs2.launch.py`：OCS2 MPC/MRT
+- `remani.launch.py`：REMANI + OCS2 reference bridge
+- `remani_mpc.launch.py`：REMANI + OCS2 + localization
+- `remani_mpc_localized.launch.py`：REMANI + OCS2 + AMCL
+- `whole_body_force_control.launch.py`：力控 + OCS2
+- `whole_body_force_control_profiles.launch.py`：仿真 profile 算法节点
+- `moveit.launch.py` / `servo.launch.py`：MoveIt / Servo
 
-MoveIt 通用算法节点位于 `launch/common/moveit.launch.py`。完整部署入口分为：
-
-- `launch/sim/moveit_sim.launch.py`：MuJoCo + MoveIt / Servo
-- `launch/real/moveit_real.launch.py`：实机硬件 + MoveIt / Servo
-
-仿真 MoveIt：
+可选总入口：
 
 ```bash
-ros2 launch tracer_jaka_bringup moveit_sim.launch.py
+# 默认什么也不启动，只列出参数
+ros2 launch tracer_jaka_bringup wbmm.launch.py --show-args
+
+# 实机硬件 + OCS2 + REMANI
+ros2 launch tracer_jaka_bringup wbmm.launch.py \
+  hardware_backend:=real hardware_write:=true \
+  start_ocs2:=true start_remani:=true \
+  static_esdf_file:=/abs/path/site.npz
+
+# MuJoCo + REMANI/OCS2
+ros2 launch tracer_jaka_bringup wbmm.launch.py \
+  hardware_backend:=mujoco config_profile:=sim use_sim_time:=auto \
+  start_ocs2:=true start_remani:=true \
+  static_esdf_file:=/abs/path/site.npz
 ```
 
-仿真 MoveIt Servo + 手柄：
+`wbmm.launch.py` 的 `config_profile:=real|sim` 只决定默认参数文件路径；
+显式传入的 `task_file`、`ocs2_config`、`remani_config` 等会覆盖 profile 默认值。
 
-```bash
-ros2 launch tracer_jaka_bringup moveit_sim.launch.py \
-  use_servo:=true use_joy:=true
-```
-
-实机只读验证：
-
-```bash
-ros2 launch tracer_jaka_bringup moveit_real.launch.py \
-  hardware_write:=false
-```
-
-实机运动：
-
-```bash
-ros2 launch tracer_jaka_bringup moveit_real.launch.py \
-  hardware_write:=true
-```
-
-安全门设计：
-
-- `hardware_write:=false`：JAKA 只读遥测，MoveIt / Servo 不能输出命令。
-- `hardware_write:=true`：允许 MoveIt / Servo 控制 JAKA。
-- 不再使用 `safety_release` 或 `allow_trajectory_execution` 启动参数。
-- `use_servo:=false` 时 MoveIt 轨迹控制器是命令所有者；`use_servo:=true` 时 Servo 是命令所有者，轨迹执行自动关闭。
+> 下方“当前实机进度摘要”起包含历史部署记录；其中的 `*_real` / `*_sim`
+> launch 文件名已废弃。实际入口以本页顶部、`config/common/interface.yaml`
+> 和 `docs/wbmm_ros_interface.md` 为准。
 
 ## 0. 当前实机进度摘要（部署记录）
 
@@ -374,12 +359,12 @@ ros2 topic pub --once /remani_planner/whole_body_goal traj_utils/msg/WholeBodyGo
 ```text
 remani_mpc_localized_real.launch.py
 ├── real_slam.launch.py (start_slam:=false)
-│   ├── Tracer CAN 驱动                     -> /odom
-│   ├── Hipnuc IMU                         -> /IMU_data
+│   ├── Tracer CAN 驱动                     -> /wheel/odometry
+│   ├── Hipnuc IMU                         -> /imu/data
 │   ├── Lakibeam LiDAR                     -> /scan
 │   ├── robot_localization EKF             -> /odometry/filtered
 │   └── robot_state_publisher              -> 机器人静态/关节 TF
-├── localization_real.launch.py
+├── amcl_localization.launch.py
 │   ├── map_server                         -> /map
 │   └── AMCL                               -> map -> odom
 ├── odom_to_map_relay.py                   -> /odometry/filtered_map
@@ -698,7 +683,7 @@ ros2 launch tracer_jaka_bringup real_slam.launch.py \
 source /opt/ros/humble/setup.bash
 source /home/a/WBMM/install/setup.bash
 
-ros2 launch tracer_jaka_localization localization_real.launch.py \
+ros2 launch tracer_jaka_localization amcl_localization.launch.py \
   map_file:=/home/a/WBMM/maps/site_2d.yaml \
   scan_topic:=/scan \
   initial_x:=0.0 \
@@ -738,8 +723,8 @@ ros2 run tracer_jaka_bringup odom_to_map_relay.py --ros-args \
 检查定位：
 
 ```bash
-ros2 topic hz /odom
-ros2 topic hz /IMU_data
+ros2 topic hz /wheel/odometry
+ros2 topic hz /imu/data
 ros2 topic hz /scan
 ros2 topic hz /odometry/filtered
 ros2 topic hz /odometry/filtered_map
@@ -774,33 +759,31 @@ ros2 node list | grep -E 'amcl|map_server|ekf|slam_toolbox'
 这是保存地图的只读可视化，不会启动 nvblox，也不会改变 REMANI 使用的 ESDF。三个
 `esdf_offset_*` 默认保持 `0.0`，只有完成 2D 地图与 3D ESDF 的固定平移标定后才修改。
 
-### 阶段 C：确认保守的 OCS2 task 文件
+### 阶段 C：确认实机 OCS2 task 文件
 
 顶层参数 `manipulator_max_vel/acc` 只限制 REMANI 生成的机械臂参考轨迹；最终控制输入
-还受 OCS2 task 文件约束。仓库已经提供并默认选择下面的实机保守配置，不要再从
-`task_real.info` 覆盖它：
+还受 OCS2 task 文件约束。当前实机统一使用：
 
 ```text
-src/control/wbmm_ocs2_ros/config/task_real_conservative.info
+src/bringup/config/real/task.info
 ```
 
 该文件当前在 `jointVelocityLimits` 中使用：
 
 ```text
-wheelBasedMobileManipulator lowerBound: -0.05, -0.20
-wheelBasedMobileManipulator upperBound:  0.05,  0.20
-arm lowerBound:  6 个 -0.15
-arm upperBound:  6 个  0.15
+wheelBasedMobileManipulator lowerBound: -0.10, -0.40
+wheelBasedMobileManipulator upperBound:  0.10,  0.40
+arm lowerBound:  6 个 -0.50
+arm upperBound:  6 个  0.50
 ```
 
-单位依次为底盘线速度 m/s、角速度 rad/s、机械臂关节速度 rad/s；机械臂
-`inputCost.R` 的 scaling 也已从 `1e-2` 提高到 `5e-2`。修改 task 后要重启 MPC；如果
-遇到自动微分库仍复用旧
-模型，可换一个新的 `lib_folder` 或清理该任务专用的 `/tmp` 生成目录后重启。
+单位依次为底盘线速度 m/s、角速度 rad/s、机械臂关节速度 rad/s。修改 task 后要重启
+MPC；如果遇到自动微分库仍复用旧模型，可换一个新的 `lib_folder` 或清理该任务专用
+的 `/tmp` 生成目录后重启。
 
-原 `task_real.info` 的 `environmentCollision.obstacles` 还包含一个测试用 `box_1`
+`task.info` 的 `environmentCollision.obstacles` 还包含一个测试用 `box_1`
 （位置约为 `odom` 中 `[0.8, -0.6, 0.30]`）。它不是 REMANI 的 ESDF 障碍物，也不会
-随 AMCL 的 `map -> odom` 自动变换。制作保守副本时必须结合现场决定是删除、关闭
+随 AMCL 的 `map -> odom` 自动变换。制作实机 task 时必须结合现场决定是删除、关闭
 `environmentCollision`，还是改成真实且与本次 `odom` 对齐的障碍；不要把测试方盒
 原样带到实机并误以为它来自 NPZ 地图。关闭该项也意味着 OCS2 不再提供这层环境
 碰撞约束，仍需依靠 REMANI ESDF、低速和实体安全措施。
@@ -1005,7 +988,7 @@ RViz 2D Goal Pose (/goal_pose, frame=map)
 | `odom_topic` | `/odometry/filtered` | OCS2/MRT 使用的连续 odom；通常不要改 |
 | `map_odom_topic` | `/odometry/filtered_map` | REMANI 使用的 map-frame odometry；通常不要改 |
 | `joint_state_topic` | `/joint_states` | 真实机械臂关节状态 |
-| `task_file` | `wbmm_ocs2_ros/config/task_real_conservative.info` | 默认就是 OCS2 保守速度与代价配置；不要误传回 `task_real.info` |
+| `task_file` | `tracer_jaka_bringup/config/real/task.info` | 当前唯一实机 OCS2 task 配置；修改后重启 MPC |
 | `urdf_file` | `tracer_jaka_description/urdf/tracer_jaka_zu5.urdf` | 运动学、碰撞体及传感器外参；硬件参数由 controlled xacro 注入 |
 | `lib_folder` | `/tmp/wbmm_ocs2_real/auto_generated` | OCS2 自动生成库目录；不同 task 建议使用不同目录 |
 | `manipulator_max_vel` | `0.10` | REMANI 机械臂参考最大速度 rad/s |
@@ -1025,7 +1008,7 @@ RViz 2D Goal Pose (/goal_pose, frame=map)
 | `can_port` | `can0` | Tracer CAN 接口 |
 | `serial_port` | `/dev/ttyUSB0` | Hipnuc IMU 串口 |
 | `start_imu` / `start_lidar` | `true/true` | 驱动已由外部启动时设 `false`，避免重复发布 |
-| `start_arm_pose` | `false` | 实机 JAKA 在线时必须为 `false`，禁止假关节状态 |
+| `start_arm_pose` | `false` | 默认禁止假关节状态；仅无 JAKA 调试时可显式设 `true` |
 | `lidar_host_ip/lidar_sensor_ip` | `0.0.0.0/192.168.198.2` | 会透传给 LiDAR 驱动；现场为 192.168.8.x 时必须显式覆盖 |
 | `robot_ip/local_ip` | `10.5.5.100/10.5.5.127` | 会注入 OCS2 使用的 JAKA xacro/hardware interface |
 
@@ -1033,37 +1016,37 @@ RViz 2D Goal Pose (/goal_pose, frame=map)
 
 配置归属约定：
 
-- 自研 ROS 适配包参数放在自己的功能包下：
+- 自研 ROS 适配包的仿真/开发默认参数放在自己的功能包下：
   - `wbmm_ocs2_ros/config/ocs2_sim.yaml`
-  - `wbmm_ocs2_ros/config/ocs2_real.yaml`
-  - `wbmm_ocs2_ros/config/ocs2_real_position_tracking.yaml`
   - `wbmm_ocs2_ros/config/task_sim.info`
-  - `wbmm_ocs2_ros/config/task_real.info`
-  - `whole_body_force_control/config/force_follow_*.yaml`
-- 第三方算法 wrapper 参数统一放在 bringup：
-  - MoveIt / Servo：`tracer_jaka_bringup/config/common/`
-  - EKF / slam_toolbox：`tracer_jaka_bringup/config/sim|real/`
-  - REMANI：`tracer_jaka_bringup/config/sim|real/remani_*.yaml`
-  - D455 录制 QoS：`tracer_jaka_bringup/config/real/d455_esdf_record_qos.yaml`
+  - `whole_body_force_control/config/force_follow_sim.yaml`
+- 实机部署参数统一放在 bringup：
+  - OCS2：`src/bringup/config/real/ocs2.yaml`、
+    `src/bringup/config/real/task.info`
+  - 力控：`src/bringup/config/real/force_control.yaml`
+  - EKF / slam_toolbox / REMANI：`src/bringup/config/real/ekf.yaml`、
+    `src/bringup/config/real/slam_toolbox.yaml`、
+    `src/bringup/config/real/remani.yaml`
+  - D455 录制 QoS：`src/bringup/config/real/d455_esdf_record_qos.yaml`
 
 
 | 想调整的内容 | 真正生效的位置 | 是否可由本入口覆盖 |
 | --- | --- | --- |
 | 地图文件、AMCL 初值、ESDF 平移、执行保护、REMANI 速度/加速度 | `src/bringup/tracer_jaka_bringup/launch/remani_mpc_localized_real.launch.py` | 是，优先用 launch 参数 |
 | AMCL 粒子数、激光模型、更新阈值、初始协方差 | `src/perception/tracer_jaka_localization/config/amcl_real.yaml` | 否，改 YAML 后重启 |
-| EKF 融合项、频率、超时、IMU/轮速配置 | `src/simulation/tracer_jaka_mujoco/config/ekf_real.yaml` | 否，改 YAML 后重启 |
+| EKF 融合项、频率、超时、IMU/轮速配置 | `src/bringup/config/real/ekf.yaml` | 否，改 YAML 后重启 |
 | LiDAR IP/端口/倒装/角度，驱动默认话题 | `src/bringup/tracer_jaka_bringup/launch/real_slam.launch.py` | 顶层透传 host/sensor IP 与 `scan_topic`；端口等可直接作为嵌套 launch 参数传入 |
 | IMU 驱动原始配置 | `src/drivers/sensors/hipnuc_imu/config/hipnuc_config.yaml` | 顶层只透传串口和话题 |
 | JAKA IP、本机 EDG IP、力传感器偏置 | `tracer_jaka_description/urdf/tracer_jaka_zu5.ros2_control.xacro` | IP 可由 `robot_ip/local_ip`（OCS2）或 `jaka_robot_ip/jaka_local_ip`（real_slam）覆盖 |
 | LiDAR/IMU/JAKA 安装外参、机器人碰撞体 | `tracer_jaka_description/urdf/tracer_jaka_zu5.urdf` | 否，修改后重建/重启 |
-| OCS2 底盘/机械臂最终速度上限 | `src/control/wbmm_ocs2_ros/config/task_real_conservative.info` 的 `jointVelocityLimits` | 用 `task_file` 选择配置 |
-| OCS2 输入平滑程度 | 同一 task 的 `inputCost.R` | 用 `task_file` 选择副本 |
-| OCS2 跟踪权重 | 同一 task 的 `wholeBodyTracking.Q` | 用 `task_file` 选择副本 |
-| OCS2 自碰撞/静态障碍物安全距离 | 同一 task 的 `selfCollision`、`environmentCollision` | 用 `task_file` 选择副本 |
+| OCS2 底盘/机械臂最终速度上限 | `src/bringup/config/real/task.info` 的 `jointVelocityLimits` | 否，改 `task.info` 后重启 MPC |
+| OCS2 输入平滑程度 | 同一 task 的 `inputCost.R` | 否，改 `task.info` 后重启 MPC |
+| OCS2 跟踪权重 | 同一 task 的 `wholeBodyTracking.Q` | 否，改 `task.info` 后重启 MPC |
+| OCS2 自碰撞/静态障碍物安全距离 | 同一 task 的 `selfCollision`、`environmentCollision` | 否，改 `task.info` 后重启 MPC |
 | REMANI 车体尺寸、轮径、机械臂关节限位 | `src/vendor/remani_planner/plan_manage/config/mm_param.yaml` | 轮速/轮加速度/非奇异速度及臂速度/加速度可由本入口覆盖 |
 | REMANI 搜索、优化、安全距离 | `src/vendor/remani_planner/plan_manage/config/remani_planner_param.yaml` | 否，改 YAML 后重启 |
 | REMANI 跟踪误差重规划阈值 | 同一 `remani_planner_param.yaml`，并在 `remani_mpc_tracking.launch.py` 声明 | 顶层目前只透传启用开关 |
-| AMCL 生命周期管理 | `src/perception/tracer_jaka_localization/launch/localization_real.launch.py` 的 `node_names` | 当前应确认包含 `amcl` |
+| AMCL 生命周期管理 | `src/perception/tracer_jaka_localization/launch/amcl_localization.launch.py` 的 `node_names` | 当前应确认包含 `amcl` |
 
 REMANI 参数实际按以下顺序合并，后面的值覆盖前面的值：
 
@@ -1129,7 +1112,7 @@ spawner 的 `--param-file` 显式加载配置，并在
 `/fts_broadcaster/wrench`。
 
 这些修改只涉及“如何加载并发布”力传感器状态，没有修改硬件接口里的 F/T 原始读取、
-零偏采样、滤波、力臂补偿或单位换算。现在 `moveit_real.launch.py` 通过 `hardware_interface.launch.py`
+零偏采样、滤波、力臂补偿或单位换算。现在 `moveit_real.launch.py` 通过 `wbmm_hardware_interface.launch.py`
 按 joint state broadcaster、机械臂控制器、F/T broadcaster 的顺序加载；而
 旧配置使用的控制器名是 `fts_broadcaster`，本只读链使用
 `fts_broadcaster`，参数段必须按实际名称和当前 controller_manager 的命名空间规则
@@ -1216,6 +1199,6 @@ ros2 topic info /mobile_manipulator_mpc_target -v
 | 保存地图 + AMCL + REMANI/OCS2 实机闭环 | `ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py` |
 | 在线 SLAM + REMANI/OCS2 旧实机流程 | `ros2 launch tracer_jaka_bringup remani_mpc_real.launch.py` |
 | 实机仅传感器/EKF/SLAM | `ros2 launch tracer_jaka_bringup real_slam.launch.py` |
-| 实机仅保存地图定位 | `ros2 launch tracer_jaka_localization localization_real.launch.py` |
+| 实机仅保存地图定位 | `ros2 launch tracer_jaka_localization amcl_localization.launch.py` |
 | 实机仅 OCS2/JAKA/底盘 | `ros2 launch tracer_jaka_bringup ocs2_real.launch.py` |
 | MuJoCo 完整闭环 | `ros2 launch tracer_jaka_bringup ocs2_sim.launch.py` |

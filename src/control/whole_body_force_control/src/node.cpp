@@ -44,8 +44,7 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
 
   cartesian_controller_ = std::make_unique<CartesianComplianceController>(
       parameters_.admittance_axes, parameters_.mass, parameters_.damping,
-      parameters_.stiffness, parameters_.max_offset,
-      parameters_.max_velocity);
+      parameters_.stiffness, parameters_.max_velocity);
 
   createRosInterfaces();
   force_processor_.startTare();
@@ -67,7 +66,7 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
       enabledAxes(parameters_.admittance_axes).c_str(),
       parameters_.admittance_enabled ? "true" : "false",
       parameters_.reference_output_enabled ? "true" : "false");
-  publishControlState(
+  publishState(
       parameters_.admittance_enabled ? "WAITING_FOR_DATA" : "DISABLED");
 }
 
@@ -93,7 +92,7 @@ void WholeBodyForceControlNode::latchFault(const std::string &reason)
   hold_state_valid_ = false;
   force_processor_.reset();
   cartesian_controller_->reset(measuredWrenchVector());
-  publishControlState("FAULT_" + reason);
+  publishState("FAULT_" + reason);
   publishHoldReference();
 }
 
@@ -141,7 +140,7 @@ void WholeBodyForceControlNode::captureNominalState(
       get_logger(),
       "Captured nominal state; admittance wrench is expressed in %s",
       parameters_.state_frame.c_str());
-  publishControlState("ACTIVE");
+  publishState("ACTIVE");
 }
 
 Vector6d WholeBodyForceControlNode::correctionFromReferencePose(
@@ -191,8 +190,7 @@ void WholeBodyForceControlNode::updateReference(
       world_correction.tail<3>() =
           nominal_tcp_rotation_ * local_correction.tail<3>();
       return kinematics_->correctedStateWorld6D(
-          nominal_state_, world_correction, parameters_.base_share,
-          parameters_.max_base_delta, parameters_.max_joint_delta);
+          nominal_state_, world_correction, parameters_.base_share);
     };
 
   reference = makeReference(correction);
@@ -273,7 +271,6 @@ void WholeBodyForceControlNode::configureForceProcessor()
   config.hard_limit_enabled = true;
   config.hard_wrench_limit = parameters_.hard_wrench_limit;
   config.hard_force_norm_limit = parameters_.hard_force_norm_limit;
-  config.max_wrench_rate = parameters_.max_wrench_rate;
   force_processor_.setConfig(config);
 }
 
@@ -294,14 +291,14 @@ void WholeBodyForceControlNode::update()
 
   if (!observation_received_)
   {
-    publishControlState(
+    publishState(
         parameters_.admittance_enabled ? "WAITING_FOR_OBSERVATION" : "DISABLED");
     return;
   }
 
   if (force_processor_.taring())
   {
-    publishControlState("TARING");
+    publishState("TARING");
     publishHoldReference();
     return;
   }
@@ -318,7 +315,7 @@ void WholeBodyForceControlNode::update()
 
   if (parameters_.admittance_enabled && !wrench_received_)
   {
-    publishControlState("WAITING_FOR_WRENCH");
+    publishState("WAITING_FOR_WRENCH");
     publishHoldReference();
     return;
   }
@@ -326,7 +323,7 @@ void WholeBodyForceControlNode::update()
   checkFaults(observation_timed_out, wrench_timed_out);
   if (!parameters_.admittance_enabled)
   {
-    publishControlState(
+    publishState(
         fault_latched_ ? "FAULT_" + fault_reason_ : "DISABLED");
     publishHoldReference();
     return;
@@ -338,7 +335,7 @@ void WholeBodyForceControlNode::update()
         std::chrono::duration<double>(wall_now - capture_requested_at_).count();
     if (elapsed < parameters_.capture_settle_time)
     {
-      publishControlState("SETTLING");
+      publishState("SETTLING");
       return;
     }
     captureNominalState(measured_state);
@@ -354,7 +351,7 @@ void WholeBodyForceControlNode::update()
       primary_offset, primary_force);
 
   publishReference(reference);
-  publishStatus(
+  publishCorrection(
       reference, measured_state, primary_force, primary_offset,
       filtered_wrench, correction);
 }

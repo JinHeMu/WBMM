@@ -47,8 +47,9 @@ install(TARGETS ${PROJECT_NAME}_core
 install(TARGETS whole_body_force_control_node
   RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
-# Only the two supported deployment configurations are installed.
-install(FILES config/force_follow_sim.yaml config/force_follow_real.yaml
+# Simulation/development defaults live with the algorithm package. Real
+# deployment profiles are centralized in tracer_jaka_bringup/config/real.
+install(FILES config/force_follow_sim.yaml
   DESTINATION share/${PROJECT_NAME}/config)
 install(PROGRAMS scripts/whole_body_force_control_test.py scripts/fake_wrench_sequence.py
   DESTINATION lib/${PROJECT_NAME})

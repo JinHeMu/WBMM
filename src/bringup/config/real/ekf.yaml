@@ -15,7 +15,7 @@ ekf_filter_node:
     world_frame: odom
 
     # Tracer wheel odometry: fuse velocity, not its integrated pose.
-    odom0: /odom
+    odom0: /wheel/odometry
     odom0_config: [
       false, false, false,
       false, false, false,
@@ -30,7 +30,7 @@ ekf_filter_node:
 
     # Hipnuc: default to yaw rate only. Enable absolute yaw only after
     # calibrating it on the assembled robot away from motors and steel.
-    imu0: /IMU_data
+    imu0: /imu/data
     imu0_config: [
       false, false, false,
       false, false, false,

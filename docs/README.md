@@ -101,7 +101,9 @@ docs/
 | `human_review_standard.md` | 人工审查标准、审查流程、审查清单 |
 | `agent_output_standard.md` | Agent 输出文档标准、禁止事项、交付检查表 |
 | [project_map.md](project_map.md) | 当前目录与 bringup 启动地图：common 算法端、sim/real 外层组合和精简后的参数边界 |
+| [kino_astar.md](kino_astar.md) | 差速底盘 Kino A*：core 接口复用、控制推进、碰撞回调边界、离线示例与验证记录 |
 | [whole_body_force_control_real_deployment.md](whole_body_force_control_real_deployment.md) | Whole-body force control 首轮实机测试部署说明：只读影子、FTS 清零、Z 轴测试、未来安全项 |
+| [wbmm_ros_interface.md](wbmm_ros_interface.md) | WBMM real/MuJoCo 统一 ROS 接口契约：topic、frame、QoS、服务与 backend 边界 |
 
 ## 6. 修改原则
 

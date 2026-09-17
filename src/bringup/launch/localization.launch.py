@@ -45,12 +45,10 @@ def _make_nodes(context):
     imu_topic = _value(context, "imu_topic")
     scan_topic = _value(context, "scan_topic")
 
-    # Remap both common input spellings so the algorithm stays independent of
-    # the producing driver.
+    # Keep the EKF independent of the producing backend while enforcing the
+    # canonical WBMM hardware interface spellings.
     ekf_remappings = [
-        ("/odom", wheel_odom_topic),
         ("/wheel/odometry", wheel_odom_topic),
-        ("/IMU_data", imu_topic),
         ("/imu/data", imu_topic),
     ]
 
@@ -83,7 +81,7 @@ def generate_launch_description():
         DeclareLaunchArgument("use_sim_time", default_value="false"),
         DeclareLaunchArgument("ekf_config", default_value=""),
         DeclareLaunchArgument("slam_config", default_value=""),
-        DeclareLaunchArgument("wheel_odom_topic", default_value="/odom"),
+        DeclareLaunchArgument("wheel_odom_topic", default_value="/wheel/odometry"),
         DeclareLaunchArgument("imu_topic", default_value="/imu/data"),
         DeclareLaunchArgument("scan_topic", default_value="/scan"),
         OpaqueFunction(function=_make_nodes),

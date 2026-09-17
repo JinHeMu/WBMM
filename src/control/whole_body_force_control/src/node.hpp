@@ -35,10 +35,9 @@ using wbmm::pinocchio::WholeBodyKinematics;
 
 // Reference-side six-axis admittance controller.
 //
-// The force sensor is expected to report in sensor_frame.  The node rotates the
-// measured wrench into state_frame (odom by default), solves the admittance
-// equation in state_frame, and asks WholeBodyKinematics to realize the resulting
-// world-frame translation / rotation correction.
+// The force sensor reports in sensor_frame.  The node transforms the measured
+// wrench to the nominal TCP frame (tool0), solves admittance there, then maps
+// the resulting correction into state_frame before publishing it to MPC.
 class WholeBodyForceControlNode final : public rclcpp::Node
 {
 public:
@@ -53,12 +52,11 @@ private:
     std::string sensor_frame;
     std::string tcp_frame;
     std::string target_topic;
-    std::string status_topic;
-    std::string control_state_topic;
+    std::string correction_topic;
+    std::string state_topic;
     std::string wrench_topic;
 
     bool admittance_enabled{false};
-    bool require_wrench_frame{true};
     bool tf_fallback_to_latest{true};
     bool reference_output_enabled{false};
     bool enforce_single_target_owner{true};
@@ -67,7 +65,6 @@ private:
     Vector6d mass{Vector6d::Zero()};
     Vector6d damping{Vector6d::Zero()};
     Vector6d stiffness{Vector6d::Zero()};
-    Vector6d max_offset{Vector6d::Zero()};
     Vector6d max_velocity{Vector6d::Zero()};
 
     double filter_alpha{0.25};
@@ -75,7 +72,6 @@ private:
     Vector6d wrench_scale{Vector6d::Ones()};
     Vector6d hard_wrench_limit{Vector6d::Ones()};
     double hard_force_norm_limit{20.0};
-    Vector6d max_wrench_rate{Vector6d::Zero()};
     std::size_t tare_samples{50};
 
     double loop_rate{50.0};
@@ -83,9 +79,7 @@ private:
     double observation_timeout{0.25};
     double capture_settle_time{1.0};
     double base_share{0.4};
-    double max_base_delta{0.04};
     double max_base_velocity{0.5};
-    double max_joint_delta{0.25};
     double max_joint_velocity{1.0};
     double reference_horizon{1.0};
     double reference_dt{0.1};
@@ -112,7 +106,7 @@ private:
 
   void latchFault(const std::string &reason);
   void publishHoldReference();
-  void publishControlState(const std::string &state);
+  void publishState(const std::string &state);
   void checkFaults(bool observation_timed_out, bool wrench_timed_out);
   void captureNominalState(const Eigen::VectorXd &measured_state);
   Vector6d correctionFromReferencePose(
@@ -127,7 +121,7 @@ private:
       double &primary_force);
   void update();
   void publishReference(const Eigen::VectorXd &reference);
-  void publishStatus(
+  void publishCorrection(
       const Eigen::VectorXd &reference,
       const Eigen::VectorXd &measured_state,
       double primary_force,
@@ -165,7 +159,7 @@ private:
   bool pending_fault_{false};
   std::string fault_reason_;
   std::string pending_fault_reason_;
-  std::string last_control_state_;
+  std::string last_state_;
   Eigen::Vector3d nominal_tcp_{Eigen::Vector3d::Zero()};
   Eigen::Matrix3d nominal_tcp_rotation_{Eigen::Matrix3d::Identity()};
   Eigen::VectorXd nominal_state_;
@@ -176,8 +170,8 @@ private:
   rclcpp::Publisher<ocs2_msgs::msg::MpcTargetTrajectories>::SharedPtr
       target_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
-      status_publisher_;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr control_state_publisher_;
+      correction_publisher_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr state_publisher_;
   rclcpp::Subscription<ocs2_msgs::msg::MpcObservation>::SharedPtr
       observation_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr
