@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Independent real-hardware OCS2 + whole-body force-follow bringup.
+"""Independent real-hardware OCS2 + whole-body admittance bringup.
 
 No REMANI target bridge is started. This launch uses the OCS2 real-motion gates
-plus the force controller's own arm switch.
+plus the force controller's own admittance/output gates.
 """
 
 from launch import LaunchDescription
@@ -27,8 +27,7 @@ def _enforce_force_motion_gate(context):
     write_enabled = _as_bool(
         LaunchConfiguration("hardware_write").perform(context))
     reference_output = _as_bool(
-        LaunchConfiguration(
-            "force_reference_output_enabled").perform(context))
+        LaunchConfiguration("admittance.output").perform(context))
 
     if reference_output and not write_enabled:
         raise RuntimeError(
@@ -44,9 +43,6 @@ def generate_launch_description():
     urdf = LaunchConfiguration("urdf_file")
     force_params_file = LaunchConfiguration("force_params_file")
     hardware_write = LaunchConfiguration("hardware_write")
-    force_armed = LaunchConfiguration("force_control_armed")
-    force_reference_output = LaunchConfiguration(
-        "force_reference_output_enabled")
 
     hardware_and_ocs2 = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -79,12 +75,10 @@ def generate_launch_description():
             force_params_file,
             {
                 "urdf_file": urdf,
-                "ee_frame": "tool0",
-                "robot_name": "mobile_manipulator",
-                "wrench_topic": "/fts_broadcaster/wrench",
-                "armed": ParameterValue(force_armed, value_type=bool),
-                "reference_output_enabled": ParameterValue(
-                    force_reference_output, value_type=bool),
+                "admittance.enable": ParameterValue(
+                    LaunchConfiguration("admittance.enable"), value_type=bool),
+                "admittance.output": ParameterValue(
+                    LaunchConfiguration("admittance.output"), value_type=bool),
                 "use_sim_time": False,
             },
         ],
@@ -96,9 +90,10 @@ def generate_launch_description():
         DeclareLaunchArgument("robot_ip", default_value="10.5.5.100"),
         DeclareLaunchArgument("local_ip", default_value="10.5.5.127"),
         DeclareLaunchArgument("hardware_write", default_value="false"),
-        DeclareLaunchArgument("force_control_armed", default_value="false"),
         DeclareLaunchArgument(
-            "force_reference_output_enabled", default_value="false"),
+            "admittance.enable", default_value="false"),
+        DeclareLaunchArgument(
+            "admittance.output", default_value="false"),
         DeclareLaunchArgument(
             "urdf_file",
             default_value=PathJoinSubstitution([

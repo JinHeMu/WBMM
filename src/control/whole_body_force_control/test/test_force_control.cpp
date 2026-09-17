@@ -117,7 +117,7 @@ Eigen::Matrix3d rotationOf(const wbmm::core::Pose & pose)
 TEST(AdmittanceController, PassiveAdmittanceIsBoundedAndReturnsToZero)
 {
   whole_body_force_control::AdmittanceController controller(
-    0.0, 3.0, 45.0, 150.0, 0.08, 0.035);
+    3.0, 45.0, 150.0, 0.08, 0.035);
   for (int i = 0; i < 1000; ++i) {
     controller.update(12.0, 0.01);
   }
@@ -128,89 +128,58 @@ TEST(AdmittanceController, PassiveAdmittanceIsBoundedAndReturnsToZero)
   EXPECT_NEAR(controller.offset(), 0.0, 1.0e-4);
 }
 
-TEST(AdmittanceController, ConstantForceUsesMeasuredMinusDesiredError)
+TEST(AdmittanceController, ZeroStiffnessFollowsWhileForceIsPresent)
 {
   whole_body_force_control::AdmittanceController controller(
-    10.0, 2.0, 30.0, 100.0, 0.05, 0.02);
-  for (int i = 0; i < 500; ++i) {
-    controller.update(10.0, 0.01);
-  }
-  EXPECT_NEAR(controller.offset(), 0.0, 1.0e-9);
-  for (int i = 0; i < 500; ++i) {
+    1.0, 10.0, 0.0, 2.0, 0.5);
+  for (int i = 0; i < 200; ++i) {
     controller.update(5.0, 0.01);
   }
-  EXPECT_LT(controller.offset(), -0.01);
-  controller.reset(10.0);
-  for (int i = 0; i < 500; ++i) {
-    controller.update(15.0, 0.01);
+  EXPECT_GT(controller.offset(), 0.30);
+  EXPECT_NEAR(controller.velocity(), 0.5, 1.0e-9);
+
+  const double held_offset = controller.offset();
+  for (int i = 0; i < 200; ++i) {
+    controller.update(0.0, 0.01);
   }
-  EXPECT_GT(controller.offset(), 0.01);
+  EXPECT_GT(controller.offset(), held_offset);
+  EXPECT_NEAR(controller.velocity(), 0.0, 1.0e-6);
 }
 
-TEST(ForceFollower, TracksForceWithoutDampingTerm)
+TEST(AdmittanceController, LimitOffsetStopsIntegratorWindup)
 {
-  whole_body_force_control::ForceFollower follower(
-    0.0, 150.0, 0.08, 0.035);
-  for (int i = 0; i < 500; ++i) {
-    follower.update(5.0, 0.02);
+  whole_body_force_control::AdmittanceController controller(
+    1.0, 10.0, 0.0, 2.0, 0.5);
+  for (int i = 0; i < 200; ++i) {
+    controller.update(5.0, 0.01);
   }
-  EXPECT_NEAR(follower.offset(), 5.0 / 150.0, 1.0e-9);
-  for (int i = 0; i < 500; ++i) {
-    follower.update(12.0, 0.02);
-  }
-  EXPECT_NEAR(follower.offset(), 0.08, 1.0e-9);
-  for (int i = 0; i < 500; ++i) {
-    follower.update(0.0, 0.02);
-  }
-  EXPECT_NEAR(follower.offset(), 0.0, 1.0e-9);
+  ASSERT_GT(controller.offset(), 0.30);
+
+  // Whole-body kinematics can only realize 0.20 m: shrink the hidden
+  // integrator state and stop velocity so a post-release command cannot jump.
+  EXPECT_TRUE(controller.limitOffset(0.20));
+  EXPECT_NEAR(controller.offset(), 0.20, 1.0e-12);
+  EXPECT_NEAR(controller.velocity(), 0.0, 1.0e-12);
+  EXPECT_FALSE(controller.limitOffset(0.30));
+
+  // Reversal remains possible through the normal dynamics.
+  controller.update(-5.0, 0.01);
+  EXPECT_LT(controller.velocity(), 0.0);
 }
 
-TEST(ForceFollower, PreservesSignedPushAndPullWhenRequested)
-{
-  whole_body_force_control::ForceFollower follower(
-    0.0, 200.0, 0.05, 0.10, false);
-  for (int i = 0; i < 100; ++i) {
-    follower.update(-6.0, 0.01);
-  }
-  EXPECT_NEAR(follower.offset(), -0.03, 1.0e-9);
-  for (int i = 0; i < 100; ++i) {
-    follower.update(6.0, 0.01);
-  }
-  EXPECT_NEAR(follower.offset(), 0.03, 1.0e-9);
-}
-
-TEST(ForceFollower, VelocityModeKeepsFollowingWhileForceIsPresent)
-{
-  whole_body_force_control::ForceFollower follower(
-    0.0, 1.0, 1000.0, 0.10, false, true, 0.2);
-  for (int i = 0; i < 100; ++i) {
-    follower.update(5.0, 0.01);
-  }
-  EXPECT_NEAR(follower.offset(), 0.10, 1.0e-9);
-  const double held_offset = follower.offset();
-  for (int i = 0; i < 100; ++i) {
-    follower.update(0.0, 0.01);
-  }
-  EXPECT_NEAR(follower.offset(), held_offset, 1.0e-12);
-  EXPECT_NEAR(follower.velocity(), 0.0, 1.0e-12);
-}
 
 TEST(CartesianComplianceController, SelectsIndependentSixAxisAdmittance)
 {
   using whole_body_force_control::AxisMask6d;
   using whole_body_force_control::Vector6d;
-  AxisMask6d admittance{true, false, true, false, true, false};
-  AxisMask6d constant_force{false, false, true, false, false, false};
-  Vector6d desired = Vector6d::Zero();
-  desired[2] = 5.0;
+  const AxisMask6d admittance{true, false, true, false, true, false};
   const Vector6d mass = Vector6d::Constant(1.0);
   const Vector6d damping = Vector6d::Constant(20.0);
   const Vector6d stiffness = Vector6d::Constant(100.0);
   const Vector6d max_offset = Vector6d::Constant(0.2);
   const Vector6d max_velocity = Vector6d::Constant(0.5);
   whole_body_force_control::CartesianComplianceController controller(
-    admittance, constant_force, desired, mass, damping, stiffness,
-    max_offset, max_velocity);
+    admittance, mass, damping, stiffness, max_offset, max_velocity);
 
   Vector6d wrench;
   wrench << 2.0, 100.0, 5.0, 100.0, -3.0, 100.0;
@@ -219,24 +188,10 @@ TEST(CartesianComplianceController, SelectsIndependentSixAxisAdmittance)
   }
   EXPECT_NEAR(controller.offset()[0], 0.02, 1.0e-5);
   EXPECT_DOUBLE_EQ(controller.offset()[1], 0.0);
-  EXPECT_NEAR(controller.offset()[2], 0.0, 1.0e-9);
+  EXPECT_NEAR(controller.offset()[2], 0.05, 1.0e-5);
   EXPECT_DOUBLE_EQ(controller.offset()[3], 0.0);
   EXPECT_NEAR(controller.offset()[4], -0.03, 1.0e-5);
   EXPECT_DOUBLE_EQ(controller.offset()[5], 0.0);
-}
-
-TEST(CartesianComplianceController, RejectsConstantForceOnRigidAxis)
-{
-  using whole_body_force_control::AxisMask6d;
-  using whole_body_force_control::Vector6d;
-  AxisMask6d admittance{true, false, false, false, false, false};
-  AxisMask6d constant_force{false, true, false, false, false, false};
-  EXPECT_THROW(
-    whole_body_force_control::CartesianComplianceController(
-      admittance, constant_force, Vector6d::Zero(), Vector6d::Ones(),
-      Vector6d::Ones(), Vector6d::Ones(), Vector6d::Ones(),
-      Vector6d::Ones()),
-    std::invalid_argument);
 }
 
 TEST(CartesianComplianceController, TransformsForceAndLeverArmTorque)
@@ -441,6 +396,23 @@ TEST(WholeBodyKinematics, RealizesSixAxisToolFrameCorrection)
   EXPECT_TRUE(corrected.head<3>().isApprox(seed.head<3>(), 1.0e-12));
 }
 
+TEST(WholeBodyKinematics, RealizesWorldFrameRotationCorrection)
+{
+  const auto kinematics = makeKinematics();
+  const Eigen::VectorXd seed = seedState();
+  const Eigen::Matrix3d initial_rotation = kinematics->frameRotation(seed);
+  Eigen::Matrix<double, 6, 1> correction = Eigen::Matrix<double, 6, 1>::Zero();
+  correction[5] = 0.020;
+  const Eigen::VectorXd corrected = kinematics->correctedStateWorld6D(
+    seed, correction, 0.0, 0.03, 0.20);
+  const Eigen::Matrix3d expected_rotation =
+    Eigen::AngleAxisd(0.020, Eigen::Vector3d::UnitZ()).toRotationMatrix() *
+    initial_rotation;
+  EXPECT_LT(
+    (kinematics->frameRotation(corrected) - expected_rotation).norm(),
+    2.0e-3);
+}
+
 TEST(WholeBodyKinematics, SixAxisCorrectionSharesBaseAndReachesPose)
 {
   const auto kinematics = makeKinematics();
@@ -467,6 +439,83 @@ TEST(WholeBodyKinematics, SixAxisCorrectionSharesBaseAndReachesPose)
     initial_position + desired_world_translation;
   EXPECT_LT(
     (kinematics->framePosition(corrected) - expected_position).norm(), 1.0e-3);
+}
+
+TEST(WholeBodyKinematics, WorldFrameSensorZAdmittancePreservesSignAndReturnsToNominal)
+{
+  using namespace whole_body_force_control;
+  const wbmm::pinocchio::WholeBodyKinematics kinematics(
+    sharedRobotModel(), "jk_se_vi_200_link");
+  const Eigen::VectorXd seed = seedState();
+  const Eigen::Vector3d initial_position = kinematics.framePosition(seed);
+  const Eigen::Matrix3d sensor_rotation = kinematics.frameRotation(seed);
+  AxisMask6d axes{};
+  axes[0] = axes[1] = axes[2] = true;
+  const Vector6d mass = Vector6d::Constant(3.0);
+  const Vector6d damping = Vector6d::Constant(45.0);
+  const Vector6d stiffness = Vector6d::Constant(400.0);
+  const Vector6d max_offset = Vector6d::Constant(0.020);
+  const Vector6d max_velocity = Vector6d::Constant(0.010);
+  CartesianComplianceController controller(
+    axes, mass, damping, stiffness, max_offset, max_velocity);
+
+  for (const double force : {2.0, -2.0}) {
+    controller.reset();
+    const Eigen::Vector3d sensor_force(0.0, 0.0, force);
+    const Eigen::Vector3d world_force = sensor_rotation * sensor_force;
+    Vector6d wrench = Vector6d::Zero();
+    wrench.head<3>() = world_force;
+    Vector6d correction = Vector6d::Zero();
+    for (int i = 0; i < 150; ++i) {
+      correction = controller.update(wrench, 0.020);
+      EXPECT_LE(correction.head<3>().cwiseAbs().maxCoeff(), 0.020);
+      EXPECT_LE(controller.velocity().head<3>().cwiseAbs().maxCoeff(), 0.010);
+    }
+    EXPECT_TRUE(correction.head<3>().isApprox(world_force / 400.0, 1.0e-6));
+    EXPECT_TRUE(correction.tail<3>().isZero(1.0e-12));
+
+    const Eigen::VectorXd reference = kinematics.correctedStateWorld6D(
+      seed, correction, 0.0, 0.0, 0.050);
+    const Eigen::Vector3d displacement =
+      kinematics.framePosition(reference) - initial_position;
+    EXPECT_LT((displacement - correction.head<3>()).norm(), 1.0e-4);
+    EXPECT_GT(world_force.dot(displacement), 0.0);
+    EXPECT_TRUE(reference.head<3>().isApprox(seed.head<3>(), 1.0e-12));
+    EXPECT_LE((reference.tail(6) - seed.tail(6)).cwiseAbs().maxCoeff(), 0.050);
+
+    for (int i = 0; i < 150; ++i) {
+      correction = controller.update(Vector6d::Zero(), 0.020);
+    }
+    EXPECT_LT(correction.norm(), 1.0e-6);
+  }
+}
+
+
+TEST(WholeBodyKinematics, NominalFrameWorldTranslationIsKinematicsExact)
+{
+  const auto kinematics = makeKinematics();
+  const Eigen::VectorXd seed = seedState();
+  const Eigen::Matrix3d nominal_rotation = kinematics->frameRotation(seed);
+
+  Eigen::Matrix<double, 6, 1> local_correction =
+    Eigen::Matrix<double, 6, 1>::Zero();
+  local_correction[2] = -0.009;
+  Eigen::Matrix<double, 6, 1> world_correction =
+    Eigen::Matrix<double, 6, 1>::Zero();
+  world_correction.head<3>() = nominal_rotation * local_correction.head<3>();
+  world_correction.tail<3>() = nominal_rotation * local_correction.tail<3>();
+
+  const Eigen::Vector3d nominal_position = kinematics->framePosition(seed);
+  const Eigen::VectorXd reference = kinematics->correctedStateWorld6D(
+    seed, world_correction, 0.4, 0.04, 0.6);
+  const Eigen::Vector3d achieved_world =
+    kinematics->framePosition(reference) - nominal_position;
+  EXPECT_LT(
+    (achieved_world - world_correction.head<3>()).norm(), 1.0e-5);
+  const Eigen::Vector3d achieved_local =
+    nominal_rotation.transpose() * achieved_world;
+  EXPECT_LT(
+    (achieved_local - local_correction.head<3>()).norm(), 1.0e-5);
 }
 
 TEST(WholeBodyKinematics, ZeroCorrectionPreservesNominalState)
@@ -609,4 +658,37 @@ TEST(ForceProcessor, HardLimitAndRateLimitAreReported)
   ASSERT_TRUE(result.ok);
   EXPECT_TRUE(result.rate_limited);
   EXPECT_NEAR(result.wrench.force.x, 10.1, 1.0e-12);
+}
+
+TEST(ForceProcessor, RawForceNormLimitStopsDuringTare)
+{
+  using whole_body_force_control::ForceProcessor;
+  using whole_body_force_control::ForceProcessorConfig;
+  using whole_body_force_control::Vector6d;
+
+  ForceProcessorConfig config;
+  config.filter_alpha = Vector6d::Ones();
+  config.scale = Vector6d::Ones();
+  config.hard_wrench_limit = Vector6d::Constant(100.0);
+  config.hard_force_norm_limit = 5.0;
+  config.tare_samples = 50;
+  ForceProcessor processor(config);
+  processor.startTare();
+
+  wbmm::core::Wrench raw;
+  raw.force.x = 3.0;
+  raw.force.y = 4.0;
+  const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
+  const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
+
+  auto result = processor.process(raw, rotation, translation, 0.01);
+  ASSERT_TRUE(result.taring);
+  EXPECT_FALSE(result.hard_limit_exceeded);
+
+  raw.force.x = 3.1;
+  raw.force.y = 4.1;
+  result = processor.process(raw, rotation, translation, 0.01);
+  EXPECT_FALSE(result.ok);
+  EXPECT_TRUE(result.hard_limit_exceeded);
+  EXPECT_FALSE(result.taring);
 }

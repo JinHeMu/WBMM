@@ -39,4 +39,12 @@
     <site name="distance_100m" type="cylinder" pos="100 -1.2 0.006"
           size="0.05 0.006" rgba="0.2 1.0 0.3 1"/>
   </worldbody>
+  <!-- Optional bent-pose key retained for compatibility.  The force-control
+       launch profiles now start from the shared "low" keyframe. -->
+  <keyframe>
+    <key name="force_control"
+         qpos="0 0 0 0 0 0 1.0 1.0 1.1414 3.6 0.785398"
+         qvel="0 0 0 0 0 0 0 0 0 0 0"
+         ctrl="0 0 0 1.0 1.0 1.1414 3.6 0.785398"/>
+  </keyframe>
 </mujoco>

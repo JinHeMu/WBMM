@@ -38,22 +38,44 @@
 ```text
 raw FTS
   ↓
+fail-closed: |F_raw| > hard_force_norm_limit 立即故障保持
+  ↓
 自动 tare（启动后采样 N 帧）
   ↓
-TF: message.frame_id -> ee_frame
+TF: message.frame_id -> sensor_frame -> tcp_frame
   ↓
-scale / absolute
+scale
   ↓
 低通滤波
   ↓
-finite / hard limit / max rate 安全检查
+finite / per-axis hard limit / max rate 安全检查
   ↓
-Admittance / ForceFollower / CartesianComplianceController
+CartesianComplianceController（名义 TCP 系）
   ↓
-whole-body reference -> MPC
+whole-body IK + 可达性 anti-windup + 9D reference 限速
+  ↓
+MPC target
 ```
 
-控制器内部不再做滤波；它们只接收已经处理好的 wrench。
+控制器内部不再做滤波；它们只接收已经处理好的 wrench。新增的原始力范数检查位于
+tare 和滤波之前，因此大于约 20 N 的阶跃不会被滤波平滑掉或 tare 掉。
+
+### 防积分饱和（anti-windup）
+
+导纳控制器在**捕获的名义 TCP 系**中输出修正量，再用名义 TCP 姿态旋转到
+`state_frame`；不会使用每周期测量到的实际 TCP 姿态，因此跟踪误差不会反过来
+旋转外力方向、形成正反馈或造成参考跳变。
+
+每个周期还会把 whole-body IK 实际能实现的 TCP 修正反馈给导纳控制器：
+
+- 正常可达时，修正量完全由 `M-D-K` 动力学决定；
+- 当 IK 受关节限位/工作空间约束无法继续跟随，积分器被收缩到可达值并清零该轴
+  速度，避免“隐藏的偏移”持续累加；
+- 释放外力后不会因为积分数米偏移而产生后续跳变。
+
+参考输出还会对底盘 x/y 和所有关节做逐周期限速（`max_base_velocity` /
+`max_joint_velocity`），即使 IK 在奇异位形切换分支，MPC 收到的目标也是连续
+状态。
 
 ## 控制模式
 
@@ -120,12 +142,11 @@ ros2 launch tracer_jaka_bringup force_control_mujoco_test.launch.py \
 6D 模式把 `WrenchStamped` 从消息的 `frame_id` 变换到 `ee_frame`，同时包含
 力矩的力臂项；随后在名义末端局部系产生 `[dx,dy,dz,rx,ry,rz]`。
 `require_wrench_frame` 默认在 6D 模式开启，没有 `frame_id` 或 TF 不可用时会拒绝
-该帧数据。已经收到过数据后，力传感器或 OCS2 观测一旦超时会锁存故障、撤销
-`armed`，并在参考输出门已打开时发送“保持当前观测”的参考；不会把失联伪装成
-零力继续运动。故障排除后需通过重启节点或上层重新以 `armed=true` 启动；当前版本不提供动态 enable 服务。
-
-为了兼容已有仿真和实机配置，默认 `admittance_axes: [legacy]`，继续使用原来的
-`force_axis`、`absolute_force` 和 `response_body_x/y/z` 标量路径。
+该帧数据。还没有收到有效 wrench 时节点保持观测位置不动；已经收到过数据后，
+力传感器或 OCS2 观测超时会锁存 `FAULT_WRENCH_TIMEOUT` / `FAULT_OBSERVATION_TIMEOUT`，
+关闭导纳控制并发布“保持当前观测”的参考；原始力范数超过
+`hard_force_norm_limit` 时立即锁存 `FAULT_WRENCH_LIMIT` 并保持。故障排除后
+需重启节点或上层重新启动；当前版本不提供动态 enable 服务。
 
 ## MuJoCo自动测试
 
@@ -262,19 +283,26 @@ ros2 launch tracer_jaka_bringup force_control_mujoco_test.launch.py \
 
 ## 主要参数
 
-- `wrench_topic`, `status_topic`, `force_axis`, `absolute_force`
-- `desired_force`, `mass`, `damping`, `stiffness`
-- `max_offset`, `max_velocity`, `force_timeout`
-- `observation_timeout`, `armed`, `reference_output_enabled`
-- `enforce_single_target_owner`, `force_scale`, `wrench_scale_6d`
-- `hard_wrench_limit`, `max_wrench_rate`, `tare_samples`, `control_state_topic`
-- `filter_alpha`, `filter_alpha_6d`：统一由 `ForceProcessor` 使用
-- `response_body_x/y/z`, `base_share`, `max_base_delta`, `max_joint_delta`
-- `admittance_axes`, `constant_force_axes`, `absolute_wrench_axes`
-- `desired_wrench`, `mass_6d`, `damping_6d`, `stiffness_6d`
-- `max_offset_6d`, `max_velocity_6d`, `filter_alpha_6d`
-- `require_wrench_frame`
+- `topics.wrench`, `topics.status`, `topics.control_state`
+- `force_sensor.sensor_frame`, `force_sensor.tcp_frame`,
+  `force_sensor.require_wrench_frame`, `force_sensor.tf_lookup_timeout`,
+  `force_sensor.tf_fallback_to_latest`
+- `force_sensor.tare_samples`, `force_sensor.filter_alpha`,
+  `force_sensor.wrench_scale`, `force_sensor.force_timeout`
+- `force_sensor.hard_force_norm_limit`：原始 `Fx/Fy/Fz` 范数硬限幅，默认 20 N；
+  设为 0 可关闭该单独检查
+- `force_sensor.hard_wrench_limit`、`force_sensor.max_wrench_rate`
+- `admittance.enable`, `admittance.output`, `admittance.selected_axes`,
+  `admittance.mass`, `admittance.damping`, `admittance.stiffness`,
+  `admittance.max_offset`, `admittance.max_velocity`
+- `whole_body.base_share`, `whole_body.max_base_delta`,
+  `whole_body.max_base_velocity`, `whole_body.max_joint_delta`,
+  `whole_body.max_joint_velocity`
+- `safety.observation_timeout`, `safety.capture_settle_time`,
+  `safety.enforce_single_target_owner`, `safety.loop_rate`
+- `output.reference_horizon`, `output.reference_dt`, `output.input_dimension`
 
-`/whole_body_force_control/status` 的前 9 项保持旧接口；6D 模式在其后追加
-`filtered_wrench[6]`、`offset[6]`、`velocity[6]`、导纳轴掩码 `[6]` 和恒力轴掩码
-`[6]`，末尾再追加 `armed`、`reference_output_enabled`、`fault_latched` 三项。
+`/whole_body_force_control/status` 的前 9 项保持旧接口，其后依次为 TCP 系 `filtered_wrench[6]`、名义 TCP 系 `offset[6]`、
+`velocity[6]`、导纳轴掩码
+`[6]`，末尾为 `admittance_enable`、`reference_output_enabled`、
+`fault_latched` 三项。

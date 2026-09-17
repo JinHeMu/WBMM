@@ -1,45 +1,60 @@
 whole_body_force_control:
   ros__parameters:
-    # 实机唯一配置：沿用首轮 Z 向测试设置，默认只读/禁止参考输出。
-    # 上电自动清零期间必须无外力；TF、方向和安全限值须现场人工确认。
-    control_mode: force_follow
-    armed: false
-    reference_output_enabled: false
-    enforce_single_target_owner: true
+    # Real-hardware raw-FTS admittance shadow/commissioning configuration.
+    # Keep both motion gates closed by default; validate frame, sign, tare and
+    # limits before enabling hardware_write.
+    robot_name: mobile_manipulator
+    state_frame: odom
 
-    wrench_topic: /fts_broadcaster/wrench
-    status_topic: /whole_body_force_control/status
-    control_state_topic: /whole_body_force_control/control_state
+    topics:
+      wrench: /fts_broadcaster/wrench
+      status: /whole_body_force_control/status
+      control_state: /whole_body_force_control/control_state
 
-    # ForceProcessor：自动清零、消息 frame -> ee_frame 变换和低通滤波。
-    # 不包含重力补偿；校准后使用带符号的 tool0/Fz。
-    tare_samples: 100
-    require_wrench_frame: true
-    force_axis: z
-    absolute_force: false
-    force_scale: 1.0
-    response_body_x: 0.0
-    response_body_y: 0.0
-    response_body_z: 1.0
-    admittance_axes: [legacy]
-    constant_force_axes: [none]
-    absolute_wrench_axes: [none]
+    force_sensor:
+      # Raw FTS wrench is expressed in this sensor link's URDF/TF axes.
+      sensor_frame: jk_se_vi_200_link
+      tcp_frame: tool0
+      require_wrench_frame: true
+      tf_lookup_timeout: 0.05
+      tf_fallback_to_latest: false
+      tare_samples: 100
+      filter_alpha: 0.15
+      wrench_scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      # Fail-closed before tare/filtering; real commissioning stays below
+      # 15 N so a broken force reading cannot command motion.
+      hard_force_norm_limit: 15.0
+      hard_wrench_limit: [15.0, 15.0, 15.0, 2.0, 2.0, 2.0]
+      max_wrench_rate: [20.0, 20.0, 20.0, 5.0, 5.0, 5.0]
+      force_timeout: 0.10
 
-    # 首轮实机采用有限位移跟随，不启用无限行程。
-    force_velocity_mode: false
-    stiffness: 400.0
-    max_offset: 0.020
-    max_velocity: 0.010
-    filter_alpha: 0.15
-    # 差速底盘不能沿 Z 平移，底盘不参与此次测试。
-    base_share: 0.0
-    max_base_delta: 0.0
-    max_joint_delta: 0.050
+    admittance:
+      enable: false
+      output: false
+      selected_axes: [true, true, true, false, false, false]  # world x/y/z only
+      mass: [3.0, 3.0, 3.0, 0.3, 0.3, 0.3]
+      # For selected axes with stiffness > 0, damping_ratio can be used
+      # instead of damping; damping_ratio -> D = 2*zeta*sqrt(M*S).
+      damping: [45.0, 45.0, 45.0, 4.5, 4.5, 4.5]
+      stiffness: [400.0, 400.0, 400.0, 0.0, 0.0, 0.0]
+      max_offset: [0.020, 0.020, 0.020, 0.15, 0.15, 0.15]
+      max_velocity: [0.010, 0.010, 0.010, 0.15, 0.15, 0.15]
 
-    loop_rate: 50.0
-    force_timeout: 0.10
-    observation_timeout: 0.20
-    capture_settle_time: 1.0
-    hard_wrench_limit: [15.0, 15.0, 15.0, 2.0, 2.0, 2.0]
-    # 单位为 N/s、Nm/s；0 表示关闭对应轴变化率限制。
-    max_wrench_rate: [20.0, 20.0, 20.0, 5.0, 5.0, 5.0]
+    whole_body:
+      # Real pass keeps a bounded differential-base share along heading.
+      base_share: 0.2
+      max_base_delta: 0.2
+      max_base_velocity: 0.20
+      max_joint_delta: 0.050
+      max_joint_velocity: 0.50
+
+    safety:
+      observation_timeout: 0.20
+      capture_settle_time: 1.0
+      enforce_single_target_owner: true
+      loop_rate: 50.0
+
+    output:
+      reference_horizon: 1.0
+      reference_dt: 0.1
+      input_dimension: 8

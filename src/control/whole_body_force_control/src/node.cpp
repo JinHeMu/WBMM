@@ -1,5 +1,7 @@
 #include "node.hpp"
 
+#include <Eigen/Geometry>
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -11,6 +13,19 @@
 
 namespace whole_body_force_control
 {
+namespace
+{
+
+Eigen::Vector3d log3(const Eigen::Matrix3d &rotation)
+{
+  const Eigen::AngleAxisd angle_axis(rotation);
+  if (!std::isfinite(angle_axis.angle())) {
+    return Eigen::Vector3d::Zero();
+  }
+  return angle_axis.angle() * angle_axis.axis();
+}
+
+}  // namespace
 
 WholeBodyForceControlNode::WholeBodyForceControlNode()
     : Node("whole_body_force_control")
@@ -19,31 +34,18 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
 
   robot_model_ = std::make_shared<PinocchioRobotModel>(
       parameters_.urdf_file);
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
   kinematics_ = std::make_unique<WholeBodyKinematics>(
-      robot_model_, parameters_.ee_frame, parameters_.state_frame,
+      robot_model_, parameters_.tcp_frame, parameters_.state_frame,
       wbmm::core::ClockDomain::kOcs2Mpc);
 
   configureForceProcessor();
 
   cartesian_controller_ = std::make_unique<CartesianComplianceController>(
-      parameters_.admittance_axes, parameters_.constant_force_axes,
-      parameters_.desired_wrench, parameters_.mass_6d,
-      parameters_.damping_6d, parameters_.stiffness_6d,
-      parameters_.max_offset_6d, parameters_.max_velocity_6d,
-      parameters_.control_mode == "force_follow");
-
-  const double legacy_desired =
-      parameters_.control_mode == "constant_force"
-          ? parameters_.configured_desired_force
-          : 0.0;
-  admittance_ = std::make_unique<AdmittanceController>(
-      legacy_desired, parameters_.mass, parameters_.damping,
+      parameters_.admittance_axes, parameters_.mass, parameters_.damping,
       parameters_.stiffness, parameters_.max_offset,
-      parameters_.max_velocity, parameters_.absolute_force);
-  force_follower_ = std::make_unique<ForceFollower>(
-      legacy_desired, parameters_.stiffness, parameters_.max_offset,
-      parameters_.max_velocity, parameters_.absolute_force,
-      parameters_.force_velocity_mode, parameters_.force_deadband);
+      parameters_.max_velocity);
 
   createRosInterfaces();
   force_processor_.startTare();
@@ -60,14 +62,13 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
       std::bind(&WholeBodyForceControlNode::update, this));
   RCLCPP_INFO(
       get_logger(),
-      "Ready: mode=%s interface=%s axes=[%s] constant_force=[%s] armed=%s output=%s",
-      parameters_.control_mode.c_str(),
-      parameters_.cartesian_mode ? "6d" : "legacy",
+      "Ready: frame=%s axes=[%s] admittance_enable=%s output=%s",
+      parameters_.state_frame.c_str(),
       enabledAxes(parameters_.admittance_axes).c_str(),
-      enabledAxes(parameters_.constant_force_axes).c_str(),
-      parameters_.armed ? "true" : "false",
+      parameters_.admittance_enabled ? "true" : "false",
       parameters_.reference_output_enabled ? "true" : "false");
-  publishControlState(parameters_.armed ? "WAITING_FOR_DATA" : "DISABLED");
+  publishControlState(
+      parameters_.admittance_enabled ? "WAITING_FOR_DATA" : "DISABLED");
 }
 
 void WholeBodyForceControlNode::requestFault(const std::string &reason)
@@ -81,33 +82,46 @@ void WholeBodyForceControlNode::requestFault(const std::string &reason)
 
 void WholeBodyForceControlNode::latchFault(const std::string &reason)
 {
-  if (!fault_latched_)
-  {
-    RCLCPP_ERROR(get_logger(), "Force-control fault latched: %s", reason.c_str());
+  if (fault_latched_) {
+    return;
   }
+  RCLCPP_ERROR(get_logger(), "Force-control fault latched: %s", reason.c_str());
   fault_latched_ = true;
   fault_reason_ = reason;
-  parameters_.armed = false;
+  parameters_.admittance_enabled = false;
   nominal_captured_ = false;
+  hold_state_valid_ = false;
   force_processor_.reset();
-  admittance_->reset(measured_force_);
-  force_follower_->reset(measured_force_);
   cartesian_controller_->reset(measuredWrenchVector());
   publishControlState("FAULT_" + reason);
+  publishHoldReference();
+}
+
+void WholeBodyForceControlNode::publishHoldReference()
+{
+  if (!observation_received_) {
+    return;
+  }
+  if (!hold_state_valid_) {
+    hold_state_ = observationStateLocked();
+    hold_state_valid_ = true;
+  }
+  publishReference(hold_state_);
 }
 
 void WholeBodyForceControlNode::checkFaults(
     bool observation_timed_out, bool wrench_timed_out)
 {
-  if (parameters_.armed && observation_timed_out)
+  if (parameters_.admittance_enabled && observation_timed_out)
   {
     latchFault("OBSERVATION_TIMEOUT");
   }
-  else if (parameters_.armed && wrench_timed_out)
+  else if (parameters_.admittance_enabled && wrench_timed_out)
   {
     latchFault("WRENCH_TIMEOUT");
   }
-  else if (parameters_.armed && parameters_.enforce_single_target_owner &&
+  else if (parameters_.admittance_enabled &&
+           parameters_.enforce_single_target_owner &&
            foreignTargetPublisherPresent())
   {
     latchFault("TARGET_OWNER");
@@ -118,22 +132,43 @@ void WholeBodyForceControlNode::captureNominalState(
     const Eigen::VectorXd &measured_state)
 {
   nominal_state_ = measured_state;
-  response_world_ =
-      Eigen::AngleAxisd(nominal_state_[2], Eigen::Vector3d::UnitZ()) *
-      parameters_.response_body;
-  nominal_ee_ = kinematics_->framePosition(nominal_state_);
-  nominal_ee_rotation_ = kinematics_->frameRotation(nominal_state_);
-  admittance_->reset(0.0);
-  force_follower_->reset(0.0);
+  last_reference_state_ = nominal_state_;
+  nominal_tcp_ = kinematics_->framePosition(nominal_state_);
+  nominal_tcp_rotation_ = kinematics_->frameRotation(nominal_state_);
   cartesian_controller_->reset(measuredWrenchVector());
   nominal_captured_ = true;
   RCLCPP_INFO(
-      get_logger(), "Captured nominal state; accepting %s wrench",
-      parameters_.cartesian_mode ? "6D" : "legacy scalar");
+      get_logger(),
+      "Captured nominal state; admittance wrench is expressed in %s",
+      parameters_.state_frame.c_str());
   publishControlState("ACTIVE");
 }
 
-void WholeBodyForceControlNode::updateCartesianReference(
+Vector6d WholeBodyForceControlNode::correctionFromReferencePose(
+    const Eigen::VectorXd &reference) const
+{
+  Vector6d correction = Vector6d::Zero();
+  if (!nominal_captured_ || nominal_state_.size() != reference.size()) {
+    return correction;
+  }
+
+  const Eigen::Vector3d reference_tcp = kinematics_->framePosition(reference);
+  const Eigen::Matrix3d reference_rotation =
+      kinematics_->frameRotation(reference);
+
+  // Kinematics produced a target in the nominal TCP frame:
+  //   p_ref = p_nom + R_nom * dx
+  //   R_ref = exp3(R_nom * dtheta) * R_nom
+  correction.head<3>() =
+      nominal_tcp_rotation_.transpose() * (reference_tcp - nominal_tcp_);
+  const Eigen::Matrix3d world_rotation =
+      reference_rotation * nominal_tcp_rotation_.transpose();
+  correction.tail<3>() =
+      nominal_tcp_rotation_.transpose() * log3(world_rotation);
+  return correction;
+}
+
+void WholeBodyForceControlNode::updateReference(
     const Vector6d &measured_wrench,
     double dt,
     Vector6d &correction,
@@ -144,53 +179,100 @@ void WholeBodyForceControlNode::updateCartesianReference(
 {
   correction = cartesian_controller_->update(measured_wrench, dt);
   filtered_wrench = cartesian_controller_->measuredWrench();
-  reference = kinematics_->correctedState6D(
-      nominal_state_, correction, parameters_.base_share,
-      parameters_.max_base_delta, parameters_.max_joint_delta);
-  for (std::size_t i = 0; i < 6; ++i)
-  {
-    if (parameters_.admittance_axes[i])
-    {
-      primary_offset = correction[i];
-      primary_force = filtered_wrench[i];
-      break;
+
+  // The admittance offset is defined relative to the captured nominal TCP
+  // frame.  Use that fixed nominal rotation (not the instantaneous measured
+  // TCP TF) so a tracking deviation cannot rotate the force direction and
+  // create a feedback loop or reference jump.
+  const auto makeReference = [&](const Vector6d &local_correction) {
+      Vector6d world_correction;
+      world_correction.head<3>() =
+          nominal_tcp_rotation_ * local_correction.head<3>();
+      world_correction.tail<3>() =
+          nominal_tcp_rotation_ * local_correction.tail<3>();
+      return kinematics_->correctedStateWorld6D(
+          nominal_state_, world_correction, parameters_.base_share,
+          parameters_.max_base_delta, parameters_.max_joint_delta);
+    };
+
+  reference = makeReference(correction);
+
+  // Anti-windup for a force request that the arm/whole-body workspace cannot
+  // realize.  Without this, K=0 force following integrates an ever-larger
+  // offset while the IK output is clamped, and releasing the force leaves a
+  // large hidden reference; a later command then appears as a jump.
+  const Vector6d achieved_correction =
+      correctionFromReferencePose(reference);
+  const bool correction_limited =
+      cartesian_controller_->clampOffset(achieved_correction);
+  if (correction_limited) {
+    const double desired_norm = correction.norm();
+    const double reached_norm = achieved_correction.norm();
+    const double max_axis_delta =
+        (correction - achieved_correction).cwiseAbs().maxCoeff();
+    correction = cartesian_controller_->offset();
+    reference = makeReference(correction);
+    RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Admittance correction saturated (desired=%.6f reached=%.6f "
+        "max_axis_delta=%.6f); integrator reduced to prevent windup",
+        desired_norm, reached_norm, max_axis_delta);
+  }
+
+  // Rate-limit the complete reference, including base translation.  The IK
+  // can jump to another solution branch near singularities; MPC must receive
+  // a continuous target rather than a step.
+  if (last_reference_state_.size() == reference.size()) {
+    const double limited_dt = std::clamp(dt, 0.0, 0.05);
+    const double base_step = parameters_.max_base_velocity * limited_dt;
+    for (Eigen::Index i = 0; i < 2; ++i) {
+      const double delta = reference[i] - last_reference_state_[i];
+      reference[i] = last_reference_state_[i] +
+          std::clamp(delta, -base_step, base_step);
+    }
+    const int arm_dimension = kinematics_->armDimension();
+    const double joint_step =
+        parameters_.max_joint_velocity * limited_dt;
+    for (int i = 0; i < arm_dimension; ++i) {
+      const Eigen::Index index = 3 + i;
+      const double delta = reference[index] - last_reference_state_[index];
+      reference[index] = last_reference_state_[index] +
+          std::clamp(delta, -joint_step, joint_step);
     }
   }
-}
+  last_reference_state_ = reference;
 
-void WholeBodyForceControlNode::updateLegacyReference(
-    double dt,
-    Vector6d &correction,
-    Vector6d &filtered_wrench,
-    Eigen::VectorXd &reference,
-    double &primary_offset,
-    double &primary_force)
-{
-  const bool force_follow = parameters_.control_mode == "force_follow";
-  primary_offset = force_follow
-      ? force_follower_->update(measured_force_, dt)
-      : admittance_->update(measured_force_, dt);
-  primary_force = force_follow
-      ? force_follower_->measuredForce()
-      : admittance_->measuredForce();
-  reference = kinematics_->correctedState(
-      nominal_state_, response_world_, primary_offset,
-      parameters_.base_share, parameters_.max_base_delta,
-      parameters_.max_joint_delta);
-  const std::size_t index = parameters_.force_axis_index;
-  correction[index] = primary_offset;
-  filtered_wrench[index] = primary_force;
+  const Eigen::Vector3d measured_force = filtered_wrench.head<3>();
+  const Eigen::Vector3d correction_translation = correction.head<3>();
+  if (measured_force.norm() > 1.0e-9)
+  {
+    const Eigen::Vector3d direction = measured_force.normalized();
+    primary_force = measured_force.norm();
+    primary_offset = correction_translation.dot(direction);
+  }
+  else
+  {
+    for (std::size_t i = 0; i < 6; ++i)
+    {
+      if (parameters_.admittance_axes[i])
+      {
+        primary_offset = correction[i];
+        primary_force = filtered_wrench[i];
+        break;
+      }
+    }
+  }
 }
 
 void WholeBodyForceControlNode::configureForceProcessor()
 {
   ForceProcessorConfig config;
   config.tare_samples = parameters_.tare_samples;
-  config.filter_alpha = parameters_.filter_alpha_6d;
-  config.scale = parameters_.wrench_scale_6d;
-  config.absolute_axes = parameters_.absolute_wrench_axes;
+  config.filter_alpha = Vector6d::Constant(parameters_.filter_alpha);
+  config.scale = parameters_.wrench_scale;
   config.hard_limit_enabled = true;
   config.hard_wrench_limit = parameters_.hard_wrench_limit;
+  config.hard_force_norm_limit = parameters_.hard_force_norm_limit;
   config.max_wrench_rate = parameters_.max_wrench_rate;
   force_processor_.setConfig(config);
 }
@@ -210,25 +292,23 @@ void WholeBodyForceControlNode::update()
     latchFault(reason);
   }
 
-  // Data check.
   if (!observation_received_)
   {
     publishControlState(
-        parameters_.armed ? "WAITING_FOR_OBSERVATION" : "DISABLED");
+        parameters_.admittance_enabled ? "WAITING_FOR_OBSERVATION" : "DISABLED");
     return;
   }
 
   if (force_processor_.taring())
   {
     publishControlState("TARING");
-    publishReference(observationStateLocked());
+    publishHoldReference();
     return;
   }
 
   const Eigen::VectorXd measured_state = observationStateLocked();
   const Vector6d measured_wrench = measuredWrenchVector();
   const bool observation_timed_out =
-      !observation_received_ ||
       std::chrono::duration<double>(wall_now - last_observation_).count() >
           parameters_.observation_timeout;
   const bool wrench_timed_out =
@@ -236,28 +316,22 @@ void WholeBodyForceControlNode::update()
       std::chrono::duration<double>(wall_now - last_wrench_).count() >
           parameters_.force_timeout;
 
-  // Initial startup is not a sensor-loss fault.  Wait for the first valid
-  // sample; after a stream has started, any timeout is latched below.
-  if (parameters_.armed && !wrench_received_)
+  if (parameters_.admittance_enabled && !wrench_received_)
   {
     publishControlState("WAITING_FOR_WRENCH");
-    publishReference(measured_state);
+    publishHoldReference();
     return;
   }
 
-  // Safety checks.
   checkFaults(observation_timed_out, wrench_timed_out);
-  if (!parameters_.armed)
+  if (!parameters_.admittance_enabled)
   {
-    if (!fault_latched_)
-    {
-      publishControlState("DISABLED");
-    }
-    publishReference(measured_state);
+    publishControlState(
+        fault_latched_ ? "FAULT_" + fault_reason_ : "DISABLED");
+    publishHoldReference();
     return;
   }
 
-  // Nominal-state capture.
   if (!nominal_captured_)
   {
     const double elapsed =
@@ -270,26 +344,15 @@ void WholeBodyForceControlNode::update()
     captureNominalState(measured_state);
   }
 
-  // Control calculation.
   Vector6d correction = Vector6d::Zero();
   Vector6d filtered_wrench = Vector6d::Zero();
   Eigen::VectorXd reference;
   double primary_offset = 0.0;
   double primary_force = 0.0;
-  if (parameters_.cartesian_mode)
-  {
-    updateCartesianReference(
-        measured_wrench, dt, correction, filtered_wrench, reference,
-        primary_offset, primary_force);
-  }
-  else
-  {
-    updateLegacyReference(
-        dt, correction, filtered_wrench, reference,
-        primary_offset, primary_force);
-  }
+  updateReference(
+      measured_wrench, dt, correction, filtered_wrench, reference,
+      primary_offset, primary_force);
 
-  // Publish reference and status.
   publishReference(reference);
   publishStatus(
       reference, measured_state, primary_force, primary_offset,

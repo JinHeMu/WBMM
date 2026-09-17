@@ -54,4 +54,4 @@ base_controller:
 fts_broadcaster:
   ros__parameters:
     sensor_name: tcp_fts_sensor
-    frame_id: jaka_se_vi_200_link
+    frame_id: jk_se_vi_200_link

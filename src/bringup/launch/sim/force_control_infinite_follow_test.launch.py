@@ -39,12 +39,13 @@ def generate_launch_description():
             "test_profile": "continuous_infinite",
             "report_file": LaunchConfiguration("report_file"),
             "wrench_topic": "/whole_body_force_control/fake_wrench",
-            "wrench_frame": "tool0",
+            "wrench_frame": "jk_se_vi_200_link",
             "continuous_force": ParameterValue(
                 LaunchConfiguration("force"), value_type=float),
             "continuous_duration": ParameterValue(
                 LaunchConfiguration("duration"), value_type=float),
             "baseline_duration": 4.0,
+            "use_sim_time": True,
         }],
     )
     delayed_tester = TimerAction(period=14.0, actions=[tester])

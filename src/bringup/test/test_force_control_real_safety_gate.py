@@ -25,7 +25,7 @@ def make_context(hardware_write, reference_output):
     context = LaunchContext()
     context.launch_configurations.update({
         "hardware_write": str(hardware_write).lower(),
-        "force_reference_output_enabled": str(reference_output).lower(),
+        "admittance.output": str(reference_output).lower(),
     })
     return context
 

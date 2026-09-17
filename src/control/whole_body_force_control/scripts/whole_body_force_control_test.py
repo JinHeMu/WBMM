@@ -32,8 +32,11 @@ class WholeBodyForceControlTest(Node):
             ).value
         )
         self.wrench_frame = str(
-            self.declare_parameter("wrench_frame", "tool0").value
+            self.declare_parameter("wrench_frame", "jk_se_vi_200_link").value
         )
+        self.force_axis = str(self.declare_parameter("force_axis", "x").value)
+        if self.force_axis not in ("x", "y", "z"):
+            raise ValueError("force_axis must be x, y, or z")
         self.test_profile = str(
             self.declare_parameter("test_profile", "signed_regression").value
         )
@@ -138,7 +141,7 @@ class WholeBodyForceControlTest(Node):
         message = WrenchStamped()
         message.header.stamp = self.get_clock().now().to_msg()
         message.header.frame_id = self.wrench_frame
-        message.wrench.force.x = float(force)
+        setattr(message.wrench.force, self.force_axis, float(force))
         self.publisher.publish(message)
 
     def tick(self):
@@ -212,14 +215,14 @@ class WholeBodyForceControlTest(Node):
             failures.append("base lateral slip exceeded 10 mm")
         if not abs(release[5]) < max(0.010, abs(high[5]) * 0.60):
             failures.append("end effector did not return after force release")
-        if not pull[1] < -0.020:
+        if not pull[1] > 0.020:
             failures.append(
-                "negative pull did not produce a negative reference"
+                "reverse-direction force did not produce a reverse reference"
             )
-        if not pull[4] < -0.005:
-            failures.append("base did not participate in negative pull")
-        if not pull[6] < -0.005:
-            failures.append("arm did not participate in negative pull")
+        if not pull[4] > 0.005:
+            failures.append("base did not participate in reverse-direction force")
+        if not pull[6] > 0.005:
+            failures.append("arm did not participate in reverse-direction force")
         if not abs(final_release[5]) < max(0.010, abs(pull[5]) * 0.60):
             failures.append("end effector did not return after pull release")
         if self.unexpected_collision:
@@ -229,7 +232,9 @@ class WholeBodyForceControlTest(Node):
         report = {
             "passed": not failures,
             "package": "whole_body_force_control",
-            "test": "MuJoCo signed whole-body force-follow tracking",
+            "test": "MuJoCo signed whole-body compliance tracking",
+            "wrench_frame": self.wrench_frame,
+            "force_axis": self.force_axis,
             "force_profile": [
                 {"stage": name, "force_N": force, "duration_s": duration}
                 for name, force, duration in self.stages

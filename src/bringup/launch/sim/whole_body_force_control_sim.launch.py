@@ -13,19 +13,101 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 
 _PROFILES = {
+    "sensor_z": {
+        "mujoco_model": "scene_force_follow_infinite.xml",
+        "init_keyframe": "low",
+        "force_overrides": {},
+    },
+    # Example 1: three-axis translational admittance with elastic return.
+    "three_axis_admittance": {
+        "mujoco_model": "scene_force_follow_infinite.xml",
+        "init_keyframe": "low",
+        "force_overrides": {
+            "admittance.selected_axes":
+                [True, True, True, False, False, False],
+            "admittance.mass":
+                [3.0, 3.0, 3.0, 0.3, 0.3, 0.3],
+            "admittance.damping":
+                [45.0, 45.0, 45.0, 4.5, 4.5, 4.5],
+            "admittance.stiffness":
+                [150.0, 150.0, 150.0, 0.0, 0.0, 0.0],
+            "admittance.max_offset":
+                [0.080, 0.080, 0.080, 0.15, 0.15, 0.15],
+            "admittance.max_velocity":
+                [0.035, 0.035, 0.035, 0.15, 0.15, 0.15],
+            "whole_body.base_share": 0.40,
+            "whole_body.max_base_delta": 0.040,
+            "whole_body.max_joint_delta": 0.30,
+        },
+    },
+    # Example 2: three-axis translational force following, K = 0.
+    "three_axis_follow": {
+        "mujoco_model": "scene_force_follow_infinite.xml",
+        "init_keyframe": "low",
+        "force_overrides": {
+            "admittance.selected_axes":
+                [True, True, True, False, False, False],
+            "admittance.mass":
+                [3.0, 3.0, 3.0, 0.3, 0.3, 0.3],
+            "admittance.damping":
+                [50.0, 50.0, 50.0, 4.5, 4.5, 4.5],
+            "admittance.stiffness":
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            # x/y allow long straight-line base travel.  Components outside
+            # the arm workspace are clamped by the controller's reachability
+            # anti-windup instead of integrating until the IK branch jumps.
+            # z is bounded because a differential base cannot move vertically
+            # and the arm workspace is finite.
+            "admittance.max_offset":
+                [1000.0, 1000.0, 0.15, 0.15, 0.15, 0.15],
+            "admittance.max_velocity":
+                [0.25, 0.25, 0.10, 0.15, 0.15, 0.15],
+            "whole_body.base_share": 0.80,
+            "whole_body.max_base_delta": 1000.0,
+            "whole_body.max_joint_delta": 0.60,
+        },
+    },
+    # K = 0 force-following limit: F = M*a + D*v.  D is tuned so the steady
+    # velocity of a 7 N push stays near max_velocity without an elastic stop.
     "infinite": {
         "mujoco_model": "scene_force_follow_infinite.xml",
-        "force_overrides": {},
+        "force_overrides": {
+            "admittance.selected_axes":
+                [True, False, False, False, False, False],
+            "admittance.mass":
+                [1.0, 3.0, 3.0, 0.3, 0.3, 0.3],
+            "admittance.damping":
+                [28.0, 45.0, 45.0, 4.5, 4.5, 4.5],
+            "admittance.stiffness":
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "admittance.max_offset":
+                [1000000.0, 0.08, 0.08, 0.15, 0.15, 0.15],
+            "admittance.max_velocity":
+                [0.25, 0.035, 0.035, 0.15, 0.15, 0.15],
+            "whole_body.base_share": 0.98,
+            "whole_body.max_base_delta": 1000000.0,
+            "whole_body.max_joint_delta": 0.60,
+        },
     },
     "20s": {
         "mujoco_model": "scene_force_follow_5m.xml",
-        # The finite-travel regression shares the simulation configuration.
-        # Override only the differences from the default velocity-follow test.
+        # Finite-travel regression: K > 0 and max_offset stop the motion.
         "force_overrides": {
-            "force_velocity_mode": False,
-            "force_deadband": 0.0,
-            "max_offset": 5.20,
-            "max_base_delta": 5.10,
+            "admittance.selected_axes":
+                [True, False, False, False, False, False],
+            "admittance.mass":
+                [1.0, 3.0, 3.0, 0.3, 0.3, 0.3],
+            "admittance.damping":
+                [2.0, 45.0, 45.0, 4.5, 4.5, 4.5],
+            "admittance.stiffness":
+                [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "admittance.max_offset":
+                [5.20, 0.08, 0.08, 0.15, 0.15, 0.15],
+            "admittance.max_velocity":
+                [0.25, 0.035, 0.035, 0.15, 0.15, 0.15],
+            "whole_body.base_share": 0.98,
+            "whole_body.max_base_delta": 5.10,
+            "whole_body.max_joint_delta": 0.60,
         },
     },
 }
@@ -50,7 +132,7 @@ def _launch_nodes(context):
 
     task_file = os.path.join(ocs2_share, "config", "task_sim.info")
     ocs2_config = os.path.join(
-        ocs2_share, "config", "force_control_sim.yaml")
+        ocs2_share, "config", "ocs2_sim.yaml")
     generated_library_root = "/tmp/wbmm_force_control/auto_generated"
 
     mujoco_config = os.path.join(
@@ -78,6 +160,7 @@ def _launch_nodes(context):
                     "model_path": mujoco_model,
                     "use_viewer": viewer,
                     "use_sim_time": False,
+                    "init_keyframe": profile.get("init_keyframe", "low"),
                 },
             ],
         ),
@@ -121,6 +204,7 @@ def _launch_nodes(context):
                     "urdfFile": urdf_file,
                     "libFolder": os.path.join(
                         generated_library_root, "mrt"),
+                    "odom_topic": "/wheel/odometry",
                 },
             ],
         ),
@@ -134,8 +218,6 @@ def _launch_nodes(context):
                 profile["force_overrides"],
                 {
                     "urdf_file": urdf_file,
-                    "ee_frame": "tool0",
-                    "robot_name": "mobile_manipulator",
                     "use_sim_time": True,
                 },
             ],
@@ -168,9 +250,9 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "profile",
-            default_value="infinite",
+            default_value="sensor_z",
             choices=list(_PROFILES),
-            description="Named simulation experiment: infinite or 20s.",
+            description="Sensor Z compliance, or legacy infinite/20s following.",
         ),
         OpaqueFunction(function=_launch_nodes),
     ])

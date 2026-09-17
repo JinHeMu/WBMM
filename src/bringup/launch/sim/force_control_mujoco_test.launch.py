@@ -29,7 +29,7 @@ def generate_launch_description():
         launch_arguments={
             "viewer": LaunchConfiguration("viewer"),
             "use_rviz": LaunchConfiguration("use_rviz"),
-            "profile": "infinite",
+            "profile": "sensor_z",
         }.items(),
     )
 
@@ -40,7 +40,8 @@ def generate_launch_description():
         parameters=[{
             "report_file": LaunchConfiguration("report_file"),
             "wrench_topic": "/whole_body_force_control/fake_wrench",
-            "wrench_frame": "tool0",
+            "wrench_frame": "jk_se_vi_200_link",
+            "force_axis": "z",
             "low_force": ParameterValue(
                 LaunchConfiguration("low_force"), value_type=float),
             "high_force": ParameterValue(
@@ -59,6 +60,7 @@ def generate_launch_description():
                 LaunchConfiguration("pull_duration"), value_type=float),
             "final_release_duration": ParameterValue(
                 LaunchConfiguration("final_release_duration"), value_type=float),
+            "use_sim_time": True,
         }],
         condition=IfCondition(run_test),
     )

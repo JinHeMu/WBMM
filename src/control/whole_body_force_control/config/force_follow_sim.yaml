@@ -1,43 +1,56 @@
 whole_body_force_control:
   ros__parameters:
-    # 仿真唯一配置：有符号 tool0/Fx 驱动持续跟随；撤力后停在当前位姿。
-    # 仅用于开阔 MuJoCo 场景，不得用于实机。
-    control_mode: force_follow
-    armed: true
-    reference_output_enabled: true
-    enforce_single_target_owner: true
+    # MuJoCo sensor-Z admittance regression.  The wrench is published in the
+    # sensor link and rotated into odom by the node before control.
+    robot_name: mobile_manipulator
+    state_frame: odom
 
-    wrench_topic: /whole_body_force_control/fake_wrench
-    status_topic: /whole_body_force_control/status
-    control_state_topic: /whole_body_force_control/control_state
+    topics:
+      wrench: /whole_body_force_control/fake_wrench
+      status: /whole_body_force_control/status
+      control_state: /whole_body_force_control/control_state
 
-    # Fx 的符号映射到底盘当前朝向，不请求差速底盘横向速度。
-    force_axis: x
-    absolute_force: false
-    force_scale: 1.0
-    response_body_x: 1.0
-    response_body_y: 0.0
-    response_body_z: 0.0
-    admittance_axes: [legacy]
-    constant_force_axes: [none]
-    absolute_wrench_axes: [none]
+    force_sensor:
+      sensor_frame: jk_se_vi_200_link
+      tcp_frame: tool0
+      require_wrench_frame: true
+      tf_lookup_timeout: 0.05
+      tf_fallback_to_latest: true
+      tare_samples: 50
+      filter_alpha: 0.25
+      wrench_scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      # Raw FTS norm above this value latches WRENCH_LIMIT immediately,
+      # before tare/filtering, so a >20 N step cannot create any motion.
+      hard_force_norm_limit: 20.0
+      hard_wrench_limit: [20.0, 20.0, 20.0, 4.0, 4.0, 4.0]
+      max_wrench_rate: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      force_timeout: 0.50
 
-    force_velocity_mode: true
-    force_deadband: 0.5
+    admittance:
+      enable: true
+      output: true
+      selected_axes: [true, true, true, false, false, false]  # world x/y/z
+      mass: [3.0, 3.0, 3.0, 0.3, 0.3, 0.3]
+      damping: [45.0, 45.0, 45.0, 4.5, 4.5, 4.5]
+      stiffness: [150.0, 150.0, 150.0, 0.0, 0.0, 0.0]
+      max_offset: [0.080, 0.080, 0.080, 0.15, 0.15, 0.15]
+      max_velocity: [0.035, 0.035, 0.035, 0.15, 0.15, 0.15]
 
-    # 持续跟随不使用弹性平衡终点；保留原仿真档位的参数值。
-    stiffness: 1.0
-    max_offset: 1000000.0
-    max_velocity: 0.25
-    filter_alpha: 0.25
+    whole_body:
+      # 差速底盘只承担传感器位移在航向上的投影，其余由机械臂完成。
+      base_share: 0.40
+      max_base_delta: 0.040
+      max_base_velocity: 0.50
+      max_joint_delta: 0.60
+      max_joint_velocity: 0.50
 
-    # 长距离运动主要由底盘承担，机械臂增量仍受限。
-    base_share: 0.98
-    max_base_delta: 1000000.0
-    max_joint_delta: 0.60
+    safety:
+      observation_timeout: 0.25
+      capture_settle_time: 1.0
+      enforce_single_target_owner: true
+      loop_rate: 50.0
 
-    loop_rate: 50.0
-    force_timeout: 0.50
-    observation_timeout: 0.25
-    capture_settle_time: 1.0
-    hard_wrench_limit: [25.0, 25.0, 25.0, 4.0, 4.0, 4.0]
+    output:
+      reference_horizon: 1.0
+      reference_dt: 0.1
+      input_dimension: 8

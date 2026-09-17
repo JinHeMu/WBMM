@@ -331,6 +331,87 @@ Eigen::VectorXd WholeBodyKinematics::correctedState6D(
   return corrected;
 }
 
+Eigen::VectorXd WholeBodyKinematics::correctedStateWorld6D(
+  const Eigen::VectorXd & state,
+  const Eigen::Matrix<double, 6, 1> & world_correction,
+  double base_share, double max_base_delta, double max_joint_delta) const
+{
+  requireStateDimension(state);
+  if (!state.allFinite() || !world_correction.allFinite() ||
+    !std::isfinite(base_share) || !std::isfinite(max_base_delta) ||
+    !std::isfinite(max_joint_delta))
+  {
+    throw std::invalid_argument(
+            "world-frame whole-body correction input is non-finite");
+  }
+  base_share = std::clamp(base_share, 0.0, 1.0);
+  max_base_delta = std::abs(max_base_delta);
+  max_joint_delta = std::abs(max_joint_delta);
+
+  const wbmm::core::WholeBodyState nominal_state = makeState(state);
+  wbmm::core::Pose nominal_pose;
+  if (!framePose(nominal_state, nominal_pose)) {
+    throw std::runtime_error(
+            "world-frame whole-body correction FK failed for " + ee_frame_);
+  }
+  const Eigen::Vector3d nominal_position = positionOf(nominal_pose.position);
+  const Eigen::Matrix3d nominal_rotation = rotationOf(nominal_pose.orientation);
+
+  const Eigen::Vector3d desired_world_translation =
+    world_correction.head<3>();
+  const Eigen::Vector2d heading(std::cos(state[2]), std::sin(state[2]));
+  const double requested_base_distance = base_share *
+    heading.dot(desired_world_translation.head<2>());
+  const double base_distance = std::clamp(
+    requested_base_distance, -max_base_delta, max_base_delta);
+  const Eigen::Vector2d base_displacement = heading * base_distance;
+
+  Eigen::VectorXd corrected = state;
+  corrected.head<2>() += base_displacement;
+  const Eigen::Vector3d target_position =
+    nominal_position + desired_world_translation;
+  const Eigen::Matrix3d target_rotation =
+    exp3(world_correction.tail<3>()) * nominal_rotation;
+
+  const int arm_dimension = armDimension();
+  const Eigen::Index base_input_columns =
+    static_cast<Eigen::Index>(model_->inputDimension()) - arm_dimension;
+  const Eigen::VectorXd nominal_q = state.tail(arm_dimension);
+  Eigen::VectorXd q = nominal_q;
+  wbmm::core::WholeBodyState candidate = makeState(corrected);
+
+  for (int iteration = 0; iteration < 20; ++iteration) {
+    candidate.joints.positions.assign(q.data(), q.data() + q.size());
+    wbmm::core::Pose pose;
+    if (!framePose(candidate, pose)) {
+      throw std::runtime_error(
+              "world-frame whole-body correction FK failed for " + ee_frame_);
+    }
+    const Eigen::Matrix3d current_rotation = rotationOf(pose.orientation);
+    Eigen::Matrix<double, 6, 1> error;
+    error.head<3>() = target_position - positionOf(pose.position);
+    error.tail<3>() = log3(target_rotation * current_rotation.transpose());
+    if (error.head<3>().norm() < 1.0e-5 && error.tail<3>().norm() < 1.0e-5) {
+      break;
+    }
+
+    Eigen::MatrixXd jacobian(
+      6, static_cast<Eigen::Index>(model_->inputDimension()));
+    if (!model_->frameJacobian(candidate, ee_frame_, jacobian)) {
+      throw std::runtime_error(
+              "world-frame whole-body correction Jacobian failed for " + ee_frame_);
+    }
+    const Eigen::MatrixXd pose_jacobian =
+      jacobian.middleCols(base_input_columns, arm_dimension);
+    const Eigen::Matrix<double, 6, 1> delta = pose_jacobian.transpose() *
+      (pose_jacobian * pose_jacobian.transpose() +
+      1.0e-5 * Eigen::Matrix<double, 6, 6>::Identity()).ldlt().solve(error);
+    q = boundedJointStep(nominal_q, q, delta, max_joint_delta);
+  }
+  corrected.tail(arm_dimension) = q;
+  return corrected;
+}
+
 Eigen::Vector3d WholeBodyKinematics::framePosition(
   const Eigen::VectorXd & state) const
 {

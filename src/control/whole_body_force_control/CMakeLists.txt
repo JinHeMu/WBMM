@@ -50,7 +50,7 @@ install(DIRECTORY include/ DESTINATION include)
 # Only the two supported deployment configurations are installed.
 install(FILES config/force_follow_sim.yaml config/force_follow_real.yaml
   DESTINATION share/${PROJECT_NAME}/config)
-install(PROGRAMS scripts/whole_body_force_control_test.py
+install(PROGRAMS scripts/whole_body_force_control_test.py scripts/fake_wrench_sequence.py
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)

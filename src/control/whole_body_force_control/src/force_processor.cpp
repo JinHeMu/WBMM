@@ -16,6 +16,8 @@ void ForceProcessor::setConfig(const ForceProcessorConfig & config)
 {
   config_ = config;
   config_.tare_samples = std::max<std::size_t>(1, config_.tare_samples);
+  config_.hard_force_norm_limit =
+    std::max(0.0, config_.hard_force_norm_limit);
   for (Eigen::Index i = 0; i < 6; ++i) {
     config_.filter_alpha[i] = std::clamp(config_.filter_alpha[i], 0.0, 1.0);
     config_.hard_wrench_limit[i] = std::abs(config_.hard_wrench_limit[i]);
@@ -81,6 +83,31 @@ ForceProcessorResult ForceProcessor::process(
     return result;
   }
 
+  // Fail-closed raw hard limit.  Check it before tare and filtering so a
+  // large force step cannot be filtered/tared away and cannot move the robot
+  // before the safety reaction takes effect.
+  if (config_.hard_limit_enabled) {
+    Vector6d raw_for_limit = raw;
+    for (Eigen::Index i = 0; i < 6; ++i) {
+      raw_for_limit[i] *= config_.scale[i];
+    }
+    if (!raw_for_limit.allFinite()) {
+      return result;
+    }
+    if (config_.hard_force_norm_limit > 0.0 &&
+      raw_for_limit.head<3>().norm() > config_.hard_force_norm_limit)
+    {
+      result.hard_limit_exceeded = true;
+      return result;
+    }
+    if ((raw_for_limit.cwiseAbs().array() >
+      config_.hard_wrench_limit.array()).any())
+    {
+      result.hard_limit_exceeded = true;
+      return result;
+    }
+  }
+
   if (tare_active_) {
     tare_sum_ += raw;
     ++tare_count_;
@@ -98,19 +125,16 @@ ForceProcessorResult ForceProcessor::process(
 
   result.tare_samples_collected = tare_count_;
 
-  const Vector6d source = raw - tare_offset_;
+  Vector6d source = raw - tare_offset_;
+  for (Eigen::Index i = 0; i < 6; ++i) {
+    source[i] *= config_.scale[i];
+  }
+
   Vector6d processed;
   try {
     processed = transformWrench(source, target_rotation_source, target_to_source);
   } catch (const std::exception &) {
     return result;
-  }
-
-  for (Eigen::Index i = 0; i < 6; ++i) {
-    processed[i] *= config_.scale[i];
-    if (config_.absolute_axes[static_cast<std::size_t>(i)]) {
-      processed[i] = std::abs(processed[i]);
-    }
   }
 
   if (!filter_initialized_) {
@@ -130,7 +154,10 @@ ForceProcessorResult ForceProcessor::process(
   }
 
   if (config_.hard_limit_enabled &&
-    (filtered_wrench_.cwiseAbs().array() > config_.hard_wrench_limit.array()).any())
+    ((config_.hard_force_norm_limit > 0.0 &&
+    filtered_wrench_.head<3>().norm() > config_.hard_force_norm_limit) ||
+    (filtered_wrench_.cwiseAbs().array() >
+    config_.hard_wrench_limit.array()).any()))
   {
     result.hard_limit_exceeded = true;
     return result;

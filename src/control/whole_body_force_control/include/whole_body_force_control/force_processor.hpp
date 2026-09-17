@@ -12,8 +12,8 @@ namespace whole_body_force_control
 {
 
 // Force preprocessing pipeline:
-//   raw FTS -> tare -> coordinate transform -> scale/absolute -> low-pass
-//           -> finite/hard-limit/rate-limit checks
+//   raw FTS -> finite/raw hard-limit checks -> tare -> coordinate transform
+//           -> scale -> low-pass -> finite/hard-limit/rate-limit checks
 //
 // The controller layer receives an already processed wrench.
 struct ForceProcessorConfig
@@ -21,9 +21,11 @@ struct ForceProcessorConfig
   std::size_t tare_samples{50};
   Vector6d filter_alpha{Vector6d::Ones()};
   Vector6d scale{Vector6d::Ones()};
-  AxisMask6d absolute_axes{};
   bool hard_limit_enabled{true};
   Vector6d hard_wrench_limit{Vector6d::Constant(1000.0)};
+  // Euclidean norm of raw Fx/Fy/Fz [N].  Checked before tare and filtering so
+  // a large step stops immediately.  <=0 disables this particular check.
+  double hard_force_norm_limit{20.0};
   Vector6d max_wrench_rate{Vector6d::Zero()};  // <=0 disables that axis
 };
 

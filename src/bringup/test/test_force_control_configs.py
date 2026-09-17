@@ -1,7 +1,8 @@
-"""Check the two force-control configs and resolve profiles without motion."""
+"""Check the two admittance configs and resolve launch profiles without motion."""
 
 import importlib.util
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 from launch import LaunchContext
 from launch.actions import DeclareLaunchArgument
@@ -19,6 +20,17 @@ def parameters(filename):
         'whole_body_force_control']['ros__parameters']
 
 
+def flatten(values, prefix=''):
+    result = {}
+    for key, value in values.items():
+        full_key = f'{prefix}.{key}' if prefix else key
+        if isinstance(value, dict):
+            result.update(flatten(value, full_key))
+        else:
+            result[full_key] = value
+    return result
+
+
 def load_launch(deployment):
     path = (BRINGUP / 'launch' / deployment
             / f'whole_body_force_control_{deployment}.launch.py')
@@ -28,25 +40,29 @@ def load_launch(deployment):
     return module
 
 
-def test_only_two_deployment_configs_exist():
+def test_only_two_admittance_deployment_configs_exist():
     assert {path.name for path in CONFIG.iterdir()} == {
         'force_follow_sim.yaml', 'force_follow_real.yaml'}
     for filename in ('force_follow_sim.yaml', 'force_follow_real.yaml'):
-        assert parameters(filename)['control_mode'] == 'force_follow'
+        config = flatten(parameters(filename))
+        assert config['admittance.selected_axes'] == [
+            True, True, True, False, False, False]
+        assert config['state_frame'] == 'odom'
+        assert 'control_mode' not in config
+        assert 'admittance_axes' not in config
 
 
-@pytest.mark.parametrize('profile, velocity_mode, max_offset, base_limit', [
-    ('infinite', True, 1000000.0, 1000000.0),
-    ('20s', False, 5.20, 5.10),
+@pytest.mark.parametrize('profile, stiffness_x, damping_x, max_offset_x, base_limit', [
+    ('infinite', 0.0, 28.0, 1000000.0, 1000000.0),
+    ('20s', 1.0, 2.0, 5.20, 5.10),
 ])
-def test_sim_profiles_share_config_and_keep_behavior(
-        profile, velocity_mode, max_offset, base_limit, monkeypatch):
+def test_sim_profiles_use_admittance_limits(
+        profile, stiffness_x, damping_x, max_offset_x, base_limit, monkeypatch):
     module = load_launch('sim')
     original_share = module.get_package_share_directory
     monkeypatch.setattr(module, 'get_package_share_directory', lambda name:
                         str(FORCE_CONTROL) if name == 'whole_body_force_control'
                         else original_share(name))
-    # Return declarations as data; never construct or execute a ROS process.
     monkeypatch.setattr(module, 'Node', lambda **kwargs: kwargs)
     context = LaunchContext()
     context.launch_configurations.update({
@@ -55,38 +71,120 @@ def test_sim_profiles_share_config_and_keep_behavior(
     controller = next(node for node in nodes
                       if node['package'] == 'whole_body_force_control')
     assert controller['parameters'][0] == str(CONFIG / 'force_follow_sim.yaml')
-    effective = {}
-    for entry in controller['parameters']:
-        if isinstance(entry, str):
-            effective.update(parameters(Path(entry).name))
-        else:
-            effective.update(entry)
-    assert effective['force_velocity_mode'] is velocity_mode
-    assert effective['force_deadband'] == (0.5 if velocity_mode else 0.0)
-    assert effective['max_offset'] == max_offset
-    assert effective['max_base_delta'] == base_limit
-    assert effective['max_velocity'] == 0.25
-    assert effective['base_share'] == 0.98
-    assert effective['force_axis'] == 'x'
+    effective = flatten(parameters('force_follow_sim.yaml'))
+    for entry in controller['parameters'][1:]:
+        effective.update(entry)
+    assert effective['admittance.selected_axes'] == [
+        True, False, False, False, False, False]
+    assert effective['admittance.stiffness'][0] == stiffness_x
+    assert effective['admittance.damping'][0] == damping_x
+    assert effective['admittance.max_offset'][0] == max_offset_x
+    assert effective['admittance.max_velocity'][0] == 0.25
+    assert effective['whole_body.base_share'] == 0.98
+    assert effective['whole_body.max_base_delta'] == base_limit
+    assert effective['whole_body.max_joint_delta'] == 0.60
+    assert effective['force_sensor.sensor_frame'] == 'jk_se_vi_200_link'
     assert effective['use_sim_time'] is True
 
 
-def test_real_config_preserves_closed_gates_and_z_test_limits():
-    config = parameters('force_follow_real.yaml')
-    assert config['armed'] is False
-    assert config['reference_output_enabled'] is False
-    assert config['enforce_single_target_owner'] is True
-    assert config['require_wrench_frame'] is True
-    assert config['tare_samples'] == 100
-    assert config['force_velocity_mode'] is False
-    assert config['force_axis'] == 'z'
-    assert [config[f'response_body_{axis}'] for axis in 'xyz'] == [0.0, 0.0, 1.0]
-    assert config['base_share'] == config['max_base_delta'] == 0.0
-    assert config['max_offset'] == 0.020
-    assert config['max_velocity'] == 0.010
-    assert config['max_joint_delta'] == 0.050
-    assert config['hard_wrench_limit'] == [15.0, 15.0, 15.0, 2.0, 2.0, 2.0]
-    assert config['max_wrench_rate'] == [20.0, 20.0, 20.0, 5.0, 5.0, 5.0]
+@pytest.mark.parametrize('profile, stiffness, damping, base_share', [
+    ('three_axis_admittance',
+     [150.0, 150.0, 150.0, 0.0, 0.0, 0.0],
+     [45.0, 45.0, 45.0, 4.5, 4.5, 4.5],
+     0.40),
+    ('three_axis_follow',
+     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+     [50.0, 50.0, 50.0, 4.5, 4.5, 4.5],
+     0.80),
+])
+def test_three_axis_example_profiles(profile, stiffness, damping, base_share, monkeypatch):
+    module = load_launch('sim')
+    original_share = module.get_package_share_directory
+    monkeypatch.setattr(module, 'get_package_share_directory', lambda name:
+                        str(FORCE_CONTROL) if name == 'whole_body_force_control'
+                        else original_share(name))
+    monkeypatch.setattr(module, 'Node', lambda **kwargs: kwargs)
+    context = LaunchContext()
+    context.launch_configurations.update({
+        'profile': profile, 'viewer': 'false', 'use_rviz': 'false'})
+    nodes = module._launch_nodes(context)
+    controller = next(node for node in nodes
+                      if node['package'] == 'whole_body_force_control')
+    effective = flatten(parameters('force_follow_sim.yaml'))
+    for entry in controller['parameters'][1:]:
+        effective.update(entry)
+    assert effective['admittance.selected_axes'] == [
+        True, True, True, False, False, False]
+    assert effective['admittance.stiffness'] == stiffness
+    assert effective['admittance.damping'] == damping
+    assert effective['whole_body.base_share'] == base_share
+
+
+def test_sensor_z_sim_uses_world_frame_translation_admittance(monkeypatch):
+    module = load_launch('sim')
+    monkeypatch.setattr(module, 'Node', lambda **kwargs: kwargs)
+    context = LaunchContext()
+    context.launch_configurations.update({
+        'profile': 'sensor_z', 'viewer': 'false', 'use_rviz': 'false'})
+    nodes = module._launch_nodes(context)
+    mrt = next(node for node in nodes if node.get('name') == 'wbmm_mrt_node')
+    config = yaml.safe_load(Path(mrt['parameters'][0]).read_text())[
+        'wbmm_mrt_node']['ros__parameters']
+    assert config['command_output_enabled'] is True
+    assert Path(mrt['parameters'][0]).name == 'ocs2_sim.yaml'
+    assert mrt['parameters'][1]['odom_topic'] == '/wheel/odometry'
+
+    force = flatten(parameters('force_follow_sim.yaml'))
+    assert force['force_sensor.sensor_frame'] == 'jk_se_vi_200_link'
+    assert force['force_sensor.tcp_frame'] == 'tool0'
+    assert force['admittance.selected_axes'] == [
+        True, True, True, False, False, False]
+    assert force['admittance.stiffness'][2] == 150.0
+    assert force['whole_body.base_share'] == 0.40
+    assert force['admittance.max_offset'][2] == 0.080
+    assert force['whole_body.max_base_delta'] == 0.040
+    assert force['whole_body.max_base_velocity'] == 0.50
+    assert force['whole_body.max_joint_delta'] == 0.60
+    assert force['force_sensor.hard_force_norm_limit'] == 20.0
+    assert force['force_sensor.hard_wrench_limit'][:3] == [20.0, 20.0, 20.0]
+    bridge = next(node for node in nodes if node.get('name') == 'mujoco_bridge')
+    assert bridge['parameters'][-1]['init_keyframe'] == 'low'
+
+
+def test_real_config_preserves_closed_gates_and_admittance_limits():
+    config = flatten(parameters('force_follow_real.yaml'))
+    assert config['admittance.enable'] is False
+    assert config['admittance.output'] is False
+    assert config['safety.enforce_single_target_owner'] is True
+    assert config['force_sensor.require_wrench_frame'] is True
+    assert config['force_sensor.tare_samples'] == 100
+    assert config['force_sensor.sensor_frame'] == 'jk_se_vi_200_link'
+    assert config['force_sensor.tcp_frame'] == 'tool0'
+    assert config['force_sensor.tf_fallback_to_latest'] is False
+    assert config['admittance.selected_axes'] == [
+        True, True, True, False, False, False]
+    assert config['admittance.mass'] == [3.0, 3.0, 3.0, 0.3, 0.3, 0.3]
+    assert config['admittance.damping'] == [45.0, 45.0, 45.0, 4.5, 4.5, 4.5]
+    assert config['admittance.stiffness'] == [400.0, 400.0, 400.0, 0.0, 0.0, 0.0]
+    assert config['whole_body.base_share'] == config['whole_body.max_base_delta'] == 0.2
+    assert config['admittance.max_offset'] == [0.020, 0.020, 0.020, 0.15, 0.15, 0.15]
+    assert config['admittance.max_velocity'] == [0.010, 0.010, 0.010, 0.15, 0.15, 0.15]
+    assert config['whole_body.max_base_velocity'] == 0.20
+    assert config['whole_body.max_joint_delta'] == 0.050
+    assert config['force_sensor.hard_force_norm_limit'] == 15.0
+    assert config['force_sensor.hard_wrench_limit'] == [15.0, 15.0, 15.0, 2.0, 2.0, 2.0]
+    assert config['force_sensor.max_wrench_rate'] == [20.0, 20.0, 20.0, 5.0, 5.0, 5.0]
+
+
+def test_fts_broadcaster_and_compliance_use_actual_sensor_link():
+    description = BRINGUP.parent / 'robotics' / 'tracer_jaka_description'
+    controllers = yaml.safe_load(
+        (description / 'config' / 'ros2_controllers.yaml').read_text())
+    frame = controllers['fts_broadcaster']['ros__parameters']['frame_id']
+    urdf = ET.parse(description / 'urdf' / 'tracer_jaka_zu5.urdf')
+    assert frame == flatten(
+        parameters('force_follow_real.yaml'))['force_sensor.sensor_frame']
+    assert frame in {link.attrib['name'] for link in urdf.findall('link')}
 
 
 def test_real_launch_defaults_remain_disabled():
@@ -99,8 +197,8 @@ def test_real_launch_defaults_remain_disabled():
         action.execute(context)
     values = context.launch_configurations
     assert values['hardware_write'] == 'false'
-    assert values['force_control_armed'] == 'false'
-    assert values['force_reference_output_enabled'] == 'false'
+    assert values['admittance.enable'] == 'false'
+    assert values['admittance.output'] == 'false'
     assert Path(values['force_params_file']).name == 'force_follow_real.yaml'
 
 
