@@ -8,7 +8,7 @@ whole_body_force_control:
       wrench: /fts_broadcaster/wrench
       correction: /whole_body_force_control/correction
       states: /whole_body_force_control/states
-      target: /mobile_manipulator_mpc_target
+      target: /mobile_manipulator_whole_body_target
       ee_target: /mobile_manipulator_ee_target
 
     force_sensor:
@@ -38,10 +38,8 @@ whole_body_force_control:
       base_share: 0.6
       max_base_velocity: 0.20
       max_joint_velocity: 0.50
-      max_ee_linear_velocity: 0.05
-      max_ee_angular_velocity: 0.20
-      max_ee_translation_offset: 0.10
-      max_ee_rotation_offset: 0.30
+      max_ee_linear_velocity: 0.2
+      max_ee_angular_velocity: 0.5
 
     safety:
       observation_timeout: 0.20

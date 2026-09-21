@@ -107,6 +107,16 @@ void WholeBodyForceControlNode::createRosInterfaces()
       std::bind(
           &WholeBodyForceControlNode::wrenchCallback, this,
           std::placeholders::_1));
+  reset_service_ = create_service<std_srvs::srv::Trigger>(
+      "/whole_body_force_control/reset",
+      [this](
+          const std::shared_ptr<std_srvs::srv::Trigger::Request> /*request*/,
+          std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+      {
+        resetForceControl();
+        response->success = true;
+        response->message = "Force control reset; waiting for fresh data.";
+      });
 }
 
 void WholeBodyForceControlNode::observationCallback(
@@ -297,22 +307,18 @@ bool WholeBodyForceControlNode::foreignTargetPublisherPresent() const
 
 void WholeBodyForceControlNode::publishState(const std::string &state)
 {
-  if (state == last_state_)
-  {
-    return;
-  }
   last_state_ = state;
   std_msgs::msg::String message;
   message.data = state;
   state_publisher_->publish(message);
 }
 
-void WholeBodyForceControlNode::publishReference(
+bool WholeBodyForceControlNode::publishReference(
     const Eigen::VectorXd &reference)
 {
   if (!parameters_.reference_output_enabled)
   {
-    return;
+    return false;
   }
 
   const int count = std::max(
@@ -339,7 +345,7 @@ void WholeBodyForceControlNode::publishReference(
       RCLCPP_ERROR_THROTTLE(
           get_logger(), *get_clock(), 2000,
           "Refusing to publish reference: state size does not match RobotModel");
-      return;
+      return false;
     }
     wbmm::core::WholeBodyTrajectoryPoint point;
     point.time_from_start = time_from_start;
@@ -357,20 +363,21 @@ void WholeBodyForceControlNode::publishReference(
         get_logger(), *get_clock(), 2000,
         "Refusing to publish invalid reference trajectory: %s",
         validation.message.c_str());
-    return;
+    return false;
   }
   target_publisher_->publish(
       toMpcTargetTrajectories(
           trajectory, observation_time_,
           static_cast<std::size_t>(parameters_.input_dimension)));
+  return true;
 }
 
-void WholeBodyForceControlNode::publishEndEffectorReference(
+bool WholeBodyForceControlNode::publishEndEffectorReference(
     const wbmm::core::EndEffectorPose & target)
 {
   if (!parameters_.reference_output_enabled)
   {
-    return;
+    return false;
   }
 
   const auto validation = wbmm::core::validate(target);
@@ -380,13 +387,14 @@ void WholeBodyForceControlNode::publishEndEffectorReference(
         get_logger(), *get_clock(), 2000,
         "Refusing to publish invalid end-effector target: %s",
         validation.message.c_str());
-    return;
+    return false;
   }
 
   ee_target_publisher_->publish(
       wbmm::ros_interfaces::toMpcTargetTrajectories(
           target, observation_time_,
           static_cast<std::size_t>(parameters_.input_dimension)));
+  return true;
 }
 
 void WholeBodyForceControlNode::publishHoldEndEffectorReference()
@@ -396,25 +404,35 @@ void WholeBodyForceControlNode::publishHoldEndEffectorReference()
     return;
   }
 
-  const Eigen::VectorXd measured_state = observationStateLocked();
-  const Eigen::Vector3d position = kinematics_->framePosition(measured_state);
-  const Eigen::Matrix3d rotation = kinematics_->frameRotation(measured_state);
-  const Eigen::Quaterniond orientation(rotation);
+  if (!hold_ee_target_valid_)
+  {
+    const Eigen::VectorXd measured_state = observationStateLocked();
+    const Eigen::Vector3d position = kinematics_->framePosition(measured_state);
+    const Eigen::Matrix3d rotation = kinematics_->frameRotation(measured_state);
+    const Eigen::Quaterniond orientation(rotation);
 
-  wbmm::core::EndEffectorPose target;
-  target.header.frame_id = parameters_.state_frame;
-  target.header.stamp = observation_time_;
-  target.position.x = position.x();
-  target.position.y = position.y();
-  target.position.z = position.z();
-  target.orientation.w = orientation.w();
-  target.orientation.x = orientation.x();
-  target.orientation.y = orientation.y();
-  target.orientation.z = orientation.z();
+    hold_ee_target_.header.frame_id = parameters_.state_frame;
+    hold_ee_target_.position.x = position.x();
+    hold_ee_target_.position.y = position.y();
+    hold_ee_target_.position.z = position.z();
+    hold_ee_target_.orientation.w = orientation.w();
+    hold_ee_target_.orientation.x = orientation.x();
+    hold_ee_target_.orientation.y = orientation.y();
+    hold_ee_target_.orientation.z = orientation.z();
+    hold_ee_target_valid_ = true;
+
+    RCLCPP_INFO(
+        get_logger(),
+        "Latched hold EE target: pos=(%.3f, %.3f, %.3f)",
+        position.x(), position.y(), position.z());
+  }
+
+  // The pose is latched once; only the stamp follows the latest observation.
+  hold_ee_target_.header.stamp = observation_time_;
 
   last_ee_correction_.setZero();
   ee_correction_valid_ = false;
-  publishEndEffectorReference(target);
+  publishEndEffectorReference(hold_ee_target_);
 }
 
 void WholeBodyForceControlNode::publishEndEffectorCorrection(

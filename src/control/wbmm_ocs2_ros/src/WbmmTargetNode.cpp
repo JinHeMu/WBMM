@@ -29,7 +29,8 @@
 
 #include <ocs2_core/Types.h>
 #include <ocs2_core/reference/TargetTrajectories.h>
-#include <ocs2_ros_interfaces/command/TargetTrajectoriesRosPublisher.h>
+#include <ocs2_msgs/msg/mpc_target_trajectories.hpp>
+#include <ocs2_ros_interfaces/common/RosMsgConversions.h>
 
 using IM       = visualization_msgs::msg::InteractiveMarker;
 using IMC      = visualization_msgs::msg::InteractiveMarkerControl;
@@ -42,6 +43,7 @@ class WbmmTargetNode : public rclcpp::Node {
     declare_parameter<std::string>("robot_name",   "mobile_manipulator");
     declare_parameter<std::string>("marker_frame", "odom");
     declare_parameter<std::string>("ee_frame",     "tool0");
+    declare_parameter<std::string>("ee_target_topic", "");
     declare_parameter<double>("marker_scale",      0.3);
     // mobile_manipulator (轮式) 的 input 维度 = 2(底盘) + 6(臂) = 8
     declare_parameter<int>("input_dim",            8);
@@ -52,14 +54,20 @@ class WbmmTargetNode : public rclcpp::Node {
     markerScale_  = get_parameter("marker_scale").as_double();
     inputDim_     = get_parameter("input_dim").as_int();
 
+    eeTargetTopic_ = get_parameter("ee_target_topic").as_string();
+    if (eeTargetTopic_.empty()) {
+      eeTargetTopic_ = robotName_ + "_ee_target";
+    }
+
     tf_buffer_   = std::make_unique<tf2_ros::Buffer>(get_clock());
     tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
   }
 
   /// 由于内部要 shared_from_this()，必须在 main 里单独调用。
   void init() {
-    targetPub_ = std::make_unique<ocs2::TargetTrajectoriesRosPublisher>(
-        shared_from_this(), robotName_);
+    targetPublisher_ =
+        create_publisher<ocs2_msgs::msg::MpcTargetTrajectories>(
+            eeTargetTopic_, rclcpp::QoS(1).reliable());
 
     server_ = std::make_unique<interactive_markers::InteractiveMarkerServer>(
         "target_marker", shared_from_this());
@@ -83,8 +91,10 @@ class WbmmTargetNode : public rclcpp::Node {
     server_->applyChanges();
 
     RCLCPP_INFO(get_logger(),
-                "Interactive target marker is up. frame=%s, robot=%s",
-                markerFrame_.c_str(), robotName_.c_str());
+                "Interactive target marker is up. frame=%s, robot=%s, "
+                "ee_target=%s",
+                markerFrame_.c_str(), robotName_.c_str(),
+                eeTargetTopic_.c_str());
   }
 
  private:
@@ -196,15 +206,18 @@ class WbmmTargetNode : public rclcpp::Node {
         ocs2::vector_array_t{target},
         ocs2::vector_array_t{ocs2::vector_t::Zero(inputDim_)});
 
-    targetPub_->publishTargetTrajectories(tt);
+    targetPublisher_->publish(
+        ocs2::ros_msg_conversions::createTargetTrajectoriesMsg(tt));
 
     RCLCPP_INFO(get_logger(),
-                "Sent target: pos=(%.3f, %.3f, %.3f) quat=(%.3f, %.3f, %.3f, %.3f)",
-                p.x(), p.y(), p.z(), q.x(), q.y(), q.z(), q.w());
+                "Sent EE target on %s: pos=(%.3f, %.3f, %.3f) "
+                "quat=(%.3f, %.3f, %.3f, %.3f)",
+                eeTargetTopic_.c_str(), p.x(), p.y(), p.z(), q.x(), q.y(),
+                q.z(), q.w());
   }
 
   // ---- members ----
-  std::string robotName_, markerFrame_, eeFrame_;
+  std::string robotName_, markerFrame_, eeFrame_, eeTargetTopic_;
   double      markerScale_{0.3};
   int         inputDim_{8};
 
@@ -213,7 +226,8 @@ class WbmmTargetNode : public rclcpp::Node {
 
   std::unique_ptr<interactive_markers::InteractiveMarkerServer> server_;
   interactive_markers::MenuHandler                              menuHandler_;
-  std::unique_ptr<ocs2::TargetTrajectoriesRosPublisher>         targetPub_;
+  rclcpp::Publisher<ocs2_msgs::msg::MpcTargetTrajectories>::SharedPtr
+      targetPublisher_;
 
   std::mutex mtx_;
   geometry_msgs::msg::Pose lastPose_;

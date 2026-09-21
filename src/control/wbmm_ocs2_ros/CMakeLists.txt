@@ -12,6 +12,17 @@ endif()
 
 # ---- Dependencies ----
 find_package(ament_cmake REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+
+# rosidl_generator_py still uses the legacy FindPythonInterp module. Some
+# OCS2/Pinocchio dependency chains pre-populate PYTHON_EXECUTABLE as empty,
+# so resolve an interpreter explicitly before interface generation.
+if(NOT PYTHON_EXECUTABLE)
+  find_program(PYTHON_EXECUTABLE NAMES python3 python)
+endif()
+if(NOT PYTHON_EXECUTABLE)
+  message(FATAL_ERROR "Python interpreter is required for ROS interfaces.")
+endif()
 
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -53,6 +64,20 @@ find_package(ocs2_msgs REQUIRED)
 find_package(ocs2_self_collision_visualization REQUIRED)
 find_package(quadrotor_msgs REQUIRED)
 
+# ---- Generated interfaces for dual-reference task phase control ----
+# Some mixed Python/Pinocchio dependency chains define PYTHON_SOABI with a
+# leading dot. ROS's FindPythonExtra expects it without the dot; otherwise
+# the generated Python extension becomes "..cpython-...so" and is unimportable.
+if(DEFINED PYTHON_SOABI)
+  string(REGEX REPLACE "^\\." "" PYTHON_SOABI "${PYTHON_SOABI}")
+endif()
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/TaskPhaseState.msg"
+  "srv/SetTaskPhase.srv"
+  DEPENDENCIES std_msgs
+)
+
 set(common_deps
   rclcpp
   std_msgs
@@ -82,6 +107,9 @@ set(common_deps
 
 include_directories(include)
 
+rosidl_get_typesupport_target(cpp_typesupport_target
+  ${PROJECT_NAME} "rosidl_typesupport_cpp")
+
 # ---- MPC node ----
 add_executable(wbmm_mpc_node src/WbmmMpcNode.cpp)
 ament_target_dependencies(wbmm_mpc_node ${common_deps})
@@ -92,6 +120,7 @@ target_link_libraries(wbmm_mpc_node
   Boost::thread
   Boost::log
   Boost::log_setup
+  "${cpp_typesupport_target}"
 )
 
 # ---- MRT / Gazebo bridge node ----
@@ -107,6 +136,7 @@ target_link_libraries(wbmm_mrt_node
   Boost::thread
   Boost::log
   Boost::log_setup
+  "${cpp_typesupport_target}"
 )
 
 # ---- Target publisher ----
@@ -149,5 +179,13 @@ install(TARGETS
 install(DIRECTORY config rviz scripts include
   DESTINATION share/${PROJECT_NAME}
 )
+
+install(PROGRAMS
+  scripts/send_target.py
+  scripts/set_task_phase.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+ament_export_dependencies(rosidl_default_runtime)
 
 ament_package()

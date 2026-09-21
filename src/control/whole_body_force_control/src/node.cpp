@@ -31,6 +31,7 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
     : Node("whole_body_force_control")
 {
   loadParameters();
+  configured_admittance_enabled_ = parameters_.admittance_enabled;
 
   robot_model_ = std::make_shared<PinocchioRobotModel>(
       parameters_.urdf_file);
@@ -66,7 +67,7 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
       parameters_.admittance_enabled ? "true" : "false",
       parameters_.reference_output_enabled ? "true" : "false");
   publishState(
-      parameters_.admittance_enabled ? "WAITING_FOR_DATA" : "DISABLED");
+      parameters_.admittance_enabled ? "WAITING_FOR_OBSERVATION" : "DISABLED");
 }
 
 void WholeBodyForceControlNode::requestFault(const std::string &reason)
@@ -89,10 +90,38 @@ void WholeBodyForceControlNode::latchFault(const std::string &reason)
   parameters_.admittance_enabled = false;
   nominal_captured_ = false;
   hold_state_valid_ = false;
+  hold_ee_target_valid_ = false;
+  ee_correction_valid_ = false;
+  last_ee_correction_.setZero();
   force_processor_.reset();
   cartesian_controller_->reset(measuredWrenchVector());
   publishState("FAULT_" + reason);
   publishHoldReference();
+}
+
+void WholeBodyForceControlNode::resetForceControl()
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  fault_latched_ = false;
+  pending_fault_ = false;
+  fault_reason_.clear();
+  pending_fault_reason_.clear();
+  nominal_captured_ = false;
+  hold_state_valid_ = false;
+  hold_ee_target_valid_ = false;
+  ee_correction_valid_ = false;
+  last_ee_correction_.setZero();
+
+  parameters_.admittance_enabled = configured_admittance_enabled_;
+  force_processor_.reset();
+  force_processor_.startTare();
+  cartesian_controller_->reset(measuredWrenchVector());
+
+  wrench_received_ = false;
+  capture_requested_at_ = std::chrono::steady_clock::now();
+  publishState(
+      parameters_.admittance_enabled ? "WAITING_FOR_OBSERVATION" : "DISABLED");
 }
 
 void WholeBodyForceControlNode::publishHoldReference()
@@ -140,12 +169,12 @@ void WholeBodyForceControlNode::captureNominalState(
   cartesian_controller_->reset(measuredWrenchVector());
   last_ee_correction_.setZero();
   ee_correction_valid_ = false;
+  hold_ee_target_valid_ = false;
   nominal_captured_ = true;
   RCLCPP_INFO(
       get_logger(),
       "Captured nominal state; admittance wrench is expressed in %s",
       parameters_.state_frame.c_str());
-  publishState("ACTIVE");
 }
 
 Vector6d WholeBodyForceControlNode::correctionFromReferencePose(
@@ -267,41 +296,6 @@ void WholeBodyForceControlNode::updateReference(
   }
 }
 
-void WholeBodyForceControlNode::clampEndEffectorCorrection(
-    Vector6d & correction)
-{
-  Vector6d clamped = correction;
-  bool limited = false;
-
-  if (parameters_.max_ee_translation_offset > 0.0) {
-    for (Eigen::Index i = 0; i < 3; ++i) {
-      const double value = std::clamp(
-          clamped[i], -parameters_.max_ee_translation_offset,
-          parameters_.max_ee_translation_offset);
-      limited = limited || (value != clamped[i]);
-      clamped[i] = value;
-    }
-  }
-  if (parameters_.max_ee_rotation_offset > 0.0) {
-    for (Eigen::Index i = 3; i < 6; ++i) {
-      const double value = std::clamp(
-          clamped[i], -parameters_.max_ee_rotation_offset,
-          parameters_.max_ee_rotation_offset);
-      limited = limited || (value != clamped[i]);
-      clamped[i] = value;
-    }
-  }
-
-  if (limited) {
-    // Reduce the hidden admittance integrator to the reachable task-space
-    // offset so a released force cannot leave a large hidden target.
-    cartesian_controller_->clampOffset(clamped);
-    correction = cartesian_controller_->offset();
-  } else {
-    correction = clamped;
-  }
-}
-
 void WholeBodyForceControlNode::updateEndEffectorReference(
     const Vector6d & measured_wrench,
     double dt,
@@ -342,7 +336,6 @@ void WholeBodyForceControlNode::updateEndEffectorReference(
             -angular_step, angular_step);
   }
 
-  clampEndEffectorCorrection(limited);
   correction = limited;
   last_ee_correction_ = correction;
 
@@ -413,6 +406,56 @@ void WholeBodyForceControlNode::update()
     return;
   }
 
+  const bool observation_timed_out =
+      std::chrono::duration<double>(wall_now - last_observation_).count() >
+          parameters_.observation_timeout;
+
+  if (parameters_.admittance_enabled && observation_timed_out)
+  {
+    latchFault("OBSERVATION_TIMEOUT");
+    publishState("FAULT_OBSERVATION_TIMEOUT");
+    publishHoldReference();
+    return;
+  }
+
+  if (parameters_.admittance_enabled && !wrench_received_)
+  {
+    publishState("WAITING_FOR_WRENCH");
+    publishHoldReference();
+    return;
+  }
+
+  const bool wrench_timed_out =
+      parameters_.admittance_enabled && wrench_received_ &&
+      std::chrono::duration<double>(wall_now - last_wrench_).count() >
+          parameters_.force_timeout;
+
+  if (wrench_timed_out)
+  {
+    latchFault("WRENCH_TIMEOUT");
+    publishState("FAULT_WRENCH_TIMEOUT");
+    publishHoldReference();
+    return;
+  }
+
+  if (parameters_.admittance_enabled &&
+      parameters_.enforce_single_target_owner &&
+      foreignTargetPublisherPresent())
+  {
+    latchFault("TARGET_OWNER");
+    publishState("FAULT_TARGET_OWNER");
+    publishHoldReference();
+    return;
+  }
+
+  if (!parameters_.admittance_enabled)
+  {
+    publishState(
+        fault_latched_ ? "FAULT_" + fault_reason_ : "DISABLED");
+    publishHoldReference();
+    return;
+  }
+
   if (force_processor_.taring())
   {
     publishState("TARING");
@@ -422,29 +465,6 @@ void WholeBodyForceControlNode::update()
 
   const Eigen::VectorXd measured_state = observationStateLocked();
   const Vector6d measured_wrench = measuredWrenchVector();
-  const bool observation_timed_out =
-      std::chrono::duration<double>(wall_now - last_observation_).count() >
-          parameters_.observation_timeout;
-  const bool wrench_timed_out =
-      !wrench_received_ ||
-      std::chrono::duration<double>(wall_now - last_wrench_).count() >
-          parameters_.force_timeout;
-
-  if (parameters_.admittance_enabled && !wrench_received_)
-  {
-    publishState("WAITING_FOR_WRENCH");
-    publishHoldReference();
-    return;
-  }
-
-  checkFaults(observation_timed_out, wrench_timed_out);
-  if (!parameters_.admittance_enabled)
-  {
-    publishState(
-        fault_latched_ ? "FAULT_" + fault_reason_ : "DISABLED");
-    publishHoldReference();
-    return;
-  }
 
   if (!nominal_captured_)
   {
@@ -453,6 +473,7 @@ void WholeBodyForceControlNode::update()
     if (elapsed < parameters_.capture_settle_time)
     {
       publishState("SETTLING");
+      publishHoldReference();
       return;
     }
     captureNominalState(measured_state);
@@ -468,10 +489,20 @@ void WholeBodyForceControlNode::update()
     updateEndEffectorReference(
         measured_wrench, dt, correction, filtered_wrench, target,
         primary_offset, primary_force);
-    publishEndEffectorReference(target);
+    const bool published = publishEndEffectorReference(target);
     publishEndEffectorCorrection(
         target, measured_state, primary_force, primary_offset,
         filtered_wrench, correction);
+    if (published)
+    {
+      publishState("ACTIVE");
+    }
+    else
+    {
+      pending_fault_ = true;
+      pending_fault_reason_ = "REFERENCE_INVALID";
+      publishState("FAULT_REFERENCE_INVALID");
+    }
     return;
   }
 
@@ -480,10 +511,20 @@ void WholeBodyForceControlNode::update()
       measured_wrench, dt, correction, filtered_wrench, reference,
       primary_offset, primary_force);
 
-  publishReference(reference);
+  const bool published = publishReference(reference);
   publishCorrection(
       reference, measured_state, primary_force, primary_offset,
       filtered_wrench, correction);
+  if (published)
+  {
+    publishState("ACTIVE");
+  }
+  else
+  {
+    pending_fault_ = true;
+    pending_fault_reason_ = "REFERENCE_INVALID";
+    publishState("FAULT_REFERENCE_INVALID");
+  }
 }
 
 }  // namespace whole_body_force_control

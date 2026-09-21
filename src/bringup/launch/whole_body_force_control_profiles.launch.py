@@ -75,6 +75,25 @@ _PROFILES = {
             "whole_body.base_share": 0.98,
         },
     },
+    # Six-axis sequence: the axis_wrench_sequence.py script cycles through
+    # +X/+Y/+Z forces and +Tx/+Ty/+Tz torques, with zero pauses in between.
+    "six_axis_sequence": {
+        "mujoco_model": "scene_force_follow_infinite.xml",
+        "init_keyframe": "low",
+        "force_overrides": {
+            "admittance.selected_axes":
+                [True, True, True, True, True, True],
+            "admittance.mass":
+                [3.0, 3.0, 3.0, 0.3, 0.3, 0.3],
+            "admittance.damping":
+                [45.0, 45.0, 45.0, 4.5, 4.5, 4.5],
+            "admittance.stiffness":
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "admittance.max_velocity":
+                [0.10, 0.10, 0.10, 0.15, 0.15, 0.15],
+            "whole_body.base_share": 0.80,
+        },
+    },
     "20s": {
         "mujoco_model": "scene_force_follow_5m.xml",
         # Finite-travel regression: K > 0 creates the elastic endpoint.
@@ -131,6 +150,7 @@ def _launch_nodes(context):
                     "urdfFile": urdf_file,
                     "libFolder": os.path.join(
                         generated_library_root, "mpc"),
+                    "initial_task_phase": 2,
                 },
             ],
         ),
@@ -148,6 +168,7 @@ def _launch_nodes(context):
                     "libFolder": os.path.join(
                         generated_library_root, "mrt"),
                     "odom_topic": "/wheel/odometry",
+                    "initial_task_phase": 2,
                 },
             ],
         ),

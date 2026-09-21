@@ -37,6 +37,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <ocs2_core/cost/StateCost.h>
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
 
+#include <wbmm_core/robot_model.hpp>
+#include <wbmm_robot_metrics/arm_metrics.hpp>
+
 #include "wbmm_ocs2/WbmmModelInfo.h"
 
 namespace wbmm_ocs2
@@ -45,6 +48,10 @@ namespace wbmm_ocs2
 /**
  * 机械臂/全身可操作度代价的配置。
  *
+ * 指标计算（Jacobian 选择、SVD、奇异值、条件数、操作度、逆操作度、
+ * task-direction 操作度、关节限位裕量）全部委托给 wbmm_robot_metrics；
+ * 本结构只保存 OCS2 代价语义：启用开关、参考阈值、权重和数值差分参数。
+ *
  * 所有 hinge 项都是“低于参考值才惩罚”的一侧二次：
  *   L = 0.5 * weight * max(0, reference - metric)^2
  *
@@ -52,16 +59,13 @@ namespace wbmm_ocs2
  */
 struct ArmManipulabilitySettings
 {
-    enum class Scope
-    {
-        kArmOnly,
-        kWholeBody,
-    };
+    std::string frameName;  // 为空时使用 WbmmModelInfo::eeFrame
+    // OCS2 x/y/yaw 所在的规划坐标系；不是 URDF base link。
+    std::string stateFrame{"odom"};
 
-    Scope scope{Scope::kArmOnly};
-    std::string frameName;              // 为空时使用 WbmmModelInfo::eeFrame
-    std::size_t armStartIndex{3};       // state 中 q1 的下标
-    std::size_t armDim{6};              // 机械臂关节数
+    // Jacobian 选择、任务维度、量纲缩放和数值正则统一由
+    // wbmm_robot_metrics 定义，OCS2 不再复制这些接口。
+    wbmm::metrics::ArmMetricsOptions metricsOptions;
 
     bool useMinSingularValue{true};
     ocs2::scalar_t minSingularWeight{1.0};
@@ -71,8 +75,6 @@ struct ArmManipulabilitySettings
     ocs2::scalar_t yoshikawaWeight{0.1};
     ocs2::scalar_t yoshikawaRef{0.1};
 
-    bool useTaskDirection{false};
-    ocs2::vector_t taskDirection{ocs2::vector_t::Zero(6)};
     ocs2::scalar_t taskDirectionWeight{1.0};
     ocs2::scalar_t taskDirectionRef{0.1};
 
@@ -83,40 +85,28 @@ struct ArmManipulabilitySettings
     ocs2::scalar_t conditionWeight{1e-3};
     ocs2::scalar_t conditionMax{50.0};
 
-    ocs2::scalar_t regularization{1e-6};
     ocs2::scalar_t finiteDiffStep{1e-6};
     ocs2::scalar_t hessianRegularization{1e-6};
+    // 评价失败时不得默认变成“最优的零代价”。
+    ocs2::scalar_t invalidMetricsPenalty{1e6};
 };
 
 /**
- * 基于 Pinocchio 末端 frame Jacobian 的可操作度 state cost。
+ * 基于 wbmm_robot_metrics 构型评价的 OCS2 可操作度 state cost。
  *
- * 支持两种 scope：
- *   - kArmOnly: 取末端 frame Jacobian 的机械臂列，得到 6xarmDim；
- *   - kWholeBody: 将底盘输入映射到 [v, omega] 后，得到 6xinputDim。
- *
- * 指标：
- *   - sigmaMin / sigmaMax / conditionNumber
- *   - yoshikawa = prod(singularValues) = sqrt(det(J J^T))
- *   - taskDirection = sqrt(d^T J J^T d)
- *   - inverseManipulability = trace((J J^T + eps I)^-1)
- *
- * 梯度由中心差分得到；Hessian 使用 Gauss-Newton/对角正则近似，保证 PSD。
+ * Pinocchio 运动学统一通过 OCS2 PinocchioInterface 与
+ * WbmmPinocchioMapping 完成；指标公式由 wbmm_robot_metrics 完成。本类只负责：
+ *   - 从 OCS2 PinocchioInterface 计算并映射 6x8 Jacobian；
+ *   - 将 settings.metricsOptions 原样交给公共评价包；
+ *   - 把 metrics 组装成 hinge / linear cost；
+ *   - 用中心差分组装 PSD 近似梯度。
  */
 class ArmManipulabilityCost final : public ocs2::StateCost
 {
 public:
-    struct Metrics
-    {
-        ocs2::scalar_t yoshikawa{0.0};
-        ocs2::scalar_t sigmaMin{0.0};
-        ocs2::scalar_t sigmaMax{0.0};
-        ocs2::scalar_t taskDirection{0.0};
-        ocs2::scalar_t inverseManipulability{0.0};
-        ocs2::scalar_t condition{0.0};
-        bool valid{false};
-    };
+    using Metrics = wbmm::metrics::ArmKinematicMetrics;
 
+    /** OCS2 内部唯一的模型入口，避免再经 RobotModel 重复计算运动学。 */
     ArmManipulabilityCost(const ocs2::PinocchioInterface& pinocchioInterface,
                           WbmmModelInfo modelInfo,
                           ArmManipulabilitySettings settings);
@@ -134,7 +124,7 @@ public:
         const ocs2::TargetTrajectories& targetTrajectories,
         const ocs2::PreComputation& preComputation) const override;
 
-    /** 暴露指标计算，供日志、可视化和单元测试使用。 */
+    /** 暴露当前构型的评价结果，供日志、可视化和单元测试使用。 */
     Metrics computeMetrics(const ocs2::vector_t& state) const;
 
     const ArmManipulabilitySettings& settings() const noexcept {return settings_;}
@@ -142,16 +132,17 @@ public:
 private:
     ArmManipulabilityCost(const ArmManipulabilityCost& other) = default;
 
+    wbmm::core::JointState toJointState(
+        const ocs2::vector_t& state) const;
     ocs2::scalar_t costFromMetrics(const Metrics& metrics) const;
     std::vector<int> activeStateIndices() const;
-    ocs2::matrix_t buildTaskJacobian(
-        const ocs2::matrix_t& frameJacobian,
-        const ocs2::vector_t& state) const;
+    std::size_t armStateStartIndex() const noexcept;
 
     ocs2::PinocchioInterface pinocchioInterface_;
     WbmmModelInfo modelInfo_;
     ArmManipulabilitySettings settings_;
-    std::size_t eeFrameId_{0};
+    wbmm::core::RobotLimits limits_;
+    std::size_t endEffectorFrameId_{0U};
 };
 
 }  // namespace wbmm_ocs2

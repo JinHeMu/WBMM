@@ -23,6 +23,25 @@ model_settings
   recompileLibraries              true
 }
 
+; ============================================================================
+; 双参考 + 模式切换
+;
+;   phase: 0=Navigation, 1=Transition, 2=Execution, 3=Retract
+;
+;   Navigation : whole-body 跟踪
+;   Transition : whole-body 与 EE 同时加权
+;   Execution  : EE 主导; wholeBody 权重 0.0，避免末端执行时被
+;                初始全身参考拉回
+;   Retract    : whole-body 重新主导
+;
+;   运行中通过 /mobile_manipulator_set_task_phase service 切换。
+; ============================================================================
+modeSwitch
+{
+  activate       true
+  initialPhase   0
+}
+
 ; DDP settings
 ddp
 {
@@ -173,28 +192,20 @@ inputCost
 }
 
 ; ============================================================================
-; End-effector 目标跟踪 (全身轨迹模式下必须关闭)
-; ============================================================================
-endEffector
-{
-  activate         false
-
-  muPosition       10.0
-  muOrientation    5.0
-}
-
-finalEndEffector
-{
-  muPosition       10.0
-  muOrientation    5.0
-}
-
-; ============================================================================
 ; 全身轨迹跟踪 cost (WholeBodyTrajectoryCost)
 ; ============================================================================
 wholeBodyTracking
 {
   activate   true
+
+  ; phase:    Navigation Transition Execution Retract
+  phaseWeights
+  {
+    (0,0)  1.0
+    (1,0)  0.5
+    (2,0)  0.0
+    (3,0)  0.5
+  }
 
   ; [问题1] 终端权重缩放 5 -> 1.0, 避免末尾过度追逐横向位置
   finalWeightScale  1.0
@@ -215,6 +226,42 @@ wholeBodyTracking
       (3,3)  1.0   ; joint_4
       (4,4)  1.0   ; joint_5
       (5,5)  1.0   ; joint_6
+    }
+  }
+}
+
+; ============================================================================
+; 末端参考跟踪 cost (EndEffectorTrackingCost)
+;
+;   目标来自 mobile_manipulator_ee_target，单目标 7D:
+;     [x, y, z, qx, qy, qz, qw]
+;   Execution 阶段由该 cost 主导。
+; ============================================================================
+endEffectorTracking
+{
+  activate true
+
+  phaseWeights
+  {
+    (0,0)  0.0
+    (1,0)  0.5
+    (2,0)  1.0
+    (3,0)  0.0
+  }
+
+  Q
+  {
+    position
+    {
+      (0,0)  100.0
+      (1,1)  100.0
+      (2,2)  100.0
+    }
+    orientation
+    {
+      (0,0)  25.0
+      (1,1)  25.0
+      (2,2)  25.0
     }
   }
 }
@@ -406,4 +453,3 @@ jointVelocityLimits
     }
   }
 }
-

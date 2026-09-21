@@ -100,6 +100,11 @@ namespace wbmm_ocs2
 
         bool isModeSwitchEnabled() const { return modeSwitchEnabled_; }
 
+        bool isArmManipulabilityEnabled() const
+        {
+            return armManipulabilityEnabled_;
+        }
+
         void setTaskPhase(TaskPhase phase)
         {
             wbmmRefManagerPtr_->setTaskPhase(phase);
@@ -188,15 +193,8 @@ namespace wbmm_ocs2
             return envCollisionEnabled_;
         }
 
-        bool dual_arm_ = false;
-
     private:
         std::unique_ptr<ocs2::StateInputCost> getQuadraticInputCost(const std::string& taskFile);
-        std::unique_ptr<ocs2::StateCost> getEndEffectorConstraint(const ocs2::PinocchioInterface& pinocchioInterface,
-                                                            const std::string& taskFile,
-                                                            const std::string& prefix, bool useCaching,
-                                                            const std::string& libraryFolder,
-                                                            bool recompileLibraries);
         std::unique_ptr<ocs2::StateCost> getEndEffectorTrackingCost(
             const ocs2::PinocchioInterface& pinocchioInterface,
             const std::string& taskFile,
@@ -204,6 +202,10 @@ namespace wbmm_ocs2
             bool usePreComputation,
             const std::string& libraryFolder,
             bool recompileLibraries);
+        std::unique_ptr<ocs2::StateCost> getArmManipulabilityCost(
+            const ocs2::PinocchioInterface& pinocchioInterface,
+            const std::string& taskFile,
+            const std::string& prefix);
         std::unique_ptr<ocs2::StateCost> getSelfCollisionConstraint(const ocs2::PinocchioInterface& pinocchioInterface,
                                                               const std::string& taskFile,
                                                               const std::string& urdfFile,
@@ -211,12 +213,6 @@ namespace wbmm_ocs2
                                                               bool useCaching,
                                                               const std::string& libraryFolder,
                                                               bool recompileLibraries);
-        std::unique_ptr<ocs2::StateCost> getBodyRelativeConstraint(const ocs2::PinocchioInterface& pinocchioInterface,
-                                                             const std::string& taskFile,
-                                                             const std::string& prefix,
-                                                             bool usePreComputation,
-                                                             const std::string& libraryFolder,
-                                                             bool recompileLibraries);
         std::unique_ptr<ocs2::StateInputCost> getJointLimitSoftConstraint(const ocs2::PinocchioInterface& pinocchioInterface,
                                                                     const std::string& taskFile);
         std::unique_ptr<ocs2::StateCost> getEnvironmentCollisionConstraint(const ocs2::PinocchioInterface& pinocchioInterface,
@@ -274,8 +270,8 @@ namespace wbmm_ocs2
 
         ocs2::vector_t initialState_;
 
-        bool endEffectorEnabled_{true};
         bool wholeBodyTrackingEnabled_{false};
         bool modeSwitchEnabled_{false};
+        bool armManipulabilityEnabled_{false};
     };
 }

@@ -1,0 +1,8 @@
+# Requested TaskPhase value:
+#   0 = Navigation, 1 = Transition, 2 = Execution, 3 = Retract
+int32 phase
+---
+bool success
+string message
+int32 requested_phase
+int32 active_phase

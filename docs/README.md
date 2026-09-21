@@ -105,6 +105,8 @@ docs/
 | [environment_collision_metrics.md](environment_collision_metrics.md) | 环境、碰撞与机械臂评价的最小库骨架、接口约定和 TBD 实现边界 |
 | [whole_body_force_control_real_deployment.md](whole_body_force_control_real_deployment.md) | Whole-body force control 首轮实机测试部署说明：只读影子、FTS 清零、Z 轴测试、未来安全项 |
 | [wbmm_ros_interface.md](wbmm_ros_interface.md) | WBMM real/MuJoCo 统一 ROS 接口契约：topic、frame、QoS、服务与 backend 边界 |
+| [wbmm_ocs2_dual_reference_mode_switch.md](wbmm_ocs2_dual_reference_mode_switch.md) | CURRENT：OCS2 双参考、TaskPhase service/state、phase 权重、MRT policy mode 安全切换 |
+| [wbmm_ocs2_mode_manipulability_esdf_design.md](wbmm_ocs2_mode_manipulability_esdf_design.md) | OCS2 改造历史设计：双参考、可操作度、模式切换与 ESDF 后端；部分旧接口描述已被上文 CURRENT 文档取代 |
 
 ## 6. 修改原则
 

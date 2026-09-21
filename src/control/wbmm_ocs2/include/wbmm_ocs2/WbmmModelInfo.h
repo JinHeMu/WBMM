@@ -56,8 +56,7 @@ struct WbmmModelInfo
   std::size_t armDim{0};
 
   std::string baseFrame;   // URDF 根链路名（机械臂基座）
-  std::string eeFrame;     // 末端 frame，单臂时即主末端
-  std::string eeFrame1;    // 预留双末端兼容，单臂为空
+  std::string eeFrame;     // 唯一末端 frame
   std::vector<std::string> dofNames;  // 驱动关节名，Pinocchio 顺序
 };
 

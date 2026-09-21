@@ -157,14 +157,11 @@ whole_body:
   max_joint_velocity: 0.5
   max_ee_linear_velocity: 0.05
   max_ee_angular_velocity: 0.20
-  max_ee_translation_offset: 0.10
-  max_ee_rotation_offset: 0.30
 ```
 
 - `base_share`：仅 legacy `whole_body_state` 模式使用；ee_pose 模式不使用。
 - `max_base_velocity` / `max_joint_velocity`：legacy 9D reference 的速度上限。
 - `max_ee_linear_velocity` / `max_ee_angular_velocity`：ee_pose 模式任务空间目标的速度上限。
-- `max_ee_translation_offset` / `max_ee_rotation_offset`：ee_pose 模式任务空间修正的 anti-windup 边界。
 
 `whole_body.max_base_delta` 和 `whole_body.max_joint_delta` 不用于 ee_pose 模式。  
 ee_pose 模式下底盘/机械臂分工由 OCS2 决定；legacy 模式仍保留原有 IK 可达性限制。
@@ -243,7 +240,7 @@ ros2 run whole_body_force_control fake_wrench_sequence.py \
   --ros-args -p sequence_enabled:=true
 ```
 
-单轴顺序测试：
+多轴力/力矩顺序测试：
 
 ```bash
 ros2 run whole_body_force_control axis_wrench_sequence.py
@@ -254,12 +251,20 @@ ros2 run whole_body_force_control axis_wrench_sequence.py
 ```text
 2 s  zero
 2 s  +X 5 N
-2 s  zero
 2 s  +Y 5 N
-2 s  zero
 2 s  +Z 5 N
+2 s  +Tx 1 Nm
+2 s  +Ty 1 Nm
+2 s  +Tz 1 Nm
 2 s  zero
 ```
+
+默认各轴之间没有零力间隔，轴每 2 s 切换一次；如果需要每个轴后回到零，
+把 `zero_duration` 设为大于 0 的值。
+
+注意：当前仿真力控配置的力矩硬限幅为 4 Nm，所以脚本默认
+`torque_magnitude=1.0`；如果要发送更大力矩，需要同步确认/调整
+`hard_wrench_limit`，否则会触发 `WRENCH_LIMIT`。
 
 可用参数：
 
@@ -267,10 +272,22 @@ ros2 run whole_body_force_control axis_wrench_sequence.py
 ros2 run whole_body_force_control axis_wrench_sequence.py \
   --ros-args \
   -p force_magnitude:=5.0 \
-  -p zero_duration:=2.0 \
+  -p torque_magnitude:=1.0 \
+  -p initial_zero_duration:=2.0 \
+  -p zero_duration:=0.0 \
   -p hold_duration:=2.0 \
   -p final_zero_duration:=2.0 \
+  -p include_force:=true \
+  -p include_torque:=true \
   -p loop:=false
+```
+
+配套的六轴 admittance 测试 profile：
+
+```bash
+ros2 launch tracer_jaka_bringup whole_body_force_control_profiles.launch.py \
+  profile:=six_axis_sequence \
+  use_rviz:=false
 ```
 
 ## 碰撞说明

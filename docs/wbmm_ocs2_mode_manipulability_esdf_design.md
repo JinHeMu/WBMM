@@ -1,9 +1,16 @@
 # WBMM OCS2 改造设计：双参考阶段权重、可操作度、模式切换与 ESDF 碰撞后端
 
-> Status: DRAFT  
-> Scope: `wbmm_ocs2` / `wbmm_ocs2_ros` / `wbmm_environment`  
-> 目标：在不修改 OCS2 vendor 核心的前提下，实现四项需求  
-> 说明：本文只给设计方案和修改方法，未修改源码
+> Status: DRAFT
+>
+> Scope: `wbmm_ocs2` / `wbmm_ocs2_ros` / `wbmm_environment`
+>
+> 目标：记录双参考阶段权重、可操作度、模式切换与 ESDF 碰撞后端的设计演进。
+>
+> 说明：本文包含历史设计与部分 CURRENT 实现记录。双参考 / TaskPhase 的当前实际 ROS 接口、phase 权重、service 与 MRT 安全行为，以
+> [wbmm_ocs2_dual_reference_mode_switch.md](wbmm_ocs2_dual_reference_mode_switch.md) 为准。
+>
+> 注意：本文中的 `/mobile_manipulator_task_phase` 命令话题是早期方案；当前实际实现使用
+> `/mobile_manipulator_set_task_phase` service + `/mobile_manipulator_task_phase_state` 状态话题。
 
 ---
 
@@ -18,11 +25,13 @@
    - `/mobile_manipulator_ee_target`：7D 末端参考，来自交互 marker / 视觉 / 任务规划器。
    - 两个参考可以同时存在，不需要互相停发。
 
-2. **外部消息切换阶段**
-   - `/mobile_manipulator_task_phase`：`std_msgs/msg/Int32`。
+2. **外部 service 切换阶段 + latched state topic 反馈**
+   - `/mobile_manipulator_set_task_phase`：`wbmm_ocs2_ros/srv/SetTaskPhase`。
+   - `/mobile_manipulator_task_phase_state`：`wbmm_ocs2_ros/msg/TaskPhaseState`，`transient_local`。
    - `0 = Navigation`，`1 = Transition`，`2 = Execution`，`3 = Retract`。
-   - `WbmmMpcNode` 收到后调用 `WbmmReferenceManager::setTaskPhase()`。
-   - `WbmmMrtNode` 也订阅同一消息，用于 reset 和 policy 阶段检查。
+   - `WbmmMpcNode` 收到 service 后调用 `WbmmReferenceManager::setTaskPhase()`，并发布 requested / active phase 状态。
+   - `WbmmMrtNode` 订阅 state topic，用于 reset 和 policy 阶段检查。
+   - 旧方案中的 `/mobile_manipulator_task_phase` 命令话题未作为最终接口保留。
 
 3. **不同阶段，两路参考的代价权重不同**
    - 不采用简单的“二选一硬切”，而是加权和：
@@ -36,9 +45,11 @@ $$
 | 阶段 | `w_wb` | `w_ee` | 说明 |
 |---|---:|---:|---|
 | Navigation | 1.0 | 0.0 | 全身参考主导 |
-| Transition | 1.0 → 0.0 | 0.0 → 1.0 | 平滑过渡，两个代价同时存在 |
-| Execution | 低/仅底盘与姿态 | 1.0 | 末端参考主导，全身只做正则 |
-| Retract | 0.0 → 1.0 | 1.0 → 0.0 | 切回全身或回撤 |
+| Transition | 0.5 | 0.5 | 平滑过渡，两个代价同时存在 |
+| Execution | 0.0 | 1.0 | 末端参考主导；当前 9D whole-body cost 不参与，避免回拉 |
+| Retract | 0.5 | 0.0 | 切回全身或回撤 |
+
+上表为 CURRENT 生产配置值。后续若实现独立的底盘 / 臂构型正则，再把 Execution 的 `w_wb` 改为非零。
 
 4. **始终开启的公共代价/约束**
    - 输入代价
@@ -57,9 +68,9 @@ $$
 /mobile_manipulator_ee_target         7D
                      \
                       +--> WbmmReferenceManager
-/mobile_manipulator_task_phase  Int32 --> |  whole_body_target
+/mobile_manipulator_set_task_phase  srv --> |  whole_body_target
                                            |  ee_target
-                                           |  task_phase
+                                           |  requested/active phase
                                            |
                                   PhaseWeightedStateCost
                                            |
@@ -176,9 +187,9 @@ frame_id.npy
 /mobile_manipulator_ee_target         7D
                      \
                       +--> WbmmReferenceManager
-/mobile_manipulator_task_phase  Int32 --> |  whole_body_target
+/mobile_manipulator_set_task_phase  srv --> |  whole_body_target
                                            |  ee_target
-                                           |  task_phase
+                                           |  requested/active phase
                                            |
                                   PhaseWeightedStateCost
                                            |
@@ -778,17 +789,18 @@ enum class TaskPhase : size_t {
 - 力/接触状态；
 - 超时和失败恢复。
 
-### 4.2 外部消息定义
+### 4.2 外部接口定义（CURRENT）
 
-推荐三个 ROS 话题：
+实际实现为“两路 target + service 切换 + latched state 反馈”：
 
 ```text
-/mobile_manipulator_whole_body_target   ocs2_msgs/msg/MpcTargetTrajectories   9D
-/mobile_manipulator_ee_target           ocs2_msgs/msg/MpcTargetTrajectories   7D
-/mobile_manipulator_task_phase          std_msgs/msg/Int32
+/mobile_manipulator_whole_body_target   ocs2_msgs/msg/MpcTargetTrajectories      9D
+/mobile_manipulator_ee_target           ocs2_msgs/msg/MpcTargetTrajectories      7D
+/mobile_manipulator_set_task_phase      wbmm_ocs2_ros/srv/SetTaskPhase
+/mobile_manipulator_task_phase_state    wbmm_ocs2_ros/msg/TaskPhaseState
 ```
 
-`task_phase` 取值：
+`phase` 取值：
 
 ```text
 0 = Navigation
@@ -797,7 +809,15 @@ enum class TaskPhase : size_t {
 3 = Retract
 ```
 
-可选再提供一个服务 `set_task_phase`，但核心切换入口建议保持为 latched topic，便于多个节点同时订阅。
+`TaskPhaseState` 同时包含 `requested_phase`、`active_phase` 和
+`mode_switch_enabled`，并使用 `reliable + transient_local`。外部切换命令示例：
+
+```bash
+ros2 service call /mobile_manipulator_set_task_phase \
+  wbmm_ocs2_ros/srv/SetTaskPhase "{phase: 2}"
+```
+
+详细契约见 [wbmm_ocs2_dual_reference_mode_switch.md](wbmm_ocs2_dual_reference_mode_switch.md)。
 
 ### 4.3 新增 `WbmmReferenceManager`
 
@@ -1106,95 +1126,51 @@ armManipulability
 base/posture regularization
 ```
 
-### 4.6 ROS 层实现
+### 4.6 ROS 层实现（CURRENT 摘要）
 
-#### `WbmmMpcNode.cpp`
-
-订阅三个话题：
-
-```cpp
-// whole body target
-auto wholeBodyTargetSub =
-    nodeHandle->create_subscription<ocs2_msgs::msg::MpcTargetTrajectories>(
-        wholeBodyTargetTopic, 1,
-        [&interface](const ocs2_msgs::msg::MpcTargetTrajectories::SharedPtr msg) {
-          interface.setWholeBodyTarget(
-              ocs2::ros_msg_conversions::readTargetTrajectoriesMsg(*msg));
-        });
-
-// ee target
-auto eeTargetSub =
-    nodeHandle->create_subscription<ocs2_msgs::msg::MpcTargetTrajectories>(
-        eeTargetTopic, 1,
-        [&interface](const ocs2_msgs::msg::MpcTargetTrajectories::SharedPtr msg) {
-          interface.setEndEffectorTarget(
-              ocs2::ros_msg_conversions::readTargetTrajectoriesMsg(*msg));
-        });
-
-// task phase
-auto phaseSub =
-    nodeHandle->create_subscription<std_msgs::msg::Int32>(
-        taskPhaseTopic, rclcpp::QoS(1).transient_local(),
-        [&interface](const std_msgs::msg::Int32::SharedPtr msg) {
-          interface.setTaskPhase(
-              static_cast<wbmm_ocs2::TaskPhase>(msg->data));
-        });
-```
-
-注意：
-
-- `RosReferenceManager` 不再负责 target；target 由上面两个订阅直接写入 `WbmmReferenceManager`。
-- `MPC_ROS_Interface` 的 reset service 仍会调用 `setTargetTrajectories`，由 `WbmmReferenceManager` 按当前阶段路由到对应 buffer。
-- 外部 phase 消息建议使用 latched QoS，保证新启动节点也能拿到当前阶段。
-
-#### `WbmmMrtNode.cpp`
-
-- 订阅 `task_phase` 话题，保存 `std::atomic<int> currentPhase_`。
-- `resetMpc()` 根据当前 phase 选择 reset target：
-
-```cpp
-if (currentPhase_ == static_cast<int>(wbmm_ocs2::TaskPhase::kExecution)) {
-  target = lookupCurrentEePose();   // 7D
-} else {
-  target = observation.state;       // 9D
-}
-```
-
-- 安全增强：`evaluateCurrentPolicy()` 返回的 policy mode 由 `WbmmReferenceManager` 的 `ModeSchedule` 决定。因为 `setTaskPhase()` 会把 mode schedule 设为当前 phase，所以可以直接比较：
-
-```cpp
-if (policyMode != static_cast<size_t>(currentPhase_)) {
-  RCLCPP_WARN_THROTTLE(... "phase mismatch, holding");
-  publishZeroBaseCommand();
-  holdArmCommand();
-  return;
-}
-```
-
-#### target publishers
-
-- `remani_to_ocs2_reference_bridge.cpp`：发布 9D 全身参考到 `/mobile_manipulator_whole_body_target`。
-- `WbmmTargetNode.cpp`：发布 7D 末端参考到 `/mobile_manipulator_ee_target`。
-- 两个 publisher 可以同时运行，不需要按模式 gate。
-- 阶段切换时，外部任务节点同时切换 phase 消息即可。
-
-### 4.7 阶段切换时序建议
+当前实现不再使用 `task_phase` 命令话题，也不再保留 `mobile_manipulator_mpc_target`
+兼容订阅。实际接口为：
 
 ```text
-1. 外部任务节点发布 /mobile_manipulator_task_phase
+/mobile_manipulator_whole_body_target   9D target
+/mobile_manipulator_ee_target           7D target
+/mobile_manipulator_set_task_phase      SetTaskPhase service
+/mobile_manipulator_task_phase_state    TaskPhaseState latched topic
+```
+
+- `WbmmMpcNode`：
+  - 分别订阅两个 target；
+  - 校验 target 维度、有限性和时间轨迹；
+  - `modeSwitch.activate=true` 时创建 phase service 和 latched state publisher；
+  - service 回调调用 `WbmmReferenceManager::setTaskPhase()`；
+  - solver 直接使用 `WbmmReferenceManager`，不再包 `RosReferenceManager`。
+- `WbmmMrtNode`：
+  - 订阅 `TaskPhaseState`，保存 requested phase；
+  - reset 时按 phase 选择 9D whole-body 或 7D EE target；
+  - policy mode 与 requested phase 不一致时 `stopAndHold()`，直到新 policy 到达。
+- `WbmmTargetNode`：只发布 7D EE target。
+- `remani_to_ocs2_reference_bridge`：只发布 9D whole-body target。
+- `whole_body_force_control`：EE / whole-body 输出已对齐两个 target topic。
+
+完整契约、参数和验证记录见
+[wbmm_ocs2_dual_reference_mode_switch.md](wbmm_ocs2_dual_reference_mode_switch.md)。
+
+### 4.7 阶段切换时序建议（CURRENT）
+
+```text
+1. 外部任务状态机调用 /mobile_manipulator_set_task_phase { phase }
 2. WbmmMpcNode:
-   - interface.setTaskPhase(phase)
-   - WbmmReferenceManager 更新 phase buffer 和 ModeSchedule
+   - setTaskPhase(requested)
+   - 立即发布 requested phase state
 3. WbmmMrtNode:
-   - 收到 phase，currentPhase_ 更新
-   - 检查 policy mode，不匹配时先 hold
-4. 两个 target 话题持续更新:
-   - whole_body_target 来自 REMANI
-   - ee_target 来自任务/视觉节点
-5. MPC 下一轮 preSolverRun:
-   - WbmmReferenceManager 锁存 phase 和两个 target
-   - PhaseWeightedStateCost 按阶段权重生效
-6. MRT 收到新 policy 后恢复执行
+   - requested phase 更新
+   - policy mode 仍为旧值时 stopAndHold
+4. MPC 下一轮 preSolverRun:
+   - active phase、两路 target、ModeSchedule 一起锁存
+   - PhaseWeightedStateCost 使用新权重
+5. 新 policy 发布后:
+   - policy mode 与 requested phase 一致
+   - MRT 恢复正常输出
 ```
 
 ### 4.8 过渡与安全建议
@@ -1202,7 +1178,7 @@ if (policyMode != static_cast<size_t>(currentPhase_)) {
 - 不要直接从 `Navigation` 硬切到 `Execution`；建议经过 `Transition`。
 - `Transition` 阶段两个 cost 同时非零，权重平滑变化。
 - 切到 `Execution` 前，EE target 建议先发“当前 EE pose”作为 hold target，再逐渐过渡到任务目标。
-- 执行阶段不要完全关闭全身约束；保留底盘位置/航向、机械臂姿态低权重正则，避免底盘漂移和机械臂奇异。
+- CURRENT：尚未拆分 `BaseTrackingCost` / `ArmPostureCost`，因此 Execution 阶段 `w_wb=0.0`；PROPOSED：后续应保留底盘位置/航向、机械臂姿态低权重正则，避免底盘漂移和机械臂奇异。
 - 接触/力控任务仍需导纳/力控参与，OCS2 位置跟踪不能替代力控。
 - 实机切换时必须有人工确认的 hold/急停/看门狗策略。
 
@@ -1823,12 +1799,14 @@ wbmm_mpc_node:
   ros__parameters:
     whole_body_target_topic: mobile_manipulator_whole_body_target
     ee_target_topic: mobile_manipulator_ee_target
-    task_phase_topic: mobile_manipulator_task_phase
+    task_phase_state_topic: mobile_manipulator_task_phase_state
+    set_task_phase_service: mobile_manipulator_set_task_phase
+    initial_task_phase: -1
 
 wbmm_mrt_node:
   ros__parameters:
-    task_phase_topic: mobile_manipulator_task_phase
-    initial_phase: 0
+    task_phase_state_topic: mobile_manipulator_task_phase_state
+    initial_task_phase: -1
 ```
 
 ---
@@ -1851,7 +1829,7 @@ wbmm_mrt_node:
 
 4. **阶段/模式切换**
    - 新增 `WbmmReferenceManager` 和 `PhaseWeightedStateCost`。
-   - 修改 `WbmmInterface` 支持双参考 target 和 `task_phase`。
+   - 修改 `WbmmInterface` 支持双参考 target 和 phase service/state。
    - 单元测试：`setTaskPhase` + `preSolverRun` 后对应阶段的 cost 权重正确，且两个 target 不会混用。
 
 5. **ESDF 碰撞约束**
@@ -1868,9 +1846,10 @@ wbmm_mrt_node:
    - 用 `mujoco_mapping_export.launch.py` 或 `d455_bag_esdf.launch.py` 导出 NPZ。
    - 设置 `environmentCollision.backend="esdf"`。
    - 先不开可操作度代价，只验证 ESDF 避障；再逐步加 cost。
-   - 模式切换测试：whole-body -> EE -> whole-body，确认：
-     - `_mpc_target` 维度正确；
-     - MRT 在模式不匹配时不执行旧 policy；
+   - 模式切换测试：whole-body -> Transition -> EE -> Retract -> whole-body，确认：
+     - 9D / 7D target 维度分别正确；
+     - phase service 的 requested / active phase 传播正确；
+     - MRT 在 policy mode 不匹配时不执行旧 policy；
      - 没有 NaN / 约束维度变化 / solver 异常。
 
 ---
@@ -1932,8 +1911,8 @@ wbmm_mrt_node:
 
 | 方向 | 当前状态 | 主要缺口 / 下一步 |
 |---|---|---|
-| 双参考 Reference | CURRENT：`WbmmReferenceManager` 已支持 whole-body / EE 两路 target 和 `TaskPhase` | ROS 侧仍未接双 target 和 `task_phase` |
-| 阶段权重 Cost | CURRENT：`PhaseWeightedStateCost` 已支持按 phase 加权 | 生产 `task.info` 尚未迁移；ROS phase 闭环未完成 |
+| 双参考 Reference | CURRENT：`WbmmReferenceManager` 已支持 whole-body / EE 两路 target 和 `TaskPhase` | 已完成 rvalue 重写、按维度路由和 reset 路径；后续只需继续做异常/动态参考回归 |
+| 阶段权重 Cost | CURRENT：`PhaseWeightedStateCost` 已支持按 phase 加权 | 生产 `task.info` 已迁移；Execution `w_wb=0.0`；ROS service/state 闭环已完成 |
 | 全身跟踪 Cost | CURRENT：`WholeBodyTrajectoryCost` | 建议拆成 `BaseTrackingCost` + `ArmPostureCost`，弱化全 9D 强跟踪 |
 | 末端跟踪 Cost | CURRENT：`EndEffectorTrackingCost` | 尚未接入导纳/力控的 EE 修正 |
 | 可操作度 Cost | CURRENT：`ArmManipulabilityCost` | 权重、量纲缩放、与 `wbmm_robot_metrics` 的统一仍需确认 |
@@ -1942,44 +1921,48 @@ wbmm_mrt_node:
 | 规划 Search | CURRENT：Kino A* 只有 base 3D 路径 | 缺 TaskEntryRegion、whole-body seed、TaskPlan |
 | 规划 Optimization | PROPOSED：`planning/optimization` 仍为空 | 需实现固定 dt 的 whole-body 优化 |
 | Collision / Metrics | PROPOSED：`wbmm_collision`、`wbmm_robot_metrics` 仍为骨架 | 与 OCS2 内部实现存在重复，需要统一或明确边界 |
-| 力控 | CURRENT：导纳 + `WholeBodyKinematics` + `base_share` + IK | 需改为“导纳 → EE correction → OCS2” |
-| ROS / Launch / Config | PROPOSED：仍以单 `_mpc_target` 和旧配置为主 | 需接双 target、phase、ESDF backend 和生产配置 |
+| 力控 | CURRENT：导纳 + `WholeBodyKinematics` + `base_share` + IK | 力控 EE / whole-body 输出已对齐双参考 topic；导纳 → EE correction → OCS2 仍需后续联调 |
+| ROS / Launch / Config | CURRENT：双 target、phase service/state、MRT mode hold 已接通 | 不再使用 `_mpc_target`；ESDF backend 和生产配置迁移仍属后续工作 |
 
 ---
 
-### 10.2 P0：Reference / ROS 接口闭环
+### 10.2 P0：Reference / ROS 接口闭环（CURRENT 已完成）
 
-**问题**
+> 2026-09-21 更新：本节旧方案已由当前实现取代。以下为 CURRENT 行为摘要；
+> 完整契约见 [wbmm_ocs2_dual_reference_mode_switch.md](wbmm_ocs2_dual_reference_mode_switch.md)。
 
-- `wbmm_ocs2` 内部已经支持双参考，但 `wbmm_ocs2_ros` 尚未闭环：
-  - `WbmmMpcNode.cpp` 仍只有一个 `_mpc_target` 订阅；
-  - `WbmmMrtNode.cpp` 仍使用 `use_whole_body_target` 参数；
-  - `WbmmTargetNode.cpp` 仍只发 7D 目标；
-  - `remani_to_ocs2_reference_bridge.cpp` 仍只发 9D 参考；
-  - 没有 `task_phase` 话题；
-  - 没有 MRT policy phase mismatch hold。
-
-**PROPOSED**
-
-- 固定三个 ROS 话题：
+**CURRENT 接口**
 
 ```text
-/mobile_manipulator_whole_body_target
-/mobile_manipulator_ee_target
-/mobile_manipulator_task_phase
+/mobile_manipulator_whole_body_target   ocs2_msgs/msg/MpcTargetTrajectories      9D
+/mobile_manipulator_ee_target           ocs2_msgs/msg/MpcTargetTrajectories      7D
+/mobile_manipulator_set_task_phase      wbmm_ocs2_ros/srv/SetTaskPhase
+/mobile_manipulator_task_phase_state    wbmm_ocs2_ros/msg/TaskPhaseState
 ```
 
+**CURRENT 行为**
+
 - `WbmmMpcNode`：
-  - 分别订阅两个 target 话题；
-  - 订阅 `task_phase`；
-  - 调用 `WbmmInterface::setWholeBodyTarget()`、`setEndEffectorTarget()`、`setTaskPhase()`。
+  - 同时订阅两个 target topic；
+  - 通过 `SetTaskPhase` service 调用 `setTaskPhase()`；
+  - 不再使用 `RosReferenceManager`，solver 直接共享 `WbmmReferenceManager`；
+  - 发布 latched `TaskPhaseState`。
 - `WbmmMrtNode`：
-  - 订阅 `task_phase`；
-  - `resetMpc()` 按当前 phase 选择 9D 或 7D 初始 target；
-  - `evaluatePolicy()` 的 mode 与当前 phase 不一致时 hold。
-- `WbmmTargetNode`：只发布 EE target。
-- `remani_to_ocs2_reference_bridge`：只发布 whole-body target。
-- 不再让单一 `_mpc_target` 同时承载 7D/9D 两种语义。
+  - 订阅 phase state；
+  - reset 时按 phase 选择 9D whole-body 或 7D EE target；
+  - policy mode 与 requested phase 不一致时 `stopAndHold()`。
+- `WbmmTargetNode`：只发布 7D EE target。
+- `remani_to_ocs2_reference_bridge`：只发布 9D whole-body target。
+- `whole_body_force_control`：EE / whole-body 输出已对齐两个 target topic。
+- 旧 `mobile_manipulator_mpc_target` 不再由新接口使用。
+- `WbmmReferenceManager` 已同时重写 const / rvalue `setTargetTrajectories()`，并支持按 9D / 7D 维度路由 reset target。
+
+**剩余工作**
+
+- 真实硬件 / FTS / 接触任务上的相位切换与 EE correction 联调；
+- phase 切换频率限制；
+- 独立底盘 / 姿态正则，替代 Execution 阶段 `w_wb=0.0`；
+- `TaskPhase` 与力控内部 `ExecutionPhase` 的统一。
 
 ---
 
@@ -2192,7 +2175,7 @@ kFinish         -> Retreat
 kFault          -> Hold / Recovery
 ```
 
-- 外部 `task_phase` 消息与 OCS2 `ModeSchedule` 使用同一套编号。
+- 外部 phase service/state 与 OCS2 `ModeSchedule` 使用同一套编号。
 
 ---
 
@@ -2255,7 +2238,7 @@ Force Sensor
 
 ```text
 P0:
-  1. ROS 双 target + task_phase 闭环
+  1. ROS 双 target + phase service/state 闭环（CURRENT 已完成）
   2. 去除 base_share 核心链路
 
 P1:

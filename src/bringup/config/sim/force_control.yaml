@@ -25,8 +25,6 @@ whole_body_force_control:
       max_base_velocity: 0.50
       max_ee_linear_velocity: 0.05
       max_ee_angular_velocity: 0.20
-      max_ee_translation_offset: 0.10
-      max_ee_rotation_offset: 0.30
 
     output:
       mode: ee_pose

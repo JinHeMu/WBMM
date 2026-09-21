@@ -125,3 +125,43 @@ ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py
 
 Algorithm launch files must not start either backend. They may start only
 algorithms, read explicit config paths and consume the contract above.
+
+## 9. OCS2 dual-reference / TaskPhase algorithm interface
+
+The OCS2 dual-reference mode interface is an algorithm-to-algorithm contract
+between REMANI, force control, the interactive target node, MPC and MRT. It is
+independent of the hardware backend contract above.
+
+| Interface | Type | Direction | Notes |
+|---|---|---|---|
+| `/mobile_manipulator_whole_body_target` | `ocs2_msgs/msg/MpcTargetTrajectories` | reference owner -> MPC | 9D `[x, y, yaw, q1..q6]`. |
+| `/mobile_manipulator_ee_target` | `ocs2_msgs/msg/MpcTargetTrajectories` | reference owner -> MPC | 7D `[x, y, z, qx, qy, qz, qw]`. |
+| `/mobile_manipulator_set_task_phase` | `wbmm_ocs2_ros/srv/SetTaskPhase` | external task state -> MPC | `int32 phase`, 0=Navigation, 1=Transition, 2=Execution, 3=Retract. |
+| `/mobile_manipulator_task_phase_state` | `wbmm_ocs2_ros/msg/TaskPhaseState` | MPC -> MRT / external | latched status with requested phase, active phase and enable flag. |
+
+Rules:
+
+- The legacy `mobile_manipulator_mpc_target` topic is no longer part of the
+  current dual-reference interface.
+- Both reference topics use `reliable` QoS with a queue depth of 1.
+- The phase state topic uses `reliable` + `transient_local` so a late-joining
+  MRT receives the latest phase.
+- Changing phase is a two-step transition: the requested phase is accepted
+  immediately, while the active phase and the phase-weighted costs change on
+  the next MPC `preSolverRun()`.
+- MRT holds base and arm commands whenever the received MPC policy mode does
+  not match the requested phase.
+- Execution currently sets the whole-body phase weight to 0.0 until a separate
+  base/posture regularization cost is implemented.
+
+Usage:
+
+```bash
+ros2 service call /mobile_manipulator_set_task_phase \
+  wbmm_ocs2_ros/srv/SetTaskPhase "{phase: 2}"
+
+ros2 topic echo /mobile_manipulator_task_phase_state --once
+```
+
+Details, phase weight tables and validation records:
+[wbmm_ocs2_dual_reference_mode_switch.md](wbmm_ocs2_dual_reference_mode_switch.md).

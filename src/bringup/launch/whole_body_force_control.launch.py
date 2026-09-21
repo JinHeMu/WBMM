@@ -48,6 +48,13 @@ def generate_launch_description():
         DeclareLaunchArgument("use_rviz", default_value="true"),
         DeclareLaunchArgument("use_sim_time", default_value="false"),
         DeclareLaunchArgument("hardware_write", default_value="false"),
+        DeclareLaunchArgument(
+            "initial_task_phase", default_value="-1",
+            description=(
+                "TaskPhase override for MPC/MRT; -1 uses "
+                "modeSwitch.initialPhase from task_file. Force-control "
+                "Execution should be commanded via the phase service or by "
+                "setting this to 2 explicitly.")),
         DeclareLaunchArgument("admittance.enable", default_value="false"),
         DeclareLaunchArgument("admittance.output", default_value="false"),
         DeclareLaunchArgument(
@@ -88,6 +95,8 @@ def generate_launch_description():
                 "lib_folder": LaunchConfiguration("lib_folder"),
                 "command_output_enabled": hardware_write,
                 "odom_topic": LaunchConfiguration("odom_topic"),
+                "initial_task_phase": LaunchConfiguration(
+                    "initial_task_phase"),
             }.items(),
         ),
         TimerAction(period=12.0, actions=[Node(

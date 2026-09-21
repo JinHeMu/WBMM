@@ -17,7 +17,8 @@ WBMM 自己的 OCS2 移动机械臂问题定义包。
 - 不实现 DefaultManipulator、FloatingArmManipulator、
   FullyActuatedFloatingArmManipulator 分支；
 - 底层 DDP、SQP、OCS2 rollout、Pinocchio、自动微分复用上游 OCS2；
-- 不依赖 ROS (rclcpp)、不依赖 `wbmm_core`（本阶段刻意不接入）。
+- 不依赖 ROS (`rclcpp`)；通过 `wbmm_core::RobotModel` 和
+  `wbmm_robot_metrics` 复用构型评价，OCS2 只负责将评价结果组装为代价。
 
 ## 内容
 
@@ -29,7 +30,7 @@ include/wbmm_ocs2/
   PreComputation.h             Pinocchio FK/Jacobian 缓存
   Dynamics.h                   差速底盘 + 关节速度动力学
   WbmmInterface.h              OptimalControlProblem 组装入口
-  cost/                        QuadraticInputCost / WholeBodyTrajectoryCost
+  cost/                        输入/轨迹/末端/可操作度代价
   constraint/                  EndEffector / BodyRelative / SelfCollision /
                                EnvironmentCollision
   collision/                   EnvironmentGeometryInterface

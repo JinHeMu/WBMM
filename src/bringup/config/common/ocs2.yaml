@@ -2,11 +2,20 @@
 wbmm_mpc_node:
   ros__parameters:
     use_sim_time: false
+    robot_name: mobile_manipulator
+    whole_body_target_topic: mobile_manipulator_whole_body_target
+    ee_target_topic: mobile_manipulator_ee_target
+    task_phase_state_topic: mobile_manipulator_task_phase_state
+    set_task_phase_service: mobile_manipulator_set_task_phase
+    initial_task_phase: -1
 
 wbmm_mrt_node:
   ros__parameters:
     use_sim_time: false
     command_output_enabled: false
+    robot_name: mobile_manipulator
+    task_phase_state_topic: mobile_manipulator_task_phase_state
+    initial_task_phase: -1
 
     mrt_loop_rate: 100.0
     traj_horizon: 0.10
@@ -40,5 +49,6 @@ wbmm_target_node:
     robot_name: mobile_manipulator
     marker_frame: odom
     ee_frame: tool0
+    ee_target_topic: mobile_manipulator_ee_target
     marker_scale: 0.3
     input_dim: 8

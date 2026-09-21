@@ -29,99 +29,183 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "wbmm_ocs2/WbmmReferenceManager.h"
 
+#include <algorithm>
+#include <iostream>
 #include <stdexcept>
 
 namespace wbmm_ocs2
 {
 
-using namespace ocs2;
+    using namespace ocs2;
 
-WbmmReferenceManager::WbmmReferenceManager(TaskPhase initialPhase)
-    : phase_(static_cast<std::size_t>(initialPhase)),
-      requestedPhase_(static_cast<std::size_t>(initialPhase))
-{
-    setModeSchedule(ModeSchedule(
-        {}, {static_cast<std::size_t>(initialPhase)}));
-}
-
-void WbmmReferenceManager::setWholeBodyTarget(
-    const TargetTrajectories& target)
-{
-    wholeBodyTarget_.setBuffer(target);
-}
-
-void WbmmReferenceManager::setEndEffectorTarget(
-    const TargetTrajectories& target)
-{
-    endEffectorTarget_.setBuffer(target);
-}
-
-void WbmmReferenceManager::setTaskPhase(TaskPhase phase)
-{
-    const auto value = static_cast<std::size_t>(phase);
-    if (value > static_cast<std::size_t>(TaskPhase::kRetract)) {
-        throw std::invalid_argument(
-            "[WbmmReferenceManager] Unknown task phase value.");
+    WbmmReferenceManager::WbmmReferenceManager(
+        TaskPhase initialPhase,
+        std::size_t wholeBodyStateDim,
+        std::size_t endEffectorStateDim)
+        : phase_(static_cast<std::size_t>(initialPhase)),
+          requestedPhase_(static_cast<std::size_t>(initialPhase)),
+          wholeBodyStateDim_(wholeBodyStateDim),
+          endEffectorStateDim_(endEffectorStateDim)
+    {
+        setModeSchedule(ModeSchedule(
+            {}, {static_cast<std::size_t>(initialPhase)}));
     }
 
-    requestedPhase_.store(value, std::memory_order_relaxed);
-    phase_.setBuffer(value);
-
-    // policy mode = task phase, used by MRT for phase consistency checks.
-    setModeSchedule(ModeSchedule({}, {value}));
-}
-
-TaskPhase WbmmReferenceManager::getTaskPhase() const
-{
-    return static_cast<TaskPhase>(phase_.get());
-}
-
-TaskPhase WbmmReferenceManager::getRequestedTaskPhase() const
-{
-    return static_cast<TaskPhase>(
-        requestedPhase_.load(std::memory_order_relaxed));
-}
-
-const TargetTrajectories& WbmmReferenceManager::getWholeBodyTarget() const
-{
-    return wholeBodyTarget_.get();
-}
-
-const TargetTrajectories& WbmmReferenceManager::getEndEffectorTarget() const
-{
-    return endEffectorTarget_.get();
-}
-
-bool WbmmReferenceManager::isEndEffectorDominant() const
-{
-    return getTaskPhase() == TaskPhase::kExecution;
-}
-
-const TargetTrajectories& WbmmReferenceManager::getTargetTrajectories() const
-{
-    return isEndEffectorDominant()
-        ? endEffectorTarget_.get()
-        : wholeBodyTarget_.get();
-}
-
-void WbmmReferenceManager::setTargetTrajectories(
-    const TargetTrajectories& target)
-{
-    if (isEndEffectorDominant()) {
-        endEffectorTarget_.setBuffer(target);
-    } else {
+    void WbmmReferenceManager::setWholeBodyTarget(
+        const TargetTrajectories &target)
+    {
         wholeBodyTarget_.setBuffer(target);
     }
-}
 
-void WbmmReferenceManager::preSolverRun(
-    scalar_t initTime, scalar_t finalTime, const vector_t& initState)
-{
-    wholeBodyTarget_.updateFromBuffer();
-    endEffectorTarget_.updateFromBuffer();
-    phase_.updateFromBuffer();
+    void WbmmReferenceManager::setEndEffectorTarget(
+        const TargetTrajectories &target)
+    {
+        endEffectorTarget_.setBuffer(target);
+    }
 
-    ReferenceManager::preSolverRun(initTime, finalTime, initState);
-}
+    void WbmmReferenceManager::setTaskPhase(TaskPhase phase)
+    {
+        const auto value = static_cast<std::size_t>(phase);
+        if (value > static_cast<std::size_t>(TaskPhase::kRetract))
+        {
+            throw std::invalid_argument(
+                "[WbmmReferenceManager] Unknown task phase value.");
+        }
 
-}  // namespace wbmm_ocs2
+        requestedPhase_.store(value, std::memory_order_relaxed);
+        phase_.setBuffer(value);
+
+        // policy mode = task phase, used by MRT for phase consistency checks.
+        setModeSchedule(ModeSchedule({}, {value}));
+    }
+
+    TaskPhase WbmmReferenceManager::getTaskPhase() const
+    {
+        return static_cast<TaskPhase>(phase_.get());
+    }
+
+    TaskPhase WbmmReferenceManager::getRequestedTaskPhase() const
+    {
+        return static_cast<TaskPhase>(
+            requestedPhase_.load(std::memory_order_relaxed));
+    }
+
+    const TargetTrajectories &WbmmReferenceManager::getWholeBodyTarget() const
+    {
+        return wholeBodyTarget_.get();
+    }
+
+    const TargetTrajectories &WbmmReferenceManager::getEndEffectorTarget() const
+    {
+        return endEffectorTarget_.get();
+    }
+
+    bool WbmmReferenceManager::isEndEffectorDominant() const
+    {
+        return getTaskPhase() == TaskPhase::kExecution;
+    }
+
+    const TargetTrajectories &WbmmReferenceManager::getTargetTrajectories() const
+    {
+        return isEndEffectorDominant()
+                   ? endEffectorTarget_.get()
+                   : wholeBodyTarget_.get();
+    }
+
+    bool WbmmReferenceManager::hasStateDim(
+        const TargetTrajectories &target, std::size_t stateDim)
+    {
+        if (stateDim == 0 || target.stateTrajectory.empty())
+        {
+            return false;
+        }
+        return std::all_of(
+            target.stateTrajectory.begin(), target.stateTrajectory.end(),
+            [stateDim](const vector_t &state)
+            {
+                return static_cast<std::size_t>(state.size()) == stateDim;
+            });
+    }
+
+    WbmmReferenceManager::TargetRoute
+    WbmmReferenceManager::routeTargetTrajectory(
+        const TargetTrajectories &target) const
+    {
+        // 优先按状态维度判断；MPC reset service 与 MRT reset 都只有一个
+        // TargetTrajectories，必须靠 9D / 7D 区分两路参考。
+        if (hasStateDim(target, wholeBodyStateDim_))
+        {
+            return TargetRoute::kWholeBody;
+        }
+        if (hasStateDim(target, endEffectorStateDim_))
+        {
+            return TargetRoute::kEndEffector;
+        }
+
+        // 空 target 或维度未知时，使用 requested phase，而不是 active phase。
+        // requested phase 在 service / callback 中立即写入，不受 preSolverRun
+        // 锁存时序影响。
+        const bool useEndEffector =
+            getRequestedTaskPhase() == TaskPhase::kExecution;
+        if (!target.stateTrajectory.empty())
+        {
+            std::cerr << "[WbmmReferenceManager] WARNING: target state dim "
+                      << target.stateTrajectory.front().size()
+                      << " does not match whole-body(" << wholeBodyStateDim_
+                      << ") or end-effector(" << endEffectorStateDim_
+                      << "); routing by requested phase." << std::endl;
+        }
+        return useEndEffector ? TargetRoute::kEndEffector
+                              : TargetRoute::kWholeBody;
+    }
+
+    void WbmmReferenceManager::setTargetTrajectory(
+        const TargetTrajectories &target)
+    {
+        if (routeTargetTrajectory(target) == TargetRoute::kEndEffector)
+        {
+            endEffectorTarget_.setBuffer(target);
+        }
+        else
+        {
+            wholeBodyTarget_.setBuffer(target);
+        }
+    }
+
+    void WbmmReferenceManager::setTargetTrajectory(
+        TargetTrajectories &&target)
+    {
+        const TargetRoute route = routeTargetTrajectory(target);
+        if (route == TargetRoute::kEndEffector)
+        {
+            endEffectorTarget_.setBuffer(std::move(target));
+        }
+        else
+        {
+            wholeBodyTarget_.setBuffer(std::move(target));
+        }
+    }
+
+    void WbmmReferenceManager::setTargetTrajectories(
+        const TargetTrajectories &target)
+    {
+        setTargetTrajectory(target);
+    }
+
+    void WbmmReferenceManager::setTargetTrajectories(
+        TargetTrajectories &&target)
+    {
+        setTargetTrajectory(std::move(target));
+    }
+
+    void WbmmReferenceManager::preSolverRun(
+        scalar_t initTime, scalar_t finalTime, const vector_t &initState)
+    {
+        wholeBodyTarget_.updateFromBuffer();
+        endEffectorTarget_.updateFromBuffer();
+        phase_.updateFromBuffer();
+
+        ReferenceManager::preSolverRun(initTime, finalTime, initState);
+    }
+
+} // namespace wbmm_ocs2

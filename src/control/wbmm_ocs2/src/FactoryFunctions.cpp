@@ -37,7 +37,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdexcept>
 #include <utility>
 
-#include <pinocchio/fwd.hpp>  // forward declarations must be included first.
+#include <pinocchio/fwd.hpp> // forward declarations must be included first.
 #include <pinocchio/multibody/joint/joint-composite.hpp>
 #include <pinocchio/multibody/model.hpp>
 #include <pinocchio/parsers/urdf.hpp>
@@ -126,8 +126,7 @@ PinocchioInterface createWbmmPinocchioInterface(const std::string & robotUrdfPat
 WbmmModelInfo createWbmmModelInfo(
   const PinocchioInterface & interface,
   const std::string & baseFrame,
-  const std::string & eeFrame,
-  const std::string & eeFrame1)
+  const std::string & eeFrame)
 {
   const auto & model = interface.getModel();
 
@@ -149,7 +148,6 @@ WbmmModelInfo createWbmmModelInfo(
   info.armDim = kArmDim;
   info.baseFrame = baseFrame;
   info.eeFrame = eeFrame;
-  info.eeFrame1 = eeFrame1;
 
   const auto & jointNames = model.names;
   info.dofNames = std::vector<std::string>(

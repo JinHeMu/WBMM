@@ -63,7 +63,9 @@ class WbmmReferenceManager final : public ocs2::ReferenceManager
 {
 public:
     explicit WbmmReferenceManager(
-        TaskPhase initialPhase = TaskPhase::kNavigation);
+        TaskPhase initialPhase = TaskPhase::kNavigation,
+        std::size_t wholeBodyStateDim = 0,
+        std::size_t endEffectorStateDim = 0);
 
     void setWholeBodyTarget(const ocs2::TargetTrajectories& target);
     void setEndEffectorTarget(const ocs2::TargetTrajectories& target);
@@ -78,13 +80,41 @@ public:
     const ocs2::TargetTrajectories& getTargetTrajectories() const override;
     void setTargetTrajectories(
         const ocs2::TargetTrajectories& target) override;
+    void setTargetTrajectories(
+        ocs2::TargetTrajectories&& target) override;
 
     void preSolverRun(ocs2::scalar_t initTime,
                       ocs2::scalar_t finalTime,
                       const ocs2::vector_t& initState) override;
 
 private:
+    enum class TargetRoute
+    {
+        kWholeBody,
+        kEndEffector,
+    };
+
     bool isEndEffectorDominant() const;
+
+    /**
+     * 检查 TargetTrajectories 是否全部为指定维度。
+     * 空轨迹返回 false，由调用方决定回退策略。
+     */
+    static bool hasStateDim(
+        const ocs2::TargetTrajectories& target, std::size_t stateDim);
+
+    /**
+     * 单 target 接口（MPC reset service / 旧调用方）只能用维度区分
+     * whole-body(9D) 和 end-effector(7D)。维度无法判断时按 requested phase
+     * 回退，避免依赖尚未锁存的 active phase。
+     */
+    TargetRoute routeTargetTrajectory(
+        const ocs2::TargetTrajectories& target) const;
+
+    void setTargetTrajectory(
+        const ocs2::TargetTrajectories& target);
+    void setTargetTrajectory(
+        ocs2::TargetTrajectories&& target);
 
     ocs2::BufferedValue<ocs2::TargetTrajectories>
         wholeBodyTarget_{ocs2::TargetTrajectories()};
@@ -92,6 +122,9 @@ private:
         endEffectorTarget_{ocs2::TargetTrajectories()};
     ocs2::BufferedValue<std::size_t> phase_;
     std::atomic<std::size_t> requestedPhase_;
+
+    std::size_t wholeBodyStateDim_{0};
+    std::size_t endEffectorStateDim_{0};
 };
 
 }  // namespace wbmm_ocs2

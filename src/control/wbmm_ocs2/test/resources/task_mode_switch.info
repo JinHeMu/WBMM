@@ -181,23 +181,6 @@ inputCost
 }
 
 ; ============================================================================
-; End-effector 目标跟踪 (全身轨迹模式下必须关闭)
-; ============================================================================
-endEffector
-{
-  activate         false
-
-  muPosition       10.0
-  muOrientation    5.0
-}
-
-finalEndEffector
-{
-  muPosition       10.0
-  muOrientation    5.0
-}
-
-; ============================================================================
 ; 全身轨迹跟踪 cost (WholeBodyTrajectoryCost)
 ; ============================================================================
 wholeBodyTracking
@@ -208,7 +191,7 @@ wholeBodyTracking
   {
     (0,0) 1.0
     (1,0) 0.5
-    (2,0) 0.1
+    (2,0) 0.0
     (3,0) 0.5
   }
 
@@ -233,6 +216,34 @@ wholeBodyTracking
       (5,5)  2.0   ; joint_6
     }
   }
+}
+
+; Reusable metrics -> OCS2 cost integration test configuration.
+armManipulability
+{
+  activate true
+  frameName "tool0"
+  stateFrame "odom"
+
+  metrics
+  {
+    scope "arm"
+    task "pose"
+    scaling "raw"
+    regularization 1e-6
+    singularValueFloor 1e-9
+    useTaskDirection false
+  }
+
+  useMinSingularValue true
+  minSingularWeight 1.0
+  minSingularRef 0.05
+  useYoshikawa false
+  useInverseManipulability false
+  useConditionNumber false
+  finiteDiffStep 1e-6
+  hessianRegularization 1e-6
+  invalidMetricsPenalty 1e6
 }
 
 ; ============================================================================

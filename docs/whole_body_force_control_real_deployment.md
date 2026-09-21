@@ -26,6 +26,13 @@
 > `wbmm_hardware_interface.launch.py`；仿真测试先启动
 > `mujoco_hardware_interface.launch.py`。旧 `*_real` / `*_sim` 启动文件名已废弃。
 
+> CURRENT（双参考，2026-09-21）：OCS2 已切换到双参考接口。EE 输出发布到
+> `mobile_manipulator_ee_target` (7D)，legacy whole-body 输出发布到
+> `mobile_manipulator_whole_body_target` (9D)，旧 `mobile_manipulator_mpc_target`
+> 不再使用。实机力控入口默认 `initial_task_phase=-1`（Navigation）；进入
+> Execution 需要调用 `/mobile_manipulator_set_task_phase` service 或使用
+> `initial_task_phase:=2`。phase 状态见 `/mobile_manipulator_task_phase_state`。
+
 ## CURRENT：传感器原点单轴导纳（2026-09-17）
 
 本轮按用户指令先测导纳柔顺，随后再测跟随模式。原始/去偏置/滤波后的 wrench
@@ -256,17 +263,34 @@ ros2 launch tracer_jaka_bringup whole_body_force_control.launch.py
 hardware_write=false
 force_reference_output_enabled=false
 force_control_armed=false
+initial_task_phase=-1   # 使用 task.info 的 modeSwitch.initialPhase (0=Navigation)
 ```
+
+双参考模式下，力控的参考 output 与 OCS2 TaskPhase 是分开的：
+
+- EE 输出模式 → `mobile_manipulator_ee_target` (7D)；
+- legacy whole-body 输出 → `mobile_manipulator_whole_body_target` (9D)；
+- 旧 `mobile_manipulator_mpc_target` 不再是当前接口；
+- Execution 阶段需要通过 `/mobile_manipulator_set_task_phase` service 或显式
+  `initial_task_phase:=2` 进入，否则 EE target 的 phase 权重为 0。
 
 检查项：
 
 1. `/cmd_vel` 和 `/arm_controller/commands` 不应有本系统创建的发布者；
-2. `/mobile_manipulator_mpc_target` 不应有意外发布者；
-3. `/fts_broadcaster/wrench` 稳定输出；
-4. `/mobile_manipulator_mpc_observation` 稳定输出；
-5. `/whole_body_force_control/states` 对应为 `DISABLED`；
-6. TF `odom -> base_footprint -> jk_se_vi_200_link` 正常；
-7. RViz 中机器人状态与实际一致。
+2. `/mobile_manipulator_whole_body_target` 和 `/mobile_manipulator_ee_target` 的发布者符合当前 owner 约定；
+3. `/mobile_manipulator_task_phase_state` 能读到 `requested_phase`、`active_phase` 和 `mode_switch_enabled`；
+4. `/fts_broadcaster/wrench` 稳定输出；
+5. `/mobile_manipulator_mpc_observation` 稳定输出；
+6. `/whole_body_force_control/states` 对应为 `DISABLED`；
+7. TF `odom -> base_footprint -> jk_se_vi_200_link` 正常；
+8. RViz 中机器人状态与实际一致。
+
+切换到 Execution 的示例：
+
+```bash
+ros2 service call /mobile_manipulator_set_task_phase \
+  wbmm_ocs2_ros/srv/SetTaskPhase "{phase: 2}"
+```
 
 建议同时运行：
 

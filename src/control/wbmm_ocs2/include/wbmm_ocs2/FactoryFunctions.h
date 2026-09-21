@@ -56,7 +56,6 @@ ocs2::PinocchioInterface createWbmmPinocchioInterface(const std::string & robotU
 WbmmModelInfo createWbmmModelInfo(
   const ocs2::PinocchioInterface & interface,
   const std::string & baseFrame,
-  const std::string & eeFrame,
-  const std::string & eeFrame1 = "");
+  const std::string & eeFrame);
 
 }  // namespace wbmm_ocs2

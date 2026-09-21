@@ -38,6 +38,7 @@
 #include <ocs2_core/Types.h>
 #include <ocs2_core/reference/TargetTrajectories.h>
 #include <wbmm_ocs2/WbmmInterface.h>
+#include <wbmm_ocs2_ros/msg/task_phase_state.hpp>
 #include <ocs2_mpc/SystemObservation.h>
 #include <ocs2_ros_interfaces/mrt/MRT_ROS_Interface.h>
 
@@ -48,7 +49,7 @@ using namespace std::chrono_literals;
 namespace
 {
 
-  constexpr char kRobotName[] = "mobile_manipulator";
+  constexpr char kDefaultRobotName[] = "mobile_manipulator";
   constexpr int kPlanExpiredMaxLog = 5;
   constexpr double kMaxCommandDt = 0.05;
 
@@ -73,7 +74,7 @@ public:
     options.use_global_arguments(false);
     ocs2Node_ = std::make_shared<rclcpp::Node>(std::string(get_name()) + "_ocs2_internal", options);
 
-    mrt_ = std::make_unique<ocs2::MRT_ROS_Interface>(kRobotName);
+    mrt_ = std::make_unique<ocs2::MRT_ROS_Interface>(robotName_);
     mrt_->initRollout(&interface_->getRollout());
     mrt_->launchNodes(ocs2Node_);
 
@@ -126,6 +127,9 @@ private:
     declare_parameter<std::string>("taskFile", "");
     declare_parameter<std::string>("libFolder", "");
     declare_parameter<std::string>("urdfFile", "");
+    declare_parameter<std::string>("robot_name", kDefaultRobotName);
+    declare_parameter<std::string>("task_phase_state_topic", "");
+    declare_parameter<int>("initial_task_phase", -1);
     declare_parameter<double>("mrt_loop_rate", 100.0);
     declare_parameter<double>("traj_horizon", 0.05);
 
@@ -157,6 +161,15 @@ private:
     taskFile_ = get_parameter("taskFile").as_string();
     libFolder_ = get_parameter("libFolder").as_string();
     urdfFile_ = get_parameter("urdfFile").as_string();
+    robotName_ = get_parameter("robot_name").as_string();
+    initialTaskPhase_ = get_parameter("initial_task_phase").as_int();
+
+    taskPhaseStateTopic_ = get_parameter("task_phase_state_topic").as_string();
+    if (taskPhaseStateTopic_.empty())
+    {
+      taskPhaseStateTopic_ = robotName_ + "_task_phase_state";
+    }
+
     mrtRate_ = get_parameter("mrt_loop_rate").as_double();
     trajHorizon_ = get_parameter("traj_horizon").as_double();
     armJointNames_ = get_parameter("arm_joint_names").as_string_array();
@@ -182,6 +195,14 @@ private:
     if (taskFile_.empty() || libFolder_.empty() || urdfFile_.empty())
     {
       throw std::runtime_error("taskFile / libFolder / urdfFile parameters must all be set.");
+    }
+    if (robotName_.empty())
+    {
+      throw std::runtime_error("robot_name must not be empty.");
+    }
+    if (initialTaskPhase_ < -1 || initialTaskPhase_ > 3)
+    {
+      throw std::runtime_error("initial_task_phase must be in [-1, 3].");
     }
     if (!std::isfinite(mrtRate_) || mrtRate_ <= 0.0)
     {
@@ -239,6 +260,26 @@ private:
     {
       throw std::runtime_error("OCS2 arm dimension does not match arm_joint_names. Check removeJoints.");
     }
+
+    modeSwitchEnabled_ = interface_->isModeSwitchEnabled();
+    int initialPhase = modeSwitchEnabled_
+                           ? static_cast<int>(interface_->getTaskPhase())
+                           : 0;
+    if (modeSwitchEnabled_ && initialTaskPhase_ >= 0)
+    {
+      initialPhase = initialTaskPhase_;
+    }
+    currentPhase_.store(initialPhase);
+    currentPhaseReceived_.store(false);
+    RCLCPP_INFO(
+        get_logger(), "Task phase mode: %s, initial phase=%d",
+        modeSwitchEnabled_ ? "ENABLED" : "disabled", initialPhase);
+    if (!modeSwitchEnabled_ && initialTaskPhase_ >= 0)
+    {
+      RCLCPP_WARN(
+          get_logger(),
+          "initial_task_phase is ignored because modeSwitch.activate=false.");
+    }
   }
 
   void setupRosInterfaces()
@@ -286,6 +327,20 @@ private:
         get_parameter("joint_state_topic").as_string(), rclcpp::SensorDataQoS(),
         [this](const sensor_msgs::msg::JointState::SharedPtr msg)
         { jointCallback(msg); });
+
+    if (modeSwitchEnabled_)
+    {
+      phaseStateSub_ =
+          create_subscription<wbmm_ocs2_ros::msg::TaskPhaseState>(
+              taskPhaseStateTopic_,
+              rclcpp::QoS(1).transient_local().reliable(),
+              [this](
+                  const wbmm_ocs2_ros::msg::TaskPhaseState::SharedPtr msg)
+              { taskPhaseStateCallback(msg); });
+      RCLCPP_INFO(
+          get_logger(), "Subscribing task phase state on %s",
+          taskPhaseStateTopic_.c_str());
+    }
   }
 
   void logJointOrder() const
@@ -315,7 +370,10 @@ private:
     observation.state.setZero(stateDim_);
     observation.input.setZero(inputDim_);
     observation.time = time;
-    observation.mode = 0;
+    observation.mode = modeSwitchEnabled_
+                          ? static_cast<std::size_t>(
+                                std::clamp(currentPhase_.load(), 0, 3))
+                          : 0;
 
     std::lock_guard<std::mutex> lock(stateMutex_);
     fillStateLocked(observation.state);
@@ -324,8 +382,17 @@ private:
 
   void resetMpc(const ocs2::SystemObservation &observation)
   {
+    const int phaseValue = modeSwitchEnabled_
+                               ? std::clamp(currentPhase_.load(), 0, 3)
+                               : 0;
+    const bool useEeTarget =
+        modeSwitchEnabled_
+            ? phaseValue ==
+                  static_cast<int>(wbmm_ocs2::TaskPhase::kExecution)
+            : !useWholeBodyTarget_;
+
     ocs2::vector_t target;
-    if (useWholeBodyTarget_)
+    if (!useEeTarget)
     {
       target = observation.state;
       std::ostringstream text;
@@ -407,9 +474,9 @@ private:
     }
   }
 
-  bool evaluateCurrentPolicy(const ocs2::SystemObservation &observation, ocs2::vector_t &state, ocs2::vector_t &input)
+  bool evaluateCurrentPolicy(const ocs2::SystemObservation &observation, ocs2::vector_t &state,
+                             ocs2::vector_t &input, size_t &mode)
   {
-    size_t mode = 0;
     try
     {
       mrt_->evaluatePolicy(observation.time, observation.state, state, input, mode);
@@ -439,10 +506,23 @@ private:
 
     ocs2::vector_t policyState;
     ocs2::vector_t policyInput;
-    if (!evaluateCurrentPolicy(observation, policyState, policyInput))
+    size_t policyMode = 0;
+    if (!evaluateCurrentPolicy(observation, policyState, policyInput, policyMode))
     {
       RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
                             "[SAFETY] MPC current output is invalid. Stopping base and holding arm.");
+      stopAndHold();
+      return;
+    }
+
+    if (modeSwitchEnabled_ &&
+        policyMode != static_cast<size_t>(std::clamp(currentPhase_.load(), 0, 3)))
+    {
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 1000,
+          "[SAFETY] MPC policy mode (%zu) does not match requested task phase (%d). "
+          "Stopping base and holding arm until a new policy arrives.",
+          policyMode, currentPhase_.load());
       stopAndHold();
       return;
     }
@@ -544,6 +624,37 @@ private:
     loopWorkMaxMs_ = 0.0;
     planAgeSumMs_ = 0.0;
     planAgeMaxMs_ = 0.0;
+  }
+
+  void taskPhaseStateCallback(
+      const wbmm_ocs2_ros::msg::TaskPhaseState::SharedPtr msg)
+  {
+    if (!msg->mode_switch_enabled)
+    {
+      return;
+    }
+    if (msg->requested_phase < 0 || msg->requested_phase > 3)
+    {
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 2000,
+          "Ignoring invalid requested_phase=%d from task phase state.",
+          msg->requested_phase);
+      return;
+    }
+
+    const int previous = currentPhase_.exchange(msg->requested_phase);
+    if (!currentPhaseReceived_.exchange(true))
+    {
+      RCLCPP_INFO(
+          get_logger(), "Received initial task phase: %d (active=%d)",
+          msg->requested_phase, msg->active_phase);
+    }
+    else if (previous != msg->requested_phase)
+    {
+      RCLCPP_INFO(
+          get_logger(), "Task phase changed: %d -> %d (MPC active=%d)",
+          previous, msg->requested_phase, msg->active_phase);
+    }
   }
 
   void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
@@ -871,9 +982,16 @@ private:
   std::string taskFile_;
   std::string libFolder_;
   std::string urdfFile_;
+  std::string robotName_{kDefaultRobotName};
+  std::string taskPhaseStateTopic_;
   std::string baseFrame_;
   std::string worldFrame_;
   std::string eeFrame_;
+
+  int initialTaskPhase_{-1};
+  bool modeSwitchEnabled_{false};
+  std::atomic<int> currentPhase_{0};
+  std::atomic<bool> currentPhaseReceived_{false};
 
   double mrtRate_{100.0};
   double trajHorizon_{0.05};
@@ -917,6 +1035,8 @@ private:
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr armPub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odomSub_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr jointSub_;
+  rclcpp::Subscription<wbmm_ocs2_ros::msg::TaskPhaseState>::SharedPtr
+      phaseStateSub_;
 
   std::mutex stateMutex_;
   std::atomic<bool> gotOdom_{false};

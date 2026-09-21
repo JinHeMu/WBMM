@@ -17,6 +17,9 @@
   <depend>ocs2_sqp</depend>
   <depend>ocs2_self_collision</depend>
   <depend>ocs2_sphere_approximation</depend>
+  <depend>ocs2_pinocchio_interface</depend>
+  <depend>wbmm_core</depend>
+  <depend>wbmm_robot_metrics</depend>
   <depend>wbmm_environment</depend>
 
   <test_depend>ament_cmake_gtest</test_depend>

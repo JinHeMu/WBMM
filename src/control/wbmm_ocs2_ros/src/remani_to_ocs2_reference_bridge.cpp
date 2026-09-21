@@ -50,7 +50,8 @@
 #include <ocs2_core/Types.h>
 #include <ocs2_core/reference/TargetTrajectories.h>
 #include <ocs2_msgs/msg/mpc_observation.hpp>
-#include <ocs2_ros_interfaces/command/TargetTrajectoriesRosPublisher.h>
+#include <ocs2_msgs/msg/mpc_target_trajectories.hpp>
+#include <ocs2_ros_interfaces/common/RosMsgConversions.h>
 
 #include <quadrotor_msgs/msg/polynomial_matrix.hpp>
 #include <quadrotor_msgs/msg/polynomial_traj.hpp>
@@ -293,8 +294,7 @@ bool sampleTrajectory(
 //     · /planning/trajectory          — quadrotor_msgs/msg/PolynomialTraj
 //     · {robot_name}_mpc_observation  — ocs2_msgs/msg/MpcObservation
 //   Publishers:
-//     · {robot_name}_mpc_target       — ocs2_msgs/msg/MpcTargetTrajectories
-//                                      （通过 TargetTrajectoriesRosPublisher）
+//     · {robot_name}_whole_body_target — ocs2_msgs/msg/MpcTargetTrajectories (9D)
 //
 // 【定时器】
 //   · assembly_timer_  — 分段收集 debounce timer（单次触发，时长 = assembly_timeout_）
@@ -312,7 +312,7 @@ public:
   // 构造函数
   //     从参数服务器读入所有可配置参数并设置 subscriber 与 timer。
   //     参数校验失败（如 state_dim != arm_dim+3）会抛出异常。
-  //     对象构造完成后必须调用 init() 才能激活 TargetTrajectoriesRosPublisher。
+  //     对象构造完成后必须调用 init() 才能创建全身参考 publisher。
   // ---------------------------------------------------------------------------
   RemaniToOcs2ReferenceBridge()
       : Node("remani_to_ocs2_reference_bridge")
@@ -320,6 +320,12 @@ public:
     // ---- 参数声明 ----------------------------------------------------------
     robotName_ = declare_parameter<std::string>(
         "robot_name", "mobile_manipulator");
+    wholeBodyTargetTopic_ = declare_parameter<std::string>(
+        "whole_body_target_topic", "");
+    if (wholeBodyTargetTopic_.empty())
+    {
+      wholeBodyTargetTopic_ = robotName_ + "_whole_body_target";
+    }
     trajectoryTopic_ = declare_parameter<std::string>(
         "trajectory_topic", "/planning/trajectory");
     stateDim_ = declare_parameter<int>("state_dim", 9);
@@ -398,17 +404,16 @@ public:
 
     RCLCPP_INFO(
         get_logger(),
-        "Bridge ready: %s -> %s_mpc_target, sample_dt=%.3f s, "
-        "horizon=%.2f s.",
-        trajectoryTopic_.c_str(), robotName_.c_str(), sampleDt_,
+        "Bridge ready: %s -> %s, sample_dt=%.3f s, horizon=%.2f s.",
+        trajectoryTopic_.c_str(), wholeBodyTargetTopic_.c_str(), sampleDt_,
         referenceHorizon_);
   }
 
   // ---------------------------------------------------------------------------
   // init
-  //     初始化 OCS2 TargetTrajectories 发布器。
-  //     必须作为构造后调用的第一步（约等于二阶段构造），因为在构造函数中
-  //     shared_from_this() 尚不可用。
+  //     初始化 OCS2 全身 TargetTrajectories 发布器。
+  //     保持二阶段构造约定，便于后续替换为需要 shared_from_this() 的
+  //     发布/服务实现。
   // ---------------------------------------------------------------------------
   void init()
   {
@@ -422,13 +427,13 @@ private:
     if (enabled && !targetPublisher_)
     {
       targetPublisher_ =
-          std::make_unique<ocs2::TargetTrajectoriesRosPublisher>(
-              shared_from_this(), robotName_);
+          create_publisher<ocs2_msgs::msg::MpcTargetTrajectories>(
+              wholeBodyTargetTopic_, rclcpp::QoS(1).reliable());
     }
     else if (!enabled)
     {
       // Destroying the publisher is intentional: runtime owner checks can now
-      // assert that the MPC target topic has exactly one publisher per phase.
+      // assert that the MPC whole-body target topic has exactly one publisher.
       targetPublisher_.reset();
     }
   }
@@ -955,13 +960,15 @@ private:
         std::move(timeTrajectory),
         std::move(stateTrajectory),
         std::move(inputTrajectory));
-    targetPublisher_->publishTargetTrajectories(target);
+    targetPublisher_->publish(
+        ocs2::ros_msg_conversions::createTargetTrajectoriesMsg(target));
   }
 
   // ===========================================================================
   // 参数（由 launch 文件/参数服务器配置）
   // ===========================================================================
   std::string robotName_;               ///< 机器人名称，用于构造 topic 前缀
+  std::string wholeBodyTargetTopic_;    ///< 9D 全身参考发布话题
   std::string trajectoryTopic_;         ///< REMANI 轨迹话题名称
   std::string referenceOwnerService_;   ///< Explicit reference handoff service
   int stateDim_ = 9;                    ///< OCS2 状态维度（默认 9）
@@ -1008,7 +1015,8 @@ private:
       observationSub_;
   rclcpp::TimerBase::SharedPtr assemblyTimer_;   ///< 分段拼接 debounce timer
   rclcpp::TimerBase::SharedPtr publishTimer_;    ///< 周期参考发布 timer
-  std::unique_ptr<ocs2::TargetTrajectoriesRosPublisher> targetPublisher_;
+  rclcpp::Publisher<ocs2_msgs::msg::MpcTargetTrajectories>::SharedPtr
+      targetPublisher_;
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr
       referenceOwnerServiceHandle_;
   bool referenceEnabled_ = true;
@@ -1022,7 +1030,7 @@ int main(int argc, char **argv)
 {
   rclcpp::init(argc, argv);
   auto node = std::make_shared<RemaniToOcs2ReferenceBridge>();
-  node->init();          // 必须紧接构造后调用，以初始化 TargetTrajectoriesRosPublisher
+  node->init();          // 必须紧接构造后调用，以初始化全身参考 publisher
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;

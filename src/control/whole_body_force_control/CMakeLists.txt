@@ -12,6 +12,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(ocs2_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(wbmm_core REQUIRED)
 find_package(wbmm_pinocchio REQUIRED)
@@ -38,7 +39,7 @@ target_link_libraries(whole_body_force_control_node
   wbmm_ros_interfaces::wbmm_ros_interfaces
   wbmm_core::wbmm_core)
 ament_target_dependencies(whole_body_force_control_node
-  geometry_msgs ocs2_msgs rclcpp std_msgs tf2_ros)
+  geometry_msgs ocs2_msgs rclcpp std_msgs std_srvs tf2_ros)
 
 install(TARGETS ${PROJECT_NAME}_core
   EXPORT export_${PROJECT_NAME}

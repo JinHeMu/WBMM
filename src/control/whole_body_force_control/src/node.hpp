@@ -16,6 +16,7 @@
 #include <tf2_ros/transform_listener.h>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_srvs/srv/trigger.hpp>
 
 #include <Eigen/Core>
 
@@ -96,8 +97,6 @@ private:
     double max_joint_velocity{1.0};
     double max_ee_linear_velocity{0.05};
     double max_ee_angular_velocity{0.20};
-    double max_ee_translation_offset{0.10};
-    double max_ee_rotation_offset{0.30};
     double reference_horizon{1.0};
     double reference_dt{0.1};
     int input_dimension{8};
@@ -122,6 +121,7 @@ private:
   void requestFault(const std::string &reason);
 
   void latchFault(const std::string &reason);
+  void resetForceControl();
   void publishHoldReference();
   void publishState(const std::string &state);
   void checkFaults(bool observation_timed_out, bool wrench_timed_out);
@@ -144,10 +144,9 @@ private:
       wbmm::core::EndEffectorPose &target,
       double &primary_offset,
       double &primary_force);
-  void clampEndEffectorCorrection(Vector6d &correction);
   void update();
-  void publishReference(const Eigen::VectorXd &reference);
-  void publishEndEffectorReference(
+  bool publishReference(const Eigen::VectorXd &reference);
+  bool publishEndEffectorReference(
       const wbmm::core::EndEffectorPose &target);
   void publishHoldEndEffectorReference();
   void publishEndEffectorCorrection(
@@ -193,6 +192,7 @@ private:
   bool hold_state_valid_{false};
   bool nominal_captured_{false};
   bool pending_fault_{false};
+  bool configured_admittance_enabled_{false};
   std::string fault_reason_;
   std::string pending_fault_reason_;
   std::string last_state_;
@@ -201,6 +201,8 @@ private:
   Eigen::VectorXd nominal_state_;
   Eigen::VectorXd last_reference_state_;
   Eigen::VectorXd hold_state_;
+  bool hold_ee_target_valid_{false};
+  wbmm::core::EndEffectorPose hold_ee_target_;
   Vector6d last_ee_correction_{Vector6d::Zero()};
   bool ee_correction_valid_{false};
 
@@ -216,6 +218,7 @@ private:
       observation_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr
       wrench_subscription_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_service_;
   rclcpp::TimerBase::SharedPtr timer_;
 };
 

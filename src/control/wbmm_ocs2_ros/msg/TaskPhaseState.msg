@@ -1,0 +1,4 @@
+std_msgs/Header header
+int32 requested_phase
+int32 active_phase
+bool mode_switch_enabled

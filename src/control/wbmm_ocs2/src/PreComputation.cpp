@@ -38,25 +38,23 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace wbmm_ocs2
 {
 
-// 迁移期：原 OCS2 mobile_manipulator 代码位于 ocs2 命名空间内，
-// 这里用文件级 using-directive 保持上游类型的可见性，
-// 不污染被 include 的头文件。
-using namespace ocs2;
+    // 迁移期：原 OCS2 mobile_manipulator 代码位于 ocs2 命名空间内，
+    // 这里用文件级 using-directive 保持上游类型的可见性，
+    // 不污染被 include 的头文件。
+    using namespace ocs2;
 
     WbmmPreComputation::WbmmPreComputation(PinocchioInterface pinocchioInterface,
-                                                                     const WbmmModelInfo& info)
+                                           const WbmmModelInfo &info)
         : pinocchioInterface_(std::move(pinocchioInterface)), pinocchioMapping_(info)
     {
     }
 
-
-    WbmmPreComputation* WbmmPreComputation::clone() const
+    WbmmPreComputation *WbmmPreComputation::clone() const
     {
         return new WbmmPreComputation(pinocchioInterface_, pinocchioMapping_.getWbmmModelInfo());
     }
 
-
-    void WbmmPreComputation::request(RequestSet request, scalar_t t, const vector_t& x, const vector_t& u)
+    void WbmmPreComputation::request(RequestSet request, scalar_t t, const vector_t &x, const vector_t &u)
     {
         (void)t;
         (void)u;
@@ -65,8 +63,8 @@ using namespace ocs2;
             return;
         }
 
-        const auto& model = pinocchioInterface_.getModel();
-        auto& data = pinocchioInterface_.getData();
+        const auto &model = pinocchioInterface_.getModel();
+        auto &data = pinocchioInterface_.getData();
         const auto q = pinocchioMapping_.getPinocchioJointPosition(x);
 
         if (request.contains(Request::Approximation))
@@ -83,8 +81,7 @@ using namespace ocs2;
         }
     }
 
-
-    void WbmmPreComputation::requestFinal(RequestSet request, scalar_t t, const vector_t& x)
+    void WbmmPreComputation::requestFinal(RequestSet request, scalar_t t, const vector_t &x)
     {
         (void)t;
         if (!request.containsAny(Request::Cost + Request::Constraint + Request::SoftConstraint))
@@ -92,8 +89,8 @@ using namespace ocs2;
             return;
         }
 
-        const auto& model = pinocchioInterface_.getModel();
-        auto& data = pinocchioInterface_.getData();
+        const auto &model = pinocchioInterface_.getModel();
+        auto &data = pinocchioInterface_.getData();
         const auto q = pinocchioMapping_.getPinocchioJointPosition(x);
 
         if (request.contains(Request::Approximation))

@@ -55,10 +55,22 @@ def _make_nodes(context):
     command_output_enabled = _as_bool(
         _value(context, "command_output_enabled"))
 
+    initial_task_phase_text = _value(context, "initial_task_phase")
+    try:
+        initial_task_phase = int(initial_task_phase_text)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"initial_task_phase must be an integer, got "
+            f"{initial_task_phase_text!r}") from exc
+    if initial_task_phase < -1 or initial_task_phase > 3:
+        raise RuntimeError(
+            "initial_task_phase must be in [-1, 3] (-1 = use task file)")
+
     common_parameters = {
         "taskFile": task_file,
         "urdfFile": urdf_file,
         "use_sim_time": use_sim_time,
+        "initial_task_phase": initial_task_phase,
     }
     nodes = [
         Node(
@@ -123,6 +135,11 @@ def generate_launch_description():
         DeclareLaunchArgument("use_sim_time", default_value="false"),
         DeclareLaunchArgument("use_target", default_value="false"),
         DeclareLaunchArgument("use_rviz", default_value="true"),
+        DeclareLaunchArgument(
+            "initial_task_phase", default_value="-1",
+            description=(
+                "Override initial TaskPhase for both MPC and MRT; "
+                "-1 uses modeSwitch.initialPhase from task_file.")),
         DeclareLaunchArgument(
             "command_output_enabled", default_value="false"),
         DeclareLaunchArgument(

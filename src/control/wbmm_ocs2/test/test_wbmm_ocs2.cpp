@@ -269,10 +269,12 @@ TEST(WbmmInterface, AssemblesProblemAndRegistersTerms)
 
   ASSERT_NE(problem.stateCostPtr, nullptr);
   EXPECT_TRUE(problem.stateCostPtr->getTermIndex("wholeBodyTracking", index));
+  EXPECT_FALSE(problem.stateCostPtr->getTermIndex("armManipulability", index));
+  EXPECT_FALSE(interface.isArmManipulabilityEnabled());
   ASSERT_NE(problem.finalCostPtr, nullptr);
   EXPECT_TRUE(problem.finalCostPtr->getTermIndex("finalWholeBodyTracking", index));
 
-  // 全身跟踪模式下 EE 目标约束必须关闭，避免把 9D 状态误解析成 7D 位姿。
+  // 旧 EndEffectorConstraint 已删除，末端目标只通过 tracking cost 接入。
   if (problem.stateSoftConstraintPtr != nullptr) {
     EXPECT_FALSE(problem.stateSoftConstraintPtr->getTermIndex("endEffector", index));
   }
@@ -376,10 +378,10 @@ TEST(ArmManipulabilityCost, MetricsMatchEigenSvd)
 {
   Fixture fixture;
   wbmm_ocs2::ArmManipulabilitySettings settings;
-  settings.scope = wbmm_ocs2::ArmManipulabilitySettings::Scope::kArmOnly;
   settings.frameName = fixture.info.eeFrame;
-  settings.armStartIndex = 3;
-  settings.armDim = 6;
+  settings.stateFrame = "odom";
+  settings.metricsOptions.scope =
+    wbmm::metrics::JacobianScope::kArmColumns;
 
   wbmm_ocs2::ArmManipulabilityCost cost(
     fixture.interface, fixture.info, settings);
@@ -407,19 +409,20 @@ TEST(ArmManipulabilityCost, MetricsMatchEigenSvd)
     svd.singularValues().prod();
 
   const auto metrics = cost.computeMetrics(state);
-  ASSERT_TRUE(metrics.valid);
-  EXPECT_NEAR(metrics.sigmaMin, expectedSigmaMin, 1.0e-9);
-  EXPECT_NEAR(metrics.yoshikawa, expectedYoshikawa, 1.0e-9);
+  ASSERT_EQ(metrics.status, wbmm::metrics::MetricsStatus::kSuccess);
+  EXPECT_EQ(metrics.header.frame_id, "odom");
+  EXPECT_EQ(metrics.link_name, fixture.info.eeFrame);
+  EXPECT_NEAR(metrics.sigma_min, expectedSigmaMin, 1.0e-9);
+  EXPECT_NEAR(metrics.manipulability, expectedYoshikawa, 1.0e-9);
 }
 
 TEST(ArmManipulabilityCost, GradientMatchesFiniteDifference)
 {
   Fixture fixture;
   wbmm_ocs2::ArmManipulabilitySettings settings;
-  settings.scope = wbmm_ocs2::ArmManipulabilitySettings::Scope::kArmOnly;
   settings.frameName = fixture.info.eeFrame;
-  settings.armStartIndex = 3;
-  settings.armDim = 6;
+  settings.metricsOptions.scope =
+    wbmm::metrics::JacobianScope::kArmColumns;
 
   // Force the hinge terms to be active at the sample configuration.
   settings.useMinSingularValue = true;
@@ -432,6 +435,12 @@ TEST(ArmManipulabilityCost, GradientMatchesFiniteDifference)
 
   settings.useInverseManipulability = true;
   settings.inverseManipulabilityWeight = 1.0e-3;
+
+  settings.metricsOptions.use_task_direction = true;
+  settings.metricsOptions.task_direction = ocs2::vector_t::Zero(6);
+  settings.metricsOptions.task_direction(0) = 1.0;
+  settings.taskDirectionWeight = 0.25;
+  settings.taskDirectionRef = 1.0;
 
   settings.finiteDiffStep = 1.0e-6;
   settings.hessianRegularization = 1.0e-6;
@@ -463,6 +472,32 @@ TEST(ArmManipulabilityCost, GradientMatchesFiniteDifference)
     EXPECT_NEAR(approximation.dfdx(i), finiteDifference, 1.0e-4)
       << "state index " << i;
   }
+}
+
+TEST(ArmManipulabilityCost, InvalidStateUsesConfiguredPenalty)
+{
+  Fixture fixture;
+  wbmm_ocs2::ArmManipulabilitySettings settings;
+  settings.frameName = fixture.info.eeFrame;
+  settings.invalidMetricsPenalty = 1234.0;
+
+  wbmm_ocs2::ArmManipulabilityCost cost(
+    fixture.interface, fixture.info, settings);
+
+  const ocs2::TargetTrajectories targets;
+  const ocs2::PreComputation preComputation;
+  const ocs2::vector_t invalidState = ocs2::vector_t::Zero(8);
+  EXPECT_DOUBLE_EQ(
+    cost.getValue(0.0, invalidState, targets, preComputation), 1234.0);
+
+  const auto approximation = cost.getQuadraticApproximation(
+    0.0, invalidState, targets, preComputation);
+  EXPECT_DOUBLE_EQ(approximation.f, 1234.0);
+  EXPECT_TRUE(approximation.dfdx.isZero(1.0e-12));
+  EXPECT_TRUE(approximation.dfdxx.isApprox(
+    settings.hessianRegularization *
+      ocs2::matrix_t::Identity(invalidState.size(), invalidState.size()),
+    1.0e-12));
 }
 
 TEST(WbmmReferenceManager, LatchesPhaseAndKeepsTargetsSeparate)
@@ -526,6 +561,38 @@ TEST(WbmmReferenceManager, LatchesPhaseAndKeepsTargetsSeparate)
   EXPECT_TRUE(endEffectorCost->isActive(0.0));
 }
 
+TEST(WbmmReferenceManager, RvalueSetRoutesByStateDimension)
+{
+  // This test calls through ReferenceManagerInterface so it catches a
+  // missing rvalue overload: RosReferenceManager / MPC reset use std::move,
+  // which must still land in the dual-reference buffers.
+  auto manager = std::make_shared<wbmm_ocs2::WbmmReferenceManager>(
+    wbmm_ocs2::TaskPhase::kNavigation, 9, 7);
+  std::shared_ptr<ocs2::ReferenceManagerInterface> genericManager = manager;
+
+  const ocs2::vector_t wholeBodyTarget = sampleState();
+  ocs2::vector_t endEffectorTarget(7);
+  endEffectorTarget << 0.5, 0.0, 0.5, 0.0, 0.0, 0.0, 1.0;
+
+  genericManager->setTargetTrajectories(
+    ocs2::TargetTrajectories({0.0}, {wholeBodyTarget}));
+  genericManager->setTargetTrajectories(
+    ocs2::TargetTrajectories({0.0}, {endEffectorTarget}));
+
+  manager->preSolverRun(0.0, 1.0, wholeBodyTarget);
+
+  ASSERT_EQ(manager->getWholeBodyTarget().stateTrajectory.size(), 1U);
+  ASSERT_EQ(manager->getEndEffectorTarget().stateTrajectory.size(), 1U);
+  EXPECT_EQ(manager->getWholeBodyTarget().stateTrajectory.front().size(), 9);
+  EXPECT_EQ(manager->getEndEffectorTarget().stateTrajectory.front().size(), 7);
+  EXPECT_TRUE(
+    manager->getWholeBodyTarget().stateTrajectory.front().isApprox(
+      wholeBodyTarget));
+  EXPECT_TRUE(
+    manager->getEndEffectorTarget().stateTrajectory.front().isApprox(
+      endEffectorTarget));
+}
+
 TEST(WbmmInterface, SupportsDualReferenceModeSwitch)
 {
 #ifndef WBMM_OCS2_TEST_MODE_SWITCH_TASK_FILE
@@ -543,6 +610,8 @@ TEST(WbmmInterface, SupportsDualReferenceModeSwitch)
   ASSERT_NE(problem.stateCostPtr, nullptr);
   EXPECT_TRUE(problem.stateCostPtr->getTermIndex("wholeBodyTracking", index));
   EXPECT_TRUE(problem.stateCostPtr->getTermIndex("endEffectorTracking", index));
+  EXPECT_TRUE(problem.stateCostPtr->getTermIndex("armManipulability", index));
+  EXPECT_TRUE(interface.isArmManipulabilityEnabled());
 
   ASSERT_NE(problem.finalCostPtr, nullptr);
   EXPECT_TRUE(problem.finalCostPtr->getTermIndex("finalWholeBodyTracking", index));

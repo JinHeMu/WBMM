@@ -17,9 +17,10 @@ find_package(ocs2_ddp REQUIRED)
 find_package(ocs2_sqp REQUIRED)
 find_package(ocs2_self_collision REQUIRED)
 find_package(ocs2_sphere_approximation REQUIRED)
+find_package(ocs2_pinocchio_interface REQUIRED)
+find_package(wbmm_core REQUIRED)
+find_package(wbmm_robot_metrics REQUIRED)
 find_package(wbmm_environment REQUIRED)
-# ocs2_self_collision transitively brings ocs2_pinocchio_interface, whose
-# CONFIG_EXTRAS exports OCS2_PINOCCHIO_FLAGS used below.
 
 add_library(${PROJECT_NAME}
   src/FactoryFunctions.cpp
@@ -32,8 +33,6 @@ add_library(${PROJECT_NAME}
   src/cost/EndEffectorTrackingCost.cpp
   src/cost/ArmManipulabilityCost.cpp
   src/cost/PhaseWeightedStateCost.cpp
-  src/constraint/EndEffectorConstraint.cpp
-  src/constraint/BodyRelativeConstraint.cpp
   src/constraint/EnvironmentCollisionConstraint.cpp
   src/constraint/EsdfEnvironmentCollisionConstraint.cpp
   src/collision/EnvironmentGeometryInterface.cpp
@@ -50,6 +49,9 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   ${ocs2_sqp_TARGETS}
   ${ocs2_self_collision_TARGETS}
   ${ocs2_sphere_approximation_TARGETS}
+  ${ocs2_pinocchio_interface_TARGETS}
+  wbmm_core::wbmm_core
+  wbmm_robot_metrics::wbmm_robot_metrics
   wbmm_environment::wbmm_environment
 )
 
@@ -74,5 +76,5 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
-ament_export_dependencies(ocs2_ddp ocs2_sqp ocs2_self_collision ocs2_sphere_approximation wbmm_environment)
+ament_export_dependencies(ocs2_ddp ocs2_sqp ocs2_self_collision ocs2_sphere_approximation ocs2_pinocchio_interface wbmm_core wbmm_robot_metrics wbmm_environment)
 ament_package()

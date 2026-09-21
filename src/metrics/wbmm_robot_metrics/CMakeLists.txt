@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(wbmm_robot_metrics)
 
 find_package(ament_cmake REQUIRED)
+find_package(Eigen3 REQUIRED)
 find_package(wbmm_core REQUIRED)
 
 add_library(${PROJECT_NAME} src/arm_metrics.cpp src/joint_limit_metrics.cpp)
@@ -10,7 +11,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   $<INSTALL_INTERFACE:include>)
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
-target_link_libraries(${PROJECT_NAME} PUBLIC wbmm_core::wbmm_core)
+target_link_libraries(${PROJECT_NAME} PUBLIC
+  Eigen3::Eigen
+  wbmm_core::wbmm_core)
 
 install(TARGETS ${PROJECT_NAME} EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib LIBRARY DESTINATION lib RUNTIME DESTINATION bin)
@@ -23,5 +26,5 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
-ament_export_dependencies(wbmm_core)
+ament_export_dependencies(Eigen3 wbmm_core)
 ament_package()
