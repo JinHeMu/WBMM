@@ -75,7 +75,12 @@ def _make_include(context):
         "target_frame": target_frame,
         "use_tf_transform": str(use_tf_transform).lower(),
     }
-    tuning_args = _load_config(_value(context, "config_file"))
+    base_config = _value(context, "base_config_file")
+    if not os.path.isfile(base_config):
+        raise RuntimeError(f"REMANI base config does not exist: {base_config!r}")
+    tuning_args = {}
+    tuning_args.update(_load_config(base_config))
+    tuning_args.update(_load_config(_value(context, "config_file")))
     remani_share = get_package_share_directory("remani_planner")
 
     return [IncludeLaunchDescription(
@@ -99,6 +104,11 @@ def generate_launch_description():
         DeclareLaunchArgument("planner_frame", default_value="odom"),
         DeclareLaunchArgument("target_frame", default_value="odom"),
         DeclareLaunchArgument("use_tf_transform", default_value="false"),
+        DeclareLaunchArgument(
+            "base_config_file",
+            default_value=os.path.join(
+                get_package_share_directory("tracer_jaka_bringup"),
+                "config", "common", "remani.yaml")),
         DeclareLaunchArgument("config_file", default_value=""),
         OpaqueFunction(function=_make_include),
     ])

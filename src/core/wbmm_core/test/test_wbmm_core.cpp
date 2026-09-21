@@ -88,7 +88,6 @@ TEST(WbmmCore, DifferentialDriveWithSixJointsHasNineStatesAndEightInputs)
 {
   wbmm::core::WholeBodyState state;
   state.header.frame_id = "odom";
-  state.header.clock = wbmm::core::ClockDomain::kSimulation;
   state.base_model = wbmm::core::BaseModel::kDifferentialDrive;
   state.base.x = 1.0;
   state.base.y = 2.0;
@@ -143,7 +142,6 @@ TEST(WbmmCore, RobotModelJacobianMapsEightInputsToSpatialVelocity)
 
   wbmm::core::WholeBodyState state;
   state.header.frame_id = "odom";
-  state.header.clock = wbmm::core::ClockDomain::kSimulation;
   wbmm::core::Pose pose;
   Eigen::MatrixXd jacobian(
     static_cast<Eigen::Index>(wbmm::core::kSpatialVelocityDim),
@@ -165,7 +163,6 @@ wbmm::core::WholeBodyState makeValidState()
 {
   wbmm::core::WholeBodyState state;
   state.header.frame_id = "odom";
-  state.header.clock = wbmm::core::ClockDomain::kSimulation;
   state.base_model = wbmm::core::BaseModel::kDifferentialDrive;
   state.base.x = 0.0;
   state.base.y = 0.0;
@@ -203,6 +200,21 @@ TEST(WbmmCoreValidation, RejectsJointArrayDimensionMismatch)
   auto state = makeValidState();
   state.joints.positions.pop_back();
   EXPECT_FALSE(wbmm::core::validate(state).ok);
+}
+
+TEST(WbmmCoreValidation, EndEffectorPoseAcceptsAndRejectsQuaternion)
+{
+  wbmm::core::EndEffectorPose pose;
+  pose.header.frame_id = "odom";
+  pose.header.stamp = 1.0;
+  pose.position.x = 0.5;
+  pose.position.y = 0.0;
+  pose.position.z = 0.4;
+  pose.orientation.w = 1.0;
+  EXPECT_TRUE(wbmm::core::validate(pose).ok);
+
+  pose.orientation.w = 2.0;
+  EXPECT_FALSE(wbmm::core::validate(pose).ok);
 }
 
 TEST(WbmmCoreValidation, RejectsNonMonotonicTrajectoryTime)
@@ -245,42 +257,16 @@ TEST(WbmmCoreValidation, SearchResultRequiresParallelArrays)
   EXPECT_FALSE(wbmm::core::validate(result).ok);
 }
 
-TEST(WbmmCoreValidation, RejectsClockDomainMismatch)
-{
-  wbmm::core::WholeBodyTrajectory trajectory;
-  trajectory.trajectory_id = "clock_test";
-  trajectory.environment_revision = 1;
-  trajectory.collision_model_revision = 1;
-  trajectory.points.resize(2);
-  trajectory.points[0].time_from_start = 0.0;
-  trajectory.points[1].time_from_start = 1.0;
-  trajectory.points[0].state = makeValidState();
-  trajectory.points[1].state = makeValidState();
-  trajectory.points[0].state.header.clock = wbmm::core::ClockDomain::kSimulation;
-  trajectory.points[1].state.header.clock = wbmm::core::ClockDomain::kSystem;
-
-  EXPECT_FALSE(wbmm::core::validate(trajectory).ok);
-}
-
-TEST(WbmmCoreValidation, RejectsUnspecifiedClock)
-{
-  auto state = makeValidState();
-  state.header.clock = wbmm::core::ClockDomain::kUnspecified;
-  EXPECT_FALSE(wbmm::core::validate(state).ok);
-}
-
 namespace
 {
 
 wbmm::core::TaskTrajectoryPoint makeTaskPoint(
   const std::string & frame_id,
-  const wbmm::core::ClockDomain clock,
   const double time)
 {
   wbmm::core::TaskTrajectoryPoint point;
   point.time_from_start = time;
   point.pose.header.frame_id = frame_id;
-  point.pose.header.clock = clock;
   point.pose.orientation = wbmm::core::Quaternion{};
   point.tangent = wbmm::core::Vector3{1.0, 0.0, 0.0};
   point.surface_normal = wbmm::core::Vector3{0.0, 0.0, 1.0};
@@ -326,8 +312,8 @@ TEST(WbmmCoreValidation, RejectsTaskTrajectoryFrameMismatch)
   wbmm::core::TaskTrajectory trajectory;
   trajectory.task_id = "task_frame_mismatch";
   trajectory.points = {
-    makeTaskPoint("task_frame", wbmm::core::ClockDomain::kSimulation, 0.0),
-    makeTaskPoint("odom", wbmm::core::ClockDomain::kSimulation, 1.0)};
+    makeTaskPoint("task_frame", 0.0),
+    makeTaskPoint("odom", 1.0)};
 
   EXPECT_FALSE(wbmm::core::validate(trajectory).ok);
 }
@@ -366,8 +352,7 @@ TEST(WbmmCoreValidation, RejectsTaskReferenceFrameMismatch)
   trajectory.points.resize(1);
   trajectory.points[0].time_from_start = 0.0;
   trajectory.points[0].state = makeValidState();
-  trajectory.points[0].task_reference = makeTaskPoint(
-    "map", wbmm::core::ClockDomain::kSimulation, 0.0);
+  trajectory.points[0].task_reference = makeTaskPoint("map", 0.0);
 
   EXPECT_FALSE(wbmm::core::validate(trajectory).ok);
 }
@@ -376,7 +361,6 @@ TEST(WbmmCoreValidation, ValidatesTwistAndWrench)
 {
   wbmm::core::Twist twist;
   twist.header.frame_id = "odom";
-  twist.header.clock = wbmm::core::ClockDomain::kSimulation;
   twist.linear = {0.1, 0.2, 0.3};
   twist.angular = {0.01, 0.02, 0.03};
   EXPECT_TRUE(wbmm::core::validate(twist).ok);
@@ -386,7 +370,6 @@ TEST(WbmmCoreValidation, ValidatesTwistAndWrench)
 
   wbmm::core::Wrench wrench;
   wrench.header.frame_id = "tool0";
-  wrench.header.clock = wbmm::core::ClockDomain::kSystem;
   wrench.force = {1.0, 2.0, 3.0};
   wrench.torque = {0.1, 0.2, 0.3};
   EXPECT_TRUE(wbmm::core::validate(wrench).ok);

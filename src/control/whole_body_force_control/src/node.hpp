@@ -33,11 +33,21 @@ namespace whole_body_force_control
 using wbmm::pinocchio::PinocchioRobotModel;
 using wbmm::pinocchio::WholeBodyKinematics;
 
+enum class ReferenceOutputMode
+{
+  kWholeBodyState,
+  kEndEffectorPose,
+};
+
 // Reference-side six-axis admittance controller.
 //
 // The force sensor reports in sensor_frame.  The node transforms the measured
-// wrench to the nominal TCP frame (tool0), solves admittance there, then maps
-// the resulting correction into state_frame before publishing it to MPC.
+// wrench to the nominal TCP frame (tool0), solves admittance there, then:
+//   - output.mode = ee_pose:
+//       publish a 7D EndEffectorPose target for the OCS2 EE reference;
+//       OCS2 decides how base and arm realize it.
+//   - output.mode = whole_body_state:
+//       legacy base_share + IK baseline producing a 9D state reference.
 class WholeBodyForceControlNode final : public rclcpp::Node
 {
 public:
@@ -52,9 +62,12 @@ private:
     std::string sensor_frame;
     std::string tcp_frame;
     std::string target_topic;
+    std::string ee_target_topic;
     std::string correction_topic;
     std::string state_topic;
     std::string wrench_topic;
+
+    ReferenceOutputMode output_mode{ReferenceOutputMode::kEndEffectorPose};
 
     bool admittance_enabled{false};
     bool tf_fallback_to_latest{true};
@@ -81,6 +94,10 @@ private:
     double base_share{0.4};
     double max_base_velocity{0.5};
     double max_joint_velocity{1.0};
+    double max_ee_linear_velocity{0.05};
+    double max_ee_angular_velocity{0.20};
+    double max_ee_translation_offset{0.10};
+    double max_ee_rotation_offset{0.30};
     double reference_horizon{1.0};
     double reference_dt{0.1};
     int input_dimension{8};
@@ -119,8 +136,27 @@ private:
       Eigen::VectorXd &reference,
       double &primary_offset,
       double &primary_force);
+  void updateEndEffectorReference(
+      const Vector6d &measured_wrench,
+      double dt,
+      Vector6d &correction,
+      Vector6d &filtered_wrench,
+      wbmm::core::EndEffectorPose &target,
+      double &primary_offset,
+      double &primary_force);
+  void clampEndEffectorCorrection(Vector6d &correction);
   void update();
   void publishReference(const Eigen::VectorXd &reference);
+  void publishEndEffectorReference(
+      const wbmm::core::EndEffectorPose &target);
+  void publishHoldEndEffectorReference();
+  void publishEndEffectorCorrection(
+      const wbmm::core::EndEffectorPose &target,
+      const Eigen::VectorXd &measured_state,
+      double primary_force,
+      double primary_offset,
+      const Vector6d &filtered_wrench,
+      const Vector6d &correction);
   void publishCorrection(
       const Eigen::VectorXd &reference,
       const Eigen::VectorXd &measured_state,
@@ -165,10 +201,14 @@ private:
   Eigen::VectorXd nominal_state_;
   Eigen::VectorXd last_reference_state_;
   Eigen::VectorXd hold_state_;
+  Vector6d last_ee_correction_{Vector6d::Zero()};
+  bool ee_correction_valid_{false};
 
   // ROS resources.
   rclcpp::Publisher<ocs2_msgs::msg::MpcTargetTrajectories>::SharedPtr
       target_publisher_;
+  rclcpp::Publisher<ocs2_msgs::msg::MpcTargetTrajectories>::SharedPtr
+      ee_target_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr
       correction_publisher_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr state_publisher_;

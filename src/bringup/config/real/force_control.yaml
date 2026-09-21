@@ -1,55 +1,7 @@
+# Real force-control overrides. Common structure and safe defaults live in
+# config/common/force_control.yaml.
 whole_body_force_control:
   ros__parameters:
-    # Real-hardware raw-FTS admittance shadow/commissioning configuration.
-    # Keep both motion gates closed by default; validate frame, sign, tare and
-    # limits before enabling hardware_write.
-    robot_name: mobile_manipulator
-    state_frame: odom
-
-    topics:
-      wrench: /fts_broadcaster/wrench
-      correction: /whole_body_force_control/correction
-      states: /whole_body_force_control/states
-
-    force_sensor:
-      # Raw FTS wrench is expressed in this sensor link's URDF/TF axes.
-      sensor_frame: jk_se_vi_200_link
-      tcp_frame: tool0
-      tf_lookup_timeout: 0.05
-      tf_fallback_to_latest: false
-      tare_samples: 50
-      filter_alpha: 0.15
-      wrench_scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-      # Fail-closed before tare/filtering; real commissioning stays below
-      # 15 N so a broken force reading cannot command motion.
-      hard_force_norm_limit: 50.0
-      hard_wrench_limit: [50.0, 50.0, 50.0, 2.0, 2.0, 2.0]
-      force_timeout: 0.10
-
     admittance:
       enable: false
       output: false
-      selected_axes: [true, false, false, false, false, false]  # world x/y/z only
-      mass: [3.0, 3.0, 3.0, 0.3, 0.3, 0.3]
-      # For selected axes with stiffness > 0, damping_ratio can be used
-      # instead of damping; damping_ratio -> D = 2*zeta*sqrt(M*S).
-      damping: [45.0, 45.0, 45.0, 4.5, 4.5, 4.5]
-      stiffness: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      max_velocity: [0.25, 0.25, 0.25, 0.15, 0.15, 0.15]
-
-    whole_body:
-      # Real pass keeps a bounded differential-base share along heading.
-      base_share: 0.6
-      max_base_velocity: 0.20
-      max_joint_velocity: 0.50
-
-    safety:
-      observation_timeout: 0.20
-      capture_settle_time: 1.0
-      enforce_single_target_owner: true
-      loop_rate: 50.0
-
-    output:
-      reference_horizon: 1.0
-      reference_dt: 0.1
-      input_dimension: 8

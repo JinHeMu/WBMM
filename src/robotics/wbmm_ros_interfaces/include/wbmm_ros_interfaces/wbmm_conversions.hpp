@@ -46,8 +46,7 @@ namespace wbmm::ros_interfaces
 [[nodiscard]] std::optional<wbmm::core::WholeBodyInput> toCoreInput(
   const Eigen::Ref<const Eigen::VectorXd> & input,
   const std::vector<std::string> & joint_names,
-  double stamp,
-  wbmm::core::ClockDomain clock);
+  double stamp);
 
 // WholeBodyInput -> Eigen [base_command..., joint_velocities...]。
 [[nodiscard]] Eigen::VectorXd toEigenInput(
@@ -56,7 +55,6 @@ namespace wbmm::ros_interfaces
 // 构造"零输入" WholeBodyInput，用于仅有状态、没有前馈的名义轨迹点。
 [[nodiscard]] wbmm::core::WholeBodyInput makeZeroWholeBodyInput(
   const std::vector<std::string> & joint_names,
-  double stamp,
-  wbmm::core::ClockDomain clock);
+  double stamp);
 
 }  // namespace wbmm::ros_interfaces

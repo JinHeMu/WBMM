@@ -1,0 +1,58 @@
+# Common whole-body force-control structure shared by real and simulation.
+whole_body_force_control:
+  ros__parameters:
+    robot_name: mobile_manipulator
+    state_frame: odom
+
+    topics:
+      wrench: /fts_broadcaster/wrench
+      correction: /whole_body_force_control/correction
+      states: /whole_body_force_control/states
+      target: /mobile_manipulator_mpc_target
+      ee_target: /mobile_manipulator_ee_target
+
+    force_sensor:
+      sensor_frame: jk_se_vi_200_link
+      tcp_frame: tool0
+      tf_lookup_timeout: 0.05
+      tf_fallback_to_latest: false
+      tare_samples: 50
+      filter_alpha: 0.15
+      wrench_scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      hard_force_norm_limit: 50.0
+      hard_wrench_limit: [50.0, 50.0, 50.0, 2.0, 2.0, 2.0]
+      force_timeout: 0.10
+
+    admittance:
+      enable: false
+      output: false
+      selected_axes: [true, false, false, false, false, false]
+      mass: [3.0, 3.0, 3.0, 0.3, 0.3, 0.3]
+      damping: [45.0, 45.0, 45.0, 4.5, 4.5, 4.5]
+      stiffness: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      max_velocity: [0.25, 0.25, 0.25, 0.15, 0.15, 0.15]
+
+    whole_body:
+      # Legacy baseline only. The preferred EE-pose output path does not use
+      # base_share; OCS2 decides how base and arm share the motion.
+      base_share: 0.6
+      max_base_velocity: 0.20
+      max_joint_velocity: 0.50
+      max_ee_linear_velocity: 0.05
+      max_ee_angular_velocity: 0.20
+      max_ee_translation_offset: 0.10
+      max_ee_rotation_offset: 0.30
+
+    safety:
+      observation_timeout: 0.20
+      capture_settle_time: 1.0
+      enforce_single_target_owner: true
+      loop_rate: 50.0
+
+    output:
+      # ee_pose: publish 7D EndEffectorPose targets to the OCS2 EE reference.
+      # whole_body_state: legacy 9D base_share + IK baseline.
+      mode: ee_pose
+      reference_horizon: 1.0
+      reference_dt: 0.1
+      input_dimension: 8

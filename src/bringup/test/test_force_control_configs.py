@@ -1,4 +1,4 @@
-"""Check the two admittance configs and resolve launch profiles without motion."""
+"""Check force-control base/override configs and launch profiles."""
 
 import importlib.util
 from pathlib import Path
@@ -12,13 +12,33 @@ import yaml
 
 BRINGUP = Path(__file__).resolve().parents[1]
 FORCE_CONTROL = BRINGUP.parent / 'control' / 'whole_body_force_control'
-CONFIG = FORCE_CONTROL / 'config'
+COMMON_CONFIG = BRINGUP / 'config' / 'common'
 REAL_CONFIG = BRINGUP / 'config' / 'real'
+SIM_CONFIG = BRINGUP / 'config' / 'sim'
 
 
-def parameters(filename, config_dir=CONFIG):
-    return yaml.safe_load((config_dir / filename).read_text(encoding='utf-8'))[
-        'whole_body_force_control']['ros__parameters']
+def load_yaml(path):
+    return yaml.safe_load(path.read_text(encoding='utf-8')) or {}
+
+
+def deep_merge(base, override):
+    result = dict(base)
+    for key, value in override.items():
+        if (key in result and isinstance(result[key], dict)
+                and isinstance(value, dict)):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def load_force_params(layers):
+    data = {}
+    for layer in layers:
+        if isinstance(layer, (str, Path)):
+            layer = load_yaml(Path(layer))
+        data = deep_merge(data, layer)
+    return data['whole_body_force_control']['ros__parameters']
 
 
 def flatten(values, prefix=''):
@@ -46,15 +66,18 @@ def load_launch(profile):
     return module
 
 
-def test_force_control_config_locations_are_centralized():
-    assert {path.name for path in CONFIG.iterdir()} == {
-        'force_follow_sim.yaml'}
+def test_force_control_config_layers_are_centralized():
+    assert (COMMON_CONFIG / 'force_control.yaml').is_file()
     assert (REAL_CONFIG / 'force_control.yaml').is_file()
-    configs = (
-        flatten(parameters('force_follow_sim.yaml')),
-        flatten(parameters('force_control.yaml', REAL_CONFIG)),
-    )
-    for config in configs:
+    assert (SIM_CONFIG / 'force_control.yaml').is_file()
+
+    for paths in (
+        (COMMON_CONFIG / 'force_control.yaml',
+         SIM_CONFIG / 'force_control.yaml'),
+        (COMMON_CONFIG / 'force_control.yaml',
+         REAL_CONFIG / 'force_control.yaml'),
+    ):
+        config = flatten(load_force_params(paths))
         assert len(config['admittance.selected_axes']) == 6
         assert all(isinstance(value, bool)
                    for value in config['admittance.selected_axes'])
@@ -76,7 +99,7 @@ def test_sim_profiles_use_admittance_limits(
     module = load_launch('sim')
     original_share = module.get_package_share_directory
     monkeypatch.setattr(module, 'get_package_share_directory', lambda name:
-                        str(FORCE_CONTROL) if name == 'whole_body_force_control'
+                        str(BRINGUP) if name == 'tracer_jaka_bringup'
                         else original_share(name))
     monkeypatch.setattr(module, 'Node', lambda **kwargs: kwargs)
     context = LaunchContext()
@@ -85,9 +108,14 @@ def test_sim_profiles_use_admittance_limits(
     nodes = module._launch_nodes(context)
     controller = next(node for node in nodes
                       if node['package'] == 'whole_body_force_control')
-    assert controller['parameters'][0] == str(CONFIG / 'force_follow_sim.yaml')
-    effective = flatten(parameters('force_follow_sim.yaml'))
-    for entry in controller['parameters'][1:]:
+    assert controller['parameters'][0] == str(
+        COMMON_CONFIG / 'force_control.yaml')
+    assert controller['parameters'][1] == str(SIM_CONFIG / 'force_control.yaml')
+    effective = flatten(deep_merge(
+        load_yaml(COMMON_CONFIG / 'force_control.yaml'),
+        load_yaml(SIM_CONFIG / 'force_control.yaml'))
+        ['whole_body_force_control']['ros__parameters'])
+    for entry in controller['parameters'][2:]:
         effective.update(entry)
     assert effective['admittance.selected_axes'] == [
         True, False, False, False, False, False]
@@ -112,11 +140,12 @@ def test_sim_profiles_use_admittance_limits(
      [50.0, 50.0, 50.0, 4.5, 4.5, 4.5],
      0.80),
 ])
-def test_three_axis_example_profiles(profile, stiffness, damping, base_share, monkeypatch):
+def test_three_axis_example_profiles(
+        profile, stiffness, damping, base_share, monkeypatch):
     module = load_launch('sim')
     original_share = module.get_package_share_directory
     monkeypatch.setattr(module, 'get_package_share_directory', lambda name:
-                        str(FORCE_CONTROL) if name == 'whole_body_force_control'
+                        str(BRINGUP) if name == 'tracer_jaka_bringup'
                         else original_share(name))
     monkeypatch.setattr(module, 'Node', lambda **kwargs: kwargs)
     context = LaunchContext()
@@ -125,8 +154,11 @@ def test_three_axis_example_profiles(profile, stiffness, damping, base_share, mo
     nodes = module._launch_nodes(context)
     controller = next(node for node in nodes
                       if node['package'] == 'whole_body_force_control')
-    effective = flatten(parameters('force_follow_sim.yaml'))
-    for entry in controller['parameters'][1:]:
+    effective = flatten(deep_merge(
+        load_yaml(COMMON_CONFIG / 'force_control.yaml'),
+        load_yaml(SIM_CONFIG / 'force_control.yaml'))
+        ['whole_body_force_control']['ros__parameters'])
+    for entry in controller['parameters'][2:]:
         effective.update(entry)
     assert effective['admittance.selected_axes'] == [
         True, True, True, False, False, False]
@@ -137,19 +169,32 @@ def test_three_axis_example_profiles(profile, stiffness, damping, base_share, mo
 
 def test_sensor_z_sim_uses_world_frame_translation_admittance(monkeypatch):
     module = load_launch('sim')
+    original_share = module.get_package_share_directory
+    monkeypatch.setattr(module, 'get_package_share_directory', lambda name:
+                        str(BRINGUP) if name == 'tracer_jaka_bringup'
+                        else original_share(name))
     monkeypatch.setattr(module, 'Node', lambda **kwargs: kwargs)
     context = LaunchContext()
     context.launch_configurations.update({
         'profile': 'sensor_z', 'viewer': 'false', 'use_rviz': 'false'})
     nodes = module._launch_nodes(context)
     mrt = next(node for node in nodes if node.get('name') == 'wbmm_mrt_node')
-    config = yaml.safe_load(Path(mrt['parameters'][0]).read_text())[
-        'wbmm_mrt_node']['ros__parameters']
-    assert config['command_output_enabled'] is True
-    assert Path(mrt['parameters'][0]).name == 'ocs2_sim.yaml'
-    assert mrt['parameters'][1]['odom_topic'] == '/wheel/odometry'
+    assert Path(mrt['parameters'][0]) == COMMON_CONFIG / 'ocs2.yaml'
+    assert Path(mrt['parameters'][1]) == SIM_CONFIG / 'ocs2.yaml'
+    config = deep_merge(load_yaml(Path(mrt['parameters'][0])),
+                        load_yaml(Path(mrt['parameters'][1])))
+    mrt_params = config['wbmm_mrt_node']['ros__parameters']
+    assert mrt_params['command_output_enabled'] is True
+    assert mrt['parameters'][2]['odom_topic'] == '/wheel/odometry'
 
-    force = flatten(parameters('force_follow_sim.yaml'))
+    force = flatten(deep_merge(
+        load_yaml(COMMON_CONFIG / 'force_control.yaml'),
+        load_yaml(SIM_CONFIG / 'force_control.yaml'))
+        ['whole_body_force_control']['ros__parameters'])
+    force_controller = next(
+        node for node in nodes
+        if node['package'] == 'whole_body_force_control')
+    force.update(force_controller['parameters'][2])
     assert force['force_sensor.sensor_frame'] == 'jk_se_vi_200_link'
     assert force['force_sensor.tcp_frame'] == 'tool0'
     assert force['admittance.selected_axes'] == [
@@ -167,7 +212,10 @@ def test_sensor_z_sim_uses_world_frame_translation_admittance(monkeypatch):
 
 
 def test_real_config_preserves_closed_gates_and_admittance_limits():
-    config = flatten(parameters('force_control.yaml', REAL_CONFIG))
+    config = flatten(load_force_params([
+        COMMON_CONFIG / 'force_control.yaml',
+        REAL_CONFIG / 'force_control.yaml',
+    ]))
     assert config['admittance.enable'] is False
     assert config['admittance.output'] is False
     assert config['safety.enforce_single_target_owner'] is True
@@ -186,7 +234,8 @@ def test_real_config_preserves_closed_gates_and_admittance_limits():
     assert config['whole_body.max_base_velocity'] == 0.20
     assert config['whole_body.max_joint_velocity'] == 0.50
     assert config['force_sensor.hard_force_norm_limit'] == 50.0
-    assert config['force_sensor.hard_wrench_limit'] == [50.0, 50.0, 50.0, 2.0, 2.0, 2.0]
+    assert config['force_sensor.hard_wrench_limit'] == [
+        50.0, 50.0, 50.0, 2.0, 2.0, 2.0]
 
 
 def test_fts_broadcaster_and_compliance_use_actual_sensor_link():
@@ -195,8 +244,10 @@ def test_fts_broadcaster_and_compliance_use_actual_sensor_link():
         (description / 'config' / 'ros2_controllers.yaml').read_text())
     frame = controllers['fts_broadcaster']['ros__parameters']['frame_id']
     urdf = ET.parse(description / 'urdf' / 'tracer_jaka_zu5.urdf')
-    assert frame == flatten(
-        parameters('force_control.yaml', REAL_CONFIG))['force_sensor.sensor_frame']
+    assert frame == flatten(load_force_params([
+        COMMON_CONFIG / 'force_control.yaml',
+        REAL_CONFIG / 'force_control.yaml',
+    ]))['force_sensor.sensor_frame']
     assert frame in {link.attrib['name'] for link in urdf.findall('link')}
 
 
@@ -215,13 +266,18 @@ def test_real_launch_defaults_remain_disabled():
     force_params = Path(values['force_params_file'])
     assert force_params.name == 'force_control.yaml'
     assert force_params.parent.name == 'real'
+    force_base = Path(values['force_base_params_file'])
+    assert force_base.name == 'force_control.yaml'
+    assert force_base.parent.name == 'common'
 
 
 def test_launches_do_not_reference_deleted_configs():
     obsolete = {
         'force_follow_20s_sim.yaml', 'force_follow_infinite_sim.yaml',
         'force_follow_infinite_real.yaml', 'force_follow_real_z_test.yaml',
-        'six_axis_example.yaml'}
+        'six_axis_example.yaml', 'force_follow_sim.yaml',
+        'force_follow_real.yaml', 'ocs2_sim.yaml',
+    }
     for path in (BRINGUP / 'launch').rglob('*.launch.py'):
         text = path.read_text(encoding='utf-8')
         assert not any(filename in text for filename in obsolete), str(path)

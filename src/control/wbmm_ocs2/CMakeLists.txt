@@ -16,6 +16,8 @@ find_package(ament_cmake REQUIRED)
 find_package(ocs2_ddp REQUIRED)
 find_package(ocs2_sqp REQUIRED)
 find_package(ocs2_self_collision REQUIRED)
+find_package(ocs2_sphere_approximation REQUIRED)
+find_package(wbmm_environment REQUIRED)
 # ocs2_self_collision transitively brings ocs2_pinocchio_interface, whose
 # CONFIG_EXTRAS exports OCS2_PINOCCHIO_FLAGS used below.
 
@@ -25,11 +27,17 @@ add_library(${PROJECT_NAME}
   src/PreComputation.cpp
   src/Dynamics.cpp
   src/WbmmInterface.cpp
+  src/WbmmReferenceManager.cpp
   src/cost/WholeBodyTrajectoryCost.cpp
+  src/cost/EndEffectorTrackingCost.cpp
+  src/cost/ArmManipulabilityCost.cpp
+  src/cost/PhaseWeightedStateCost.cpp
   src/constraint/EndEffectorConstraint.cpp
   src/constraint/BodyRelativeConstraint.cpp
   src/constraint/EnvironmentCollisionConstraint.cpp
+  src/constraint/EsdfEnvironmentCollisionConstraint.cpp
   src/collision/EnvironmentGeometryInterface.cpp
+  src/collision/EsdfEnvironmentInterface.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -41,6 +49,8 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   ${ocs2_ddp_TARGETS}
   ${ocs2_sqp_TARGETS}
   ${ocs2_self_collision_TARGETS}
+  ${ocs2_sphere_approximation_TARGETS}
+  wbmm_environment::wbmm_environment
 )
 
 install(DIRECTORY include/ DESTINATION include)
@@ -59,9 +69,10 @@ if(BUILD_TESTING)
   ament_target_dependencies(test_wbmm_ocs2 ament_index_cpp)
   target_compile_definitions(test_wbmm_ocs2 PRIVATE
     WBMM_OCS2_TEST_URDF_FALLBACK="${CMAKE_CURRENT_SOURCE_DIR}/../../robot/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf"
-    WBMM_OCS2_TEST_TASK_FILE="${CMAKE_CURRENT_SOURCE_DIR}/test/resources/task.info")
+    WBMM_OCS2_TEST_TASK_FILE="${CMAKE_CURRENT_SOURCE_DIR}/test/resources/task.info"
+    WBMM_OCS2_TEST_MODE_SWITCH_TASK_FILE="${CMAKE_CURRENT_SOURCE_DIR}/test/resources/task_mode_switch.info")
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
-ament_export_dependencies(ocs2_ddp ocs2_sqp ocs2_self_collision)
+ament_export_dependencies(ocs2_ddp ocs2_sqp ocs2_self_collision ocs2_sphere_approximation wbmm_environment)
 ament_package()

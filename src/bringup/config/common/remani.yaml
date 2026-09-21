@@ -1,7 +1,4 @@
-# REMANI launch-argument tuning for the MuJoCo simulation profile.
-# Values are forwarded by common/remani.launch.py to the vendor
-# remani_mpc_tracking.launch.py arguments.
-tracking_error_replan_enabled: true
+# Common REMANI tuning thresholds shared by real and simulation profiles.
 tracking_error_position_threshold: 0.30
 tracking_error_yaw_threshold: 0.45
 tracking_error_joint_threshold: 0.30
@@ -16,9 +13,6 @@ tracking_goal_replan_yaw_threshold: 0.70
 tracking_goal_replan_joint_threshold: 0.45
 tracking_goal_replan_persistence: 1.00
 max_consecutive_planning_failures: 20
-manipulator_max_vel: 1.57
-manipulator_max_acc: 3.14
 manipulator_safe_margin: 0.10
 general_safe_margin: 0.10
 self_safe_margin: 0.10
-freeze_manipulator: false

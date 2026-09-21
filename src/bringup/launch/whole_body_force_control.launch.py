@@ -39,6 +39,7 @@ def generate_launch_description():
     description = FindPackageShare("tracer_jaka_description")
 
     urdf = LaunchConfiguration("urdf_file")
+    force_base_params_file = LaunchConfiguration("force_base_params_file")
     force_params_file = LaunchConfiguration("force_params_file")
     hardware_write = LaunchConfiguration("hardware_write")
     use_sim_time = LaunchConfiguration("use_sim_time")
@@ -61,6 +62,10 @@ def generate_launch_description():
             "ocs2_config",
             default_value=PathJoinSubstitution([
                 bringup, "config", "real", "ocs2.yaml"])),
+        DeclareLaunchArgument(
+            "force_base_params_file",
+            default_value=PathJoinSubstitution([
+                bringup, "config", "common", "force_control.yaml"])),
         DeclareLaunchArgument(
             "force_params_file",
             default_value=PathJoinSubstitution([
@@ -91,6 +96,7 @@ def generate_launch_description():
             name="whole_body_force_control",
             output="screen",
             parameters=[
+                force_base_params_file,
                 force_params_file,
                 {
                     "urdf_file": urdf,

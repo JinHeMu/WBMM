@@ -27,8 +27,11 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 
+#include <array>
+#include <cmath>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <pinocchio/fwd.hpp>  // forward declarations must be included first.
 
@@ -56,8 +59,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "wbmm_ocs2/constraint/SelfCollisionConstraint.h"
 #include "wbmm_ocs2/constraint/EnvironmentCollisionConstraint.h"
+#include "wbmm_ocs2/constraint/EsdfEnvironmentCollisionConstraint.h"
+#include "wbmm_ocs2/collision/EsdfEnvironmentInterface.h"
+#include <wbmm_environment/esdf_loader.hpp>
 #include "wbmm_ocs2/cost/QuadraticInputCost.h"
 #include "wbmm_ocs2/cost/WholeBodyTrajectoryCost.h"
+#include "wbmm_ocs2/cost/EndEffectorTrackingCost.h"
+#include "wbmm_ocs2/cost/PhaseWeightedStateCost.h"
 #include "wbmm_ocs2/Dynamics.h"
 
 // Boost
@@ -72,6 +80,58 @@ namespace wbmm_ocs2
 // 这里用文件级 using-directive 保持上游类型的可见性，
 // 不污染被 include 的头文件。
 using namespace ocs2;
+
+namespace
+{
+
+std::array<scalar_t, 4> loadPhaseWeights(
+    const std::string& taskFile,
+    const boost::property_tree::ptree& pt,
+    const std::string& prefix,
+    const std::array<scalar_t, 4>& defaults)
+{
+    if (!pt.get_child_optional(prefix + ".phaseWeights")) {
+        return defaults;
+    }
+
+    std::array<scalar_t, 4> result = defaults;
+
+    // Support both OCS2 matrix style:
+    //   phaseWeights { (0,0) 1.0 (1,0) 0.5 ... }
+    // and std-vector style:
+    //   phaseWeights { [0] 1.0 [1] 0.5 ... }
+    if (pt.get_child_optional(prefix + ".phaseWeights.(0,0)")) {
+        vector_t weights = vector_t::Zero(4);
+        weights << defaults[0], defaults[1], defaults[2], defaults[3];
+        loadData::loadEigenMatrix(taskFile, prefix + ".phaseWeights", weights);
+        for (std::size_t i = 0; i < result.size(); ++i) {
+            result[i] = weights(static_cast<Eigen::Index>(i));
+        }
+    } else {
+        std::vector<scalar_t> weights;
+        loadData::loadStdVector<scalar_t>(
+            taskFile, prefix + ".phaseWeights", weights, false);
+        if (weights.size() != result.size()) {
+            throw std::runtime_error(
+                "[WbmmInterface] " + prefix +
+                ".phaseWeights must contain exactly 4 values.");
+        }
+        for (std::size_t i = 0; i < result.size(); ++i) {
+            result[i] = weights[i];
+        }
+    }
+
+    for (const scalar_t weight : result) {
+        if (!std::isfinite(weight) || weight < 0.0) {
+            throw std::runtime_error(
+                "[WbmmInterface] " + prefix +
+                ".phaseWeights must be finite and non-negative.");
+        }
+    }
+    return result;
+}
+
+}  // namespace
 
     WbmmInterface::WbmmInterface(const std::string& taskFile,
                                                            const std::string& libraryFolder,
@@ -184,7 +244,22 @@ using namespace ocs2;
         }
 
         // Reference Manager
-        referenceManagerPtr_ = std::make_shared<ReferenceManager>();
+        modeSwitchEnabled_ = false;
+        loadData::loadPtreeValue(
+            pt, modeSwitchEnabled_, "modeSwitch.activate", false);
+
+        int initialPhaseValue = 0;
+        loadData::loadPtreeValue(
+            pt, initialPhaseValue, "modeSwitch.initialPhase", false);
+        if (initialPhaseValue < 0 || initialPhaseValue > 3)
+        {
+            throw std::runtime_error(
+                "[WbmmInterface] modeSwitch.initialPhase must be in [0, 3].");
+        }
+
+        wbmmRefManagerPtr_ = std::make_shared<WbmmReferenceManager>(
+            static_cast<TaskPhase>(initialPhaseValue));
+        referenceManagerPtr_ = wbmmRefManagerPtr_;
 
         /*
          * Optimal control problem
@@ -194,63 +269,132 @@ using namespace ocs2;
 
         // Constraints
         // joint limits constraint
-        problem_.softConstraintPtr->add("jointLimits",
-                                        getJointLimitSoftConstraint(*pinocchioInterfacePtr_, taskFile));
-        // ------------------------------------------------------------------
-        // end-effector state constraint (可通过 task 文件整体关闭)
-        //
-        // 注意: 关闭 EE 约束不仅仅是把 muPosition / muOrientation 设为 0。
-        // 只要 EndEffectorConstraint 还在 problem 里, 它就会去解析
-        // TargetTrajectories.stateTrajectory 的 head<3>() / tail<4>();
-        // 而全身轨迹的 state 是 9 维 [x, y, yaw, q1..q6], 那样解析出来的
-        // "四元数" 其实是最后 4 个关节角, 语义完全错误 (且可能出现零四元数)。
-        // 所以做全身轨迹跟踪时必须把 constraint 本身从 problem 中拿掉。
-        // ------------------------------------------------------------------
-        endEffectorEnabled_ = true;
-        loadData::loadPtreeValue(pt, endEffectorEnabled_, "endEffector.activate", true);
-        if (endEffectorEnabled_)
-        {
-            problem_.stateSoftConstraintPtr->add("endEffector", getEndEffectorConstraint(
-                                                     *pinocchioInterfacePtr_, taskFile, "endEffector",
-                                                     usePreComputation, libraryFolder, recompileLibraries));
-            problem_.finalSoftConstraintPtr->add("finalEndEffector", getEndEffectorConstraint(
-                                                     *pinocchioInterfacePtr_, taskFile, "finalEndEffector",
-                                                     usePreComputation, libraryFolder, recompileLibraries));
-        }
-        else
-        {
-            std::cerr << "\n #### EndEffector soft-constraints are DISABLED "
-                         "(endEffector.activate = false).\n";
-            std::cerr << " #### TargetTrajectories.stateTrajectory will be interpreted as "
-                         "WHOLE-BODY state.\n";
-        }
+        problem_.softConstraintPtr->add(
+            "jointLimits",
+            getJointLimitSoftConstraint(*pinocchioInterfacePtr_, taskFile));
 
-        // ------------------------------------------------------------------
-        // whole-body trajectory tracking cost
-        //   L(x,t) = 0.5 * (x - x_d(t))' Q (x - x_d(t))
-        //   x_d(t) 由 ROS 发布的 TargetTrajectories 提供 (stateDim 维)
-        // ------------------------------------------------------------------
-        wholeBodyTrackingEnabled_ = false;
-        loadData::loadPtreeValue(pt, wholeBodyTrackingEnabled_, "wholeBodyTracking.activate", true);
-        if (wholeBodyTrackingEnabled_)
+        if (modeSwitchEnabled_)
         {
-            if (endEffectorEnabled_)
-            {
-                throw std::runtime_error(
-                    "[WbmmInterface] endEffector.activate and "
-                    "wholeBodyTracking.activate cannot both be true: they would interpret the "
-                    "same TargetTrajectories.stateTrajectory as 7-D EE pose and stateDim-D "
-                    "whole-body state at the same time.");
-            }
+            std::cerr << "\n #### Dual-reference phase switching is ENABLED.\n";
+            std::cerr << " #### wholeBodyTracking and endEffectorTracking are both "
+                         "registered and weighted by task phase.\n";
+
+            const auto wholeBodyWeights = loadPhaseWeights(
+                taskFile, pt, "wholeBodyTracking",
+                std::array<scalar_t, 4>{1.0, 0.5, 0.1, 0.5});
+            const auto endEffectorWeights = loadPhaseWeights(
+                taskFile, pt, "endEffectorTracking",
+                std::array<scalar_t, 4>{0.0, 0.5, 1.0, 0.0});
 
             problem_.stateCostPtr->add(
                 "wholeBodyTracking",
-                getWholeBodyTrajectoryCost(taskFile, "wholeBodyTracking", false));
+                std::make_unique<PhaseWeightedStateCost>(
+                    getWholeBodyTrajectoryCost(
+                        taskFile, "wholeBodyTracking", false),
+                    wbmmRefManagerPtr_, TargetKind::kWholeBody,
+                    wholeBodyWeights));
+
+            problem_.stateCostPtr->add(
+                "endEffectorTracking",
+                std::make_unique<PhaseWeightedStateCost>(
+                    getEndEffectorTrackingCost(
+                        *pinocchioInterfacePtr_, taskFile,
+                        "endEffectorTracking", usePreComputation,
+                        libraryFolder, recompileLibraries),
+                    wbmmRefManagerPtr_, TargetKind::kEndEffector,
+                    endEffectorWeights));
 
             problem_.finalCostPtr->add(
                 "finalWholeBodyTracking",
-                getWholeBodyTrajectoryCost(taskFile, "wholeBodyTracking", true));
+                std::make_unique<PhaseWeightedStateCost>(
+                    getWholeBodyTrajectoryCost(
+                        taskFile, "wholeBodyTracking", true),
+                    wbmmRefManagerPtr_, TargetKind::kWholeBody,
+                    wholeBodyWeights));
+
+            problem_.finalCostPtr->add(
+                "finalEndEffectorTracking",
+                std::make_unique<PhaseWeightedStateCost>(
+                    getEndEffectorTrackingCost(
+                        *pinocchioInterfacePtr_, taskFile,
+                        "endEffectorTracking", usePreComputation,
+                        libraryFolder, recompileLibraries),
+                    wbmmRefManagerPtr_, TargetKind::kEndEffector,
+                    endEffectorWeights));
+
+            // 兼容字段：mode switch 分支不使用旧的 endEffector 软约束。
+            endEffectorEnabled_ = false;
+            wholeBodyTrackingEnabled_ = true;
         }
+        else
+        {
+            // ------------------------------------------------------------------
+            // end-effector state constraint (可通过 task 文件整体关闭)
+            //
+            // 注意: 关闭 EE 约束不仅仅是把 muPosition / muOrientation 设为 0。
+            // 只要 EndEffectorConstraint 还在 problem 里, 它就会去解析
+            // TargetTrajectories.stateTrajectory 的 head<3>() / tail<4>();
+            // 而全身轨迹的 state 是 9 维 [x, y, yaw, q1..q6], 那样解析出来的
+            // "四元数" 其实是最后 4 个关节角, 语义完全错误 (且可能出现零四元数)。
+            // 所以做全身轨迹跟踪时必须把 constraint 本身从 problem 中拿掉。
+            // ------------------------------------------------------------------
+            endEffectorEnabled_ = true;
+            loadData::loadPtreeValue(
+                pt, endEffectorEnabled_, "endEffector.activate", true);
+            if (endEffectorEnabled_)
+            {
+                problem_.stateSoftConstraintPtr->add(
+                    "endEffector",
+                    getEndEffectorConstraint(
+                        *pinocchioInterfacePtr_, taskFile, "endEffector",
+                        usePreComputation, libraryFolder, recompileLibraries));
+                problem_.finalSoftConstraintPtr->add(
+                    "finalEndEffector",
+                    getEndEffectorConstraint(
+                        *pinocchioInterfacePtr_, taskFile, "finalEndEffector",
+                        usePreComputation, libraryFolder, recompileLibraries));
+            }
+            else
+            {
+                std::cerr << "\n #### EndEffector soft-constraints are DISABLED "
+                             "(endEffector.activate = false).\n";
+                std::cerr << " #### TargetTrajectories.stateTrajectory will be "
+                             "interpreted as WHOLE-BODY state.\n";
+            }
+
+            // ------------------------------------------------------------------
+            // whole-body trajectory tracking cost
+            //   L(x,t) = 0.5 * (x - x_d(t))' Q (x - x_d(t))
+            //   x_d(t) 由 ROS 发布的 TargetTrajectories 提供 (stateDim 维)
+            // ------------------------------------------------------------------
+            wholeBodyTrackingEnabled_ = false;
+            loadData::loadPtreeValue(
+                pt, wholeBodyTrackingEnabled_, "wholeBodyTracking.activate",
+                true);
+            if (wholeBodyTrackingEnabled_)
+            {
+                if (endEffectorEnabled_)
+                {
+                    throw std::runtime_error(
+                        "[WbmmInterface] endEffector.activate and "
+                        "wholeBodyTracking.activate cannot both be true: they "
+                        "would interpret the same "
+                        "TargetTrajectories.stateTrajectory as 7-D EE pose and "
+                        "stateDim-D whole-body state at the same time.");
+                }
+
+                problem_.stateCostPtr->add(
+                    "wholeBodyTracking",
+                    getWholeBodyTrajectoryCost(
+                        taskFile, "wholeBodyTracking", false));
+
+                problem_.finalCostPtr->add(
+                    "finalWholeBodyTracking",
+                    getWholeBodyTrajectoryCost(
+                        taskFile, "wholeBodyTracking", true));
+            }
+        }
+
         // self-collision avoidance constraint
         selfCollisionEnabled_ = true;
         loadData::loadPtreeValue(pt, selfCollisionEnabled_, "selfCollision.activate", true);
@@ -516,6 +660,57 @@ using namespace ocs2;
         return std::make_unique<StateSoftConstraint>(std::move(constraint), std::move(penaltyArray));
     }
 
+
+    std::unique_ptr<StateCost> WbmmInterface::getEndEffectorTrackingCost(
+        const PinocchioInterface& pinocchioInterface,
+        const std::string& taskFile,
+        const std::string& prefix,
+        bool usePreComputation,
+        const std::string& libraryFolder,
+        bool recompileLibraries)
+    {
+        boost::property_tree::ptree pt;
+        boost::property_tree::read_info(taskFile, pt);
+
+        matrix_t positionWeight = matrix_t::Identity(3, 3);
+        matrix_t orientationWeight = matrix_t::Identity(3, 3);
+        if (pt.get_child_optional(prefix + ".Q.position"))
+        {
+            loadData::loadEigenMatrix(
+                taskFile, prefix + ".Q.position", positionWeight);
+        }
+        if (pt.get_child_optional(prefix + ".Q.orientation"))
+        {
+            loadData::loadEigenMatrix(
+                taskFile, prefix + ".Q.orientation", orientationWeight);
+        }
+
+        std::cerr << "\n #### " << prefix << " Settings: ";
+        std::cerr << "\n #### =============================================================================\n";
+        std::cerr << " #### Q.position:\n" << positionWeight << '\n';
+        std::cerr << " #### Q.orientation:\n" << orientationWeight << '\n';
+        std::cerr << " #### =============================================================================\n";
+
+        if (usePreComputation)
+        {
+            WbmmPinocchioMapping pinocchioMapping(modelInfo_);
+            PinocchioEndEffectorKinematics eeKinematics(
+                pinocchioInterface, pinocchioMapping, {modelInfo_.eeFrame});
+            return std::make_unique<EndEffectorTrackingCost>(
+                eeKinematics, std::move(positionWeight),
+                std::move(orientationWeight));
+        }
+
+        WbmmPinocchioMappingCppAd pinocchioMappingCppAd(modelInfo_);
+        PinocchioEndEffectorKinematicsCppAd eeKinematics(
+            pinocchioInterface, pinocchioMappingCppAd, {modelInfo_.eeFrame},
+            modelInfo_.stateDim, modelInfo_.inputDim,
+            "end_effector_tracking_kinematics", libraryFolder,
+            recompileLibraries, false);
+        return std::make_unique<EndEffectorTrackingCost>(
+            eeKinematics, std::move(positionWeight),
+            std::move(orientationWeight));
+    }
 
     std::unique_ptr<StateCost> WbmmInterface::getSelfCollisionConstraint(
         const PinocchioInterface& pinocchioInterface,
@@ -804,61 +999,135 @@ using namespace ocs2;
         scalar_t delta = 1e-3;
         scalar_t minimumDistance = 0.0;
         scalar_t activationDistance = -1.0;
+        std::string backend = "geometry";
 
         boost::property_tree::ptree pt;
         boost::property_tree::read_info(taskFile, pt);
         std::cerr << "\n #### EnvironmentCollision Settings: ";
         std::cerr << "\n #### =============================================================================\n";
+        loadData::loadPtreeValue(pt, backend, prefix + ".backend", false);
         loadData::loadPtreeValue(pt, mu, prefix + ".mu", true);
         loadData::loadPtreeValue(pt, delta, prefix + ".delta", true);
-        loadData::loadPtreeValue(pt, minimumDistance, prefix + ".minimumDistance", true);
-        loadData::loadPtreeValue(pt, activationDistance, prefix + ".activationDistance", false);
-        loadData::loadStdVector<std::string>(taskFile, prefix + ".collisionLinks", collisionLinks, true);
+        loadData::loadPtreeValue(
+            pt, minimumDistance, prefix + ".minimumDistance", true);
+        loadData::loadPtreeValue(
+            pt, activationDistance, prefix + ".activationDistance", false);
+        loadData::loadStdVector<std::string>(
+            taskFile, prefix + ".collisionLinks", collisionLinks, true);
 
-        // If activationDistance not specified, default to 5 * minimumDistance
         if (activationDistance < 0.0) {
             activationDistance = 5.0 * minimumDistance;
         }
 
-        // Store distances for later use
         envCollisionMinimumDistance_ = minimumDistance;
         envCollisionActivationDistance_ = activationDistance;
 
-        std::cerr << " #### minimumDistance: " << minimumDistance << " (minimum allowed distance)\n";
-        std::cerr << " #### activationDistance: " << activationDistance << " (penalty only active when distance < this value)\n";
+        std::cerr << " #### backend: " << backend << '\n';
+        std::cerr << " #### minimumDistance: " << minimumDistance
+                  << " (minimum allowed distance)\n";
+        std::cerr << " #### activationDistance: " << activationDistance
+                  << " (penalty only active when distance < this value)\n";
         std::cerr << " #### collisionLinks: [";
-        for (size_t i = 0; i < collisionLinks.size(); ++i) {
+        for (std::size_t i = 0; i < collisionLinks.size(); ++i) {
             std::cerr << collisionLinks[i];
-            if (i < collisionLinks.size() - 1) std::cerr << ", ";
+            if (i + 1U < collisionLinks.size()) std::cerr << ", ";
         }
         std::cerr << "]\n";
         std::cerr << " #### =============================================================================\n";
 
-        // Environment collision requires self-collision to be enabled (for robot geometry model)
-        if (!pinocchioGeometryInterfacePtr_) {
-            throw std::runtime_error(
-                "[EnvironmentCollision] Environment collision requires selfCollision to be enabled first!");
+        const scalar_t activationThreshold =
+            activationDistance - minimumDistance;
+
+        if (backend == "esdf") {
+            if (collisionLinks.empty()) {
+                throw std::runtime_error(
+                    "[EnvironmentCollision] esdf backend requires at least "
+                    "one collisionLink.");
+            }
+
+            std::string esdfFile;
+            std::string esdfFrame;
+            loadData::loadPtreeValue(
+                pt, esdfFile, prefix + ".esdf.file", true);
+            loadData::loadPtreeValue(
+                pt, esdfFrame, prefix + ".esdf.frame", false);
+            if (esdfFile.empty()) {
+                throw std::runtime_error(
+                    "[EnvironmentCollision] esdf backend requires "
+                    "environmentCollision.esdf.file.");
+            }
+
+            const auto loadResult =
+                wbmm::environment::NpzEsdfLoader::load(esdfFile);
+            if (loadResult.status !=
+                wbmm::environment::LoadStatus::kSuccess ||
+                loadResult.grid == nullptr) {
+                throw std::runtime_error(
+                    "[EnvironmentCollision] Failed to load ESDF: " +
+                    loadResult.message);
+            }
+
+            if (!esdfFrame.empty() &&
+                esdfFrame != loadResult.grid->info().frame_id) {
+                throw std::runtime_error(
+                    "[EnvironmentCollision] Configured ESDF frame '" +
+                    esdfFrame + "' does not match NPZ frame '" +
+                    loadResult.grid->info().frame_id + "'.");
+            }
+
+            scalar_t maxExcess = 0.01;
+            scalar_t shrinkRatio = 0.8;
+            loadData::loadPtreeValue(
+                pt, maxExcess, prefix + ".maxExcess", false);
+            loadData::loadPtreeValue(
+                pt, shrinkRatio, prefix + ".shrinkRatio", false);
+            if (!(maxExcess > 0.0) || !std::isfinite(maxExcess)) {
+                throw std::runtime_error(
+                    "[EnvironmentCollision] maxExcess must be positive and "
+                    "finite.");
+            }
+
+            std::vector<scalar_t> maxExcesses(
+                collisionLinks.size(), maxExcess);
+            esdfEnvInterfacePtr_ = std::make_shared<EsdfEnvironmentInterface>(
+                pinocchioInterface, loadResult.grid, collisionLinks,
+                maxExcesses, shrinkRatio, minimumDistance);
+
+            auto constraint =
+                std::make_unique<EsdfEnvironmentCollisionConstraint>(
+                    WbmmPinocchioMapping(modelInfo_), esdfEnvInterfacePtr_,
+                    minimumDistance);
+
+            auto penalty = std::make_unique<ThresholdRelaxedBarrierPenalty>(
+                ThresholdRelaxedBarrierPenalty::Config{
+                    mu, delta, activationThreshold});
+
+            return std::make_unique<StateSoftConstraint>(
+                std::move(constraint), std::move(penalty));
         }
 
-        // Create environment geometry interface (reuses geometry model from self-collision)
+        // Legacy coal/FCL backend.
+        if (!pinocchioGeometryInterfacePtr_) {
+            throw std::runtime_error(
+                "[EnvironmentCollision] geometry backend requires "
+                "selfCollision to be enabled first!");
+        }
+
         envGeomInterfacePtr_ = std::make_shared<EnvironmentGeometryInterface>(
             *pinocchioGeometryInterfacePtr_, pinocchioInterface, collisionLinks);
 
-        // Load initial obstacles from config
         loadInitialObstacles(taskFile, prefix);
 
-        // Create the constraint
         auto constraint = std::make_unique<WbmmEnvironmentCollisionConstraint>(
-            WbmmPinocchioMapping(modelInfo_),
-            envGeomInterfacePtr_,
+            WbmmPinocchioMapping(modelInfo_), envGeomInterfacePtr_,
             minimumDistance);
 
-        // Use ThresholdRelaxedBarrierPenalty with activation distance
-        const scalar_t activationThreshold = activationDistance - minimumDistance;
         auto penalty = std::make_unique<ThresholdRelaxedBarrierPenalty>(
-            ThresholdRelaxedBarrierPenalty::Config{mu, delta, activationThreshold});
+            ThresholdRelaxedBarrierPenalty::Config{
+                mu, delta, activationThreshold});
 
-        return std::make_unique<StateSoftConstraint>(std::move(constraint), std::move(penalty));
+        return std::make_unique<StateSoftConstraint>(
+            std::move(constraint), std::move(penalty));
     }
 
 

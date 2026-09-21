@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>wbmm_collision</name>
+  <version>0.1.0</version>
+  <description>Robot collision geometry and environment checking skeleton for WBMM.</description>
+  <maintainer email="user@todo.todo">WBMM</maintainer>
+  <license>BSD-3-Clause</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>wbmm_core</depend>
+  <depend>wbmm_environment</depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

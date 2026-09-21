@@ -145,4 +145,61 @@ void CartesianComplianceController::reset(const Vector6d & measured_wrench)
   measured_wrench_ = measured_wrench;
 }
 
+wbmm::core::EndEffectorPose makeEndEffectorPoseTarget(
+  const wbmm::core::Pose & nominal_pose,
+  const Vector6d & local_correction,
+  const std::string & frame_id,
+  double stamp)
+{
+  if (frame_id.empty() || !std::isfinite(stamp) || stamp < 0.0) {
+    throw std::invalid_argument(
+      "End-effector pose target requires a valid frame and stamp");
+  }
+  if (!local_correction.allFinite() ||
+    !wbmm::core::isFinite(nominal_pose.position))
+  {
+    throw std::invalid_argument("End-effector pose target input is non-finite");
+  }
+
+  const Eigen::Quaterniond nominal_quaternion(
+    nominal_pose.orientation.w, nominal_pose.orientation.x,
+    nominal_pose.orientation.y, nominal_pose.orientation.z);
+  if (!std::isfinite(nominal_quaternion.norm()) ||
+    nominal_quaternion.norm() < 1.0e-12)
+  {
+    throw std::invalid_argument("Nominal orientation is not a valid quaternion");
+  }
+  const Eigen::Matrix3d nominal_rotation =
+    nominal_quaternion.normalized().toRotationMatrix();
+  const Eigen::Vector3d nominal_position(
+    nominal_pose.position.x, nominal_pose.position.y,
+    nominal_pose.position.z);
+
+  const Eigen::Vector3d world_translation =
+    nominal_rotation * local_correction.head<3>();
+  const Eigen::Vector3d world_rotation =
+    nominal_rotation * local_correction.tail<3>();
+
+  const double angle = world_rotation.norm();
+  const Eigen::Matrix3d delta_rotation = angle < 1.0e-12
+    ? Eigen::Matrix3d::Identity()
+    : Eigen::AngleAxisd(angle, world_rotation / angle).toRotationMatrix();
+  const Eigen::Matrix3d target_rotation = delta_rotation * nominal_rotation;
+  const Eigen::Vector3d target_position = nominal_position + world_translation;
+
+  const Eigen::Quaterniond target_quaternion(target_rotation);
+
+  wbmm::core::EndEffectorPose target;
+  target.header.frame_id = frame_id;
+  target.header.stamp = stamp;
+  target.position.x = target_position.x();
+  target.position.y = target_position.y();
+  target.position.z = target_position.z();
+  target.orientation.w = target_quaternion.w();
+  target.orientation.x = target_quaternion.x();
+  target.orientation.y = target_quaternion.y();
+  target.orientation.z = target_quaternion.z();
+  return target;
+}
+
 }  // namespace whole_body_force_control

@@ -247,15 +247,32 @@ void WholeBodyForceControlNode::loadParameters()
       "whole_body.max_base_velocity", 0.5);
   parameters_.max_joint_velocity = declare_parameter<double>(
       "whole_body.max_joint_velocity", 1.0);
+  parameters_.max_ee_linear_velocity = declare_parameter<double>(
+      "whole_body.max_ee_linear_velocity", 0.05);
+  parameters_.max_ee_angular_velocity = declare_parameter<double>(
+      "whole_body.max_ee_angular_velocity", 0.20);
+  parameters_.max_ee_translation_offset = declare_parameter<double>(
+      "whole_body.max_ee_translation_offset", 0.10);
+  parameters_.max_ee_rotation_offset = declare_parameter<double>(
+      "whole_body.max_ee_rotation_offset", 0.30);
   if (!std::isfinite(parameters_.base_share) ||
       !std::isfinite(parameters_.max_base_velocity) ||
-      !std::isfinite(parameters_.max_joint_velocity)) {
+      !std::isfinite(parameters_.max_joint_velocity) ||
+      !std::isfinite(parameters_.max_ee_linear_velocity) ||
+      !std::isfinite(parameters_.max_ee_angular_velocity) ||
+      !std::isfinite(parameters_.max_ee_translation_offset) ||
+      !std::isfinite(parameters_.max_ee_rotation_offset)) {
     throw std::runtime_error("whole_body parameters must be finite");
   }
   if (parameters_.max_base_velocity <= 0.0 ||
-      parameters_.max_joint_velocity <= 0.0) {
+      parameters_.max_joint_velocity <= 0.0 ||
+      parameters_.max_ee_linear_velocity <= 0.0 ||
+      parameters_.max_ee_angular_velocity <= 0.0 ||
+      parameters_.max_ee_translation_offset < 0.0 ||
+      parameters_.max_ee_rotation_offset < 0.0) {
     throw std::runtime_error(
-        "whole_body max_base_velocity/max_joint_velocity must be positive");
+        "whole_body velocity limits must be positive and offset limits "
+        "non-negative");
   }
 
   parameters_.observation_timeout = declare_parameter<double>(
@@ -280,6 +297,16 @@ void WholeBodyForceControlNode::loadParameters()
 
   parameters_.reference_output_enabled = declare_parameter<bool>(
       "admittance.output", false);
+  const auto output_mode = declare_parameter<std::string>(
+      "output.mode", "ee_pose");
+  if (output_mode == "ee_pose") {
+    parameters_.output_mode = ReferenceOutputMode::kEndEffectorPose;
+  } else if (output_mode == "whole_body_state") {
+    parameters_.output_mode = ReferenceOutputMode::kWholeBodyState;
+  } else {
+    throw std::runtime_error(
+        "output.mode must be 'ee_pose' or 'whole_body_state'");
+  }
   parameters_.reference_horizon = declare_parameter<double>(
       "output.reference_horizon", 1.0);
   parameters_.reference_dt = declare_parameter<double>(
@@ -301,7 +328,10 @@ void WholeBodyForceControlNode::loadParameters()
       "topics.states", "/whole_body_force_control/states");
   parameters_.wrench_topic = declare_parameter<std::string>(
       "topics.wrench", "/whole_body_force_control/wrench");
-  parameters_.target_topic = parameters_.robot_name + "_mpc_target";
+  parameters_.target_topic = declare_parameter<std::string>(
+      "topics.target", parameters_.robot_name + "_mpc_target");
+  parameters_.ee_target_topic = declare_parameter<std::string>(
+      "topics.ee_target", parameters_.robot_name + "_ee_target");
 }
 
 }  // namespace whole_body_force_control

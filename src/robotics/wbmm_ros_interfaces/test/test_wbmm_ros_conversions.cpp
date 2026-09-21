@@ -19,13 +19,11 @@ std::vector<std::string> jointNames()
 wbmm::core::WholeBodyState makeState(
   double x, double y, double yaw, double first_joint,
   const std::vector<std::string> & names,
-  double stamp,
-  wbmm::core::ClockDomain clock)
+  double stamp)
 {
   wbmm::core::WholeBodyState state;
   state.header.frame_id = "odom";
   state.header.stamp = stamp;
-  state.header.clock = clock;
   state.base_model = wbmm::core::BaseModel::kDifferentialDrive;
   state.base.x = x;
   state.base.y = y;
@@ -70,12 +68,11 @@ TEST(WbmmRosConversions, MpcObservationConvertsToWholeBodyState)
 
   const auto state =
     wbmm::ros_interfaces::wholeBodyStateFromMpcObservation(
-    message, jointNames(), "odom", wbmm::core::ClockDomain::kOcs2Mpc);
+    message, jointNames(), "odom");
 
   ASSERT_TRUE(state.has_value());
   EXPECT_EQ(state->header.frame_id, "odom");
   EXPECT_DOUBLE_EQ(state->header.stamp, 12.5);
-  EXPECT_EQ(state->header.clock, wbmm::core::ClockDomain::kOcs2Mpc);
   EXPECT_EQ(state->base_model, wbmm::core::BaseModel::kDifferentialDrive);
   EXPECT_DOUBLE_EQ(state->base.x, 1.0);
   EXPECT_DOUBLE_EQ(state->base.y, 2.0);
@@ -93,16 +90,14 @@ TEST(WbmmRosConversions, MpcObservationRejectsWrongSizeOrBadStamp)
   message.state.value = {0.0F, 0.0F, 0.0F};
   EXPECT_FALSE(
     wbmm::ros_interfaces::wholeBodyStateFromMpcObservation(
-      message, jointNames(), "odom",
-      wbmm::core::ClockDomain::kOcs2Mpc).has_value());
+      message, jointNames(), "odom").has_value());
 
   message.state.value = {
     0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F};
   message.time = -1.0;
   EXPECT_FALSE(
     wbmm::ros_interfaces::wholeBodyStateFromMpcObservation(
-      message, jointNames(), "odom",
-      wbmm::core::ClockDomain::kOcs2Mpc).has_value());
+      message, jointNames(), "odom").has_value());
 }
 
 TEST(WbmmRosConversions, NonFiniteObservationFailsCoreValidation)
@@ -115,7 +110,7 @@ TEST(WbmmRosConversions, NonFiniteObservationFailsCoreValidation)
 
   const auto state =
     wbmm::ros_interfaces::wholeBodyStateFromMpcObservation(
-    message, jointNames(), "odom", wbmm::core::ClockDomain::kOcs2Mpc);
+    message, jointNames(), "odom");
   ASSERT_TRUE(state.has_value());
   EXPECT_FALSE(wbmm::core::validate(*state));
 }
@@ -133,7 +128,7 @@ TEST(WbmmRosConversions, WrenchUsesFallbackFrameAndConvertsUnits)
   message.wrench.torque.z = 0.3;
 
   const auto wrench = wbmm::ros_interfaces::wrenchFromRos(
-    message, wbmm::core::ClockDomain::kSystem, "tool0");
+    message, "tool0");
   ASSERT_TRUE(wrench.has_value());
   EXPECT_EQ(wrench->header.frame_id, "tool0");
   EXPECT_DOUBLE_EQ(wrench->header.stamp, 3.5);
@@ -144,8 +139,7 @@ TEST(WbmmRosConversions, WrenchUsesFallbackFrameAndConvertsUnits)
   EXPECT_TRUE(wbmm::core::validate(*wrench));
 
   EXPECT_FALSE(
-    wbmm::ros_interfaces::wrenchFromRos(
-      message, wbmm::core::ClockDomain::kSystem).has_value());
+    wbmm::ros_interfaces::wrenchFromRos(message).has_value());
 }
 
 TEST(WbmmRosConversions, WholeBodyTrajectoryConvertsToMpcTargetTrajectories)
@@ -161,11 +155,10 @@ TEST(WbmmRosConversions, WholeBodyTrajectoryConvertsToMpcTargetTrajectories)
     point.time_from_start = time;
     point.phase = wbmm::core::ExecutionPhase::kExecution;
     point.state = makeState(
-      1.0, 2.0, 0.5, 0.1, names, 5.0 + time,
-      wbmm::core::ClockDomain::kOcs2Mpc);
+      1.0, 2.0, 0.5, 0.1, names, 5.0 + time);
     point.feedforward_input =
       wbmm::ros_interfaces::makeZeroWholeBodyInput(
-      names, 5.0 + time, wbmm::core::ClockDomain::kOcs2Mpc);
+      names, 5.0 + time);
     trajectory.points.push_back(std::move(point));
   }
 
@@ -186,6 +179,37 @@ TEST(WbmmRosConversions, WholeBodyTrajectoryConvertsToMpcTargetTrajectories)
   }
 }
 
+TEST(WbmmRosConversions, EndEffectorPoseConvertsToSevenDimensionalTarget)
+{
+  wbmm::core::EndEffectorPose pose;
+  pose.header.frame_id = "odom";
+  pose.header.stamp = 5.0;
+  pose.position.x = 0.5;
+  pose.position.y = -0.2;
+  pose.position.z = 0.7;
+  pose.orientation.w = 0.9;
+  pose.orientation.x = 0.1;
+  pose.orientation.y = 0.2;
+  pose.orientation.z = 0.3;
+
+  const auto message =
+    wbmm::ros_interfaces::toMpcTargetTrajectories(pose, 5.0, 8);
+
+  ASSERT_EQ(message.time_trajectory.size(), 1U);
+  EXPECT_DOUBLE_EQ(message.time_trajectory[0], 5.0);
+  ASSERT_EQ(message.state_trajectory.size(), 1U);
+  ASSERT_EQ(message.state_trajectory[0].value.size(), 7U);
+  EXPECT_FLOAT_EQ(message.state_trajectory[0].value[0], 0.5F);
+  EXPECT_FLOAT_EQ(message.state_trajectory[0].value[1], -0.2F);
+  EXPECT_FLOAT_EQ(message.state_trajectory[0].value[2], 0.7F);
+  EXPECT_FLOAT_EQ(message.state_trajectory[0].value[3], 0.1F);
+  EXPECT_FLOAT_EQ(message.state_trajectory[0].value[4], 0.2F);
+  EXPECT_FLOAT_EQ(message.state_trajectory[0].value[5], 0.3F);
+  EXPECT_FLOAT_EQ(message.state_trajectory[0].value[6], 0.9F);
+  ASSERT_EQ(message.input_trajectory.size(), 1U);
+  ASSERT_EQ(message.input_trajectory[0].value.size(), 8U);
+}
+
 TEST(WbmmRosConversions, EigenStateRoundTripMatchesCoreContract)
 {
   const auto names = jointNames();
@@ -193,7 +217,6 @@ TEST(WbmmRosConversions, EigenStateRoundTripMatchesCoreContract)
   state << 1.0, 2.0, 0.5, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6;
   wbmm::core::Header header;
   header.frame_id = "odom";
-  header.clock = wbmm::core::ClockDomain::kSystem;
 
   const auto core = wbmm::ros_interfaces::toCoreState(state, names, header);
   ASSERT_TRUE(core.has_value());

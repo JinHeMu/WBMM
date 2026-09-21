@@ -67,7 +67,6 @@ wbmm::core::WholeBodyState coreState(
   wbmm::core::Header header;
   header.frame_id = "odom";
   header.stamp = 0.0;
-  header.clock = wbmm::core::ClockDomain::kSystem;
   const auto converted =
     wbmm::ros_interfaces::toCoreState(state, joint_names, header);
   if (!converted.has_value()) {
@@ -207,6 +206,53 @@ TEST(CartesianComplianceController, TransformsForceAndLeverArmTorque)
     source, rotation, target_to_source);
   EXPECT_TRUE(target.head<3>().isApprox(Eigen::Vector3d(0.0, 2.0, 0.0), 1.0e-12));
   EXPECT_TRUE(target.tail<3>().isApprox(Eigen::Vector3d(-0.5, 0.0, 0.2), 1.0e-12));
+}
+
+TEST(EndEffectorPoseTarget, AppliesLocalCorrectionInNominalFrame)
+{
+  wbmm::core::Pose nominal;
+  nominal.header.frame_id = "odom";
+  nominal.header.stamp = 0.0;
+  nominal.position.x = 1.0;
+  nominal.position.y = 2.0;
+  nominal.position.z = 0.5;
+  const Eigen::Quaterniond nominal_q(
+    Eigen::AngleAxisd(0.5, Eigen::Vector3d::UnitZ()));
+  nominal.orientation.w = nominal_q.w();
+  nominal.orientation.x = nominal_q.x();
+  nominal.orientation.y = nominal_q.y();
+  nominal.orientation.z = nominal_q.z();
+
+  whole_body_force_control::Vector6d correction =
+    whole_body_force_control::Vector6d::Zero();
+  correction[0] = 0.10;
+  correction[5] = 0.20;
+
+  const auto target = whole_body_force_control::makeEndEffectorPoseTarget(
+    nominal, correction, "odom", 0.5);
+
+  const Eigen::Matrix3d nominal_rotation = nominal_q.toRotationMatrix();
+  const Eigen::Vector3d expected_position =
+    Eigen::Vector3d(1.0, 2.0, 0.5) +
+    nominal_rotation * correction.head<3>();
+  const Eigen::Matrix3d expected_rotation =
+    Eigen::AngleAxisd(
+      0.20, Eigen::Vector3d::UnitZ()).toRotationMatrix() *
+    nominal_rotation;
+
+  EXPECT_DOUBLE_EQ(target.header.stamp, 0.5);
+  EXPECT_EQ(target.header.frame_id, "odom");
+  EXPECT_NEAR(target.position.x, expected_position.x(), 1.0e-12);
+  EXPECT_NEAR(target.position.y, expected_position.y(), 1.0e-12);
+  EXPECT_NEAR(target.position.z, expected_position.z(), 1.0e-12);
+
+  const Eigen::Quaterniond target_q(
+    target.orientation.w, target.orientation.x,
+    target.orientation.y, target.orientation.z);
+  EXPECT_LT(
+    (target_q.normalized().toRotationMatrix() - expected_rotation).norm(),
+    1.0e-12);
+  EXPECT_TRUE(wbmm::core::validate(target).ok);
 }
 
 TEST(PinocchioRobotModel, MatchesCoreDimensionAndJointContract)

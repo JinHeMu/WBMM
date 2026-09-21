@@ -14,19 +14,10 @@ namespace wbmm::core
 // time: s, effort: N*m.
 // Field names intentionally omit unit suffixes; units are part of the contract.
 
-enum class ClockDomain
-{
-  kUnspecified = 0,
-  kSystem,
-  kSimulation,
-  kOcs2Mpc,
-};
-
 struct Header
 {
   std::string frame_id;
   double stamp{0.0};
-  ClockDomain clock{ClockDomain::kUnspecified};
 };
 
 struct Vector3
@@ -47,6 +38,17 @@ struct Quaternion
 };
 
 struct Pose
+{
+  Header header;
+  Vector3 position;
+  Quaternion orientation;
+};
+
+// 6D end-effector pose in Header.frame_id.
+// Orientation uses the same w, x, y, z order as Quaternion.
+// This is the task-space reference type passed from admittance/force control
+// to the whole-body NMPC.
+struct EndEffectorPose
 {
   Header header;
   Vector3 position;
@@ -105,7 +107,6 @@ struct WholeBodyState
 struct WholeBodyInput
 {
   double stamp{0.0};
-  ClockDomain clock{ClockDomain::kUnspecified};
   BaseModel base_model{BaseModel::kUnspecified};
 
   // Differential-drive: [v, omega].
@@ -145,6 +146,13 @@ inline bool isFinite(const double value)
 inline bool isFinite(const Vector3 & value)
 {
   return isFinite(value.x) && isFinite(value.y) && isFinite(value.z);
+}
+
+inline bool isFinite(const EndEffectorPose & value)
+{
+  return isFinite(value.position) && isFinite(value.orientation.w) &&
+         isFinite(value.orientation.x) && isFinite(value.orientation.y) &&
+         isFinite(value.orientation.z);
 }
 
 inline bool isUnitQuaternion(const Quaternion & q, const double tolerance = 1.0e-6)

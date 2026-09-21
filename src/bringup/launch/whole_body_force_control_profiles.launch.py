@@ -102,17 +102,18 @@ def _launch_nodes(context):
 
     description_share = get_package_share_directory(
         "tracer_jaka_description")
-    force_share = get_package_share_directory("whole_body_force_control")
-    ocs2_share = get_package_share_directory("wbmm_ocs2_ros")
     bringup_share = get_package_share_directory("tracer_jaka_bringup")
 
     urdf_file = os.path.join(
         description_share, "urdf", "tracer_jaka_zu5.urdf")
-    task_file = os.path.join(ocs2_share, "config", "task_sim.info")
-    ocs2_config = os.path.join(ocs2_share, "config", "ocs2_sim.yaml")
-    generated_library_root = "/tmp/wbmm_force_control/auto_generated"
+    task_file = os.path.join(bringup_share, "config", "sim", "task.info")
+    ocs2_base = os.path.join(bringup_share, "config", "common", "ocs2.yaml")
+    ocs2_config = os.path.join(bringup_share, "config", "sim", "ocs2.yaml")
+    force_base = os.path.join(
+        bringup_share, "config", "common", "force_control.yaml")
     force_config = os.path.join(
-        force_share, "config", "force_follow_sim.yaml")
+        bringup_share, "config", "sim", "force_control.yaml")
+    generated_library_root = "/tmp/wbmm_force_control/auto_generated"
     rviz_config = os.path.join(
         bringup_share, "rviz", "whole_body_force_control_sim.rviz")
 
@@ -123,6 +124,7 @@ def _launch_nodes(context):
             name="wbmm_mpc_node",
             output="screen",
             parameters=[
+                ocs2_base,
                 ocs2_config,
                 {
                     "taskFile": task_file,
@@ -138,6 +140,7 @@ def _launch_nodes(context):
             name="wbmm_mrt_node",
             output="screen",
             parameters=[
+                ocs2_base,
                 ocs2_config,
                 {
                     "taskFile": task_file,
@@ -154,6 +157,7 @@ def _launch_nodes(context):
             name="whole_body_force_control",
             output="screen",
             parameters=[
+                force_base,
                 force_config,
                 profile["force_overrides"],
                 {

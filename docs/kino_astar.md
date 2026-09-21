@@ -1,6 +1,6 @@
 # WBMM 差速底盘 Kino A*
 
-> Status: DRAFT  
+> Status: ACTIVE  
 > Author: Agent  
 > Reviewer: TBD  
 > Reviewed at: TBD  
@@ -102,7 +102,7 @@ $$
 
 起终点所有字段必须有限，yaw 必须在 `[-pi, pi]`。横向速度允许 `1e-8 m/s` 以内的浮点噪声，超过阈值则拒绝输入；返回路径横向速度始终为零。起终点前向速度与角速度不参与目标匹配，也不是边界速度约束。返回起点速度为零；后续路径点速度字段记录到达该点的运动段控制，不代表测量反馈。
 
-Header 不允许空 frame、负或非有限 stamp、未指定或非法 clock。实现通过 core 的公开 `Twist` 校验复用 Header 检查，不构造全身状态。Header 的 stamp 是请求元数据；运动段时间是相对持续时间，不与其相加，不用于动态障碍预测。
+Header 不允许空 frame、负或非有限 stamp。实现通过 core 的公开 `Twist` 校验复用 Header 检查，不构造全身状态。Header 的 stamp 是请求元数据；运动段时间是相对持续时间，不与其相加，不用于动态障碍预测。
 
 ## 4. CURRENT：配置与代价
 
@@ -232,7 +232,7 @@ ros2 run wbmm_search kino_astar_demo /tmp/wbmm_kino_astar_demo
 
 以上是启用默认换向与控制变化代价后的本次运行结果，不是随机鲁棒性、仿真接触或实机验证；求解时间会随机器负载变化。末点保留容差内的真实结果，例如原地旋转结束朝向为 `1.6 rad`。倒车示例在原有 4.95 的代价上增加 0.025 的线速度变化成本。
 
-每个场景输出 `_path.csv`、`_primitives.csv`、`_rollout.csv`。注释记录 frame、clock、请求 stamp、碰撞状态和请求目标。`path` 的时间从零开始按持续时间累加；`rollout` 使用 C++ 的同一个 `propagate()` 每 25 ms 导出采样点。
+每个场景输出 `_path.csv`、`_primitives.csv`、`_rollout.csv`。注释记录 frame、请求 stamp、碰撞状态和请求目标。`path` 的时间从零开始按持续时间累加；`rollout` 使用 C++ 的同一个 `propagate()` 每 25 ms 导出采样点。
 
 绘图脚本读取并拼接这些采样点，校验 CSV 元数据、数量、时间及首末端一致性，不重新维护另一套 Python 运动模型。运动段边界可以有同一时间的两个控制样本，因为控制允许跳变。
 

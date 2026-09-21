@@ -40,9 +40,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <ocs2_sqp/SqpSettings.h>
 
 #include <wbmm_ocs2/FactoryFunctions.h>
+#include <wbmm_ocs2/WbmmReferenceManager.h>
 #include <wbmm_ocs2/collision/EnvironmentGeometryInterface.h>
+#include <wbmm_ocs2/collision/EsdfEnvironmentInterface.h>
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
 #include <ocs2_self_collision/PinocchioGeometryInterface.h>
+
+#include <array>
 
 namespace wbmm_ocs2
 {
@@ -89,6 +93,43 @@ namespace wbmm_ocs2
             return referenceManagerPtr_;
         }
 
+        std::shared_ptr<WbmmReferenceManager> getWbmmReferenceManagerPtr() const
+        {
+            return wbmmRefManagerPtr_;
+        }
+
+        bool isModeSwitchEnabled() const { return modeSwitchEnabled_; }
+
+        void setTaskPhase(TaskPhase phase)
+        {
+            wbmmRefManagerPtr_->setTaskPhase(phase);
+        }
+
+        TaskPhase getTaskPhase() const
+        {
+            return wbmmRefManagerPtr_->getTaskPhase();
+        }
+
+        void setWholeBodyTarget(const ocs2::TargetTrajectories& target)
+        {
+            wbmmRefManagerPtr_->setWholeBodyTarget(target);
+        }
+
+        void setEndEffectorTarget(const ocs2::TargetTrajectories& target)
+        {
+            wbmmRefManagerPtr_->setEndEffectorTarget(target);
+        }
+
+        const ocs2::TargetTrajectories& getWholeBodyTarget() const
+        {
+            return wbmmRefManagerPtr_->getWholeBodyTarget();
+        }
+
+        const ocs2::TargetTrajectories& getEndEffectorTarget() const
+        {
+            return wbmmRefManagerPtr_->getEndEffectorTarget();
+        }
+
         const ocs2::Initializer& getInitializer() const override { return *initializerPtr_; }
 
         const ocs2::RolloutBase& getRollout() const { return *rolloutPtr_; }
@@ -117,6 +158,13 @@ namespace wbmm_ocs2
          */
         std::shared_ptr<EnvironmentGeometryInterface> getEnvironmentGeometryInterface() const {
             return envGeomInterfacePtr_;
+        }
+
+        /**
+         * @brief 获取 ESDF 环境接口，未使用 ESDF backend 时返回 nullptr。
+         */
+        std::shared_ptr<EsdfEnvironmentInterface> getEsdfEnvironmentInterface() const {
+            return esdfEnvInterfacePtr_;
         }
 
         /**
@@ -149,6 +197,13 @@ namespace wbmm_ocs2
                                                             const std::string& prefix, bool useCaching,
                                                             const std::string& libraryFolder,
                                                             bool recompileLibraries);
+        std::unique_ptr<ocs2::StateCost> getEndEffectorTrackingCost(
+            const ocs2::PinocchioInterface& pinocchioInterface,
+            const std::string& taskFile,
+            const std::string& prefix,
+            bool usePreComputation,
+            const std::string& libraryFolder,
+            bool recompileLibraries);
         std::unique_ptr<ocs2::StateCost> getSelfCollisionConstraint(const ocs2::PinocchioInterface& pinocchioInterface,
                                                               const std::string& taskFile,
                                                               const std::string& urdfFile,
@@ -182,6 +237,7 @@ namespace wbmm_ocs2
 
         ocs2::OptimalControlProblem problem_;
         std::shared_ptr<ocs2::ReferenceManager> referenceManagerPtr_;
+        std::shared_ptr<WbmmReferenceManager> wbmmRefManagerPtr_;
 
         std::unique_ptr<ocs2::RolloutBase> rolloutPtr_;
         std::unique_ptr<ocs2::Initializer> initializerPtr_;
@@ -201,8 +257,11 @@ namespace wbmm_ocs2
         // 自碰撞约束是否启用
         bool selfCollisionEnabled_ = false;
 
-        // 环境碰撞几何接口
+        // 环境碰撞几何接口（coal backend）
         std::shared_ptr<EnvironmentGeometryInterface> envGeomInterfacePtr_;
+
+        // 环境碰撞 ESDF 接口（esdf backend）
+        std::shared_ptr<EsdfEnvironmentInterface> esdfEnvInterfacePtr_;
 
         // 环境碰撞激活距离
         ocs2::scalar_t envCollisionActivationDistance_ = 0.0;
@@ -217,5 +276,6 @@ namespace wbmm_ocs2
 
         bool endEffectorEnabled_{true};
         bool wholeBodyTrackingEnabled_{false};
+        bool modeSwitchEnabled_{false};
     };
 }

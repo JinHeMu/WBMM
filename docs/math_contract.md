@@ -1,6 +1,6 @@
 # WBMM 数学与接口契约
 
-> Status: DRAFT
+> Status: ACTIVE
 > Author: Agent  
 > Reviewer: Jinhemu
 > Reviewed at: TBD  
@@ -56,34 +56,6 @@ $$
 $$
 \operatorname{wrapToPi}(\theta) = \operatorname{atan2}(\sin\theta, \cos\theta)
 $$
-
-### 1.4 时钟域约定
-
-所有带时间戳的数据必须明确所属时钟域：
-
-$$
-\text{ClockDomain} \in \{
-\text{kSystem},
-\text{kSimulation},
-\text{kOcs2Mpc}
-\}
-$$
-
-| 时钟域 | 用途 |
-|---|---|
-| `kSystem` | 实机系统时间、真实 ROS 时间 |
-| `kSimulation` | 仿真时间、MuJoCo / Gazebo 仿真时钟 |
-| `kOcs2Mpc` | OCS2 observation / MPC 内部时间轴 |
-
-规则：
-
-- 同一条轨迹内所有点必须使用同一个时钟域；
-- 不同时钟域之间不能直接比较、相减或插值；
-- ROS Adapter 负责把消息时间转换到 `wbmm_core` 内部时钟域；
-- OCS2 Reference Adapter 负责把 `wbmm_core` 轨迹映射到 `kOcs2Mpc`；
-- 严禁把仿真时间、系统时间和 OCS2 时间轴隐式混用。
-
----
 
 ## 2. 坐标系定义
 
@@ -179,8 +151,7 @@ $$
 WholeBodyState
 ├── Header
 │   ├── frame_id
-│   ├── stamp
-│   └── clock
+│   └── stamp
 ├── BaseState
 │   ├── x
 │   ├── y
@@ -257,7 +228,6 @@ $$
 ```text
 WholeBodyInput
 ├── stamp
-├── clock
 ├── base_model
 ├── base_command
 ├── joint_names
@@ -796,9 +766,7 @@ FAULT
 7. frame_id 不允许为空；
 8. 环境和碰撞模型的 revision 必须一致；
 9. 跨坐标系速度必须做正确变换；
-10. 力控模式必须有明确的参考坐标系和作用轴；
-11. 同一轨迹内所有点的时钟域必须一致；
-12. 不允许把 `kSimulation`、`kSystem`、`kOcs2Mpc` 隐式混用。
+10. 力控模式必须有明确的参考坐标系和作用轴。
 
 统一校验入口位于：
 

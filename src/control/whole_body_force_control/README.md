@@ -1,6 +1,6 @@
 # whole_body_force_control
 
-通用移动机械臂力控包，负责力传感器预处理、TCP 系导纳修正和 MPC reference 生成。
+通用移动机械臂力控包，负责力传感器预处理、TCP 系导纳修正和任务空间/全身 reference 生成。默认输出 7D 末端位姿给 OCS2，由 OCS2 决定底盘与机械臂分工；旧 9D base_share + IK 路线保留为实验基线。
 
 机器人模型、全身运动学与 ROS 消息转换由：
 
@@ -150,17 +150,24 @@ D = 2 * zeta * sqrt(M * K)
 
 ```yaml
 whole_body:
+  # Legacy baseline only. The preferred ee_pose output path does not use
+  # base_share; OCS2 decides how base and arm share the motion.
   base_share: 0.4
   max_base_velocity: 0.5
   max_joint_velocity: 0.5
+  max_ee_linear_velocity: 0.05
+  max_ee_angular_velocity: 0.20
+  max_ee_translation_offset: 0.10
+  max_ee_rotation_offset: 0.30
 ```
 
-- `base_share`：世界系平移在底盘航向上的分担比例。
-- `max_base_velocity`：底盘 x/y reference 每周期速度上限。
-- `max_joint_velocity`：机械臂 reference 每周期关节速度上限。
+- `base_share`：仅 legacy `whole_body_state` 模式使用；ee_pose 模式不使用。
+- `max_base_velocity` / `max_joint_velocity`：legacy 9D reference 的速度上限。
+- `max_ee_linear_velocity` / `max_ee_angular_velocity`：ee_pose 模式任务空间目标的速度上限。
+- `max_ee_translation_offset` / `max_ee_rotation_offset`：ee_pose 模式任务空间修正的 anti-windup 边界。
 
-不设置 `whole_body.max_base_delta` 和 `whole_body.max_joint_delta`。  
-底盘位移只由上游路径/碰撞/MPC 约束限制；机械臂只受关节硬限位和 IK 可达性限制。
+`whole_body.max_base_delta` 和 `whole_body.max_joint_delta` 不用于 ee_pose 模式。  
+ee_pose 模式下底盘/机械臂分工由 OCS2 决定；legacy 模式仍保留原有 IK 可达性限制。
 
 ### safety
 
@@ -176,6 +183,9 @@ safety:
 
 ```yaml
 output:
+  # ee_pose: publish a 7D EndEffectorPose target to the OCS2 EE reference.
+  # whole_body_state: legacy 9D base_share + IK baseline.
+  mode: ee_pose
   reference_horizon: 1.0
   reference_dt: 0.1
   input_dimension: 8
@@ -231,6 +241,36 @@ ros2 param set /virtual_force_publisher torque "[0.0, 0.0, 1.0]"
 ```bash
 ros2 run whole_body_force_control fake_wrench_sequence.py \
   --ros-args -p sequence_enabled:=true
+```
+
+单轴顺序测试：
+
+```bash
+ros2 run whole_body_force_control axis_wrench_sequence.py
+```
+
+默认顺序为：
+
+```text
+2 s  zero
+2 s  +X 5 N
+2 s  zero
+2 s  +Y 5 N
+2 s  zero
+2 s  +Z 5 N
+2 s  zero
+```
+
+可用参数：
+
+```bash
+ros2 run whole_body_force_control axis_wrench_sequence.py \
+  --ros-args \
+  -p force_magnitude:=5.0 \
+  -p zero_duration:=2.0 \
+  -p hold_duration:=2.0 \
+  -p final_zero_duration:=2.0 \
+  -p loop:=false
 ```
 
 ## 碰撞说明

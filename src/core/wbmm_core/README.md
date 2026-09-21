@@ -31,7 +31,6 @@ include/wbmm_core/wbmm_core.hpp
 - 底盘状态、关节状态、全身状态；
 - 全身输入；
 - 执行相位；
-- 时钟域 `kSystem` / `kSimulation` / `kOcs2Mpc`；
 - 基础有限性与四元数检查。
 
 ### `trajectory.hpp`
@@ -54,7 +53,6 @@ include/wbmm_core/wbmm_core.hpp
 - 关节名称重复或数组维度不一致；
 - 非严格递增轨迹时间；
 - 零 `revision`；
-- 未指定时钟域或同一条轨迹内时钟域不一致；
 - 轨迹中途切换 frame、base_model 或关节顺序；
 - `feedforward_input` 与对应 `state` 的 base_model / 关节顺序不一致；
 - 关节数量、数组维度或关节名称唯一性不满足结构契约；

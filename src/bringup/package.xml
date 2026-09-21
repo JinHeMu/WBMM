@@ -20,13 +20,11 @@
   <exec_depend>jaka_hardware_interface</exec_depend>
   <exec_depend>joint_state_broadcaster</exec_depend>
   <exec_depend>joint_trajectory_controller</exec_depend>
-  <exec_depend>joy</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>moveit_configs_utils</exec_depend>
   <exec_depend>moveit_ros_move_group</exec_depend>
   <exec_depend>moveit_ros_visualization</exec_depend>
-  <exec_depend>moveit_servo</exec_depend>
   <exec_depend>mujoco_ros2_control</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>nav2_lifecycle_manager</exec_depend>

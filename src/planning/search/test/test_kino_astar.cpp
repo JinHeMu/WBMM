@@ -17,7 +17,7 @@ constexpr double kPi = 3.14159265358979323846;
 
 wbmm::core::Header header()
 {
-  return {"odom", 10.0, wbmm::core::ClockDomain::kSimulation};
+  return {"odom", 10.0};
 }
 
 wbmm::core::RobotLimits limits()
@@ -206,9 +206,6 @@ TEST(KinoAstarValidation, RejectsBadHeaderAndNonfiniteState)
 {
   auto bad_header = header();
   bad_header.frame_id.clear();
-  expectFailure(KinoAstar(offlineConfig()).search(bad_header, {}, {}, limits()), SearchStatus::kInvalidInput);
-  bad_header = header();
-  bad_header.clock = wbmm::core::ClockDomain::kUnspecified;
   expectFailure(KinoAstar(offlineConfig()).search(bad_header, {}, {}, limits()), SearchStatus::kInvalidInput);
   bad_header = header();
   bad_header.stamp = -1.0;

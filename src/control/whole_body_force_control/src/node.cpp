@@ -37,8 +37,7 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
   kinematics_ = std::make_unique<WholeBodyKinematics>(
-      robot_model_, parameters_.tcp_frame, parameters_.state_frame,
-      wbmm::core::ClockDomain::kOcs2Mpc);
+      robot_model_, parameters_.tcp_frame, parameters_.state_frame);
 
   configureForceProcessor();
 
@@ -101,6 +100,10 @@ void WholeBodyForceControlNode::publishHoldReference()
   if (!observation_received_) {
     return;
   }
+  if (parameters_.output_mode == ReferenceOutputMode::kEndEffectorPose) {
+    publishHoldEndEffectorReference();
+    return;
+  }
   if (!hold_state_valid_) {
     hold_state_ = observationStateLocked();
     hold_state_valid_ = true;
@@ -135,6 +138,8 @@ void WholeBodyForceControlNode::captureNominalState(
   nominal_tcp_ = kinematics_->framePosition(nominal_state_);
   nominal_tcp_rotation_ = kinematics_->frameRotation(nominal_state_);
   cartesian_controller_->reset(measuredWrenchVector());
+  last_ee_correction_.setZero();
+  ee_correction_valid_ = false;
   nominal_captured_ = true;
   RCLCPP_INFO(
       get_logger(),
@@ -262,6 +267,118 @@ void WholeBodyForceControlNode::updateReference(
   }
 }
 
+void WholeBodyForceControlNode::clampEndEffectorCorrection(
+    Vector6d & correction)
+{
+  Vector6d clamped = correction;
+  bool limited = false;
+
+  if (parameters_.max_ee_translation_offset > 0.0) {
+    for (Eigen::Index i = 0; i < 3; ++i) {
+      const double value = std::clamp(
+          clamped[i], -parameters_.max_ee_translation_offset,
+          parameters_.max_ee_translation_offset);
+      limited = limited || (value != clamped[i]);
+      clamped[i] = value;
+    }
+  }
+  if (parameters_.max_ee_rotation_offset > 0.0) {
+    for (Eigen::Index i = 3; i < 6; ++i) {
+      const double value = std::clamp(
+          clamped[i], -parameters_.max_ee_rotation_offset,
+          parameters_.max_ee_rotation_offset);
+      limited = limited || (value != clamped[i]);
+      clamped[i] = value;
+    }
+  }
+
+  if (limited) {
+    // Reduce the hidden admittance integrator to the reachable task-space
+    // offset so a released force cannot leave a large hidden target.
+    cartesian_controller_->clampOffset(clamped);
+    correction = cartesian_controller_->offset();
+  } else {
+    correction = clamped;
+  }
+}
+
+void WholeBodyForceControlNode::updateEndEffectorReference(
+    const Vector6d & measured_wrench,
+    double dt,
+    Vector6d & correction,
+    Vector6d & filtered_wrench,
+    wbmm::core::EndEffectorPose & target,
+    double & primary_offset,
+    double & primary_force)
+{
+  correction = cartesian_controller_->update(measured_wrench, dt);
+  filtered_wrench = cartesian_controller_->measuredWrench();
+
+  if (!ee_correction_valid_) {
+    last_ee_correction_ = correction;
+    ee_correction_valid_ = true;
+  }
+
+  // Rate-limit the task-space correction in the nominal TCP frame.  This
+  // prevents a discontinuous target when admittance is enabled or when a
+  // force step occurs, without reintroducing base/arm allocation.
+  const double limited_dt = std::clamp(dt, 0.0, 0.05);
+  const double linear_step =
+      parameters_.max_ee_linear_velocity * limited_dt;
+  const double angular_step =
+      parameters_.max_ee_angular_velocity * limited_dt;
+
+  Vector6d limited = correction;
+  for (Eigen::Index i = 0; i < 3; ++i) {
+    limited[i] = last_ee_correction_[i] +
+        std::clamp(
+            correction[i] - last_ee_correction_[i],
+            -linear_step, linear_step);
+  }
+  for (Eigen::Index i = 3; i < 6; ++i) {
+    limited[i] = last_ee_correction_[i] +
+        std::clamp(
+            correction[i] - last_ee_correction_[i],
+            -angular_step, angular_step);
+  }
+
+  clampEndEffectorCorrection(limited);
+  correction = limited;
+  last_ee_correction_ = correction;
+
+  wbmm::core::Pose nominal_pose;
+  nominal_pose.header.frame_id = parameters_.state_frame;
+  nominal_pose.header.stamp = observation_time_;
+  nominal_pose.position.x = nominal_tcp_.x();
+  nominal_pose.position.y = nominal_tcp_.y();
+  nominal_pose.position.z = nominal_tcp_.z();
+  const Eigen::Quaterniond nominal_quaternion(nominal_tcp_rotation_);
+  nominal_pose.orientation.w = nominal_quaternion.w();
+  nominal_pose.orientation.x = nominal_quaternion.x();
+  nominal_pose.orientation.y = nominal_quaternion.y();
+  nominal_pose.orientation.z = nominal_quaternion.z();
+
+  target = makeEndEffectorPoseTarget(
+      nominal_pose, correction, parameters_.state_frame,
+      observation_time_ + 0.02);
+
+  const Eigen::Vector3d measured_force = filtered_wrench.head<3>();
+  const Eigen::Vector3d correction_translation = correction.head<3>();
+  if (measured_force.norm() > 1.0e-9) {
+    const Eigen::Vector3d direction = measured_force.normalized();
+    primary_force = measured_force.norm();
+    primary_offset = correction_translation.dot(direction);
+  } else {
+    for (std::size_t i = 0; i < 6; ++i) {
+      if (parameters_.admittance_axes[i]) {
+        primary_offset = correction[i];
+        primary_force = filtered_wrench[i];
+        break;
+      }
+    }
+  }
+}
+
 void WholeBodyForceControlNode::configureForceProcessor()
 {
   ForceProcessorConfig config;
@@ -343,9 +460,22 @@ void WholeBodyForceControlNode::update()
 
   Vector6d correction = Vector6d::Zero();
   Vector6d filtered_wrench = Vector6d::Zero();
-  Eigen::VectorXd reference;
   double primary_offset = 0.0;
   double primary_force = 0.0;
+
+  if (parameters_.output_mode == ReferenceOutputMode::kEndEffectorPose) {
+    wbmm::core::EndEffectorPose target;
+    updateEndEffectorReference(
+        measured_wrench, dt, correction, filtered_wrench, target,
+        primary_offset, primary_force);
+    publishEndEffectorReference(target);
+    publishEndEffectorCorrection(
+        target, measured_state, primary_force, primary_offset,
+        filtered_wrench, correction);
+    return;
+  }
+
+  Eigen::VectorXd reference;
   updateReference(
       measured_wrench, dt, correction, filtered_wrench, reference,
       primary_offset, primary_force);

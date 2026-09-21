@@ -87,6 +87,9 @@ void WholeBodyForceControlNode::createRosInterfaces()
   const auto reliable = rclcpp::QoS(1).reliable();
   target_publisher_ = create_publisher<ocs2_msgs::msg::MpcTargetTrajectories>(
       parameters_.target_topic, reliable);
+  ee_target_publisher_ =
+      create_publisher<ocs2_msgs::msg::MpcTargetTrajectories>(
+      parameters_.ee_target_topic, reliable);
   correction_publisher_ = create_publisher<std_msgs::msg::Float64MultiArray>(
       parameters_.correction_topic, rclcpp::QoS(10));
   state_publisher_ = create_publisher<std_msgs::msg::String>(
@@ -110,8 +113,7 @@ void WholeBodyForceControlNode::observationCallback(
     const ocs2_msgs::msg::MpcObservation::SharedPtr message)
 {
   auto converted = wholeBodyStateFromMpcObservation(
-      *message, robot_model_->jointNames(), parameters_.state_frame,
-      wbmm::core::ClockDomain::kOcs2Mpc);
+      *message, robot_model_->jointNames(), parameters_.state_frame);
   if (!converted.has_value())
   {
     RCLCPP_WARN_THROTTLE(
@@ -147,8 +149,7 @@ void WholeBodyForceControlNode::observationCallback(
 void WholeBodyForceControlNode::wrenchCallback(
     const geometry_msgs::msg::WrenchStamped::SharedPtr message)
 {
-  auto raw = wrenchFromRos(
-      *message, wbmm::core::ClockDomain::kSystem, parameters_.sensor_frame);
+  auto raw = wrenchFromRos(*message, parameters_.sensor_frame);
   if (!raw.has_value())
   {
     RCLCPP_WARN_THROTTLE(
@@ -278,7 +279,11 @@ Eigen::VectorXd WholeBodyForceControlNode::observationStateLocked() const
 
 bool WholeBodyForceControlNode::foreignTargetPublisherPresent() const
 {
-  const auto publishers = get_publishers_info_by_topic(parameters_.target_topic);
+  const std::string & topic =
+      parameters_.output_mode == ReferenceOutputMode::kEndEffectorPose
+      ? parameters_.ee_target_topic
+      : parameters_.target_topic;
+  const auto publishers = get_publishers_info_by_topic(topic);
   for (const auto &publisher : publishers)
   {
     if (publisher.node_name() != get_name() ||
@@ -327,7 +332,6 @@ void WholeBodyForceControlNode::publishReference(
     wbmm::core::Header header;
     header.frame_id = parameters_.state_frame;
     header.stamp = stamp;
-    header.clock = wbmm::core::ClockDomain::kOcs2Mpc;
 
     auto state = toCoreState(reference, robot_model_->jointNames(), header);
     if (!state.has_value())
@@ -341,7 +345,7 @@ void WholeBodyForceControlNode::publishReference(
     point.time_from_start = time_from_start;
     point.state = *state;
     point.feedforward_input = makeZeroWholeBodyInput(
-        robot_model_->jointNames(), stamp, wbmm::core::ClockDomain::kOcs2Mpc);
+        robot_model_->jointNames(), stamp);
     point.phase = wbmm::core::ExecutionPhase::kExecution;
     trajectory.points.push_back(point);
   }
@@ -359,6 +363,94 @@ void WholeBodyForceControlNode::publishReference(
       toMpcTargetTrajectories(
           trajectory, observation_time_,
           static_cast<std::size_t>(parameters_.input_dimension)));
+}
+
+void WholeBodyForceControlNode::publishEndEffectorReference(
+    const wbmm::core::EndEffectorPose & target)
+{
+  if (!parameters_.reference_output_enabled)
+  {
+    return;
+  }
+
+  const auto validation = wbmm::core::validate(target);
+  if (!validation.ok)
+  {
+    RCLCPP_ERROR_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Refusing to publish invalid end-effector target: %s",
+        validation.message.c_str());
+    return;
+  }
+
+  ee_target_publisher_->publish(
+      wbmm::ros_interfaces::toMpcTargetTrajectories(
+          target, observation_time_,
+          static_cast<std::size_t>(parameters_.input_dimension)));
+}
+
+void WholeBodyForceControlNode::publishHoldEndEffectorReference()
+{
+  if (!observation_received_)
+  {
+    return;
+  }
+
+  const Eigen::VectorXd measured_state = observationStateLocked();
+  const Eigen::Vector3d position = kinematics_->framePosition(measured_state);
+  const Eigen::Matrix3d rotation = kinematics_->frameRotation(measured_state);
+  const Eigen::Quaterniond orientation(rotation);
+
+  wbmm::core::EndEffectorPose target;
+  target.header.frame_id = parameters_.state_frame;
+  target.header.stamp = observation_time_;
+  target.position.x = position.x();
+  target.position.y = position.y();
+  target.position.z = position.z();
+  target.orientation.w = orientation.w();
+  target.orientation.x = orientation.x();
+  target.orientation.y = orientation.y();
+  target.orientation.z = orientation.z();
+
+  last_ee_correction_.setZero();
+  ee_correction_valid_ = false;
+  publishEndEffectorReference(target);
+}
+
+void WholeBodyForceControlNode::publishEndEffectorCorrection(
+    const wbmm::core::EndEffectorPose & target,
+    const Eigen::VectorXd & /*measured_state*/,
+    double primary_force,
+    double primary_offset,
+    const Vector6d & filtered_wrench,
+    const Vector6d & correction)
+{
+  std_msgs::msg::Float64MultiArray correction_msg;
+  correction_msg.data = {
+      primary_force, primary_offset,
+      target.position.x, target.position.y, target.position.z,
+      target.orientation.w, target.orientation.x,
+      target.orientation.y, target.orientation.z};
+  for (Eigen::Index i = 0; i < 6; ++i)
+  {
+    correction_msg.data.push_back(filtered_wrench[i]);
+  }
+  for (Eigen::Index i = 0; i < 6; ++i)
+  {
+    correction_msg.data.push_back(correction[i]);
+  }
+  for (Eigen::Index i = 0; i < 6; ++i)
+  {
+    correction_msg.data.push_back(cartesian_controller_->velocity()[i]);
+  }
+  for (std::size_t i = 0; i < 6; ++i)
+  {
+    correction_msg.data.push_back(parameters_.admittance_axes[i] ? 1.0 : 0.0);
+  }
+  correction_msg.data.push_back(parameters_.admittance_enabled ? 1.0 : 0.0);
+  correction_msg.data.push_back(parameters_.reference_output_enabled ? 1.0 : 0.0);
+  correction_msg.data.push_back(fault_latched_ ? 1.0 : 0.0);
+  correction_publisher_->publish(correction_msg);
 }
 
 void WholeBodyForceControlNode::publishCorrection(

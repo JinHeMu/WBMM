@@ -37,14 +37,12 @@ namespace wbmm::ros_interfaces
   const wbmm::core::Quaternion & quaternion);
 
 [[nodiscard]] wbmm::core::Header headerFromRos(
-  const std_msgs::msg::Header & header,
-  wbmm::core::ClockDomain clock);
+  const std_msgs::msg::Header & header);
 
 // WrenchStamped -> Wrench。消息 frame_id 为空时使用 fallback_frame；
 // fallback_frame 仍为空、时间戳非法时返回 nullopt。
 [[nodiscard]] std::optional<wbmm::core::Wrench> wrenchFromRos(
   const geometry_msgs::msg::WrenchStamped & message,
-  wbmm::core::ClockDomain clock,
   const std::string & fallback_frame = {});
 
 // MpcObservation -> WholeBodyState。OCS2 observation 不携带 frame_id 和关节名，
@@ -53,8 +51,7 @@ namespace wbmm::ros_interfaces
 wholeBodyStateFromMpcObservation(
   const ocs2_msgs::msg::MpcObservation & message,
   const std::vector<std::string> & joint_names,
-  const std::string & frame_id,
-  wbmm::core::ClockDomain clock);
+  const std::string & frame_id);
 
 // WholeBodyTrajectory -> OCS2 MpcTargetTrajectories。
 // 发布时刻 = start_time + point.time_from_start。
@@ -63,6 +60,13 @@ wholeBodyStateFromMpcObservation(
 [[nodiscard]] ocs2_msgs::msg::MpcTargetTrajectories toMpcTargetTrajectories(
   const wbmm::core::WholeBodyTrajectory & trajectory,
   double start_time,
+  std::size_t input_dimension);
+
+// EndEffectorPose -> OCS2 MpcTargetTrajectories (single 7D target point).
+// State order is [x, y, z, qx, qy, qz, qw].
+[[nodiscard]] ocs2_msgs::msg::MpcTargetTrajectories toMpcTargetTrajectories(
+  const wbmm::core::EndEffectorPose & pose,
+  double time,
   std::size_t input_dimension);
 
 }  // namespace wbmm::ros_interfaces

@@ -8,6 +8,7 @@ parameter files.
 
 import os
 
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
@@ -26,19 +27,28 @@ def _value(context, name):
 def _make_nodes(context):
     start_ekf = _as_bool(_value(context, "start_ekf"))
     start_slam = _as_bool(_value(context, "start_slam"))
+    ekf_base_config = _value(context, "ekf_base_config")
+    slam_base_config = _value(context, "slam_base_config")
     ekf_config = _value(context, "ekf_config")
     slam_config = _value(context, "slam_config")
 
-    if start_ekf and not ekf_config:
+    if start_ekf and not os.path.isfile(ekf_base_config):
         raise RuntimeError(
-            "ekf_config must be provided by the deployment launch")
-    if start_slam and not slam_config:
+            f"EKF base config does not exist: {ekf_base_config!r}")
+    if start_slam and not os.path.isfile(slam_base_config):
         raise RuntimeError(
-            "slam_config must be provided by the deployment launch")
-    if start_ekf and not os.path.isfile(ekf_config):
+            f"SLAM base config does not exist: {slam_base_config!r}")
+    if ekf_config and not os.path.isfile(ekf_config):
         raise RuntimeError(f"EKF config does not exist: {ekf_config!r}")
-    if start_slam and not os.path.isfile(slam_config):
+    if slam_config and not os.path.isfile(slam_config):
         raise RuntimeError(f"SLAM config does not exist: {slam_config!r}")
+
+    ekf_layers = [ekf_base_config]
+    if ekf_config:
+        ekf_layers.append(ekf_config)
+    slam_layers = [slam_base_config]
+    if slam_config:
+        slam_layers.append(slam_config)
 
     use_sim_time = _as_bool(_value(context, "use_sim_time"))
     wheel_odom_topic = _value(context, "wheel_odom_topic")
@@ -59,7 +69,7 @@ def _make_nodes(context):
             name="ekf_filter_node",
             output="screen",
             condition=IfCondition(str(start_ekf).lower()),
-            parameters=[ekf_config, {"use_sim_time": use_sim_time}],
+            parameters=[*ekf_layers, {"use_sim_time": use_sim_time}],
             remappings=ekf_remappings,
         ),
         Node(
@@ -68,7 +78,7 @@ def _make_nodes(context):
             name="slam_toolbox",
             output="screen",
             condition=IfCondition(str(start_slam).lower()),
-            parameters=[slam_config, {"use_sim_time": use_sim_time}],
+            parameters=[*slam_layers, {"use_sim_time": use_sim_time}],
             remappings=[("/scan", scan_topic)],
         ),
     ]
@@ -79,6 +89,16 @@ def generate_launch_description():
         DeclareLaunchArgument("start_ekf", default_value="true"),
         DeclareLaunchArgument("start_slam", default_value="true"),
         DeclareLaunchArgument("use_sim_time", default_value="false"),
+        DeclareLaunchArgument(
+            "ekf_base_config",
+            default_value=os.path.join(
+                get_package_share_directory("tracer_jaka_bringup"),
+                "config", "common", "ekf.yaml")),
+        DeclareLaunchArgument(
+            "slam_base_config",
+            default_value=os.path.join(
+                get_package_share_directory("tracer_jaka_bringup"),
+                "config", "common", "slam_toolbox.yaml")),
         DeclareLaunchArgument("ekf_config", default_value=""),
         DeclareLaunchArgument("slam_config", default_value=""),
         DeclareLaunchArgument("wheel_odom_topic", default_value="/wheel/odometry"),

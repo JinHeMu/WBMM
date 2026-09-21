@@ -306,12 +306,6 @@ BaseSearchResult KinoAstar::search(
   if (!header_check.ok) {
     return finish(SearchStatus::kInvalidInput, header_check.message);
   }
-  if (header.clock != wbmm::core::ClockDomain::kSystem &&
-    header.clock != wbmm::core::ClockDomain::kSimulation &&
-    header.clock != wbmm::core::ClockDomain::kOcs2Mpc)
-  {
-    return finish(SearchStatus::kInvalidInput, "Invalid clock domain");
-  }
   const auto config_error = validateConfig(config_, limits);
   if (!config_error.empty()) {
     return finish(SearchStatus::kInvalidInput, config_error);

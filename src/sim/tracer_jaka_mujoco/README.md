@@ -160,8 +160,8 @@ ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py
 # Then run the algorithm-only localization stack with sim configs.
 ros2 launch tracer_jaka_bringup localization.launch.py \
   start_ekf:=true start_slam:=true \
-  ekf_config:=$(ros2 pkg prefix tracer_jaka_bringup)/share/tracer_jaka_bringup/config/sim/ekf_sim.yaml \
-  slam_config:=$(ros2 pkg prefix tracer_jaka_bringup)/share/tracer_jaka_bringup/config/sim/slam_toolbox_sim.yaml
+  ekf_config:=$(ros2 pkg prefix tracer_jaka_bringup)/share/tracer_jaka_bringup/config/sim/ekf.yaml \
+  slam_config:=$(ros2 pkg prefix tracer_jaka_bringup)/share/tracer_jaka_bringup/config/sim/slam_toolbox.yaml
 ```
 
 如果 `ekf_node` 报

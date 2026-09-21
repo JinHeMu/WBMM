@@ -86,43 +86,42 @@ Planner / Optimizer / Controller 在哪里？
 
 每个参数必须只有一个所有者。
 
-## 6.1 自研 ROS 适配包
+## 6.1 通用算法与接口参数
 
-仿真/开发默认参数、算法自身默认 `task`/`info` 放在功能包自己的 `config/` 下。
-
-当前示例：
-
-```text
-src/control/wbmm_ocs2_ros/config/
-  ocs2_sim.yaml
-  task_sim.info
-
-src/control/whole_body_force_control/config/
-  force_follow_sim.yaml
-```
-
-## 6.2 部署 profile 与第三方 wrapper
-
-实机部署 profile 和第三方算法配置统一放 bringup。目录名已经表达 `real`，
-因此文件名不再重复 `_real` 后缀：
+通用算法结构、topic、frame、joint 名和接口默认值统一放：
 
 ```text
 src/bringup/config/common/
-  moveit_bringup.yaml
-  moveit_servo.yaml
-
-src/bringup/config/sim/
-  ekf_sim.yaml
-  slam_toolbox_sim.yaml
-  remani_sim.yaml
-
-src/bringup/config/real/
+  interface.yaml
   ocs2.yaml
-  task.info
   force_control.yaml
   ekf.yaml
   slam_toolbox.yaml
   remani.yaml
+  moveit_bringup.yaml
+```
+
+## 6.2 实机/仿真差异参数
+
+实机差异放 `config/real/`，仿真差异放 `config/sim/`。目录名已经表达 backend，
+因此文件名不再重复 `_real` / `_sim` 后缀：
+
+```text
+src/bringup/config/sim/
+  ocs2.yaml
+  force_control.yaml
+  ekf.yaml
+  slam_toolbox.yaml
+  remani.yaml
+  task.info
+
+src/bringup/config/real/
+  ocs2.yaml
+  force_control.yaml
+  ekf.yaml
+  slam_toolbox.yaml
+  remani.yaml
+  task.info
   d455_esdf_record_qos.yaml
 ```
 
@@ -213,7 +212,6 @@ remani_mpc_localized.launch.py
 whole_body_force_control.launch.py
 whole_body_force_control_profiles.launch.py
 moveit.launch.py
-servo.launch.py
 ```
 
 必须满足：
@@ -285,7 +283,7 @@ allow_trajectory_execution
 
 - `jaka_hardware_interface` 直接解析 `hardware_write`。
 - 不允许在 xacro/launch 中反相生成 `hardware_write -> read_only`。
-- MoveIt 节点需要的 `allow_trajectory_execution` 由 `hardware_write` 和 `use_servo` 推导。
+- MoveIt 节点需要的 `allow_trajectory_execution` 由 `hardware_write` 直接推导。
 - OCS2 的 `command_output_enabled` 由部署层根据 `hardware_write` 推导。
 
 # 8. 实机代码

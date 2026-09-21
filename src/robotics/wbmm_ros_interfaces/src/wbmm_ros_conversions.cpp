@@ -40,22 +40,20 @@ geometry_msgs::msg::Quaternion quaternionToRos(
 }
 
 wbmm::core::Header headerFromRos(
-  const std_msgs::msg::Header & header, wbmm::core::ClockDomain clock)
+  const std_msgs::msg::Header & header)
 {
   wbmm::core::Header result;
   result.frame_id = header.frame_id;
   result.stamp = toSeconds(header.stamp);
-  result.clock = clock;
   return result;
 }
 
 std::optional<wbmm::core::Wrench> wrenchFromRos(
   const geometry_msgs::msg::WrenchStamped & message,
-  wbmm::core::ClockDomain clock,
   const std::string & fallback_frame)
 {
   wbmm::core::Wrench result;
-  result.header = headerFromRos(message.header, clock);
+  result.header = headerFromRos(message.header);
   if (result.header.frame_id.empty()) {
     result.header.frame_id = fallback_frame;
   }
@@ -81,8 +79,7 @@ std::optional<wbmm::core::Wrench> wrenchFromRos(
 std::optional<wbmm::core::WholeBodyState> wholeBodyStateFromMpcObservation(
   const ocs2_msgs::msg::MpcObservation & message,
   const std::vector<std::string> & joint_names,
-  const std::string & frame_id,
-  wbmm::core::ClockDomain clock)
+  const std::string & frame_id)
 {
   if (frame_id.empty() || joint_names.empty() ||
     message.state.value.size() != 3 + joint_names.size())
@@ -102,8 +99,34 @@ std::optional<wbmm::core::WholeBodyState> wholeBodyStateFromMpcObservation(
   wbmm::core::Header header;
   header.frame_id = frame_id;
   header.stamp = message.time;
-  header.clock = clock;
   return toCoreState(state, joint_names, header);
+}
+
+ocs2_msgs::msg::MpcTargetTrajectories toMpcTargetTrajectories(
+  const wbmm::core::EndEffectorPose & pose,
+  double time,
+  std::size_t input_dimension)
+{
+  ocs2_msgs::msg::MpcTargetTrajectories message;
+
+  message.time_trajectory.push_back(time);
+
+  ocs2_msgs::msg::MpcState state_message;
+  state_message.value = {
+    static_cast<float>(pose.position.x),
+    static_cast<float>(pose.position.y),
+    static_cast<float>(pose.position.z),
+    static_cast<float>(pose.orientation.x),
+    static_cast<float>(pose.orientation.y),
+    static_cast<float>(pose.orientation.z),
+    static_cast<float>(pose.orientation.w)};
+  message.state_trajectory.push_back(std::move(state_message));
+
+  ocs2_msgs::msg::MpcInput input_message;
+  input_message.value.assign(input_dimension, 0.0F);
+  message.input_trajectory.push_back(std::move(input_message));
+
+  return message;
 }
 
 ocs2_msgs::msg::MpcTargetTrajectories toMpcTargetTrajectories(

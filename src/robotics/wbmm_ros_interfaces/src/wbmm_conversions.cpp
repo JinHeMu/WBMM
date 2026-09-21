@@ -72,8 +72,7 @@ Eigen::Matrix<double, 6, 1> toEigenWrench(const wbmm::core::Wrench & wrench)
 std::optional<wbmm::core::WholeBodyInput> toCoreInput(
   const Eigen::Ref<const Eigen::VectorXd> & input,
   const std::vector<std::string> & joint_names,
-  double stamp,
-  wbmm::core::ClockDomain clock)
+  double stamp)
 {
   if (input.size() != static_cast<Eigen::Index>(2 + joint_names.size())) {
     return std::nullopt;
@@ -81,7 +80,6 @@ std::optional<wbmm::core::WholeBodyInput> toCoreInput(
 
   wbmm::core::WholeBodyInput result;
   result.stamp = stamp;
-  result.clock = clock;
   result.base_model = wbmm::core::BaseModel::kDifferentialDrive;
   result.base_command = {input[0], input[1]};
   result.joint_names = joint_names;
@@ -112,12 +110,10 @@ Eigen::VectorXd toEigenInput(const wbmm::core::WholeBodyInput & input)
 
 wbmm::core::WholeBodyInput makeZeroWholeBodyInput(
   const std::vector<std::string> & joint_names,
-  double stamp,
-  wbmm::core::ClockDomain clock)
+  double stamp)
 {
   wbmm::core::WholeBodyInput result;
   result.stamp = stamp;
-  result.clock = clock;
   result.base_model = wbmm::core::BaseModel::kDifferentialDrive;
   result.base_command = {0.0, 0.0};
   result.joint_names = joint_names;

@@ -52,8 +52,7 @@ inline ValidationResult header(const Header & value)
   if (value.stamp < 0.0) {
     return fail("Header.stamp must be non-negative");
   }
-  return value.clock == ClockDomain::kUnspecified ?
-         fail("Header.clock must be specified") : ValidationResult{};
+  return ValidationResult{};
 }
 
 inline ValidationResult vectors(
@@ -156,6 +155,30 @@ inline ValidationResult validate(const Wrench & value)
   return result.ok ? detail::vectors(value.force, value.torque, "Wrench") : result;
 }
 
+inline ValidationResult validate(const EndEffectorPose & value)
+{
+  auto result = detail::header(value.header);
+  if (!result.ok) {
+    return result;
+  }
+  result = detail::vectors(
+    value.position, Vector3{}, "EndEffectorPose.position");
+  if (!result.ok) {
+    return result;
+  }
+  const double q[] = {
+    value.orientation.w, value.orientation.x,
+    value.orientation.y, value.orientation.z};
+  for (const double component : q) {
+    if (!std::isfinite(component)) {
+      return detail::fail("EndEffectorPose quaternion components must be finite");
+    }
+  }
+  return isUnitQuaternion(value.orientation, detail::kTolerance)
+         ? ValidationResult{}
+         : detail::fail("EndEffectorPose quaternion must be normalized");
+}
+
 inline ValidationResult validate(const WholeBodyState & value)
 {
   const auto header_result = detail::header(value.header);
@@ -194,9 +217,6 @@ inline ValidationResult validate(const WholeBodyInput & value)
   auto result = detail::finite(value.stamp, "WholeBodyInput.stamp");
   if (!result.ok || value.stamp < 0.0) {
     return detail::fail("WholeBodyInput.stamp must be finite and non-negative");
-  }
-  if (value.clock == ClockDomain::kUnspecified) {
-    return detail::fail("WholeBodyInput.clock must be specified");
   }
   if (value.base_model != BaseModel::kDifferentialDrive) {
     return detail::fail("WholeBodyInput.base_model must be kDifferentialDrive");
@@ -264,10 +284,9 @@ inline ValidationResult validate(const TaskTrajectory & value)
     if (value.points[i].time_from_start <= value.points[i - 1].time_from_start) {
       return detail::fail("TaskTrajectory time must be strictly increasing");
     }
-    if (value.points[i].pose.header.frame_id != first.pose.header.frame_id ||
-      value.points[i].pose.header.clock != first.pose.header.clock)
+    if (value.points[i].pose.header.frame_id != first.pose.header.frame_id)
     {
-      return detail::fail("TaskTrajectory points must share frame and clock");
+      return detail::fail("TaskTrajectory points must share frame");
     }
   }
   return ValidationResult{};
@@ -355,7 +374,6 @@ inline ValidationResult validate(const WholeBodyTrajectory & value)
   }
   const auto frame_id = first.state.header.frame_id;
   const auto base_model = first.state.base_model;
-  const auto clock = first.state.header.clock;
   const auto joint_names = first.state.joints.names;
 
   for (std::size_t i = 0; i < value.points.size(); ++i) {
@@ -373,15 +391,13 @@ inline ValidationResult validate(const WholeBodyTrajectory & value)
     }
     if (point.state.header.frame_id != frame_id ||
       point.state.base_model != base_model ||
-      point.state.header.clock != clock ||
       point.state.joints.names != joint_names)
     {
-      return detail::fail("WholeBodyTrajectory points must share frame, model, clock and joints");
+      return detail::fail("WholeBodyTrajectory points must share frame, model and joints");
     }
     if (point.feedforward_input.has_value()) {
       const auto input = validate(*point.feedforward_input);
       if (!input.ok ||
-        point.feedforward_input->clock != clock ||
         point.feedforward_input->base_model != base_model ||
         point.feedforward_input->joint_names != joint_names)
       {
@@ -393,10 +409,9 @@ inline ValidationResult validate(const WholeBodyTrajectory & value)
       if (!task.ok) {
         return task;
       }
-      if (point.task_reference->pose.header.clock != clock ||
-        point.task_reference->pose.header.frame_id != point.state.header.frame_id)
+      if (point.task_reference->pose.header.frame_id != point.state.header.frame_id)
       {
-        return detail::fail("WholeBodyTrajectory task_reference must match state frame and clock");
+        return detail::fail("WholeBodyTrajectory task_reference must match state frame");
       }
     }
   }

@@ -125,7 +125,7 @@ $$
 
 源码对应：
 
-- `wbmm_core` 维度常量：[`types.hpp:131`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L131)；
+- `wbmm_core` 维度常量：[`types.hpp:121`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L121)；
 - OCS2 模型维度：[`WbmmModelInfo.h:39`](../src/control/wbmm_ocs2/include/wbmm_ocs2/WbmmModelInfo.h#L39)；
 - OCS2 动力学：[`Dynamics.cpp:50`](../src/control/wbmm_ocs2/src/Dynamics.cpp#L50)。
 
@@ -187,14 +187,13 @@ $$
 
 | 类型 | 核心字段 | 数学/语义 | 源码 |
 |---|---|---|---|
-| `Header` | `frame_id, stamp, clock` | 坐标系、时间、时钟域 | [`types.hpp:25`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L25) |
-| `Vector3` | `x,y,z` | 三维向量 | [`types.hpp:32`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L32) |
-| `Quaternion` | `w,x,y,z` | 内部顺序固定为 `wxyz` | [`types.hpp:39`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L39) |
-| `Pose` | `Header + position + orientation` | 带时空语义的位姿 | [`types.hpp:49`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L49) |
-| `Twist` | `linear + angular` | 六维速度 $[v;\omega]$ | [`types.hpp:56`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L56) |
-| `Wrench` | `force + torque` | 六维力/力矩 $[f;\tau]$ | [`types.hpp:63`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L63) |
+| `Header` | `frame_id, stamp` | 坐标系、时间 | [`types.hpp:17`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L17) |
+| `Vector3` | `x,y,z` | 三维向量 | [`types.hpp:23`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L23) |
+| `Quaternion` | `w,x,y,z` | 内部顺序固定为 `wxyz` | [`types.hpp:32`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L32) |
+| `Pose` | `Header + position + orientation` | 带时空语义的位姿 | [`types.hpp:40`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L40) |
+| `Twist` | `linear + angular` | 六维速度 $[v;\omega]$ | [`types.hpp:47`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L47) |
+| `Wrench` | `force + torque` | 六维力/力矩 $[f;\tau]$ | [`types.hpp:54`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L54) |
 
-`ClockDomain` 区分系统时钟、仿真时钟和 OCS2 MPC 时钟。不同域的时间不能直接相减；ROS/MPC Adapter 应负责转换。
 
 ### 4.2 机器人状态和输入
 
@@ -214,7 +213,7 @@ WholeBodyState
     └── efforts
 ```
 
-源码：[`types.hpp:78`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L78) 与 [`types.hpp:97`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L97)。
+源码：[`types.hpp:69`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L69) 与 [`types.hpp:88`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L88)。
 
 `WholeBodyInput` 保存：
 
@@ -222,13 +221,13 @@ WholeBodyState
 - 显式 `joint_names`；
 - 六关节速度 `joint_velocities`。
 
-源码：[`types.hpp:105`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L105)。
+源码：[`types.hpp:96`](../src/core/wbmm_core/include/wbmm_core/types.hpp#L96)。
 
 关键区别：
 
 - `WholeBodyState.base.linear_velocity` 是测量/估计状态附加量，不会使优化状态从 9D 变成 10D；
 - `JointState.names` 是语义合同，转换时必须按名字映射，不能仅凭数组下标猜顺序；
-- `WholeBodyInput` 的 `stamp` 和 `clock` 独立存在，目前没有完整 `Header`，因此不直接携带 `frame_id`。
+- `WholeBodyInput` 的 `stamp` 独立存在，目前没有完整 `Header`，因此不直接携带 `frame_id`。
 
 ### 4.3 任务轨迹与全身轨迹
 
@@ -284,7 +283,7 @@ $$
 
 `ValidationResult{ok,message}` 为 fail-closed 校验返回值。当前通用校验明确要求：
 
-- `Header.frame_id` 非空、时间有限且非负、时钟域已指定；
+- `Header.frame_id` 非空、时间有限且非负；
 - 四元数归一化；
 - 当前 `WholeBodyState` 必须是差速底盘；
 - yaw 位于 $[-\pi,\pi]$；
@@ -907,7 +906,7 @@ policyInput[0:1] -> 底盘 v/omega
 
 ### 10.1 `wbmm_core` 与实际算法包尚未统一接入
 
-`CURRENT`：core 有强类型、名字、frame、clock、revision；REMANI/OCS2 主链主要使用裸 `Eigen::VectorXd`、独立结构和 ROS 消息。
+`CURRENT`：core 有强类型、名字、frame、revision；REMANI/OCS2 主链主要使用裸 `Eigen::VectorXd`、独立结构和 ROS 消息。
 
 风险：维度正确不等于语义正确，例如 8D 可能是 REMANI 平坦输出，也可能是 OCS2 输入。
 

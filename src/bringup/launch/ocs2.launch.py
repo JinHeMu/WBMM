@@ -23,13 +23,14 @@ def _value(context, name):
 
 
 def _make_nodes(context):
+    base_config_file = _value(context, "base_config_file")
     config_file = _value(context, "config_file")
     task_file = _value(context, "task_file")
     urdf_file = _value(context, "urdf_file")
     lib_folder = _value(context, "lib_folder")
 
     for label, path in (
-        ("OCS2 config_file", config_file),
+        ("OCS2 base_config_file", base_config_file),
         ("OCS2 task_file", task_file),
         ("OCS2 urdf_file", urdf_file),
     ):
@@ -38,9 +39,15 @@ def _make_nodes(context):
                 f"{label} must be provided by the deployment launch")
         if not os.path.isfile(path):
             raise RuntimeError(f"{label} does not exist: {path!r}")
+    if config_file and not os.path.isfile(config_file):
+        raise RuntimeError(f"OCS2 config_file does not exist: {config_file!r}")
     if not lib_folder:
         raise RuntimeError(
             "OCS2 lib_folder must be provided by the deployment launch")
+
+    config_layers = [base_config_file]
+    if config_file:
+        config_layers.append(config_file)
 
     use_sim_time = _as_bool(_value(context, "use_sim_time"))
     use_target = _as_bool(_value(context, "use_target"))
@@ -59,7 +66,7 @@ def _make_nodes(context):
             executable="wbmm_mpc_node",
             name="wbmm_mpc_node",
             output="screen",
-            parameters=[config_file, {
+            parameters=[*config_layers, {
                 **common_parameters,
                 "libFolder": os.path.join(lib_folder, "mpc"),
             }],
@@ -69,7 +76,7 @@ def _make_nodes(context):
             executable="wbmm_mrt_node",
             name="wbmm_mrt_node",
             output="screen",
-            parameters=[config_file, {
+            parameters=[*config_layers, {
                 **common_parameters,
                 "libFolder": os.path.join(lib_folder, "mrt"),
                 "command_output_enabled": command_output_enabled,
@@ -84,7 +91,7 @@ def _make_nodes(context):
             executable="wbmm_target_node",
             name="wbmm_target_node",
             output="screen",
-            parameters=[config_file, {"use_sim_time": use_sim_time}],
+            parameters=[*config_layers, {"use_sim_time": use_sim_time}],
         ))
 
     if use_rviz:
@@ -104,6 +111,11 @@ def generate_launch_description():
     ocs2_share = get_package_share_directory("wbmm_ocs2_ros")
 
     return LaunchDescription([
+        DeclareLaunchArgument(
+            "base_config_file",
+            default_value=os.path.join(
+                get_package_share_directory("tracer_jaka_bringup"),
+                "config", "common", "ocs2.yaml")),
         DeclareLaunchArgument("config_file", default_value=""),
         DeclareLaunchArgument("task_file", default_value=""),
         DeclareLaunchArgument("urdf_file", default_value=""),

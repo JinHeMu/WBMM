@@ -11,7 +11,7 @@
 > 实机前仍需确认传感器 frame 与 URDF/TF 的轴定义和自动 tare 时工具确实无外力。
 
 > CURRENT（配置收敛，2026-09-16）：力控功能包只保留
-> `force_follow_sim.yaml`；实机配置统一放到
+> 仿真配置为 `config/common/force_control.yaml` + `config/sim/force_control.yaml`；实机配置为 `config/common/force_control.yaml` + `config/real/force_control.yaml`
 > `tracer_jaka_bringup/config/real/force_control.yaml`，实机入口默认读取它。
 > real 先测试传感器 Z 轴导纳柔顺，不启用无限行程，底盘参考分担保持为零。
 >
@@ -57,7 +57,7 @@ $F_z$ 为去偏置、滤波后的传感器 Z 向力，$\delta_z$ 为名义传感
 本轮修改范围（相对于仓库根目录）：
 
 - 力控节点：`src/control/whole_body_force_control/src/node.hpp`、`node.cpp`、`node_config.cpp`、`node_ros_io.cpp`。
-- 配置：`src/bringup/config/real/force_control.yaml`、`src/control/whole_body_force_control/config/force_follow_sim.yaml`；`src/robotics/tracer_jaka_description/config/ros2_controllers.yaml`。
+- 配置：`src/bringup/config/common/force_control.yaml`、`src/bringup/config/real/force_control.yaml`、`src/bringup/config/sim/force_control.yaml`；`src/robotics/tracer_jaka_description/config/ros2_controllers.yaml`。
 - 构建依赖：`src/control/whole_body_force_control/CMakeLists.txt`、`package.xml`。
 - 力控入口：`src/bringup/launch/whole_body_force_control.launch.py`；`src/bringup/launch/whole_body_force_control_profiles.launch.py`、`force_control_mujoco_test.launch.py`、`force_control_20s_follow_test.launch.py`、`force_control_infinite_follow_test.launch.py`。
 - 假力输入与回归：`src/control/whole_body_force_control/scripts/whole_body_force_control_test.py`、`test/test_force_control.cpp`；`src/bringup/test/test_force_control_configs.py`。
@@ -67,8 +67,8 @@ $F_z$ 为去偏置、滤波后的传感器 Z 向力，$\delta_z$ 为名义传感
 
 | 文件 | 用途 |
 |---|---|
-| `src/control/whole_body_force_control/config/force_follow_sim.yaml` | 开阔 MuJoCo 仿真，带符号 Fx 持续跟随，撤力后停止；不可用于实机 |
-| `src/bringup/config/real/force_control.yaml` | 首轮实机传感器 Fz 单轴导纳柔顺，底盘分担 0.6，armed 与参考输出默认关闭 |
+| `src/bringup/config/common/force_control.yaml` + `src/bringup/config/sim/force_control.yaml` | 开阔 MuJoCo 仿真，带符号 Fx 持续跟随，撤力后停止；不可用于实机 |
+| `src/bringup/config/common/force_control.yaml` + `src/bringup/config/real/force_control.yaml` | 首轮实机传感器 Fz 单轴导纳柔顺，底盘分担 0.6，armed 与参考输出默认关闭 |
 
 仿真启动入口的 `profile=infinite` / `20s` 共用同一 YAML。
 20 秒有限行程回归现在由 `admittance.stiffness` 的弹性平衡点决定，

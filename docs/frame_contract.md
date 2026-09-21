@@ -212,7 +212,7 @@ ROS `Odometry.pose` 在 `header.frame_id` 中表达，而 `twist` 在 `child_fra
 
 [CURRENT] [MRT 的 odomCallback()](../src/control/wbmm_ocs2_ros/src/WbmmMrtNode.cpp) 直接读 pose 的 x、y、yaw，未在该回调中依据 header 自动变换或校验 frame 是否匹配 `worldFrame_`。因此仅换订阅话题或仅改 `world_frame` 可能造成数值和语义不一致。
 
-[PROPOSED] 输入 pose 必须与控制 G 匹配；不匹配应先显式转换或拒绝。没有 ROS Header 的 OCS2 数组必须通过适配器配置与日志绑定 frame、关节顺序、时钟域；`SystemObservation` 与 `TargetTrajectories` 必须使用同一 G 和同一 MPC 时间轴。
+[PROPOSED] 输入 pose 必须与控制 G 匹配；不匹配应先显式转换或拒绝。没有 ROS Header 的 OCS2 数组必须通过适配器配置与日志绑定 frame、关节顺序；`SystemObservation` 与 `TargetTrajectories` 必须使用同一 G 和同一 MPC 时间轴。
 
 `TaskTrajectory` 描述期望末端位姿与任务方向；`WholeBodyTrajectory` 描述底盘与关节状态。不能因为两者都带“轨迹”就直接把末端坐标塞进 9D 状态。
 
@@ -294,7 +294,7 @@ $$
 
 ## 8. 时间、异常和兼容性规则 [PROPOSED]
 
-1. 每份状态、位姿、方向、wrench、地图都明确 frame；每份时变数据明确 stamp 和 clock domain。沿用数学契约的 `kSystem`、`kSimulation`、`kOcs2Mpc`，不能直接混算时间。
+1. 每份状态、位姿、方向、wrench、地图都明确 frame；每份时变数据明确 stamp。不同时间源必须通过显式配置或显式转换对齐，不能隐式混算。
 2. 传感器转换优先使用采样时刻；若使用 latest TF，必须记录这是近似、允许年龄和适用条件。静态边与动态边的时间检查分开处理。
 3. frame 不匹配、TF 不可用/过期、四元数非法、数值非有限时，不得继续把未转换数据当有效参考。具体停止与恢复动作由控制/安全所有者决定。
 4. 协方差随量的坐标变换一起处理。给定选定误差参数化的变换 Jacobian H，有 $\Sigma_A=H\Sigma_BH^T$；若定位变换本身不确定，还需考虑其不确定性，不能宣称只旋转就完成统计融合。

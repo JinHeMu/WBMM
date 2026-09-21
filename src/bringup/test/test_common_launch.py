@@ -23,7 +23,6 @@ CORE_ALGORITHM_LAUNCHES = {
     'moveit.launch.py',
     'ocs2.launch.py',
     'remani.launch.py',
-    'servo.launch.py',
     'whole_body_force_control.launch.py',
     'remani_mpc.launch.py',
     'remani_mpc_localized.launch.py',
@@ -114,6 +113,8 @@ def test_moveit_uses_only_hardware_write_as_motion_gate():
     args = launch_arguments(LAUNCH_FILES['moveit.launch.py'])
     assert 'allow_trajectory_execution' not in args
     assert 'safety_release' not in args
+    assert 'use_servo' not in args
+    assert 'use_joy' not in args
     assert 'hardware_write' in args
 
 
@@ -178,7 +179,6 @@ def describe_actions(actions, context, visited):
     'whole_body_force_control.launch.py',
     'remani_mpc.launch.py',
     'remani_mpc_localized.launch.py',
-    'servo.launch.py',
 ])
 def test_deployment_composition_resolves_without_starting_nodes(entry, tmp_path):
     map_file = tmp_path / 'site.yaml'
@@ -228,11 +228,11 @@ def test_canonical_interface_contract_matches_real_hardware_defaults():
     assert (imu_config['IMU_publisher']['ros__parameters']['imu_topic']
             == topics['imu']['name'])
 
-    ekf_config = yaml.safe_load(
-        (BRINGUP / 'config' / 'real' / 'ekf.yaml').read_text(
+    ekf_common = yaml.safe_load(
+        (BRINGUP / 'config' / 'common' / 'ekf.yaml').read_text(
             encoding='utf-8'))['ekf_filter_node']['ros__parameters']
-    assert ekf_config['odom0'] == topics['wheel_odometry']['name']
-    assert ekf_config['imu0'] == topics['imu']['name']
+    assert ekf_common['odom0'] == topics['wheel_odometry']['name']
+    assert ekf_common['imu0'] == topics['imu']['name']
 
 
 @pytest.mark.parametrize('backend, expected_launch', [

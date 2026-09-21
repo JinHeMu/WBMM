@@ -52,12 +52,10 @@ Eigen::Vector3d log3(const Eigen::Matrix3d & rotation)
 }  // namespace
 
 WholeBodyKinematics::WholeBodyKinematics(
-  wbmm::core::RobotModelPtr model, std::string ee_frame, std::string frame_id,
-  wbmm::core::ClockDomain clock)
+  wbmm::core::RobotModelPtr model, std::string ee_frame, std::string frame_id)
 : model_(std::move(model)),
   ee_frame_(std::move(ee_frame)),
-  frame_id_(std::move(frame_id)),
-  clock_(clock)
+  frame_id_(std::move(frame_id))
 {
   if (!model_) {
     throw std::invalid_argument("WholeBodyKinematics requires a RobotModel");
@@ -111,7 +109,6 @@ wbmm::core::WholeBodyState WholeBodyKinematics::makeState(
   wbmm::core::WholeBodyState result;
   result.header.frame_id = frame_id_;
   result.header.stamp = 0.0;
-  result.header.clock = clock_;
   result.base_model = model_->baseModel();
   result.base.x = state[0];
   result.base.y = state[1];

@@ -30,14 +30,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "wbmm_ocs2/FactoryFunctions.h"
 
 #include <algorithm>
+#include <fstream>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <utility>
 
 #include <pinocchio/fwd.hpp>  // forward declarations must be included first.
 #include <pinocchio/multibody/joint/joint-composite.hpp>
 #include <pinocchio/multibody/model.hpp>
+#include <pinocchio/parsers/urdf.hpp>
 
 #include <urdf_parser/urdf_parser.h>
 
@@ -57,6 +60,15 @@ PinocchioInterface createWbmmPinocchioInterface(
   const std::vector<std::string> & jointNames)
 {
   using joint_pair_t = std::pair<const std::string, std::shared_ptr<::urdf::Joint>>;
+
+  std::ifstream urdfFile(robotUrdfPath);
+  if (!urdfFile.is_open()) {
+    throw std::runtime_error(
+            "[createWbmmPinocchioInterface] Failed to open URDF: " + robotUrdfPath);
+  }
+  std::stringstream urdfBuffer;
+  urdfBuffer << urdfFile.rdbuf();
+  const std::string urdfXml = urdfBuffer.str();
 
   const auto urdfTree = ::urdf::parseURDFFile(robotUrdfPath);
   if (!urdfTree) {
@@ -100,7 +112,10 @@ PinocchioInterface createWbmmPinocchioInterface(
   jointComposite.addJoint(pinocchio::JointModelPX());
   jointComposite.addJoint(pinocchio::JointModelPY());
   jointComposite.addJoint(pinocchio::JointModelRZ());
-  return getPinocchioInterfaceFromUrdfModel(newModel, jointComposite);
+
+  PinocchioInterface::Model model;
+  pinocchio::urdf::buildModel(newModel, jointComposite, model);
+  return PinocchioInterface(model, newModel, urdfXml);
 }
 
 PinocchioInterface createWbmmPinocchioInterface(const std::string & robotUrdfPath)

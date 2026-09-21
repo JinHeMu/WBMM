@@ -35,8 +35,7 @@ class WholeBodyKinematics
 public:
   WholeBodyKinematics(
     wbmm::core::RobotModelPtr model, std::string ee_frame,
-    std::string frame_id = "odom",
-    wbmm::core::ClockDomain clock = wbmm::core::ClockDomain::kSystem);
+    std::string frame_id = "odom");
 
   // 兼容旧调用方的便捷构造函数：内部构造 PinocchioRobotModel。
   // 新代码应优先传入 RobotModel，以便替换运动学后端。
@@ -90,7 +89,6 @@ private:
   wbmm::core::RobotModelPtr model_;
   std::string ee_frame_;
   std::string frame_id_;
-  wbmm::core::ClockDomain clock_;
 };
 
 }  // namespace wbmm::pinocchio

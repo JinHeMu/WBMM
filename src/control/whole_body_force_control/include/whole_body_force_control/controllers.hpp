@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wbmm_core/wbmm_core.hpp>
+
 #include <Eigen/Core>
 
 #include <algorithm>
@@ -12,6 +14,17 @@ namespace whole_body_force_control
 
 using Vector6d = Eigen::Matrix<double, 6, 1>;
 using AxisMask6d = std::array<bool, 6>;
+
+// Convert a 6D local correction [dx, dy, dz, rx, ry, rz], expressed in the
+// nominal TCP frame, into a task-space EndEffectorPose in frame_id.
+//
+//   p_target = p_nom + R_nom * dp_local
+//   R_target = exp3(R_nom * dr_local) * R_nom
+wbmm::core::EndEffectorPose makeEndEffectorPoseTarget(
+  const wbmm::core::Pose & nominal_pose,
+  const Vector6d & local_correction,
+  const std::string & frame_id,
+  double stamp);
 
 // Transform a wrench expressed at the source origin and in source axes to the
 // target origin and target axes.  target_rotation_source maps source vectors to

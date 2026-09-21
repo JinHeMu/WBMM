@@ -1,0 +1,35 @@
+# MuJoCo force-control overrides. Common structure lives in
+# config/common/force_control.yaml.
+whole_body_force_control:
+  ros__parameters:
+    topics:
+      wrench: /whole_body_force_control/fake_wrench
+
+    force_sensor:
+      tf_fallback_to_latest: true
+      filter_alpha: 0.25
+      hard_force_norm_limit: 20.0
+      hard_wrench_limit: [20.0, 20.0, 20.0, 4.0, 4.0, 4.0]
+      force_timeout: 0.50
+
+    admittance:
+      enable: true
+      output: true
+      selected_axes: [true, true, true, false, false, false]
+      stiffness: [150.0, 150.0, 150.0, 0.0, 0.0, 0.0]
+
+    whole_body:
+      # Keep the legacy baseline available, but the preferred output is the
+      # 7D EE-pose target below.
+      base_share: 0.40
+      max_base_velocity: 0.50
+      max_ee_linear_velocity: 0.05
+      max_ee_angular_velocity: 0.20
+      max_ee_translation_offset: 0.10
+      max_ee_rotation_offset: 0.30
+
+    output:
+      mode: ee_pose
+
+    safety:
+      observation_timeout: 0.25

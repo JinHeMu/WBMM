@@ -25,7 +25,10 @@ def generate_launch_description():
             bringup, "launch", "mujoco_hardware_interface.launch.py"])),
         launch_arguments={
             "viewer": LaunchConfiguration("viewer"),
+            "scene": "force_follow_infinite",
+            "init_keyframe": "low",
             "start_camera": "false",
+            "publish_odom_tf": "true",
         }.items(),
     )
     algorithms = IncludeLaunchDescription(

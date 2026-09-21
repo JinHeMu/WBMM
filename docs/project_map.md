@@ -24,6 +24,7 @@
 | `src/control/` | OCS2 模型、ROS 跟踪接口和全身力控 |
 | `src/robotics/` | 机器人描述、Pinocchio、ROS 接口、MoveIt 配置 |
 | `src/map/` | 定位、地图、ESDF 与地图可视化 |
+| `src/metrics/` | `wbmm_robot_metrics` 机械臂构型评价骨架，指标计算 TBD |
 | `src/drivers/` | 底盘、机械臂、传感器与夹爪驱动 |
 | `src/sim/` | MuJoCo 模型与状态/命令接口 |
 | `src/vendor/` | REMANI、OCS2 等外部后端，本次未修改 |
@@ -33,6 +34,11 @@
 `plot_kino_astar.py`。仅生成搜索初值，不发布 ROS 参考或机器人命令。
 默认要求底盘碰撞回调，示例显式关闭碰撞检查；详情见
 [差速底盘 Kino A*](kino_astar.md)。
+
+新增骨架（2026-09-18，DRAFT）：`src/map/wbmm_environment` 提供 ESDF 数据与加载/查询入口，
+`src/robotics/wbmm_collision` 提供碰撞球与环境检测入口，`src/metrics/wbmm_robot_metrics`
+提供机械臂及关节限位评价入口。算法当前均为 `NotImplemented`，尚未接入规划器或控制器。
+目录、输入输出及待审阅约定见 [环境、碰撞与评价骨架](environment_collision_metrics.md)。
 
 ## 2. CURRENT：common 只启动算法
 
@@ -46,8 +52,7 @@
 | `localization.launch.py` | EKF/SLAM 参数文件，轮速里程计、IMU、激光 topic | EKF 与可选 SLAM；滤波里程计及对应 TF |
 | `ocs2.launch.py` | 参数 YAML、task、URDF、里程计/关节反馈、MPC 参考 | MPC/MRT、可选目标与 RViz；由显式输出门控制底盘/机械臂命令 |
 | `remani.launch.py` | URDF、静态 ESDF、里程计/关节状态、规划/控制 frame | REMANI 与可选参考桥；规划轨迹与 OCS2 名义参考 |
-| `moveit.launch.py` | 外部机器人状态、MoveIt 包内配置 | MoveIt、可选 Servo/手柄与 RViz；默认关闭轨迹执行 |
-| `servo.launch.py` | 外部机器人状态与命令消费者 | 对 `moveit.launch.py` 的 Servo 便捷入口 |
+| `moveit.launch.py` | 外部机器人状态、MoveIt 包内配置 | MoveIt 与 RViz；默认关闭轨迹执行 |
 
 `common` 不选择 backend，不启动 MuJoCo、硬件驱动、
 `robot_state_publisher`、`controller_manager` 或夹爪驱动。
@@ -92,7 +97,7 @@ real/remani_mpc_localized_real.launch.py
 - 删除：`src/bringup/launch/common/bringup.launch.py`；安装目录的旧副本与源目录缓存
   已移到 `/tmp/wbmm_removed_bringup.s0xs1H/`，可用旧安装副本恢复。
 - 精简算法端：`common/localization.launch.py`、`common/ocs2.launch.py`、
-  `common/remani.launch.py`、`common/moveit.launch.py`、`common/servo.launch.py`。
+  `common/remani.launch.py`、`common/moveit.launch.py`。
 - 更新直接调用：`sim/ocs2_sim.launch.py`、`sim/remani_mpc_sim.launch.py`、
   `sim/slam_sim.launch.py`、`sim/ocs2_esdf_validation.launch.py`；
   `real/ocs2_real.launch.py`、`real/remani_mpc_real.launch.py`、

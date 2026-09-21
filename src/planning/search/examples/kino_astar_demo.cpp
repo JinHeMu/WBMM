@@ -27,7 +27,6 @@ std::ofstream openCsv(
   file << std::setprecision(17)
        << "# scenario=" << scenario.name << '\n'
        << "# frame_id=" << result.header.frame_id << '\n'
-       << "# clock=" << static_cast<int>(result.header.clock) << '\n'
        << "# stamp=" << result.header.stamp << '\n'
        << "# collision_checked=" << (result.collision_checked ? 1 : 0) << '\n'
        << "# goal_x=" << scenario.goal.x << '\n'
@@ -90,7 +89,7 @@ int main(int argc, char ** argv)
     wbmm::core::RobotLimits limits;
     limits.max_base_speed = 0.5;
     limits.max_base_yaw_rate = 1.0;
-    const wbmm::core::Header header{"odom", 0.0, wbmm::core::ClockDomain::kSimulation};
+    const wbmm::core::Header header{"odom", 0.0};
     const std::vector<Scenario> scenarios{
       {"forward", {}, {2.0, 0.0, 0.0}},
       {"reverse", {}, {-2.0, 0.0, 0.0}},

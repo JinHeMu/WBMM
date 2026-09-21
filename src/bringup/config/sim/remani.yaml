@@ -1,0 +1,5 @@
+# MuJoCo REMANI overrides. Common thresholds live in config/common/remani.yaml.
+tracking_error_replan_enabled: true
+manipulator_max_vel: 1.57
+manipulator_max_acc: 3.14
+freeze_manipulator: false

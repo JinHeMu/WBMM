@@ -34,7 +34,7 @@ ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py
 - `remani_mpc_localized.launch.py`：REMANI + OCS2 + AMCL
 - `whole_body_force_control.launch.py`：力控 + OCS2
 - `whole_body_force_control_profiles.launch.py`：仿真 profile 算法节点
-- `moveit.launch.py` / `servo.launch.py`：MoveIt / Servo
+- `moveit.launch.py`：MoveIt 规划与 RViz
 
 可选总入口：
 
@@ -172,7 +172,6 @@ ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py \
   initial_y:=0.0 \
   initial_yaw:=0.0 \
   use_rviz:=true \
-  use_joy:=false \
   tracking_error_replan_enabled:=false \
   freeze_manipulator:=false \
   manipulator_max_vel:=0.10 \
@@ -635,7 +634,7 @@ lidar_host_ip:=192.168.8.1 lidar_sensor_ip:=192.168.8.2
 - 示教器、底盘遥控器和物理急停由专人握持；
 - JAKA 切到允许外部控制的正确模式，但先不要发送目标；
 - 确认按下物理急停能同时阻止底盘和机械臂运动；`Ctrl-C` 不是急停；
-- 首次运行保持 `use_joy:=false`、`tracking_error_replan_enabled:=false`。
+- 首次运行保持 `tracking_error_replan_enabled:=false`。
 
 ### 阶段 B：验证底盘传感器、JAKA 真实状态、EKF 与 AMCL
 
@@ -843,7 +842,6 @@ ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py \
   initial_y:=0.0 \
   initial_yaw:=0.0 \
   use_rviz:=true \
-  use_joy:=false \
   tracking_error_replan_enabled:=false \
   freeze_manipulator:=true \
   manipulator_max_vel:=0.10 \
@@ -998,7 +996,6 @@ RViz 2D Goal Pose (/goal_pose, frame=map)
 | `mobile_base_max_wheel_alpha` | `2.0` | REMANI 轮角加速度上限 rad/s² |
 | `mobile_base_non_singul_vel` | `0.02` | REMANI 非奇异最小规划线速度 m/s |
 | `tracking_error_replan_enabled` | `false` | 跟踪误差自动重规划；调通前保持 `false` |
-| `use_joy` | `false` | 必须保持 `false`，避免与 REMANI bridge 争抢 MPC target |
 | `use_rviz` | `true` | 是否启动 OCS2 RViz |
 | `hardware_write` | `false` | 唯一实机执行保护；`true` 才允许 hardware interface 写 JAKA |
 | `start_ocs2` | `true` | 是否启动 MPC/MRT；dry-run 保持 `true` 以验证完整计算链 |
@@ -1016,18 +1013,29 @@ RViz 2D Goal Pose (/goal_pose, frame=map)
 
 配置归属约定：
 
-- 自研 ROS 适配包的仿真/开发默认参数放在自己的功能包下：
-  - `wbmm_ocs2_ros/config/ocs2_sim.yaml`
-  - `wbmm_ocs2_ros/config/task_sim.info`
-  - `whole_body_force_control/config/force_follow_sim.yaml`
-- 实机部署参数统一放在 bringup：
-  - OCS2：`src/bringup/config/real/ocs2.yaml`、
-    `src/bringup/config/real/task.info`
-  - 力控：`src/bringup/config/real/force_control.yaml`
-  - EKF / slam_toolbox / REMANI：`src/bringup/config/real/ekf.yaml`、
-    `src/bringup/config/real/slam_toolbox.yaml`、
-    `src/bringup/config/real/remani.yaml`
-  - D455 录制 QoS：`src/bringup/config/real/d455_esdf_record_qos.yaml`
+- 通用算法/接口参数统一放 `config/common/`：
+  - `interface.yaml`
+  - `ocs2.yaml`
+  - `force_control.yaml`
+  - `ekf.yaml`
+  - `slam_toolbox.yaml`
+  - `remani.yaml`
+  - `moveit_bringup.yaml`
+- 实机差异参数放 `config/real/`：
+  - `ocs2.yaml`、`force_control.yaml`、`ekf.yaml`、
+    `slam_toolbox.yaml`、`remani.yaml`
+  - `task.info` 是实机 OCS2 task 文件，单独保留
+- 仿真差异参数放 `config/sim/`：
+  - `ocs2.yaml`、`force_control.yaml`、`ekf.yaml`、
+    `slam_toolbox.yaml`、`remani.yaml`
+  - `task.info` 是仿真 OCS2 task 文件，单独保留
+- 运行时按顺序加载：
+  ```text
+  config/common/<name>.yaml
+  -> config/real/<name>.yaml  或  config/sim/<name>.yaml
+  -> launch 显式参数覆盖
+  ```
+- D455 录制 QoS：`src/bringup/config/real/d455_esdf_record_qos.yaml`
 
 
 | 想调整的内容 | 真正生效的位置 | 是否可由本入口覆盖 |
@@ -1067,7 +1075,6 @@ mm_param.yaml -> remani_planner_param.yaml -> exp0_param.yaml
 | 层 | 首轮建议 | 原因 |
 | --- | --- | --- |
 | 本启动链输出闸 | dry-run 使用 `hardware_write=false` | 同时切断 JAKA 写入和 OCS2 命令输出 |
-| 目标源 | `use_joy=false` | 保证只有 REMANI bridge 发布 MPC target |
 | 自动行为 | `tracking_error_replan_enabled=false` | 避免误差或定位抖动触发意外新轨迹 |
 | REMANI 机械臂 | `freeze_manipulator=true`、`vel=0.10`、`acc=0.20` | 先验证底盘和坐标系 |
 | REMANI 底盘 | 轮速 `1.0 rad/s`、轮加速度 `2.0 rad/s²` | 使规划参考本身也保持低速 |

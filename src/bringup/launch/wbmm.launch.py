@@ -49,8 +49,6 @@ def _make_actions(context):
     if profile not in ("real", "sim"):
         raise RuntimeError("config_profile must be real or sim")
     bringup_share = get_package_share_directory("tracer_jaka_bringup")
-    ocs2_share = get_package_share_directory("wbmm_ocs2_ros")
-    force_share = get_package_share_directory("whole_body_force_control")
 
     def config_value(name, real_path, sim_path):
         value = _value(context, name)
@@ -61,27 +59,27 @@ def _make_actions(context):
     task_file = config_value(
         "task_file",
         os.path.join(bringup_share, "config", "real", "task.info"),
-        os.path.join(ocs2_share, "config", "task_sim.info"))
+        os.path.join(bringup_share, "config", "sim", "task.info"))
     ocs2_config = config_value(
         "ocs2_config",
         os.path.join(bringup_share, "config", "real", "ocs2.yaml"),
-        os.path.join(ocs2_share, "config", "ocs2_sim.yaml"))
+        os.path.join(bringup_share, "config", "sim", "ocs2.yaml"))
     remani_config = config_value(
         "remani_config",
         os.path.join(bringup_share, "config", "real", "remani.yaml"),
-        os.path.join(bringup_share, "config", "sim", "remani_sim.yaml"))
+        os.path.join(bringup_share, "config", "sim", "remani.yaml"))
     ekf_config = config_value(
         "ekf_config",
         os.path.join(bringup_share, "config", "real", "ekf.yaml"),
-        os.path.join(bringup_share, "config", "sim", "ekf_sim.yaml"))
+        os.path.join(bringup_share, "config", "sim", "ekf.yaml"))
     slam_config = config_value(
         "slam_config",
         os.path.join(bringup_share, "config", "real", "slam_toolbox.yaml"),
-        os.path.join(bringup_share, "config", "sim", "slam_toolbox_sim.yaml"))
+        os.path.join(bringup_share, "config", "sim", "slam_toolbox.yaml"))
     force_params_file = config_value(
         "force_params_file",
         os.path.join(bringup_share, "config", "real", "force_control.yaml"),
-        os.path.join(force_share, "config", "force_follow_sim.yaml"))
+        os.path.join(bringup_share, "config", "sim", "force_control.yaml"))
     lib_folder = _value(context, "lib_folder")
     if not lib_folder:
         lib_folder = (
@@ -91,15 +89,13 @@ def _make_actions(context):
     start_ocs2 = _as_bool(_value(context, "start_ocs2"))
     start_force_control = _as_bool(_value(context, "start_force_control"))
     start_moveit = _as_bool(_value(context, "start_moveit"))
-    use_servo = _as_bool(_value(context, "use_servo"))
     if start_ocs2 and start_force_control:
         raise RuntimeError(
             "start_force_control already starts OCS2; do not also set "
             "start_ocs2:=true")
 
     if start_moveit and not (start_ocs2 or start_force_control):
-        arm_controller_name = (
-            "arm_controller" if use_servo else "arm_trajectory_controller")
+        arm_controller_name = "arm_trajectory_controller"
     else:
         arm_controller_name = "arm_controller"
 
@@ -122,9 +118,12 @@ def _make_actions(context):
             _source(bringup, "mujoco_hardware_interface.launch.py"),
             launch_arguments={
                 "viewer": _value(context, "viewer"),
+                "scene": _value(context, "scene"),
                 "model": _value(context, "mujoco_model"),
+                "initial_pose": _value(context, "initial_pose"),
                 "init_keyframe": _value(context, "init_keyframe"),
                 "start_camera": _value(context, "start_camera"),
+                "publish_odom_tf": _value(context, "publish_odom_tf"),
             }.items(),
         ))
 
@@ -191,8 +190,6 @@ def _make_actions(context):
             launch_arguments={
                 "use_sim_time": use_sim_time,
                 "use_rviz": _value(context, "use_rviz"),
-                "use_servo": _value(context, "use_servo"),
-                "use_joy": _value(context, "use_joy"),
                 "hardware_write": _value(context, "hardware_write"),
             }.items(),
         ))
@@ -203,7 +200,6 @@ def _make_actions(context):
 def generate_launch_description():
     bringup = FindPackageShare("tracer_jaka_bringup")
     description = FindPackageShare("tracer_jaka_description")
-    mujoco = FindPackageShare("tracer_jaka_mujoco")
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -221,11 +217,20 @@ def generate_launch_description():
         DeclareLaunchArgument("hardware_write", default_value="false"),
         DeclareLaunchArgument("viewer", default_value="true"),
         DeclareLaunchArgument("start_camera", default_value="false"),
+        DeclareLaunchArgument("publish_odom_tf", default_value="false"),
         DeclareLaunchArgument(
-            "mujoco_model",
-            default_value=PathJoinSubstitution([
-                mujoco, "models", "scene.xml"])),
-        DeclareLaunchArgument("init_keyframe", default_value="home"),
+            "scene", default_value="empty",
+            choices=[
+                "empty", "room", "task_table", "force_follow_infinite",
+                "force_follow_5m", "nvblox_remani_demo",
+                "esdf_validation"]),
+        DeclareLaunchArgument(
+            "mujoco_model", default_value="",
+            description="Explicit scene XML path; overrides scene."),
+        DeclareLaunchArgument(
+            "initial_pose", default_value="low",
+            choices=["low", "home", "task_contact"]),
+        DeclareLaunchArgument("init_keyframe", default_value=""),
         DeclareLaunchArgument("can_port", default_value="can0"),
         DeclareLaunchArgument("robot_ip", default_value="10.5.5.100"),
         DeclareLaunchArgument("local_ip", default_value="10.5.5.127"),
@@ -235,8 +240,6 @@ def generate_launch_description():
         DeclareLaunchArgument("start_remani", default_value="false"),
         DeclareLaunchArgument("start_force_control", default_value="false"),
         DeclareLaunchArgument("start_moveit", default_value="false"),
-        DeclareLaunchArgument("use_servo", default_value="false"),
-        DeclareLaunchArgument("use_joy", default_value="false"),
         DeclareLaunchArgument(
             "urdf_file",
             default_value=PathJoinSubstitution([

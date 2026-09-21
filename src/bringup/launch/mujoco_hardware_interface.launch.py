@@ -16,6 +16,17 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
+# Named MuJoCo scenes installed under tracer_jaka_mujoco/models.
+_SCENES = {
+    "empty": "scene_empty.xml",
+    "room": "scene.xml",
+    "task_table": "scene_task_table.xml",
+    "force_follow_infinite": "scene_force_follow_infinite.xml",
+    "force_follow_5m": "scene_force_follow_5m.xml",
+    "nvblox_remani_demo": "scene_nvblox_remani_demo.xml",
+    "esdf_validation": "scene_esdf_validation.xml",
+}
+
 
 def _as_bool(value):
     return str(value).strip().lower() in ("1", "true", "yes", "on")
@@ -31,24 +42,36 @@ def _make_nodes(context):
 
     model = _value(context, "model")
     if not model:
-        model = os.path.join(mujoco_share, "models", "scene.xml")
+        scene_name = _value(context, "scene")
+        try:
+            scene_file = _SCENES[scene_name]
+        except KeyError as exc:
+            raise RuntimeError(
+                f"Unknown MuJoCo scene {scene_name!r}; "
+                f"available scenes: {', '.join(sorted(_SCENES))}") from exc
+        model = os.path.join(mujoco_share, "models", scene_file)
     sensors_yaml = os.path.join(mujoco_share, "config", "sensors.yaml")
     urdf_file = os.path.join(
         description_share, "urdf", "tracer_jaka_zu5.urdf")
 
     start_rsp = _as_bool(_value(context, "start_robot_state_publisher"))
+    publish_odom_tf = _as_bool(_value(context, "publish_odom_tf"))
     start_imu = _as_bool(_value(context, "start_imu"))
     start_lidar = _as_bool(_value(context, "start_lidar"))
     start_camera = _as_bool(_value(context, "start_camera"))
     start_fts = _as_bool(_value(context, "start_fts"))
     viewer = _as_bool(_value(context, "viewer"))
+    init_keyframe = _value(context, "init_keyframe").strip()
+    if not init_keyframe:
+        init_keyframe = _value(context, "initial_pose").strip()
 
     bridge_parameters = {
         "model_path": model,
         "use_sim_time": False,
         "use_viewer": viewer,
-        "init_keyframe": _value(context, "init_keyframe"),
+        "init_keyframe": init_keyframe,
         "odom_topic": _value(context, "wheel_odom_topic"),
+        "publish_odom_tf": publish_odom_tf,
         "imu.enable": start_imu,
         "imu.topic": _value(context, "imu_topic"),
         "lidar.enable": start_lidar,
@@ -93,18 +116,38 @@ def _make_nodes(context):
 
 
 def generate_launch_description():
-    mujoco_share = get_package_share_directory("tracer_jaka_mujoco")
-
     return LaunchDescription([
         DeclareLaunchArgument(
+            "scene",
+            default_value="empty",
+            choices=sorted(_SCENES),
+            description=(
+                "Named MuJoCo scene. Default is an empty ground scene.")),
+        DeclareLaunchArgument(
             "model",
-            default_value=os.path.join(
-                mujoco_share, "models", "scene.xml"),
-            description="MuJoCo scene XML."),
-        DeclareLaunchArgument("init_keyframe", default_value="home"),
+            default_value="",
+            description=(
+                "Explicit MuJoCo scene XML path; overrides scene when set.")),
+        DeclareLaunchArgument(
+            "initial_pose",
+            default_value="low",
+            choices=["low", "home", "task_contact"],
+            description=(
+                "Initial MuJoCo keyframe. 'low' avoids the singular "
+                "straight-up home pose; 'home' is the legacy arm-up pose.")),
+        DeclareLaunchArgument(
+            "init_keyframe",
+            default_value="",
+            description=(
+                "Explicit keyframe override. When empty, initial_pose is used.")),
         DeclareLaunchArgument("viewer", default_value="true"),
         DeclareLaunchArgument(
             "start_robot_state_publisher", default_value="true"),
+        DeclareLaunchArgument(
+            "publish_odom_tf", default_value="false",
+            description=(
+                "Publish odom -> base_footprint from mujoco_bridge. "
+                "Keep false when robot_localization owns the transform.")),
         DeclareLaunchArgument("start_imu", default_value="true"),
         DeclareLaunchArgument("start_lidar", default_value="true"),
         DeclareLaunchArgument("start_camera", default_value="false"),
