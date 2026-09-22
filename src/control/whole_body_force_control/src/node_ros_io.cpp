@@ -238,8 +238,36 @@ void WholeBodyForceControlNode::wrenchCallback(
   }
 
   const auto wall_now = std::chrono::steady_clock::now();
+
+  Eigen::Matrix3d source_rotation_base = Eigen::Matrix3d::Identity();
+  if (parameters_.load_compensation_enabled) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!observation_received_) {
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 2000,
+          "Waiting for observation before gravity-load compensation");
+      return;
+    }
+    const Eigen::VectorXd state = observationStateLocked();
+    const double yaw = state(2);
+    Eigen::Matrix3d state_rotation_base;
+    state_rotation_base <<
+        std::cos(yaw), -std::sin(yaw), 0.0,
+        std::sin(yaw),  std::cos(yaw), 0.0,
+        0.0,            0.0,           1.0;
+    const Eigen::Matrix3d state_rotation_tcp =
+        kinematics_->frameRotation(state);
+    const Eigen::Matrix3d base_rotation_tcp =
+        state_rotation_base.transpose() * state_rotation_tcp;
+    const Eigen::Matrix3d base_rotation_sensor =
+        base_rotation_tcp * tcp_rotation_sensor;
+    // ForceProcessor expects base->sensor rotation.
+    source_rotation_base = base_rotation_sensor.transpose();
+  }
+
   const auto processed = force_processor_.process(
-      *raw, tcp_rotation_sensor, sensor_origin_in_tcp);
+      *raw, tcp_rotation_sensor, sensor_origin_in_tcp,
+      source_rotation_base);
   if (processed.taring) {
     RCLCPP_INFO_THROTTLE(
         get_logger(), *get_clock(), 1000,

@@ -721,3 +721,70 @@ TEST(ForceProcessor, RawForceNormLimitStopsDuringTare)
   EXPECT_TRUE(result.hard_limit_exceeded);
   EXPECT_FALSE(result.taring);
 }
+
+TEST(ForceProcessor, LoadCompensationSkipsTareAndRemovesGravity)
+{
+  using whole_body_force_control::ForceProcessor;
+  using whole_body_force_control::ForceProcessorConfig;
+  using whole_body_force_control::Vector6d;
+
+  ForceProcessorConfig config;
+  config.filter_alpha = Vector6d::Ones();
+  config.scale = Vector6d::Ones();
+  config.hard_wrench_limit = Vector6d::Constant(100.0);
+  config.hard_force_norm_limit = 100.0;
+  config.load_compensation.enable = true;
+  config.load_compensation.gravity_m_s2 = 10.0;
+  config.load_compensation.mass_kg = 1.0;
+  config.load_compensation.gravity_direction_base =
+      Eigen::Vector3d(0.0, 0.0, -1.0);
+  config.force_deadband_n = 0.0;
+  config.torque_deadband_nm = 0.0;
+
+  ForceProcessor processor(config);
+  processor.startTare();  // must be ignored in compensation mode
+
+  wbmm::core::Wrench raw;
+  raw.force.z = -10.0;
+  const Eigen::Matrix3d target_rotation_source = Eigen::Matrix3d::Identity();
+  const Eigen::Vector3d target_to_source = Eigen::Vector3d::Zero();
+  const Eigen::Matrix3d source_rotation_base = Eigen::Matrix3d::Identity();
+
+  const auto result = processor.process(
+      raw, target_rotation_source, target_to_source, source_rotation_base);
+  ASSERT_TRUE(result.ok);
+  EXPECT_FALSE(result.taring);
+  EXPECT_NEAR(result.wrench.force.z, 0.0, 1e-12);
+}
+
+TEST(ForceProcessor, DeadbandZerosSmallForceAndTorque)
+{
+  using whole_body_force_control::ForceProcessor;
+  using whole_body_force_control::ForceProcessorConfig;
+  using whole_body_force_control::Vector6d;
+
+  ForceProcessorConfig config;
+  config.filter_alpha = Vector6d::Ones();
+  config.scale = Vector6d::Ones();
+  config.hard_wrench_limit = Vector6d::Constant(100.0);
+  config.hard_force_norm_limit = 100.0;
+  config.load_compensation.enable = true;
+  config.load_compensation.mass_kg = 0.0;
+  config.force_deadband_n = 1.0;
+  config.torque_deadband_nm = 0.1;
+
+  ForceProcessor processor(config);
+
+  wbmm::core::Wrench raw;
+  raw.force.x = 0.5;
+  raw.force.y = 2.0;
+  raw.torque.y = 0.05;
+  const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
+  const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
+
+  const auto result = processor.process(raw, rotation, translation);
+  ASSERT_TRUE(result.ok);
+  EXPECT_DOUBLE_EQ(result.wrench.force.x, 0.0);
+  EXPECT_DOUBLE_EQ(result.wrench.torque.y, 0.0);
+  EXPECT_DOUBLE_EQ(result.wrench.force.y, 2.0);
+}

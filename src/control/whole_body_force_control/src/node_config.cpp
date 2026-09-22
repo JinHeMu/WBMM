@@ -54,6 +54,28 @@ Vector6d requireVector6(const std::vector<double> &values,
   return result;
 }
 
+Eigen::Vector3d vector3Parameter(
+    rclcpp::Node &node, const std::string &name,
+    const Eigen::Vector3d &defaults)
+{
+  const auto values = node.declare_parameter<std::vector<double>>(
+      name, std::vector<double>{});
+  if (values.empty()) {
+    return defaults;
+  }
+  if (values.size() != 3) {
+    throw std::runtime_error(name + " must contain exactly 3 values");
+  }
+  Eigen::Vector3d result;
+  for (std::size_t i = 0; i < 3; ++i) {
+    result[static_cast<Eigen::Index>(i)] = values[i];
+  }
+  if (!result.allFinite()) {
+    throw std::runtime_error(name + " must contain only finite values");
+  }
+  return result;
+}
+
 AxisMask6d parseSelectedAxes(const std::vector<bool> &values)
 {
   if (values.size() != 6) {
@@ -232,6 +254,62 @@ void WholeBodyForceControlNode::loadParameters()
     throw std::runtime_error("force_sensor.tare_samples must be positive");
   }
   parameters_.tare_samples = static_cast<std::size_t>(tare_samples);
+
+  parameters_.load_compensation_enabled = declare_parameter<bool>(
+      "force_sensor.load_compensation.enable", false);
+  parameters_.load_gravity_m_s2 = declare_parameter<double>(
+      "force_sensor.load_compensation.gravity_m_s2", 9.80665);
+  parameters_.load_mass_kg = declare_parameter<double>(
+      "force_sensor.load_compensation.mass_kg", 0.0);
+  parameters_.load_gravity_direction_base = vector3Parameter(
+      *this, "force_sensor.load_compensation.gravity_direction_base",
+      (Eigen::Vector3d() << 0.0, 0.0, -1.0).finished());
+  parameters_.load_center_of_mass_sensor_m = vector3Parameter(
+      *this, "force_sensor.load_compensation.center_of_mass_sensor_m",
+      Eigen::Vector3d::Zero());
+  const Eigen::Vector3d load_force_bias_sensor = vector3Parameter(
+      *this, "force_sensor.load_compensation.force_bias_sensor_n",
+      Eigen::Vector3d::Zero());
+  const Eigen::Vector3d load_torque_bias_sensor = vector3Parameter(
+      *this, "force_sensor.load_compensation.torque_bias_sensor_nm",
+      Eigen::Vector3d::Zero());
+  parameters_.load_bias_sensor.head<3>() = load_force_bias_sensor;
+  parameters_.load_bias_sensor.tail<3>() = load_torque_bias_sensor;
+
+  if (!std::isfinite(parameters_.load_gravity_m_s2) ||
+      parameters_.load_gravity_m_s2 <= 0.0) {
+    throw std::runtime_error(
+        "force_sensor.load_compensation.gravity_m_s2 must be positive");
+  }
+  if (!std::isfinite(parameters_.load_mass_kg) ||
+      parameters_.load_mass_kg < 0.0) {
+    throw std::runtime_error(
+        "force_sensor.load_compensation.mass_kg must be non-negative");
+  }
+  const double gravity_direction_norm =
+      parameters_.load_gravity_direction_base.norm();
+  if (!std::isfinite(gravity_direction_norm) ||
+      gravity_direction_norm < 1.0e-9) {
+    throw std::runtime_error(
+        "force_sensor.load_compensation.gravity_direction_base must be "
+        "non-zero");
+  }
+  parameters_.load_gravity_direction_base.normalize();
+
+  parameters_.force_deadband_n = declare_parameter<double>(
+      "force_sensor.force_deadband_n", 1.0);
+  parameters_.torque_deadband_nm = declare_parameter<double>(
+      "force_sensor.torque_deadband_nm", 0.1);
+  if (!std::isfinite(parameters_.force_deadband_n) ||
+      parameters_.force_deadband_n < 0.0) {
+    throw std::runtime_error(
+        "force_sensor.force_deadband_n must be non-negative");
+  }
+  if (!std::isfinite(parameters_.torque_deadband_nm) ||
+      parameters_.torque_deadband_nm < 0.0) {
+    throw std::runtime_error(
+        "force_sensor.torque_deadband_nm must be non-negative");
+  }
 
   parameters_.force_timeout = declare_parameter<double>(
       "force_sensor.force_timeout", 0.25);

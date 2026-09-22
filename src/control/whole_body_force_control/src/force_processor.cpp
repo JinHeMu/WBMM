@@ -1,5 +1,7 @@
 #include "whole_body_force_control/force_processor.hpp"
 
+#include <Eigen/Geometry>
+
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -18,14 +20,64 @@ void ForceProcessor::setConfig(const ForceProcessorConfig & config)
   config_.tare_samples = std::max<std::size_t>(1, config_.tare_samples);
   config_.hard_force_norm_limit =
     std::max(0.0, config_.hard_force_norm_limit);
+  config_.force_deadband_n = std::max(0.0, config_.force_deadband_n);
+  config_.torque_deadband_nm = std::max(0.0, config_.torque_deadband_nm);
   for (Eigen::Index i = 0; i < 6; ++i) {
     config_.filter_alpha[i] = std::clamp(config_.filter_alpha[i], 0.0, 1.0);
     config_.hard_wrench_limit[i] = std::abs(config_.hard_wrench_limit[i]);
+  }
+
+  if (config_.load_compensation.enable) {
+    if (!std::isfinite(config_.load_compensation.gravity_m_s2) ||
+        config_.load_compensation.gravity_m_s2 <= 0.0) {
+      throw std::invalid_argument(
+        "load_compensation.gravity_m_s2 must be positive");
+    }
+    if (!std::isfinite(config_.load_compensation.mass_kg) ||
+        config_.load_compensation.mass_kg < 0.0) {
+      throw std::invalid_argument(
+        "load_compensation.mass_kg must be non-negative");
+    }
+    if (!config_.load_compensation.gravity_direction_base.allFinite()) {
+      throw std::invalid_argument(
+        "load_compensation.gravity_direction_base must be finite");
+    }
+    const double direction_norm =
+      config_.load_compensation.gravity_direction_base.norm();
+    if (!std::isfinite(direction_norm) || direction_norm < 1.0e-9) {
+      throw std::invalid_argument(
+        "load_compensation.gravity_direction_base must be non-zero");
+    }
+    config_.load_compensation.gravity_direction_base.normalize();
+    if (!config_.load_compensation.center_of_mass_sensor_m.allFinite() ||
+        !config_.load_compensation.bias_sensor.allFinite()) {
+      throw std::invalid_argument(
+        "load_compensation CoM and bias must be finite");
+    }
+    // Gravity compensation replaces the tare step.  Clear any tare state so a
+    // previous startTare() call cannot silently subtract a second offset.
+    tare_active_ = false;
+    tare_sum_.setZero();
+    tare_offset_.setZero();
+    tare_count_ = 0;
+    filter_initialized_ = false;
+    filtered_wrench_.setZero();
+    last_output_.setZero();
   }
 }
 
 void ForceProcessor::startTare()
 {
+  if (config_.load_compensation.enable) {
+    tare_active_ = false;
+    tare_sum_.setZero();
+    tare_offset_.setZero();
+    tare_count_ = 0;
+    filter_initialized_ = false;
+    filtered_wrench_.setZero();
+    last_output_.setZero();
+    return;
+  }
   tare_active_ = true;
   tare_sum_.setZero();
   tare_offset_.setZero();
@@ -71,20 +123,43 @@ wbmm::core::Wrench ForceProcessor::toWrench(
 ForceProcessorResult ForceProcessor::process(
   const wbmm::core::Wrench & raw_source,
   const Eigen::Matrix3d & target_rotation_source,
-  const Eigen::Vector3d & target_to_source)
+  const Eigen::Vector3d & target_to_source,
+  const Eigen::Matrix3d & source_rotation_base)
 {
   ForceProcessorResult result;
   result.wrench.header = raw_source.header;
 
   const Vector6d raw = toVector(raw_source);
-  if (!raw.allFinite()) {
+  if (!raw.allFinite() || !source_rotation_base.allFinite()) {
     return result;
   }
 
-  // Fail-closed raw hard limit.  Check it before tare and filtering so a
-  // large force step cannot be filtered/tared away and cannot move the robot
-  // before the safety reaction takes effect.
-  if (config_.hard_limit_enabled) {
+  const bool compensation_enabled = config_.load_compensation.enable;
+
+  Vector6d compensated_raw = raw;
+  if (compensation_enabled) {
+    const auto & config = config_.load_compensation;
+    const Eigen::Vector3d gravity_force_base =
+      config.mass_kg * config.gravity_m_s2 * config.gravity_direction_base;
+    const Eigen::Vector3d gravity_force_sensor =
+      source_rotation_base * gravity_force_base;
+
+    Vector6d gravity_wrench;
+    gravity_wrench.head<3>() = gravity_force_sensor;
+    gravity_wrench.tail<3>() =
+      config.center_of_mass_sensor_m.cross(gravity_force_sensor);
+
+    compensated_raw = raw - config.bias_sensor - gravity_wrench;
+    if (!compensated_raw.allFinite()) {
+      return result;
+    }
+  }
+
+  // Legacy tare mode keeps the fail-closed raw hard limit before tare so a
+  // large raw step cannot be filtered away.  In compensation mode the known
+  // payload gravity/bias is removed first, otherwise a legitimate payload
+  // weight could trip the raw limit.
+  if (config_.hard_limit_enabled && !compensation_enabled) {
     Vector6d raw_for_limit = raw;
     for (Eigen::Index i = 0; i < 6; ++i) {
       raw_for_limit[i] *= config_.scale[i];
@@ -106,7 +181,7 @@ ForceProcessorResult ForceProcessor::process(
     }
   }
 
-  if (tare_active_) {
+  if (!compensation_enabled && tare_active_) {
     tare_sum_ += raw;
     ++tare_count_;
     if (tare_count_ < config_.tare_samples) {
@@ -123,9 +198,27 @@ ForceProcessorResult ForceProcessor::process(
 
   result.tare_samples_collected = tare_count_;
 
-  Vector6d source = raw - tare_offset_;
+  Vector6d source = compensated_raw;
+  if (!compensation_enabled) {
+    source -= tare_offset_;
+  }
   for (Eigen::Index i = 0; i < 6; ++i) {
     source[i] *= config_.scale[i];
+  }
+
+  if (config_.hard_limit_enabled && compensation_enabled) {
+    if (config_.hard_force_norm_limit > 0.0 &&
+      source.head<3>().norm() > config_.hard_force_norm_limit)
+    {
+      result.hard_limit_exceeded = true;
+      return result;
+    }
+    if ((source.cwiseAbs().array() >
+      config_.hard_wrench_limit.array()).any())
+    {
+      result.hard_limit_exceeded = true;
+      return result;
+    }
   }
 
   Vector6d processed;
@@ -149,6 +242,19 @@ ForceProcessorResult ForceProcessor::process(
 
   if (!filtered_wrench_.allFinite()) {
     return result;
+  }
+
+  // Deadband after low-pass filtering: small residual noise is reported as
+  // exactly zero so it cannot drive the admittance integrator.
+  for (Eigen::Index i = 0; i < 3; ++i) {
+    if (std::abs(filtered_wrench_[i]) < config_.force_deadband_n) {
+      filtered_wrench_[i] = 0.0;
+    }
+  }
+  for (Eigen::Index i = 3; i < 6; ++i) {
+    if (std::abs(filtered_wrench_[i]) < config_.torque_deadband_nm) {
+      filtered_wrench_[i] = 0.0;
+    }
   }
 
   if (config_.hard_limit_enabled &&

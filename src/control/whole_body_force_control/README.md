@@ -99,6 +99,16 @@ force_sensor:
   hard_force_norm_limit: 20.0
   hard_wrench_limit: [20, 20, 20, 4, 4, 4]
   force_timeout: 0.50
+  force_deadband_n: 1.0
+  torque_deadband_nm: 0.1
+  load_compensation:
+    enable: false
+    gravity_m_s2: 9.80665
+    mass_kg: 0.0
+    gravity_direction_base: [0.0, 0.0, -1.0]
+    center_of_mass_sensor_m: [0.0, 0.0, 0.0]
+    force_bias_sensor_n: [0.0, 0.0, 0.0]
+    torque_bias_sensor_nm: [0.0, 0.0, 0.0]
 ```
 
 - `sensor_frame`：原始 FTS frame。
@@ -111,8 +121,24 @@ force_sensor:
 - `hard_force_norm_limit`：原始 `Fx/Fy/Fz` 范数硬限幅；0 表示关闭该检查。
 - `hard_wrench_limit`：六轴分量硬限幅。
 - `force_timeout`：力数据超时。
+- `force_deadband_n`：滤波后各轴力分量死区，绝对值小于该值置 0。
+- `torque_deadband_nm`：滤波后各轴力矩分量死区，绝对值小于该值置 0。
+- `load_compensation.enable`：是否启用末端重力负载补偿。启用后跳过 tare，直接减去辨识模型。
+- `load_compensation.gravity_m_s2`：重力加速度。
+- `load_compensation.mass_kg`：末端负载质量。
+- `load_compensation.gravity_direction_base`：机器人 base frame 下 signed gravity 方向单位向量。
+- `load_compensation.center_of_mass_sensor_m`：sensor frame 下 sensor origin 到负载质心的向量。
+- `load_compensation.force_bias_sensor_n`：sensor frame 下三轴力偏置。
+- `load_compensation.torque_bias_sensor_nm`：sensor frame 下三轴力矩偏置。
 
-原始硬限幅在 tare 前执行，避免大阶跃被 tare 或滤波掩盖。
+未启用 `load_compensation` 时，仍使用原来的 tare 流程；启用后不再执行 tare，而是按辨识模型补偿：
+
+```text
+f_s   = R_sb * h_b + b_f
+tau_s = r_sc x (R_sb * h_b) + b_tau
+```
+
+其中 `h_b = mass_kg * gravity_m_s2 * gravity_direction_base`。
 
 ### admittance
 

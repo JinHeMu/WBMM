@@ -47,7 +47,9 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
       parameters_.stiffness, parameters_.max_velocity);
 
   createRosInterfaces();
-  force_processor_.startTare();
+  if (!parameters_.load_compensation_enabled) {
+    force_processor_.startTare();
+  }
 
   const auto start_time = std::chrono::steady_clock::now();
   last_update_ = start_time;
@@ -115,7 +117,9 @@ void WholeBodyForceControlNode::resetForceControl()
 
   parameters_.admittance_enabled = configured_admittance_enabled_;
   force_processor_.reset();
-  force_processor_.startTare();
+  if (!parameters_.load_compensation_enabled) {
+    force_processor_.startTare();
+  }
   cartesian_controller_->reset(measuredWrenchVector());
 
   wrench_received_ = false;
@@ -381,6 +385,16 @@ void WholeBodyForceControlNode::configureForceProcessor()
   config.hard_limit_enabled = true;
   config.hard_wrench_limit = parameters_.hard_wrench_limit;
   config.hard_force_norm_limit = parameters_.hard_force_norm_limit;
+  config.force_deadband_n = parameters_.force_deadband_n;
+  config.torque_deadband_nm = parameters_.torque_deadband_nm;
+  config.load_compensation.enable = parameters_.load_compensation_enabled;
+  config.load_compensation.gravity_m_s2 = parameters_.load_gravity_m_s2;
+  config.load_compensation.mass_kg = parameters_.load_mass_kg;
+  config.load_compensation.gravity_direction_base =
+      parameters_.load_gravity_direction_base;
+  config.load_compensation.center_of_mass_sensor_m =
+      parameters_.load_center_of_mass_sensor_m;
+  config.load_compensation.bias_sensor = parameters_.load_bias_sensor;
   force_processor_.setConfig(config);
 }
 

@@ -88,6 +88,15 @@ private:
     double hard_force_norm_limit{20.0};
     std::size_t tare_samples{50};
 
+    bool load_compensation_enabled{false};
+    double load_gravity_m_s2{9.80665};
+    double load_mass_kg{0.0};
+    Eigen::Vector3d load_gravity_direction_base{0.0, 0.0, -1.0};
+    Eigen::Vector3d load_center_of_mass_sensor_m{0.0, 0.0, 0.0};
+    Vector6d load_bias_sensor{Vector6d::Zero()};
+    double force_deadband_n{1.0};
+    double torque_deadband_nm{0.1};
+
     double loop_rate{50.0};
     double force_timeout{0.25};
     double observation_timeout{0.25};

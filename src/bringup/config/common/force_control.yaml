@@ -22,6 +22,21 @@ whole_body_force_control:
       hard_force_norm_limit: 50.0
       hard_wrench_limit: [50.0, 50.0, 50.0, 2.0, 2.0, 2.0]
       force_timeout: 0.10
+      force_deadband_n: 1.0
+      torque_deadband_nm: 0.1
+      # End-effector gravity-load compensation.  When enable=true the
+      # auto-tare path is skipped and this identified model is subtracted
+      # from the raw sensor wrench instead.
+      load_compensation:
+        enable: false
+        gravity_m_s2: 9.80665
+        mass_kg: 0.0
+        # Unit vector of the signed gravity force in the robot base frame.
+        gravity_direction_base: [0.0, 0.0, -1.0]
+        # Sensor-origin-to-payload-CoM vector, expressed in sensor frame [m].
+        center_of_mass_sensor_m: [0.0, 0.0, 0.0]
+        force_bias_sensor_n: [0.0, 0.0, 0.0]
+        torque_bias_sensor_nm: [0.0, 0.0, 0.0]
 
     admittance:
       enable: false
