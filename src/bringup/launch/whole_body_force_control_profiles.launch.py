@@ -174,6 +174,17 @@ def _launch_nodes(context):
         ),
         Node(
             package="whole_body_force_control",
+            executable="force_sensor_processor_node",
+            name="force_sensor_processor",
+            output="screen",
+            parameters=[
+                force_base,
+                force_config,
+                {"use_sim_time": True},
+            ],
+        ),
+        Node(
+            package="whole_body_force_control",
             executable="whole_body_force_control_node",
             name="whole_body_force_control",
             output="screen",

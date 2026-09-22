@@ -35,21 +35,14 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
 
   robot_model_ = std::make_shared<PinocchioRobotModel>(
       parameters_.urdf_file);
-  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(get_clock());
-  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
   kinematics_ = std::make_unique<WholeBodyKinematics>(
       robot_model_, parameters_.tcp_frame, parameters_.state_frame);
-
-  configureForceProcessor();
 
   cartesian_controller_ = std::make_unique<CartesianComplianceController>(
       parameters_.admittance_axes, parameters_.mass, parameters_.damping,
       parameters_.stiffness, parameters_.max_velocity);
 
   createRosInterfaces();
-  if (!parameters_.load_compensation_enabled) {
-    force_processor_.startTare();
-  }
 
   const auto start_time = std::chrono::steady_clock::now();
   last_update_ = start_time;
@@ -95,7 +88,6 @@ void WholeBodyForceControlNode::latchFault(const std::string &reason)
   hold_ee_target_valid_ = false;
   ee_correction_valid_ = false;
   last_ee_correction_.setZero();
-  force_processor_.reset();
   cartesian_controller_->reset(measuredWrenchVector());
   publishState("FAULT_" + reason);
   publishHoldReference();
@@ -116,10 +108,6 @@ void WholeBodyForceControlNode::resetForceControl()
   last_ee_correction_.setZero();
 
   parameters_.admittance_enabled = configured_admittance_enabled_;
-  force_processor_.reset();
-  if (!parameters_.load_compensation_enabled) {
-    force_processor_.startTare();
-  }
   cartesian_controller_->reset(measuredWrenchVector());
 
   wrench_received_ = false;
@@ -376,28 +364,6 @@ void WholeBodyForceControlNode::updateEndEffectorReference(
   }
 }
 
-void WholeBodyForceControlNode::configureForceProcessor()
-{
-  ForceProcessorConfig config;
-  config.tare_samples = parameters_.tare_samples;
-  config.filter_alpha = Vector6d::Constant(parameters_.filter_alpha);
-  config.scale = parameters_.wrench_scale;
-  config.hard_limit_enabled = true;
-  config.hard_wrench_limit = parameters_.hard_wrench_limit;
-  config.hard_force_norm_limit = parameters_.hard_force_norm_limit;
-  config.force_deadband_n = parameters_.force_deadband_n;
-  config.torque_deadband_nm = parameters_.torque_deadband_nm;
-  config.load_compensation.enable = parameters_.load_compensation_enabled;
-  config.load_compensation.gravity_m_s2 = parameters_.load_gravity_m_s2;
-  config.load_compensation.mass_kg = parameters_.load_mass_kg;
-  config.load_compensation.gravity_direction_base =
-      parameters_.load_gravity_direction_base;
-  config.load_compensation.center_of_mass_sensor_m =
-      parameters_.load_center_of_mass_sensor_m;
-  config.load_compensation.bias_sensor = parameters_.load_bias_sensor;
-  force_processor_.setConfig(config);
-}
-
 void WholeBodyForceControlNode::update()
 {
   const auto wall_now = std::chrono::steady_clock::now();
@@ -434,7 +400,18 @@ void WholeBodyForceControlNode::update()
 
   if (parameters_.admittance_enabled && !wrench_received_)
   {
-    publishState("WAITING_FOR_WRENCH");
+    publishState(
+        force_sensor_state_received_ ? force_sensor_state_ :
+        "WAITING_FOR_FORCE_SENSOR_STATE");
+    publishHoldReference();
+    return;
+  }
+
+  if (parameters_.admittance_enabled && !force_sensor_active_)
+  {
+    publishState(
+        force_sensor_state_received_ ? force_sensor_state_ :
+        "WAITING_FOR_FORCE_SENSOR_STATE");
     publishHoldReference();
     return;
   }
@@ -470,13 +447,6 @@ void WholeBodyForceControlNode::update()
     return;
   }
 
-  if (force_processor_.taring())
-  {
-    publishState("TARING");
-    publishHoldReference();
-    return;
-  }
-
   const Eigen::VectorXd measured_state = observationStateLocked();
   const Vector6d measured_wrench = measuredWrenchVector();
 
@@ -507,7 +477,7 @@ void WholeBodyForceControlNode::update()
     publishEndEffectorCorrection(
         target, measured_state, primary_force, primary_offset,
         filtered_wrench, correction);
-    if (published)
+    if (published || !parameters_.reference_output_enabled)
     {
       publishState("ACTIVE");
     }
@@ -529,7 +499,7 @@ void WholeBodyForceControlNode::update()
   publishCorrection(
       reference, measured_state, primary_force, primary_offset,
       filtered_wrench, correction);
-  if (published)
+  if (published || !parameters_.reference_output_enabled)
   {
     publishState("ACTIVE");
   }

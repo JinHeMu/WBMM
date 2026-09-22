@@ -32,13 +32,13 @@ def deep_merge(base, override):
     return result
 
 
-def load_force_params(layers):
+def load_force_params(layers, node_name='whole_body_force_control'):
     data = {}
     for layer in layers:
         if isinstance(layer, (str, Path)):
             layer = load_yaml(Path(layer))
         data = deep_merge(data, layer)
-    return data['whole_body_force_control']['ros__parameters']
+    return data[node_name]['ros__parameters']
 
 
 def flatten(values, prefix=''):
@@ -106,8 +106,9 @@ def test_sim_profiles_use_admittance_limits(
     context.launch_configurations.update({
         'profile': profile, 'viewer': 'false', 'use_rviz': 'false'})
     nodes = module._launch_nodes(context)
-    controller = next(node for node in nodes
-                      if node['package'] == 'whole_body_force_control')
+    controller = next(
+        node for node in nodes
+        if node.get('executable') == 'whole_body_force_control_node')
     assert controller['parameters'][0] == str(
         COMMON_CONFIG / 'force_control.yaml')
     assert controller['parameters'][1] == str(SIM_CONFIG / 'force_control.yaml')
@@ -126,8 +127,19 @@ def test_sim_profiles_use_admittance_limits(
     assert 'admittance.max_offset' not in effective
     assert 'whole_body.max_base_delta' not in effective
     assert 'whole_body.max_joint_delta' not in effective
-    assert effective['force_sensor.sensor_frame'] == 'jk_se_vi_200_link'
     assert effective['use_sim_time'] is True
+
+    processor = next(
+        node for node in nodes
+        if node.get('executable') == 'force_sensor_processor_node')
+    sensor = flatten(load_force_params(
+        [COMMON_CONFIG / 'force_control.yaml',
+         SIM_CONFIG / 'force_control.yaml'],
+        'force_sensor_processor'))
+    for entry in processor['parameters'][2:]:
+        sensor.update(entry)
+    assert sensor['force_sensor.sensor_frame'] == 'jk_se_vi_200_link'
+    assert sensor['topics.processed_wrench'] == effective['topics.wrench']
 
 
 @pytest.mark.parametrize('profile, stiffness, damping, base_share', [
@@ -152,8 +164,9 @@ def test_three_axis_example_profiles(
     context.launch_configurations.update({
         'profile': profile, 'viewer': 'false', 'use_rviz': 'false'})
     nodes = module._launch_nodes(context)
-    controller = next(node for node in nodes
-                      if node['package'] == 'whole_body_force_control')
+    controller = next(
+        node for node in nodes
+        if node.get('executable') == 'whole_body_force_control_node')
     effective = flatten(deep_merge(
         load_yaml(COMMON_CONFIG / 'force_control.yaml'),
         load_yaml(SIM_CONFIG / 'force_control.yaml'))
@@ -193,9 +206,8 @@ def test_sensor_z_sim_uses_world_frame_translation_admittance(monkeypatch):
         ['whole_body_force_control']['ros__parameters'])
     force_controller = next(
         node for node in nodes
-        if node['package'] == 'whole_body_force_control')
+        if node.get('executable') == 'whole_body_force_control_node')
     force.update(force_controller['parameters'][2])
-    assert force['force_sensor.sensor_frame'] == 'jk_se_vi_200_link'
     assert force['force_sensor.tcp_frame'] == 'tool0'
     assert force['admittance.selected_axes'] == [
         True, True, True, False, False, False]
@@ -206,8 +218,15 @@ def test_sensor_z_sim_uses_world_frame_translation_admittance(monkeypatch):
     assert 'whole_body.max_joint_delta' not in force
     assert force['whole_body.max_base_velocity'] == 0.50
     assert force['whole_body.max_joint_velocity'] == 0.50
-    assert force['force_sensor.hard_force_norm_limit'] == 20.0
-    assert force['force_sensor.hard_wrench_limit'][:3] == [20.0, 20.0, 20.0]
+    sensor = flatten(load_force_params(
+        [COMMON_CONFIG / 'force_control.yaml',
+         SIM_CONFIG / 'force_control.yaml'],
+        'force_sensor_processor'))
+    assert sensor['force_sensor.sensor_frame'] == 'jk_se_vi_200_link'
+    assert sensor['force_sensor.tcp_frame'] == 'tool0'
+    assert sensor['force_sensor.hard_force_norm_limit'] == 20.0
+    assert sensor['force_sensor.hard_wrench_limit'][:3] == [20.0, 20.0, 20.0]
+    assert sensor['topics.processed_wrench'] == force['topics.wrench']
     assert all(node.get('package') != 'tracer_jaka_mujoco' for node in nodes)
 
 
@@ -219,9 +238,7 @@ def test_real_config_preserves_closed_gates_and_admittance_limits():
     assert config['admittance.enable'] is False
     assert config['admittance.output'] is False
     assert config['safety.enforce_single_target_owner'] is True
-    assert config['force_sensor.sensor_frame'] == 'jk_se_vi_200_link'
     assert config['force_sensor.tcp_frame'] == 'tool0'
-    assert config['force_sensor.tf_fallback_to_latest'] is False
     assert len(config['admittance.selected_axes']) == 6
     assert config['admittance.mass'] == [3.0, 3.0, 3.0, 0.3, 0.3, 0.3]
     assert config['admittance.damping'] == [45.0, 45.0, 45.0, 4.5, 4.5, 4.5]
@@ -233,9 +250,17 @@ def test_real_config_preserves_closed_gates_and_admittance_limits():
     assert 'force_sensor.max_wrench_rate' not in config
     assert config['whole_body.max_base_velocity'] == 0.20
     assert config['whole_body.max_joint_velocity'] == 0.50
-    assert config['force_sensor.hard_force_norm_limit'] == 50.0
-    assert config['force_sensor.hard_wrench_limit'] == [
+    sensor = flatten(load_force_params([
+        COMMON_CONFIG / 'force_control.yaml',
+        REAL_CONFIG / 'force_control.yaml',
+    ], 'force_sensor_processor'))
+    assert sensor['force_sensor.sensor_frame'] == 'jk_se_vi_200_link'
+    assert sensor['force_sensor.tcp_frame'] == 'tool0'
+    assert sensor['force_sensor.tf_fallback_to_latest'] is False
+    assert sensor['force_sensor.hard_force_norm_limit'] == 50.0
+    assert sensor['force_sensor.hard_wrench_limit'] == [
         50.0, 50.0, 50.0, 2.0, 2.0, 2.0]
+    assert sensor['topics.processed_wrench'] == config['topics.wrench']
 
 
 def test_fts_broadcaster_and_compliance_use_actual_sensor_link():
@@ -247,7 +272,7 @@ def test_fts_broadcaster_and_compliance_use_actual_sensor_link():
     assert frame == flatten(load_force_params([
         COMMON_CONFIG / 'force_control.yaml',
         REAL_CONFIG / 'force_control.yaml',
-    ]))['force_sensor.sensor_frame']
+    ], 'force_sensor_processor'))['force_sensor.sensor_frame']
     assert frame in {link.attrib['name'] for link in urdf.findall('link')}
 
 

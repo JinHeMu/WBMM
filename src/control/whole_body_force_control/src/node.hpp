@@ -1,19 +1,15 @@
 #pragma once
 
 #include "whole_body_force_control/controllers.hpp"
-#include "whole_body_force_control/force_processor.hpp"
 #include "wbmm_pinocchio/pinocchio_robot_model.hpp"
 #include "wbmm_pinocchio/whole_body_kinematics.hpp"
 
 #include <wbmm_core/wbmm_core.hpp>
 
-#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <geometry_msgs/msg/wrench_stamped.hpp>
 #include <ocs2_msgs/msg/mpc_observation.hpp>
 #include <ocs2_msgs/msg/mpc_target_trajectories.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <tf2_ros/buffer.h>
-#include <tf2_ros/transform_listener.h>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_srvs/srv/trigger.hpp>
@@ -42,8 +38,8 @@ enum class ReferenceOutputMode
 
 // Reference-side six-axis admittance controller.
 //
-// The force sensor reports in sensor_frame.  The node transforms the measured
-// wrench to the nominal TCP frame (tool0), solves admittance there, then:
+// A separate force_sensor_processor_node publishes a validated wrench in the
+// nominal TCP frame (tool0).  This node solves admittance there, then:
 //   - output.mode = ee_pose:
 //       publish a 7D EndEffectorPose target for the OCS2 EE reference;
 //       OCS2 decides how base and arm realize it.
@@ -60,18 +56,17 @@ private:
     std::string urdf_file;
     std::string robot_name;
     std::string state_frame;
-    std::string sensor_frame;
     std::string tcp_frame;
     std::string target_topic;
     std::string ee_target_topic;
     std::string correction_topic;
     std::string state_topic;
     std::string wrench_topic;
+    std::string force_sensor_state_topic;
 
     ReferenceOutputMode output_mode{ReferenceOutputMode::kEndEffectorPose};
 
     bool admittance_enabled{false};
-    bool tf_fallback_to_latest{true};
     bool reference_output_enabled{false};
     bool enforce_single_target_owner{true};
 
@@ -80,22 +75,6 @@ private:
     Vector6d damping{Vector6d::Zero()};
     Vector6d stiffness{Vector6d::Zero()};
     Vector6d max_velocity{Vector6d::Zero()};
-
-    double filter_alpha{0.25};
-    double tf_lookup_timeout{0.05};
-    Vector6d wrench_scale{Vector6d::Ones()};
-    Vector6d hard_wrench_limit{Vector6d::Ones()};
-    double hard_force_norm_limit{20.0};
-    std::size_t tare_samples{50};
-
-    bool load_compensation_enabled{false};
-    double load_gravity_m_s2{9.80665};
-    double load_mass_kg{0.0};
-    Eigen::Vector3d load_gravity_direction_base{0.0, 0.0, -1.0};
-    Eigen::Vector3d load_center_of_mass_sensor_m{0.0, 0.0, 0.0};
-    Vector6d load_bias_sensor{Vector6d::Zero()};
-    double force_deadband_n{1.0};
-    double torque_deadband_nm{0.1};
 
     double loop_rate{50.0};
     double force_timeout{0.25};
@@ -112,7 +91,6 @@ private:
   };
 
   void loadParameters();
-  void configureForceProcessor();
   void createRosInterfaces();
   static std::string enabledAxes(const AxisMask6d &mask);
 
@@ -120,10 +98,8 @@ private:
       const ocs2_msgs::msg::MpcObservation::SharedPtr message);
   void wrenchCallback(
       const geometry_msgs::msg::WrenchStamped::SharedPtr message);
-  geometry_msgs::msg::TransformStamped lookupTransformWithFallback(
-      const std::string &target_frame, const std::string &source_frame,
-      const builtin_interfaces::msg::Time &stamp,
-      const std::string &context);
+  void forceSensorStateCallback(
+      const std_msgs::msg::String::SharedPtr message);
   Vector6d measuredWrenchVector() const;
   Eigen::VectorXd observationStateLocked() const;
   bool foreignTargetPublisherPresent() const;
@@ -178,11 +154,8 @@ private:
 
   // Robot model and control algorithms.
   wbmm::core::RobotModelPtr robot_model_;
-  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
-  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
   std::unique_ptr<WholeBodyKinematics> kinematics_;
   std::unique_ptr<CartesianComplianceController> cartesian_controller_;
-  ForceProcessor force_processor_;
 
   // Input cache.
   mutable std::mutex mutex_;
@@ -191,6 +164,9 @@ private:
   wbmm::core::Wrench measured_wrench_core_{};
   bool observation_received_{false};
   bool wrench_received_{false};
+  bool force_sensor_state_received_{false};
+  bool force_sensor_active_{false};
+  std::string force_sensor_state_{"WAITING_FOR_WRENCH"};
   std::chrono::steady_clock::time_point last_update_;
   std::chrono::steady_clock::time_point last_wrench_;
   std::chrono::steady_clock::time_point last_observation_;
@@ -227,6 +203,8 @@ private:
       observation_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr
       wrench_subscription_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr
+      force_sensor_state_subscription_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_service_;
   rclcpp::TimerBase::SharedPtr timer_;
 };

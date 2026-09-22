@@ -66,9 +66,8 @@ def generate_launch_description():
             default_value=PathJoinSubstitution([
                 bringup, "config", "real", "task.info"])),
         DeclareLaunchArgument(
-            "ocs2_config",
-            default_value=PathJoinSubstitution([
-                bringup, "config", "real", "ocs2.yaml"])),
+            "ocs2_config", default_value="",
+            description="Optional override; empty uses common defaults."),
         DeclareLaunchArgument(
             "force_base_params_file",
             default_value=PathJoinSubstitution([
@@ -99,25 +98,41 @@ def generate_launch_description():
                     "initial_task_phase"),
             }.items(),
         ),
-        TimerAction(period=12.0, actions=[Node(
-            package="whole_body_force_control",
-            executable="whole_body_force_control_node",
-            name="whole_body_force_control",
-            output="screen",
-            parameters=[
-                force_base_params_file,
-                force_params_file,
-                {
-                    "urdf_file": urdf,
-                    "admittance.enable": ParameterValue(
-                        LaunchConfiguration("admittance.enable"),
-                        value_type=bool),
-                    "admittance.output": ParameterValue(
-                        LaunchConfiguration("admittance.output"),
-                        value_type=bool),
-                    "use_sim_time": ParameterValue(
-                        use_sim_time, value_type=bool),
-                },
-            ],
-        )]),
+        TimerAction(period=12.0, actions=[
+            Node(
+                package="whole_body_force_control",
+                executable="force_sensor_processor_node",
+                name="force_sensor_processor",
+                output="screen",
+                parameters=[
+                    force_base_params_file,
+                    force_params_file,
+                    {
+                        "use_sim_time": ParameterValue(
+                            use_sim_time, value_type=bool),
+                    },
+                ],
+            ),
+            Node(
+                package="whole_body_force_control",
+                executable="whole_body_force_control_node",
+                name="whole_body_force_control",
+                output="screen",
+                parameters=[
+                    force_base_params_file,
+                    force_params_file,
+                    {
+                        "urdf_file": urdf,
+                        "admittance.enable": ParameterValue(
+                            LaunchConfiguration("admittance.enable"),
+                            value_type=bool),
+                        "admittance.output": ParameterValue(
+                            LaunchConfiguration("admittance.output"),
+                            value_type=bool),
+                        "use_sim_time": ParameterValue(
+                            use_sim_time, value_type=bool),
+                    },
+                ],
+            ),
+        ]),
     ])

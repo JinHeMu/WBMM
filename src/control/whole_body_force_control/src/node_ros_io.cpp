@@ -3,12 +3,9 @@
 #include "wbmm_ros_interfaces/wbmm_conversions.hpp"
 #include "wbmm_ros_interfaces/wbmm_ros_conversions.hpp"
 
-#include <Eigen/Geometry>
-
 #include <algorithm>
 #include <cmath>
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -21,66 +18,6 @@ using wbmm::ros_interfaces::toEigenWrench;
 using wbmm::ros_interfaces::toMpcTargetTrajectories;
 using wbmm::ros_interfaces::wholeBodyStateFromMpcObservation;
 using wbmm::ros_interfaces::wrenchFromRos;
-
-namespace
-{
-
-Eigen::Matrix3d rotationFromTransform(
-    const geometry_msgs::msg::TransformStamped &transform)
-{
-  const auto &q = transform.transform.rotation;
-  const Eigen::Quaterniond quaternion(q.w, q.x, q.y, q.z);
-  if (!std::isfinite(quaternion.norm()) || quaternion.norm() < 1.0e-12)
-  {
-    throw std::invalid_argument("TF rotation is not a valid quaternion");
-  }
-  return quaternion.normalized().toRotationMatrix();
-}
-
-Eigen::Vector3d translationFromTransform(
-    const geometry_msgs::msg::TransformStamped &transform)
-{
-  const auto &t = transform.transform.translation;
-  const Eigen::Vector3d translation(t.x, t.y, t.z);
-  if (!translation.allFinite())
-  {
-    throw std::invalid_argument("TF translation is non-finite");
-  }
-  return translation;
-}
-
-}  // namespace
-
-geometry_msgs::msg::TransformStamped
-WholeBodyForceControlNode::lookupTransformWithFallback(
-    const std::string &target_frame, const std::string &source_frame,
-    const builtin_interfaces::msg::Time &stamp,
-    const std::string &context)
-{
-  const auto timeout = rclcpp::Duration::from_seconds(
-      parameters_.tf_lookup_timeout);
-  const rclcpp::Time requested_time(stamp);
-  try
-  {
-    return tf_buffer_->lookupTransform(
-        target_frame, source_frame, requested_time, timeout);
-  }
-  catch (const tf2::TransformException &exception)
-  {
-    if (!parameters_.tf_fallback_to_latest)
-    {
-      throw;
-    }
-    RCLCPP_WARN_THROTTLE(
-        get_logger(), *get_clock(), 2000,
-        "%s: TF %s <- %s at message stamp failed (%s); using latest TF",
-        context.c_str(), target_frame.c_str(), source_frame.c_str(),
-        exception.what());
-    return tf_buffer_->lookupTransform(
-        target_frame, source_frame, tf2::TimePointZero,
-        tf2_ros::fromRclcpp(timeout));
-  }
-}
 
 void WholeBodyForceControlNode::createRosInterfaces()
 {
@@ -106,6 +43,13 @@ void WholeBodyForceControlNode::createRosInterfaces()
       rclcpp::SensorDataQoS(),
       std::bind(
           &WholeBodyForceControlNode::wrenchCallback, this,
+          std::placeholders::_1));
+  force_sensor_state_subscription_ =
+      create_subscription<std_msgs::msg::String>(
+      parameters_.force_sensor_state_topic,
+      rclcpp::QoS(1).reliable().transient_local(),
+      std::bind(
+          &WholeBodyForceControlNode::forceSensorStateCallback, this,
           std::placeholders::_1));
   reset_service_ = create_service<std_srvs::srv::Trigger>(
       "/whole_body_force_control/reset",
@@ -159,150 +103,60 @@ void WholeBodyForceControlNode::observationCallback(
 void WholeBodyForceControlNode::wrenchCallback(
     const geometry_msgs::msg::WrenchStamped::SharedPtr message)
 {
-  auto raw = wrenchFromRos(*message, parameters_.sensor_frame);
-  if (!raw.has_value())
+  if (message->header.frame_id != parameters_.tcp_frame)
   {
     RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
-        "Dropping malformed wrench message");
+        "Dropping processed wrench in frame '%s'; expected '%s'",
+        message->header.frame_id.c_str(), parameters_.tcp_frame.c_str());
+    requestFault("WRENCH_FRAME");
     return;
   }
 
-  auto validation = wbmm::core::validate(*raw);
+  auto wrench = wrenchFromRos(*message, parameters_.tcp_frame);
+  if (!wrench.has_value())
+  {
+    RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Dropping malformed processed wrench message");
+    requestFault("WRENCH_INVALID");
+    return;
+  }
+
+  const auto validation = wbmm::core::validate(*wrench);
   if (!validation.ok)
   {
     RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
-        "Dropping invalid raw wrench: %s", validation.message.c_str());
-    return;
-  }
-
-  // Raw wrench is measured in sensor_frame.  It is transformed to tcp_frame
-  // with the full lever-arm term, then admittance is solved in tcp_frame.
-  if (message->header.frame_id.empty() ||
-      message->header.frame_id != parameters_.sensor_frame) {
-    RCLCPP_WARN_THROTTLE(
-        get_logger(), *get_clock(), 2000,
-        "Rejecting wrench frame '%s'; expected sensor frame '%s'",
-        message->header.frame_id.c_str(), parameters_.sensor_frame.c_str());
-    if (parameters_.admittance_enabled) {
-      requestFault("WRENCH_FRAME");
-    }
-    return;
-  }
-
-  geometry_msgs::msg::TransformStamped tf_tcp_sensor;
-  try
-  {
-    tf_tcp_sensor = lookupTransformWithFallback(
-        parameters_.tcp_frame, parameters_.sensor_frame,
-        message->header.stamp, "sensor->tcp");
-  }
-  catch (const tf2::TransformException &exception)
-  {
-    RCLCPP_WARN_THROTTLE(
-        get_logger(), *get_clock(), 2000,
-        "Dropping wrench: TF lookup failed: %s", exception.what());
-    if (parameters_.admittance_enabled) {
-      requestFault("WRENCH_TF");
-    }
-    return;
-  }
-  catch (const std::exception &exception)
-  {
-    RCLCPP_WARN_THROTTLE(
-        get_logger(), *get_clock(), 2000,
-        "Dropping wrench: invalid TF: %s", exception.what());
-    if (parameters_.admittance_enabled) {
-      requestFault("WRENCH_TF");
-    }
-    return;
-  }
-
-  Eigen::Matrix3d tcp_rotation_sensor;
-  Eigen::Vector3d sensor_origin_in_tcp;
-  try
-  {
-    tcp_rotation_sensor = rotationFromTransform(tf_tcp_sensor);
-    sensor_origin_in_tcp = translationFromTransform(tf_tcp_sensor);
-  }
-  catch (const std::exception &exception)
-  {
-    RCLCPP_WARN_THROTTLE(
-        get_logger(), *get_clock(), 2000,
-        "Dropping wrench: invalid TF data: %s", exception.what());
-    if (parameters_.admittance_enabled) {
-      requestFault("WRENCH_TF");
-    }
+        "Dropping invalid processed wrench: %s", validation.message.c_str());
+    requestFault("WRENCH_INVALID");
     return;
   }
 
   const auto wall_now = std::chrono::steady_clock::now();
 
-  Eigen::Matrix3d source_rotation_base = Eigen::Matrix3d::Identity();
-  if (parameters_.load_compensation_enabled) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!observation_received_) {
-      RCLCPP_WARN_THROTTLE(
-          get_logger(), *get_clock(), 2000,
-          "Waiting for observation before gravity-load compensation");
-      return;
-    }
-    const Eigen::VectorXd state = observationStateLocked();
-    const double yaw = state(2);
-    Eigen::Matrix3d state_rotation_base;
-    state_rotation_base <<
-        std::cos(yaw), -std::sin(yaw), 0.0,
-        std::sin(yaw),  std::cos(yaw), 0.0,
-        0.0,            0.0,           1.0;
-    const Eigen::Matrix3d state_rotation_tcp =
-        kinematics_->frameRotation(state);
-    const Eigen::Matrix3d base_rotation_tcp =
-        state_rotation_base.transpose() * state_rotation_tcp;
-    const Eigen::Matrix3d base_rotation_sensor =
-        base_rotation_tcp * tcp_rotation_sensor;
-    // ForceProcessor expects base->sensor rotation.
-    source_rotation_base = base_rotation_sensor.transpose();
-  }
-
-  const auto processed = force_processor_.process(
-      *raw, tcp_rotation_sensor, sensor_origin_in_tcp,
-      source_rotation_base);
-  if (processed.taring) {
-    RCLCPP_INFO_THROTTLE(
-        get_logger(), *get_clock(), 1000,
-        "Auto-tare in progress: %zu/%zu samples",
-        processed.tare_samples_collected,
-        force_processor_.tareSamplesRequired());
-    return;
-  }
-  if (!processed.ok) {
-    if (processed.hard_limit_exceeded) {
-      requestFault("WRENCH_LIMIT");
-    } else if (parameters_.admittance_enabled) {
-      requestFault("WRENCH_INVALID");
-    } else {
-      RCLCPP_WARN_THROTTLE(
-          get_logger(), *get_clock(), 2000,
-          "Dropping wrench rejected by ForceProcessor");
-    }
-    return;
-  }
-
-  wbmm::core::Wrench wrench = processed.wrench;
-  wrench.header.frame_id = parameters_.tcp_frame;
-  validation = wbmm::core::validate(wrench);
-  if (!validation.ok) {
-    RCLCPP_WARN_THROTTLE(
-        get_logger(), *get_clock(), 2000,
-        "Dropping invalid processed wrench: %s", validation.message.c_str());
-    return;
-  }
-
   std::lock_guard<std::mutex> lock(mutex_);
-  measured_wrench_core_ = wrench;
+  measured_wrench_core_ = *wrench;
   wrench_received_ = true;
   last_wrench_ = wall_now;
+}
+
+void WholeBodyForceControlNode::forceSensorStateCallback(
+    const std_msgs::msg::String::SharedPtr message)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  force_sensor_state_ = message->data;
+  force_sensor_state_received_ = true;
+  force_sensor_active_ = force_sensor_state_ == "ACTIVE";
+
+  constexpr char kFaultPrefix[] = "FAULT_";
+  if (!fault_latched_ && !pending_fault_ &&
+      force_sensor_state_.rfind(kFaultPrefix, 0) == 0)
+  {
+    pending_fault_ = true;
+    pending_fault_reason_ = force_sensor_state_.substr(
+        sizeof(kFaultPrefix) - 1);
+  }
 }
 
 Vector6d WholeBodyForceControlNode::measuredWrenchVector() const

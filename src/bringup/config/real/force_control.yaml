@@ -1,7 +1,39 @@
 # Real force-control overrides. Common structure and safe defaults live in
 # config/common/force_control.yaml.
+force_sensor_processor:
+  ros__parameters:
+    force_sensor:
+      force_deadband_n: 0.0
+      torque_deadband_nm: 0.0
+
+      # Identified static payload model from collect_ft_gravity_data.py /
+      # identify_payload.py.  Keep this file deployment-specific.
+      load_compensation:
+        enable: true
+        # CURRENT implementation matches the previous whole-body base
+        # calculation. Field confirmation of the identification frame is TBD.
+        base_frame: base_footprint
+        mass_kg: 0.6911812186598068
+        gravity_direction_base:
+          - -0.274272937728412
+          - 0.012343649970954393
+          - -0.9615726649272124
+        center_of_mass_sensor_m:
+          - 0.00038573948293132553
+          - -0.008151174661854221
+          - 0.05470825735402387
+        force_bias_sensor_n:
+          - -7.845303455709011
+          - -7.606777263927021
+          - -0.6770376209594674
+        torque_bias_sensor_nm:
+          - 0.7313066495125813
+          - -0.7416900592416971
+          - 0.07621860174493059
+
 whole_body_force_control:
   ros__parameters:
     admittance:
+      # Explicit deployment gates: keep closed even if common defaults change.
       enable: false
       output: false

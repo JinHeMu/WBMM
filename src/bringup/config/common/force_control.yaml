@@ -1,34 +1,31 @@
-# Common whole-body force-control structure shared by real and simulation.
-whole_body_force_control:
+# Common raw F/T preprocessing shared by real and simulation.
+force_sensor_processor:
   ros__parameters:
-    robot_name: mobile_manipulator
-    state_frame: odom
-
     topics:
-      wrench: /fts_broadcaster/wrench
-      correction: /whole_body_force_control/correction
-      states: /whole_body_force_control/states
-      target: /mobile_manipulator_whole_body_target
-      ee_target: /mobile_manipulator_ee_target
+      raw_wrench: /fts_broadcaster/wrench
+      processed_wrench: /whole_body_force_control/processed_wrench
+      states: /whole_body_force_control/force_sensor_states
 
     force_sensor:
       sensor_frame: jk_se_vi_200_link
       tcp_frame: tool0
       tf_lookup_timeout: 0.05
       tf_fallback_to_latest: false
+      raw_timeout: 0.10
+      monitor_rate: 50.0
       tare_samples: 50
       filter_alpha: 0.15
       wrench_scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
       hard_force_norm_limit: 50.0
       hard_wrench_limit: [50.0, 50.0, 50.0, 2.0, 2.0, 2.0]
-      force_timeout: 0.10
-      force_deadband_n: 1.0
-      torque_deadband_nm: 0.1
+      force_deadband_n: 0.0
+      torque_deadband_nm: 0.0
       # End-effector gravity-load compensation.  When enable=true the
       # auto-tare path is skipped and this identified model is subtracted
       # from the raw sensor wrench instead.
       load_compensation:
         enable: false
+        base_frame: base_footprint
         gravity_m_s2: 9.80665
         mass_kg: 0.0
         # Unit vector of the signed gravity force in the robot base frame.
@@ -37,6 +34,25 @@ whole_body_force_control:
         center_of_mass_sensor_m: [0.0, 0.0, 0.0]
         force_bias_sensor_n: [0.0, 0.0, 0.0]
         torque_bias_sensor_nm: [0.0, 0.0, 0.0]
+
+# Processed-wrench admittance and reference generation.
+whole_body_force_control:
+  ros__parameters:
+    robot_name: mobile_manipulator
+    state_frame: odom
+
+    topics:
+      wrench: /whole_body_force_control/processed_wrench
+      force_sensor_states: /whole_body_force_control/force_sensor_states
+      correction: /whole_body_force_control/correction
+      states: /whole_body_force_control/states
+      target: /mobile_manipulator_whole_body_target
+      ee_target: /mobile_manipulator_ee_target
+
+    force_sensor:
+      # Processed wrench must already be expressed at this TCP frame.
+      tcp_frame: tool0
+      force_timeout: 0.10
 
     admittance:
       enable: false

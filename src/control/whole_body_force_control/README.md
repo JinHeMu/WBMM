@@ -11,17 +11,21 @@
 
 ## 节点结构
 
-- `src/node.hpp`：节点、参数和运行状态声明。
-- `src/node.cpp`：模型/控制器装配、控制周期、故障保持、主流程。
-- `src/node_config.cpp`：参数声明、校验和默认值。
-- `src/node_ros_io.cpp`：订阅回调、TF 变换、reference/修正量发布。
-- `src/force_processor.cpp`：tare、滤波、硬限幅和有限性检查。
-- `src/controllers.cpp`：单轴导纳和六轴笛卡尔导纳。
+- `force_sensor_processor_node`：订阅 HardwareInterface 经 `fts_broadcaster`
+  发布的原始 wrench，负责 TF、tare/负载补偿、滤波、限幅和传感器故障。
+- `whole_body_force_control_node`：只订阅处理后的 wrench，负责导纳、运动学、
+  安全保持和 reference 输出；原可执行程序名称保持不变。
+- `src/force_processor.cpp`：无 ROS 依赖的力处理算法核心。
+- `src/controllers.cpp`：无 ROS 依赖的单轴/六轴导纳算法核心。
+- `src/node*.cpp`：导纳节点的 ROS 适配、参数、控制周期和输出。
 
 ## 控制链路
 
 ```text
-raw FTS in sensor_frame
+JakaHardwareInterface state interfaces
+  -> fts_broadcaster
+  -> /fts_broadcaster/wrench (raw, sensor_frame)
+  -> force_sensor_processor_node
   -> finite / raw hard force norm / raw per-axis hard limit
   -> auto tare
   -> wrench_scale in sensor_frame
@@ -29,6 +33,8 @@ raw FTS in sensor_frame
      （完整 wrench 变换，包含力臂力矩）
   -> 一阶低通滤波，tcp_frame
   -> finite / per-axis hard limit
+  -> /whole_body_force_control/processed_wrench
+  -> whole_body_force_control_node
   -> CartesianComplianceController
      （名义 TCP 系，6 轴独立导纳）
   -> whole-body IK 可达性 anti-windup
@@ -76,14 +82,18 @@ admittance:
 
 ```yaml
 topics:
-  wrench: /fts_broadcaster/wrench
+  raw_wrench: /fts_broadcaster/wrench
+  processed_wrench: /whole_body_force_control/processed_wrench
+  force_sensor_states: /whole_body_force_control/force_sensor_states
   correction: /whole_body_force_control/correction
   states: /whole_body_force_control/states
 ```
 
-- `wrench`：力传感器输入。
+- `raw_wrench`：处理节点从 `fts_broadcaster` 接收的 HardwareInterface 原始输出。
+- `processed_wrench`：处理节点输出、导纳节点输入，坐标系必须为 `tcp_frame`。
+- `force_sensor_states`：可靠且 transient-local 的处理状态；`FAULT_*` 会立即联锁导纳节点。
 - `correction`：导纳修正量、wrench、速度等数组。
-- `states`：控制状态字符串，例如 `TARING`、`SETTLING`、`ACTIVE`、`FAULT_*`。
+- `states`：导纳控制状态字符串，例如 `SETTLING`、`ACTIVE`、`FAULT_*`。
 
 ### force_sensor
 
@@ -93,14 +103,15 @@ force_sensor:
   tcp_frame: tool0
   tf_lookup_timeout: 0.05
   tf_fallback_to_latest: true
+  raw_timeout: 0.50
   tare_samples: 50
   filter_alpha: 0.25
   wrench_scale: [1, 1, 1, 1, 1, 1]
   hard_force_norm_limit: 20.0
   hard_wrench_limit: [20, 20, 20, 4, 4, 4]
   force_timeout: 0.50
-  force_deadband_n: 1.0
-  torque_deadband_nm: 0.1
+  force_deadband_n: 0.0
+  torque_deadband_nm: 0.0
   load_compensation:
     enable: false
     gravity_m_s2: 9.80665
@@ -115,6 +126,7 @@ force_sensor:
 - `tcp_frame`：导纳 TCP frame。
 - `tf_lookup_timeout`：按 wrench stamp 查询 TF 的超时。
 - `tf_fallback_to_latest`：stamp 查询失败时是否回退 latest TF。
+- `raw_timeout`：原始 HardwareInterface wrench 的超时阈值。
 - `tare_samples`：启动后自动 tare 采样帧数。
 - `filter_alpha`：一阶低通系数，范围 0~1。
 - `wrench_scale`：sensor frame 下的六轴缩放。
@@ -139,6 +151,10 @@ tau_s = r_sc x (R_sb * h_b) + b_tau
 ```
 
 其中 `h_b = mass_kg * gravity_m_s2 * gravity_direction_base`。
+
+处理节点故障锁存后停止发布 processed wrench。恢复时先调用
+`/whole_body_force_control/force_sensor/reset`，再调用
+`/whole_body_force_control/reset`；实机重新启用仍需人工检查并保持执行门默认关闭。
 
 ### admittance
 

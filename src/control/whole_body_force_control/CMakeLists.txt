@@ -39,13 +39,22 @@ target_link_libraries(whole_body_force_control_node
   wbmm_ros_interfaces::wbmm_ros_interfaces
   wbmm_core::wbmm_core)
 ament_target_dependencies(whole_body_force_control_node
-  geometry_msgs ocs2_msgs rclcpp std_msgs std_srvs tf2_ros)
+  geometry_msgs ocs2_msgs rclcpp std_msgs std_srvs)
+
+add_executable(force_sensor_processor_node
+  src/force_sensor_processor_node.cpp)
+target_link_libraries(force_sensor_processor_node
+  ${PROJECT_NAME}_core
+  wbmm_ros_interfaces::wbmm_ros_interfaces
+  wbmm_core::wbmm_core)
+ament_target_dependencies(force_sensor_processor_node
+  geometry_msgs rclcpp std_msgs std_srvs tf2_ros)
 
 install(TARGETS ${PROJECT_NAME}_core
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib)
-install(TARGETS whole_body_force_control_node
+install(TARGETS whole_body_force_control_node force_sensor_processor_node
   RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
 # Deployment profiles are centralized in tracer_jaka_bringup/config/.

@@ -42,12 +42,19 @@ if(BUILD_TESTING)
     TIMEOUT 30
     APPEND_ENV ROS_LOG_DIR=${CMAKE_CURRENT_BINARY_DIR}/common_launch_logs
   )
-  ament_add_pytest_test(
-    force_control_configs
-    test/test_force_control_configs.py
-    TIMEOUT 30
-    APPEND_ENV ROS_LOG_DIR=${CMAKE_CURRENT_BINARY_DIR}/force_config_logs
+  # Register this safety/config contract explicitly.  On this workspace the
+  # system pytest is usable with third-party plugin autoload disabled, while
+  # ament_cmake_pytest's import probe is contaminated by an incompatible user
+  # anyio plugin and would silently skip the test.
+  add_test(
+    NAME force_control_configs
+    COMMAND "${CMAKE_COMMAND}" -E env
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1"
+      "ROS_LOG_DIR=${CMAKE_CURRENT_BINARY_DIR}/force_config_logs"
+      "${Python3_EXECUTABLE}" -m pytest -q
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/test_force_control_configs.py"
   )
+  set_tests_properties(force_control_configs PROPERTIES TIMEOUT 30)
   add_test(
     NAME force_control_real_safety_gate
     COMMAND "${Python3_EXECUTABLE}"
