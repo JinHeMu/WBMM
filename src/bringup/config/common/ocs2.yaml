@@ -17,7 +17,7 @@ wbmm_mrt_node:
     task_phase_state_topic: mobile_manipulator_task_phase_state
     initial_task_phase: -1
 
-    mrt_loop_rate: 100.0
+    mrt_loop_rate: 125.0
     traj_horizon: 0.10
     arm_use_velocity_integrator: false
     arm_max_command_velocity: 0.15
