@@ -82,7 +82,20 @@ PhaseWeightedStateCost* PhaseWeightedStateCost::clone() const
 
 bool PhaseWeightedStateCost::isActive(scalar_t time) const
 {
-    return weight() > 0.0 && cost_->isActive(time);
+    if (weight() <= 0.0 || !cost_->isActive(time))
+    {
+        return false;
+    }
+
+    // An end-effector cost must not become active from a stale buffer when a
+    // new navigation goal has cleared the previous tracking target.
+    if (targetKind_ == TargetKind::kEndEffector &&
+        referenceManager_->getEndEffectorTarget().empty())
+    {
+        return false;
+    }
+
+    return true;
 }
 
 scalar_t PhaseWeightedStateCost::getValue(

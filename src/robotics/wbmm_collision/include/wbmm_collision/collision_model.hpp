@@ -7,7 +7,8 @@
 namespace wbmm::collision
 {
 
-// A value type, not a second kinematics model. Robot-specific spheres are TBD.
+// A value type, not a second kinematics model. The caller supplies the
+// robot-specific sphere approximation; this package only evaluates it.
 struct CollisionModel
 {
   std::vector<CollisionSphere> spheres;

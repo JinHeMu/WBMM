@@ -1,5 +1,0 @@
-# Real slam_toolbox overrides. Common mapping parameters live in
-# config/common/slam_toolbox.yaml.
-slam_toolbox:
-  ros__parameters:
-    use_sim_time: false

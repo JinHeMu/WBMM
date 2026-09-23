@@ -7,7 +7,6 @@ wbmm_mrt_node:
   ros__parameters:
     use_sim_time: true
     command_output_enabled: true
-    mrt_loop_rate: 125.0
     traj_horizon: 1.0
     arm_max_command_velocity: 0.50
     arm_max_delta_per_step: 0.50

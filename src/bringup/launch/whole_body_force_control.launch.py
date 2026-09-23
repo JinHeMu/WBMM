@@ -80,6 +80,8 @@ def generate_launch_description():
             "lib_folder", default_value="/tmp/wbmm_ocs2_auto_generated"),
         DeclareLaunchArgument(
             "odom_topic", default_value="/wheel/odometry"),
+        DeclareLaunchArgument("esdf_file", default_value=""),
+        DeclareLaunchArgument("world_frame", default_value=""),
         OpaqueFunction(function=_enforce_force_motion_gate),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(PathJoinSubstitution([
@@ -96,6 +98,8 @@ def generate_launch_description():
                 "odom_topic": LaunchConfiguration("odom_topic"),
                 "initial_task_phase": LaunchConfiguration(
                     "initial_task_phase"),
+                "esdf_file": LaunchConfiguration("esdf_file"),
+                "world_frame": LaunchConfiguration("world_frame"),
             }.items(),
         ),
         TimerAction(period=12.0, actions=[

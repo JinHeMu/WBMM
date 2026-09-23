@@ -1,707 +1,1770 @@
 # tracer_jaka_bringup
 
-本包负责 WBMM 的硬件接口、算法入口与参数装配。当前 launch 文件已扁平化，不再使用
-`common/`、`real/`、`sim/` 目录，也不再使用 `_real` / `_sim` 文件名后缀。
+> 状态：CURRENT  
+> 包名：`tracer_jaka_bringup`  
+> 源码目录：`src/bringup`  
+> 作用：WBMM（Tracer 差速底盘 + JAKA Zu5 机械臂）的顶层组合、参数分层、launch、RViz、脚本和回归测试包。
 
-## 统一 backend 架构
+本文档以当前源码为准，重点说明：
 
-只有两个 launch 可以启动硬件或仿真：
+- 参数文件如何分层、如何覆盖；
+- 每个 launch 文件启动什么、主要参数是什么；
+- 实机与 MuJoCo 仿真的推荐启动方式；
+- OCS2、REMANI、定位、MoveIt、力控和相机录制等功能的使用边界。
+
+---
+
+## 0. 一分钟上手
+
+### 0.1 编译
 
 ```bash
-ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py
-ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py
+cd ~/WBMM
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install --packages-up-to tracer_jaka_bringup
+source install/setup.bash
 ```
 
-其他核心 launch 只启动算法，并消费统一 ROS 接口
-[`config/common/interface.yaml`](config/common/interface.yaml)：
+也可以使用部署脚本：
+
+```bash
+./deploy/build.sh
+```
+
+### 0.2 实机最小只读启动
+
+```bash
+# 先初始化 CAN 和 JAKA
+./deploy/start.sh
+
+# 只启动硬件接口，hardware_write=false，JAKA 只读遥测，不写命令
+ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py \
+  hardware_write:=false \
+  can_port:=can0 \
+  jaka_robot_ip:=10.5.5.100 \
+  jaka_local_ip:=10.5.5.127
+```
+
+### 0.3 实机 OCS2 末端保持
+
+```bash
+ros2 launch tracer_jaka_bringup real_ocs2_ee_hold.launch.py \
+  hardware_write:=true \
+  use_target:=true \
+  use_rviz:=true
+```
+
+默认 `hardware_write:=false` 是干跑/只读模式；确认机器人状态、TF、控制器、急停和现场安全后再显式设为 `true`。
+
+### 0.4 MuJoCo 仿真
+
+```bash
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py \
+  scene:=empty \
+  viewer:=true
+```
+
+### 0.5 MuJoCo + OCS2 末端保持
+
+```bash
+ros2 launch tracer_jaka_bringup mujoco_ocs2_ee_hold.launch.py \
+  scene:=empty \
+  initial_task_phase:=2 \
+  use_target:=true \
+  use_rviz:=true
+```
+
+### 0.6 仿真力控自动测试
+
+```bash
+ros2 launch tracer_jaka_bringup force_control_mujoco_test.launch.py \
+  viewer:=true \
+  use_rviz:=true
+```
+
+---
+
+## 1. 包定位与设计边界
+
+`tracer_jaka_bringup` 是系统组合层，不是驱动或算法实现层。
+
+它主要负责：
+
+- 提供统一的实机 / 仿真硬件入口；
+- 提供统一的算法入口：定位、OCS2、REMANI、力控、MoveIt；
+- 提供组合入口：`remani_mpc`、`remani_mpc_localized`、`wbmm`；
+- 维护 `common / real / sim` 三层参数结构；
+- 提供 RViz 配置、辅助脚本和 launch 组合的回归测试。
+
+它不负责：
+
+- JAKA / Tracer / 传感器驱动的具体实现；
+- OCS2、REMANI、Pinocchio、力控算法核心；
+- 直接声明某个算法一定适合当前现场；
+- 绕过硬件安全门。
+
+### 1.1 设计原则
+
+1. **硬件后端与算法解耦**  
+   `wbmm_hardware_interface.launch.py` 和 `mujoco_hardware_interface.launch.py` 提供同一套 ROS 接口；算法 launch 不直接启动驱动。
+
+2. **配置分层**  
+   `common` 保存公共算法结构和安全默认值，`real` 保存实机标定/安全差异，`sim` 保存 MuJoCo 差异。
+
+3. **运动门单一**  
+   实机 JAKA 写入和 OCS2/MoveIt 输出都受 `hardware_write` 控制。默认 `false`。
+
+4. **顶层默认 fail-closed**  
+   `wbmm.launch.py` 默认 `hardware_backend:=none`，且所有算法 `start_*:=false`，不会误启动任何硬件或算法。
+
+5. **统一接口命名**  
+   `config/common/interface.yaml` 是 topic、frame、rate 的规范性契约。实机和仿真后端都应对齐。
+
+---
+
+## 2. 目录结构
 
 ```text
-/cmd_vel
-/arm_controller/commands
-/joint_states
-/wheel/odometry
-/imu/data
-/scan
-/fts_broadcaster/wrench
+src/bringup/
+├── CMakeLists.txt
+├── package.xml
+├── README.md                       # 本文件
+├── launch/                         # 所有 launch 文件
+├── config/
+│   ├── common/                     # 公共算法结构、接口契约、安全默认值
+│   ├── real/                       # 实机差异和标定
+│   └── sim/                        # MuJoCo 仿真差异
+├── rviz/                           # RViz 配置
+├── scripts/
+│   ├── arm_pose_publisher.py       # 发布固定 arm-up 关节状态
+│   ├── odom_to_map_relay.py        # odom -> map 里程计 pose relay
+│   └── readiness_check.py          # 只读运行时审计
+└── test/                           # launch/config 契约回归测试
 ```
 
-算法入口：
+`launch/` 文件安装到：
 
-- `localization.launch.py`：EKF + 可选 slam_toolbox
-- `ocs2.launch.py`：OCS2 MPC/MRT
-- `remani.launch.py`：REMANI + OCS2 reference bridge
-- `remani_mpc.launch.py`：REMANI + OCS2 + localization
-- `remani_mpc_localized.launch.py`：REMANI + OCS2 + AMCL
-- `whole_body_force_control.launch.py`：力控 + OCS2
-- `whole_body_force_control_profiles.launch.py`：仿真 profile 算法节点
-- `moveit.launch.py`：MoveIt 规划与 RViz
+```text
+install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/
+```
 
-可选总入口：
+`config/` 和 `rviz/` 安装到：
+
+```text
+install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/
+install/tracer_jaka_bringup/share/tracer_jaka_bringup/rviz/
+```
+
+---
+
+## 3. 编译、安装与环境
+
+### 3.1 普通工作空间编译
 
 ```bash
-# 默认什么也不启动，只列出参数
+cd ~/WBMM
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install --packages-up-to tracer_jaka_bringup
+source install/setup.bash
+```
+
+### 3.2 部署脚本编译
+
+```bash
+cd ~/WBMM
+./deploy/build.sh
+```
+
+部署脚本会读取 `deploy/env/real.env`，并写入：
+
+- `deploy/logs/build-*.log`
+- `deploy/metadata/deployment_info.txt`
+
+### 3.3 只编译本包
+
+如果依赖已经安装或已编译：
+
+```bash
+colcon build --symlink-install --packages-select tracer_jaka_bringup
+```
+
+注意：只编译本包不会自动编译它 launch 中依赖的 `wbmm_ocs2_ros`、`whole_body_force_control`、`tracer_jaka_mujoco`、驱动等包。
+
+---
+
+## 4. 统一 ROS 接口契约
+
+`config/common/interface.yaml` 是 WBMM 的规范性接口契约，不是普通的节点参数文件。当前主要约定如下。
+
+### 4.1 Topics
+
+| 名称 | 类型 | 方向 | 必需 |
+|---|---|---|---|
+| `/cmd_vel` | `geometry_msgs/msg/Twist` | 算法 -> 硬件 | 是 |
+| `/arm_controller/commands` | `std_msgs/msg/Float64MultiArray` | 算法 -> 硬件 | 是 |
+| `/arm_trajectory_controller/follow_joint_trajectory` | `control_msgs/action/FollowJointTrajectory` | 算法 -> 硬件 | 否 |
+| `/joint_states` | `sensor_msgs/msg/JointState` | 硬件 -> 算法 | 是 |
+| `/wheel/odometry` | `nav_msgs/msg/Odometry` | 硬件 -> 算法 | 是 |
+| `/imu/data` | `sensor_msgs/msg/Imu` | 硬件 -> 算法 | 是 |
+| `/scan` | `sensor_msgs/msg/LaserScan` | 硬件 -> 算法 | 是 |
+| `/fts_broadcaster/wrench` | `geometry_msgs/msg/WrenchStamped` | 硬件 -> 算法 | 是 |
+| `/clock` | `rosgraph_msgs/msg/Clock` | MuJoCo -> 算法 | 仿真 |
+| `/camera/d455/color/image_raw` | `sensor_msgs/msg/Image` | 硬件 -> 算法 | 否 |
+| `/camera/d455/depth/image_raw` | `sensor_msgs/msg/Image` | 硬件 -> 算法 | 否 |
+| `/camera/d455/color/camera_info` | `sensor_msgs/msg/CameraInfo` | 硬件 -> 算法 | 否 |
+| `/camera/d455/depth/camera_info` | `sensor_msgs/msg/CameraInfo` | 硬件 -> 算法 | 否 |
+
+### 4.2 Frames
+
+| 语义 | frame |
+|---|---|
+| 地图 | `map` |
+| 连续里程计 | `odom` |
+| 底盘平面基准 | `base_footprint` |
+| IMU | `imu_link` |
+| LiDAR | `laser_link` |
+| 力/力矩传感器 | `jk_se_vi_200_link` |
+| 末端工具 | `tool0` |
+
+### 4.3 期望频率
+
+| 数据 | 频率 |
+|---|---|
+| `joint_states` | 100 Hz |
+| `wheel_odometry` | 50 Hz |
+| `imu` | 100 Hz |
+| `scan` | 30 Hz |
+| `fts_wrench` | 125 Hz |
+
+---
+
+## 5. 参数系统
+
+### 5.1 运行时合并顺序
+
+```text
+config/common/<name>.yaml
+  -> config/real/<name>.yaml 或 config/sim/<name>.yaml
+  -> launch 显式参数
+```
+
+后加载的同名参数覆盖先加载的参数。显式 launch 参数优先级最高。
+
+例如力控节点实际加载顺序为：
+
+```text
+common/force_control.yaml
+  -> real/force_control.yaml 或 sim/force_control.yaml
+  -> launch 中传入的 profile / gate 参数
+```
+
+### 5.2 配置文件清单
+
+| 文件 | 作用 |
+|---|---|
+| `config/common/interface.yaml` | WBMM 统一 topic、frame、rate 契约 |
+| `config/common/ekf.yaml` | 公共 `robot_localization` EKF 参数 |
+| `config/common/slam_toolbox.yaml` | 公共 SLAM Toolbox 建图参数 |
+| `config/common/ocs2.yaml` | OCS2 MPC/MRT/target 公共 ROS 参数 |
+| `config/common/remani.yaml` | REMANI 公共跟踪/重规划/安全阈值 |
+| `config/common/force_control.yaml` | 力传感器处理与导纳控制公共参数 |
+| `config/common/moveit_bringup.yaml` | MoveIt 相关辅助节点参数；当前主要保留夹爪驱动参数 |
+| `config/real/ekf.yaml` | 实机 EKF 覆盖：sensor timeout、时间偏移 |
+| `config/real/force_control.yaml` | 实机力控覆盖：负载补偿模型、导纳门默认关闭 |
+| `config/real/remani.yaml` | 实机 REMANI 覆盖：速度、加速度、冻结机械臂等 |
+| `config/real/task.info` | 实机 OCS2 任务定义、双参考权重、碰撞与限位 |
+| `config/real/d455_esdf_record_qos.yaml` | 实机 D455 ESDF 录制 QoS 覆盖 |
+| `config/sim/ekf.yaml` | MuJoCo EKF 覆盖：IMU 配置、噪声协方差 |
+| `config/sim/force_control.yaml` | 仿真力控覆盖：fake wrench、较低硬限幅、导纳默认开启 |
+| `config/sim/remani.yaml` | 仿真 REMANI 覆盖：更高速度、允许机械臂运动 |
+| `config/sim/slam_toolbox.yaml` | 仿真 SLAM 覆盖：较短雷达量程、较低更新频率 |
+| `config/sim/ocs2.yaml` | 仿真 OCS2 覆盖：`use_sim_time`、输出、控制话题 |
+| `config/sim/task.info` | 仿真 OCS2 任务定义 |
+
+### 5.3 OCS2 关键参数
+
+公共文件：`config/common/ocs2.yaml`
+
+| 节点 | 参数 | 默认值 | 说明 |
+|---|---|---|---|
+| `wbmm_mpc_node` | `whole_body_target_topic` | `mobile_manipulator_whole_body_target` | 9D 全身目标 |
+| `wbmm_mpc_node` | `ee_target_topic` | `mobile_manipulator_ee_target` | 7D 末端目标 |
+| `wbmm_mpc_node` | `task_phase_state_topic` | `mobile_manipulator_task_phase_state` | 当前 TaskPhase 状态 |
+| `wbmm_mpc_node` | `set_task_phase_service` | `mobile_manipulator_set_task_phase` | 运行时切换 phase |
+| `wbmm_mpc_node` | `initial_task_phase` | `-1` | 使用 `task.info` 中的 initialPhase |
+| `wbmm_mrt_node` | `command_output_enabled` | `false` | MRT 命令输出总门 |
+| `wbmm_mrt_node` | `base_cmd_topic` | `/cmd_vel` | 底盘速度输出 |
+| `wbmm_mrt_node` | `odom_topic` | `/odometry/filtered` | 状态反馈 |
+| `wbmm_mrt_node` | `arm_cmd_topic` | `/arm_controller/commands` | 机械臂位置命令 |
+| `wbmm_mrt_node` | `world_frame` | `odom` | OCS2 控制参考系 |
+| `wbmm_mrt_node` | `ee_frame` | `tool0` | 末端 frame |
+| `wbmm_mrt_node` | `arm_max_command_velocity` | `0.15` | 机械臂命令速度限制 |
+| `wbmm_mrt_node` | `arm_max_delta_per_step` | `0.05` | 每步关节增量限制 |
+| `wbmm_target_node` | `marker_frame` | `odom` | RViz 目标 marker frame |
+| `wbmm_target_node` | `ee_frame` | `tool0` | 目标对应的末端 frame |
+| `wbmm_target_node` | `input_dim` | `8` | 目标输入维度 |
+
+仿真覆盖：`config/sim/ocs2.yaml`
+
+- `use_sim_time: true`
+- `command_output_enabled: true`
+- `traj_horizon: 1.0`
+- `arm_max_command_velocity: 0.50`
+- `arm_max_delta_per_step: 0.50`
+- `base_cmd_topic: /base_controller/cmd_vel`
+
+实机没有单独的 `config/real/ocs2.yaml`，默认直接使用公共参数；实机运动门由 launch 的 `hardware_write` 控制。
+
+### 5.4 定位关键参数
+
+公共 EKF：`config/common/ekf.yaml`
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `frequency` | `50.0` | EKF 更新频率 |
+| `two_d_mode` | `true` | 二维模式 |
+| `publish_tf` | `true` | 发布 `odom -> base_footprint` |
+| `world_frame` | `odom` | EKF 世界 frame |
+| `odom0` | `/wheel/odometry` | 轮式里程计输入 |
+| `imu0` | `/imu/data` | IMU 输入 |
+
+实机覆盖：`config/real/ekf.yaml`
+
+- `sensor_timeout: 0.2`
+- `transform_time_offset: 0.0`
+
+仿真覆盖：`config/sim/ekf.yaml`
+
+- `sensor_timeout: 0.1`
+- `transform_time_offset: 0.05`
+- IMU 使用角速度和 yaw 姿态
+- `imu0_remove_gravitational_acceleration: true`
+- 覆盖 `process_noise_covariance`
+
+公共 SLAM：`config/common/slam_toolbox.yaml`
+
+- `mode: mapping`
+- `odom_frame: odom`
+- `map_frame: map`
+- `base_frame: base_footprint`
+- `scan_topic: /scan`
+- `resolution: 0.05`
+- 开启 scan matching、loop closing
+
+仿真覆盖：`config/sim/slam_toolbox.yaml`
+
+- `use_sim_time: true`
+- `max_laser_range: 8.0`
+- `minimum_time_interval: 0.10`
+- `scan_buffer_maximum_scan_distance: 10.0`
+
+### 5.5 力控关键参数
+
+公共文件：`config/common/force_control.yaml`
+
+#### `force_sensor_processor`
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `topics.raw_wrench` | `/fts_broadcaster/wrench` | 原始 F/T |
+| `topics.processed_wrench` | `/whole_body_force_control/processed_wrench` | 处理后输出 |
+| `force_sensor.sensor_frame` | `jk_se_vi_200_link` | 原始传感器 frame |
+| `force_sensor.tcp_frame` | `tool0` | 导纳控制 frame |
+| `tf_lookup_timeout` | `0.05` | TF 查询超时 |
+| `tf_fallback_to_latest` | `false` | 是否回退 latest TF |
+| `raw_timeout` | `0.10` | 原始 wrench 超时 |
+| `tare_samples` | `50` | 自动 tare 采样数 |
+| `filter_alpha` | `0.15` | 低通滤波系数 |
+| `wrench_scale` | `[1,1,1,1,1,1]` | 六轴缩放 |
+| `hard_force_norm_limit` | `50.0` | 合力范数硬限幅 |
+| `hard_wrench_limit` | `[50,50,50,2,2,2]` | 六轴硬限幅 |
+| `force_deadband_n` | `0.0` | 力死区 |
+| `torque_deadband_nm` | `0.0` | 力矩死区 |
+| `load_compensation.enable` | `false` | 是否启用负载重力补偿 |
+
+#### `whole_body_force_control`
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `state_frame` | `odom` | 参考输出 frame |
+| `force_sensor.tcp_frame` | `tool0` | 处理后的 wrench frame |
+| `force_sensor.force_timeout` | `0.10` | 力数据超时 |
+| `admittance.enable` | `false` | 是否进入导纳控制 |
+| `admittance.output` | `false` | 是否向 OCS2 发布参考 |
+| `admittance.selected_axes` | `[true,false,false,false,false,false]` | 六轴选择，顺序 `[Fx,Fy,Fz,Tx,Ty,Tz]` |
+| `admittance.mass` | `[3,3,3,0.3,0.3,0.3]` | 质量参数 |
+| `admittance.damping` | `[45,45,45,4.5,4.5,4.5]` | 阻尼参数 |
+| `admittance.stiffness` | `[0,0,0,0,0,0]` | 刚度参数；`K>0` 弹性返回，`K=0` 力跟随 |
+| `admittance.max_velocity` | `[0.25,0.25,0.25,0.15,0.15,0.15]` | 六轴修正速度上限 |
+| `whole_body.base_share` | `0.6` | 仅 legacy `whole_body_state` 模式使用 |
+| `whole_body.max_base_velocity` | `0.20` | legacy 底盘速度上限 |
+| `whole_body.max_joint_velocity` | `0.50` | legacy 关节速度上限 |
+| `whole_body.max_ee_linear_velocity` | `0.2` | ee_pose 模式线速度上限 |
+| `whole_body.max_ee_angular_velocity` | `0.5` | ee_pose 模式角速度上限 |
+| `safety.observation_timeout` | `0.20` | 状态超时 |
+| `safety.capture_settle_time` | `1.0` | 捕获稳定时间 |
+| `safety.enforce_single_target_owner` | `true` | 强制单一目标所有者 |
+| `output.mode` | `ee_pose` | 推荐输出模式；`whole_body_state` 为 legacy |
+
+实机覆盖：`config/real/force_control.yaml`
+
+- `admittance.enable: false`
+- `admittance.output: false`
+- 启用辨识后的末端负载补偿模型
+- `load_compensation` 中包含 `mass_kg`、`gravity_direction_base`、质心和偏置
+
+仿真覆盖：`config/sim/force_control.yaml`
+
+- `raw_wrench: /whole_body_force_control/fake_wrench`
+- `admittance.enable: true`
+- `admittance.output: true`
+- 选择三轴平移
+- `stiffness: [150,150,150,0,0,0]`
+- 硬限幅降低到 `[20,20,20,4,4,4]`
+
+### 5.6 REMANI 关键参数
+
+公共文件：`config/common/remani.yaml`
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `tracking_error_replan_enabled` | 实机 false / 仿真 true | 跟踪误差触发重规划 |
+| `tracking_error_position_threshold` | `0.30` | 位置误差阈值 |
+| `tracking_error_yaw_threshold` | `0.45` | yaw 误差阈值 |
+| `tracking_error_joint_threshold` | `0.30` | 关节误差阈值 |
+| `tracking_error_persistence` | `0.30` | 误差持续时间 |
+| `tracking_goal_position_tolerance` | `0.12` | 目标位置容差 |
+| `tracking_goal_yaw_tolerance` | `0.20` | 目标 yaw 容差 |
+| `tracking_goal_joint_tolerance` | `0.15` | 目标关节容差 |
+| `max_consecutive_planning_failures` | `20` | 连续规划失败上限 |
+| `manipulator_safe_margin` | `0.10` | 机械臂安全裕量 |
+| `general_safe_margin` | `0.10` | 通用安全裕量 |
+| `self_safe_margin` | `0.10` | 自碰撞安全裕量 |
+
+实机覆盖：`config/real/remani.yaml`
+
+- `tracking_error_replan_enabled: false`
+- `manipulator_max_vel: 0.10`
+- `manipulator_max_acc: 0.20`
+- `mobile_base_max_wheel_omega: 1.0`
+- `mobile_base_max_wheel_alpha: 2.0`
+- `freeze_manipulator: true`
+
+仿真覆盖：`config/sim/remani.yaml`
+
+- `tracking_error_replan_enabled: true`
+- `manipulator_max_vel: 1.57`
+- `manipulator_max_acc: 3.14`
+- `freeze_manipulator: false`
+
+### 5.7 `task.info` 与 TaskPhase
+
+`config/real/task.info` 和 `config/sim/task.info` 是 OCS2 的完整任务定义，不是普通 YAML。
+
+当前双参考模式切换：
+
+| phase | 名称 | whole-body 权重 | EE 权重 | 说明 |
+|---|---|---|---|---|
+| `0` | Navigation | `1.0` | `0.0` | 全身参考主导 |
+| `1` | Transition | `0.5` | `0.5` | 全身与末端共同加权 |
+| `2` | Execution | `0.0` | `1.0` | 末端执行主导，避免被初始全身参考拉回 |
+| `3` | Retract | `0.5` | `0.0` | 全身重新主导 |
+
+运行时通过服务切换：
+
+```bash
+ros2 service call /mobile_manipulator_set_task_phase \
+  wbmm_ocs2_ros/srv/SetTaskPhase "{phase: 2}"
+
+# 也可以使用包内脚本
+ros2 run wbmm_ocs2_ros set_task_phase.py 2
+```
+
+`ocs2.launch.py` 的 `initial_task_phase` 可取 `-1..3`：
+
+- `-1`：使用 `task.info` 里的 `modeSwitch.initialPhase`
+- `0/1/2/3`：显式覆盖 MPC 和 MRT 初始 phase
+
+力控 Execution 通常需要显式切到 `2`，或把 `initial_task_phase` 设为 `2`。
+
+### 5.8 MoveIt 参数
+
+`config/common/moveit_bringup.yaml` 当前主要保存 `dh_ag95_driver` 参数：
+
+| 参数 | 默认值 |
+|---|---|
+| `baudrate` | `115200` |
+| `gripper_id` | `1` |
+| `max_position` | `100.0` |
+| `max_force` | `100.0` |
+
+`moveit.launch.py` 本身只暴露：
+
+- `use_sim_time`
+- `use_rviz`
+- `hardware_write`
+
+其中 `hardware_write` 直接映射到 MoveIt 的 `allow_trajectory_execution`。
+
+---
+
+## 6. Launch 文件总览
+
+| Launch 文件 | 作用 | 启动硬件 | 启动算法 |
+|---|---|---|---|
+| `wbmm.launch.py` | 顶层可选组合入口 | 可选 real / mujoco | 可选 localization / OCS2 / REMANI / force / MoveIt |
+| `wbmm_hardware_interface.launch.py` | 实机硬件接口 | 是 | 否 |
+| `mujoco_hardware_interface.launch.py` | MuJoCo 硬件接口 | 仿真 | 否 |
+| `localization.launch.py` | EKF + 可选 SLAM | 否 | 是 |
+| `ocs2.launch.py` | OCS2 MPC/MRT | 否 | 是 |
+| `remani.launch.py` | REMANI 规划器 + OCS2 桥 | 否 | 是 |
+| `whole_body_force_control.launch.py` | 实机力控算法入口 | 否 | 是 |
+| `whole_body_force_control_profiles.launch.py` | 仿真力控 profile 入口 | 否 | 是 |
+| `moveit.launch.py` | MoveIt move_group + RViz | 否 | 是 |
+| `remani_mpc.launch.py` | 定位 + OCS2 + REMANI 组合 | 否 | 是 |
+| `remani_mpc_localized.launch.py` | EKF + AMCL + OCS2 + REMANI | 否 | 是 |
+| `real_ocs2_ee_hold.launch.py` | 实机 + OCS2 末端保持 | 是 | 是 |
+| `mujoco_ocs2_ee_hold.launch.py` | MuJoCo + OCS2 末端保持 | 仿真 | 是 |
+| `force_control_mujoco_test.launch.py` | MuJoCo 力控 fake wrench 自动测试 | 仿真 | 是 |
+| `force_control_20s_follow_test.launch.py` | MuJoCo 20 秒持续力跟随测试 | 仿真 | 是 |
+| `force_control_infinite_follow_test.launch.py` | MuJoCo 无限场景持续力跟随测试 | 仿真 | 是 |
+| `d435_camera.launch.py` | 臂端 D435 驱动 | 是 | 否 |
+| `d455_camera.launch.py` | 底盘 D455 驱动 | 是 | 否 |
+| `record_d455_esdf_bag.launch.py` | 实机 D455 ESDF 数据录制 | 是 | 否 |
+
+---
+
+## 7. 核心 Launch 参数详解
+
+### 7.1 `wbmm.launch.py`
+
+顶层组合入口。默认不启动任何硬件和算法。
+
+```bash
+# 查看所有参数
 ros2 launch tracer_jaka_bringup wbmm.launch.py --show-args
 
-# 实机硬件 + OCS2 + REMANI
+# fail-closed 启动：只加载组合逻辑，不启动硬件/算法
 ros2 launch tracer_jaka_bringup wbmm.launch.py \
-  hardware_backend:=real hardware_write:=true \
-  start_ocs2:=true start_remani:=true \
-  static_esdf_file:=/abs/path/site.npz
-
-# MuJoCo + REMANI/OCS2
-ros2 launch tracer_jaka_bringup wbmm.launch.py \
-  hardware_backend:=mujoco config_profile:=sim use_sim_time:=auto \
-  start_ocs2:=true start_remani:=true \
-  static_esdf_file:=/abs/path/site.npz
+  hardware_backend:=none \
+  config_profile:=real
 ```
 
-`wbmm.launch.py` 的 `config_profile:=real|sim` 只决定默认参数文件路径；
-显式传入的 `task_file`、`ocs2_config`、`remani_config` 等会覆盖 profile 默认值。
+主要参数：
 
-> 下方“当前实机进度摘要”起包含历史部署记录；其中的 `*_real` / `*_sim`
-> launch 文件名已废弃。实际入口以本页顶部、`config/common/interface.yaml`
-> 和 `docs/wbmm_ros_interface.md` 为准。
+| 参数 | 默认值 | 可选值 | 说明 |
+|---|---|---|---|
+| `hardware_backend` | `none` | `none/real/mujoco` | 选择硬件后端 |
+| `config_profile` | `real` | `real/sim` | 选择默认配置路径 |
+| `use_sim_time` | `auto` | `auto/true/false` | `auto` 时 mujoco 为 true，其他为 false |
+| `use_rviz` | `true` | bool | 传给 OCS2 / 力控 / MoveIt |
+| `hardware_write` | `false` | bool | 实机运动门；也传给 OCS2 输出和 MoveIt |
+| `viewer` | `true` | bool | MuJoCo viewer |
+| `start_camera` | `false` | bool | MuJoCo 相机 |
+| `publish_odom_tf` | `false` | bool | 仅 `hardware_backend:=mujoco` 时转发；real 分支未转发，实机后端保持默认 `false` |
+| `scene` | `empty` | 见下 | MuJoCo 场景名 |
+| `mujoco_model` | `""` | 路径 | 显式 MuJoCo XML，优先于 `scene` |
+| `initial_pose` | `low` | `low/home/task_contact` | MuJoCo 初始 keyframe |
+| `init_keyframe` | `""` | keyframe 名 | 显式 keyframe 覆盖 |
+| `can_port` | `can0` | CAN 接口 | Tracer 底盘 |
+| `robot_ip` | `10.5.5.100` | IP | JAKA 控制器 IP |
+| `local_ip` | `10.5.5.127` | IP | 本机 JAKA 网口 IP |
+| `start_localization` | `false` | bool | 启动 EKF / SLAM |
+| `start_slam` | `true` | bool | 启动 SLAM Toolbox |
+| `start_ocs2` | `false` | bool | 启动 OCS2 |
+| `start_remani` | `false` | bool | 启动 REMANI |
+| `start_force_control` | `false` | bool | 启动力控；会同时启动 OCS2 |
+| `start_moveit` | `false` | bool | 启动 MoveIt |
+| `urdf_file` | description 包 URDF | 路径 | 算法用 URDF |
+| `task_file` | 按 profile 选择 | 路径 | OCS2 `task.info` |
+| `ocs2_config` | `""` | 路径 | OCS2 覆盖配置；sim 默认 `config/sim/ocs2.yaml` |
+| `remani_config` | `""` | 路径 | REMANI 覆盖配置 |
+| `ekf_config` | `""` | 路径 | EKF 覆盖配置 |
+| `slam_config` | `""` | 路径 | SLAM 覆盖配置 |
+| `force_params_file` | `""` | 路径 | 力控覆盖配置 |
+| `lib_folder` | 按 profile 生成 | 路径 | OCS2 生成库目录 |
+| `odom_topic` | `/wheel/odometry` | topic | OCS2 / REMANI 使用的里程计 |
+| `joint_state_topic` | `/joint_states` | topic | REMANI 关节状态 |
+| `static_esdf_file` | `""` | `.npz` | REMANI 静态 ESDF；`start_remani:=true` 时必需 |
 
-## 0. 当前实机进度摘要（部署记录）
+MuJoCo 场景名：
 
-> 最近一次现场进度：定位链已通过，MRT 重名已解决，正在分阶段验证 REMANI/OCS2 执行与机械臂动作。
+| `scene` | XML |
+|---|---|
+| `empty` | `scene_empty.xml` |
+| `room` | `scene.xml` |
+| `task_table` | `scene_task_table.xml` |
+| `force_follow_infinite` | `scene_force_follow_infinite.xml` |
+| `force_follow_5m` | `scene_force_follow_5m.xml` |
+| `nvblox_remani_demo` | `scene_nvblox_remani_demo.xml` |
+| `esdf_validation` | `scene_esdf_validation.xml` |
 
-### 已完成
+实机分支限制：
 
-- D0 定位链通过：
-  - `/odometry/filtered_map` 正常，坐标系为 `map`；
-  - 当前位姿约 `(2.995, 2.237, -1.534 rad)`；
-  - 速度接近零；
-  - JAKA 状态、F/T、命令安全闸通过。
-- MRT 重名问题已修复：
-  - `ocs2_real.launch.py` 和 `ocs2_sim.launch.py` 不再给 MRT 显式 `name='wbmm_mrt_node'`，使用 C++ 节点自身名称；
-  - `WbmmMrtNode.cpp` 中 OCS2 内部节点使用 `use_global_arguments(false)`，避免被 launch 层 `__node` 重命名成同一个主节点；
-  - 期望 ROS 图只有：
-    ```text
-    /wbmm_mrt_node
-    /wbmm_mrt_node_ocs2_internal
-    ```
+- 顶层 `wbmm.launch.py hardware_backend:=real` 只向 `wbmm_hardware_interface.launch.py` 转发 `hardware_write`、`can_port`、`robot_ip`、`local_ip`、`start_arm_controller` 和控制器名；
+- 它不会转发 `publish_odom_tf`、`start_imu`、`start_lidar`、`start_jaka_fts` 等实机硬件参数；
+- 需要精细控制实机传感器、TF 发布或 F/T broadcaster 时，直接使用 `wbmm_hardware_interface.launch.py`；
+- 因为 real 分支不会转发 `publish_odom_tf:=true`，如果顶层实机组合没有启动 EKF，就不会有 `odom -> base_footprint` TF；OCS2/REMANI 需要完整 TF 时，应直接使用硬件入口并设置 `publish_odom_tf:=true`，或通过 `start_localization:=true` 启动 EKF。
 
-### 当前遇到的问题与对策
+组合规则：
 
-- REMANI 反复重规划：
-  - 日志常见：
-    ```text
-    max right wheel omega is not feasible
-    ```
-  - 典型超限值约 `1.05 ~ 1.16 rad/s`，超过默认 `1.0 rad/s`（含 5% 容差后约 `1.05`）。
-  - 原因：目标距离偏长或带转弯时，优化后轨迹的右轮转速略微超限。
-  - 对策：
-    - 先发正前方 `0.20 m` 小目标；
-    - 必要时放宽：
-      ```text
-      mobile_base_max_wheel_omega:=1.3
-      mobile_base_max_wheel_alpha:=3.0
-      ```
-    - 若仍不足，可继续放宽到：
-      ```text
-      mobile_base_max_wheel_omega:=1.5
-      mobile_base_max_wheel_alpha:=3.5
-      ```
-- 机械臂测试时若 `arm_max_delta_per_step:=0.01`：
-  - 会报：
-    ```text
-    [SAFETY] Arm joint ... command jump too large
-    ```
-  - 原因：MPC 预测命令单步变化超过 `0.01 rad`。
-  - 对策：机械臂测试使用：
-    ```text
-    arm_max_delta_per_step:=0.05
-    arm_max_command_velocity:=0.10
-    ```
-- 完整 base + arm 目标：
-  - 话题：`/remani_planner/whole_body_goal`
-  - 类型：`traj_utils/msg/WholeBodyGoal`
-  - 字段：`header`、`base_pose`、`joint_names`、`joint_positions`
-- 开局重定位：
-  - 在 launch 命令中传 `initial_x/y/yaw`；
-  - AMCL 已开启 `set_initial_pose:=true`；
-  - 也可用 RViz `2D Pose Estimate` 或调用：
-    ```bash
-    ros2 service call /reinitialize_global_localization std_srvs/srv/Empty "{}"
-    ```
+- `hardware_write` 同时传给实机硬件、OCS2 的 `command_output_enabled` 和 MoveIt 的 `allow_trajectory_execution`，是顶层组合入口的统一运动门。
+- `start_force_control:=true` 已经包含 OCS2，不能再同时设置 `start_ocs2:=true`，否则 launch 会报错。
+- 顶层入口不转发 `admittance.enable` / `admittance.output`；`whole_body_force_control.launch.py` 的默认 `false` 会覆盖 profile YAML。仿真力控请优先使用 `whole_body_force_control_profiles.launch.py` 或专用测试 launch。
+- `start_moveit:=true` 且没有 OCS2/力控时，硬件会尝试启动 `arm_trajectory_controller`。
+- `start_moveit:=true` 且有 OCS2/力控时，硬件启动 `arm_controller`，由 OCS2/力控拥有机械臂命令。
+- `start_remani:=true` 时必须提供存在的 `static_esdf_file`。
 
+### 7.2 `wbmm_hardware_interface.launch.py`
 
-### 机械臂 + 底盘联合测试指令（1 m / 2 m）
+实机硬件入口。
 
-以下假设当前位姿仍为：
+启动内容：
+
+- `robot_state_publisher`
+- `controller_manager/ros2_control_node`
+- `joint_state_broadcaster` spawner
+- 可选 `arm_controller` / `arm_trajectory_controller` spawner
+- 可选 `fts_broadcaster` spawner
+- `tracer_base_node`
+- `hipnuc_imu/talker`
+- `lakibeam1_scan_node`
+- 可选 `arm_pose_publisher.py`
+
+主要参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `start_base` | `true` | 启动 Tracer 底盘驱动 |
+| `start_robot_state_publisher` | `true` | 启动 RSP |
+| `start_arm_pose` | `false` | 发布固定 arm-up 关节状态 |
+| `start_imu` | `true` | 启动 Hipnuc IMU |
+| `start_lidar` | `true` | 启动 Lakibeam LiDAR |
+| `start_jaka_hardware` | `true` | 启动 JAKA ros2_control |
+| `start_jaka_fts` | `true` | 启动 JAKA F/T broadcaster |
+| `start_arm_controller` | `false` | 是否 spawn 机械臂控制器 |
+| `arm_controller_name` | `arm_controller` | spawn 的控制器名 |
+| `controller_manager_timeout` | `30.0` | spawner 等待超时 |
+| `hardware_write` | `false` | **唯一实机运动门**；false 时 JAKA 只读 |
+| `jaka_robot_ip` | `10.5.5.100` | JAKA 控制器 IP |
+| `jaka_local_ip` | `10.5.5.127` | 本机网口 IP |
+| `can_port` | `can0` | Tracer CAN |
+| `serial_port` | `/dev/ttyUSB0` | IMU 串口 |
+| `wheel_odom_topic` | `/wheel/odometry` | 底盘里程计话题 |
+| `publish_odom_tf` | `false` | tracer_base 是否发布 `odom -> base_footprint` |
+| `imu_topic` | `/imu/data` | IMU 话题 |
+| `scan_topic` | `/scan` | 雷达话题 |
+| `lidar_host_ip` | `0.0.0.0` | 雷达 host IP |
+| `lidar_sensor_ip` | `192.168.198.2` | 雷达 sensor IP |
+| `lidar_port` | `2368` | 雷达端口 |
+| `lidar_inverted` | `false` | 雷达是否反转 |
+| `lidar_angle_offset` | `0` | 雷达角度偏移 |
+| `configure_lidar` | `false` | 是否通过 HTTP 重配置雷达 |
+
+使用注意：
+
+- 启动 EKF 时保持 `publish_odom_tf:=false`，让 `robot_localization` 唯一发布 `odom -> base_footprint`。
+- 只使用原始轮式里程计时，才考虑 `publish_odom_tf:=true`。
+- `hardware_write:=true` 只打开 JAKA 写入能力，本 launch 自身不会产生运动目标。
+- 如果使用 MoveIt，需要显式设置 `start_arm_controller:=true arm_controller_name:=arm_trajectory_controller`，或通过 `wbmm.launch.py start_moveit:=true` 组合。
+
+### 7.3 `mujoco_hardware_interface.launch.py`
+
+MuJoCo 仿真硬件入口。
+
+启动内容：
+
+- `tracer_jaka_mujoco/mujoco_bridge`
+- 可选 `robot_state_publisher`
+
+主要参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `scene` | `empty` | 命名场景 |
+| `model` | `""` | 显式 XML，优先于 `scene` |
+| `initial_pose` | `low` | `low/home/task_contact` |
+| `init_keyframe` | `""` | 显式 keyframe，优先于 `initial_pose` |
+| `viewer` | `true` | MuJoCo viewer |
+| `start_robot_state_publisher` | `true` | 启动 RSP |
+| `publish_odom_tf` | `false` | 是否由 MuJoCo 桥发布 `odom -> base_footprint` |
+| `start_imu` | `true` | 发布 `/imu/data` |
+| `start_lidar` | `true` | 发布 `/scan` |
+| `start_camera` | `false` | 发布 D455 图像 |
+| `start_fts` | `true` | 发布 `/fts_broadcaster/wrench` |
+| `wheel_odom_topic` | `/wheel/odometry` | 轮式里程计 |
+| `imu_topic` | `/imu/data` | IMU |
+| `scan_topic` | `/scan` | 雷达 |
+| `fts_topic` | `/fts_broadcaster/wrench` | F/T |
+| `color_image_topic` | `/camera/d455/color/image_raw` | 彩色图 |
+| `color_camera_info_topic` | `/camera/d455/color/camera_info` | 彩色相机信息 |
+| `depth_image_topic` | `/camera/d455/depth/image_raw` | 深度图 |
+| `depth_camera_info_topic` | `/camera/d455/depth/camera_info` | 深度相机信息 |
+
+### 7.4 `localization.launch.py`
+
+只启动定位算法，不启动硬件。
+
+启动内容：
+
+- `robot_localization/ekf_node`
+- 可选 `slam_toolbox/async_slam_toolbox_node`
+
+主要参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `start_ekf` | `true` | 启动 EKF |
+| `start_slam` | `true` | 启动 SLAM |
+| `use_sim_time` | `false` | 仿真时设 true |
+| `ekf_base_config` | `config/common/ekf.yaml` | EKF 公共配置 |
+| `slam_base_config` | `config/common/slam_toolbox.yaml` | SLAM 公共配置 |
+| `ekf_config` | `""` | EKF 覆盖配置 |
+| `slam_config` | `""` | SLAM 覆盖配置 |
+| `wheel_odom_topic` | `/wheel/odometry` | EKF 轮式里程计输入 |
+| `imu_topic` | `/imu/data` | EKF IMU 输入 |
+| `scan_topic` | `/scan` | SLAM 雷达输入 |
+
+TF 所有权：
 
 ```text
-x   = 2.995
-y   = 2.237
-yaw = -1.534 rad
+slam_toolbox:       map -> odom
+robot_localization: odom -> base_footprint
+robot_state_publisher:
+                    base_footprint -> base_link -> sensors / arm
 ```
 
-如果实际位姿变化，请用公式重算：
+### 7.5 `ocs2.launch.py`
+
+只启动 OCS2 算法，不启动硬件。
+
+启动内容：
+
+- `wbmm_mpc_node`
+- `wbmm_mrt_node`
+- 可选 `wbmm_target_node`
+- 可选 RViz2
+
+主要参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `base_config_file` | `config/common/ocs2.yaml` | OCS2 公共配置 |
+| `config_file` | `""` | 可选覆盖配置 |
+| `task_file` | `""` | 必需，OCS2 `task.info` |
+| `urdf_file` | `""` | 必需，机器人 URDF |
+| `lib_folder` | `""` | 必需，生成库根目录 |
+| `use_sim_time` | `false` | 仿真时 true |
+| `use_target` | `false` | 启动 RViz 交互目标节点 |
+| `use_rviz` | `true` | 启动 RViz |
+| `initial_task_phase` | `-1` | `-1` 使用 task 文件；`0..3` 显式覆盖 |
+| `command_output_enabled` | `false` | MRT 命令输出总门 |
+| `odom_topic` | `/odometry/filtered` | OCS2 状态反馈 |
+| `rviz_config` | `wbmm_ocs2_ros` RViz | RViz 配置 |
+
+MPC 与 MRT 使用独立的生成目录：
 
 ```text
-前方 d m：
-x_front = x + d * cos(yaw)
-y_front = y + d * sin(yaw)
-
-后方 d m：
-x_back  = x - d * cos(yaw)
-y_back  = y - d * sin(yaw)
-
-四元数：
-z = sin(yaw / 2)
-w = cos(yaw / 2)
+<lib_folder>/mpc
+<lib_folder>/mrt
 ```
 
-#### 启动命令（机械臂测试推荐保守参数）
+### 7.6 `remani.launch.py`
+
+只启动 REMANI 规划器与 REMANI -> OCS2 参考桥，不启动 OCS2 本身。
+
+启动内容：
+
+- `remani_planner/remani_planner_node`
+- `wbmm_ocs2_ros/remani_to_ocs2_reference_bridge`
+
+主要参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `use_sim_time` | `false` | 仿真时 true |
+| `start_planner` | `true` | 启动 REMANI 规划器 |
+| `start_bridge` | `true` | 启动参考桥 |
+| `urdf_file` | `""` | 必需 |
+| `static_esdf_file` | `""` | 必需，REMANI 格式 `.npz` |
+| `odom_topic` | `/odometry/filtered` | 规划输入里程计 |
+| `joint_state_topic` | `/joint_states` | 规划输入关节状态 |
+| `planner_frame` | `odom` | 规划 frame |
+| `target_frame` | `odom` | 桥输出目标 frame |
+| `use_tf_transform` | `false` | frame 不同时必须为 true |
+| `base_config_file` | `config/common/remani.yaml` | 公共 REMANI 配置 |
+| `config_file` | `""` | 覆盖配置 |
+
+规则：
+
+- `planner_frame != target_frame` 时必须 `use_tf_transform:=true`，不能使用固定 launch 偏移。
+- `static_esdf_file` 必须存在。
+- 桥会读取 REMANI 输出的 `/planning/trajectory`，转换成 OCS2 参考。
+
+### 7.7 `whole_body_force_control.launch.py`
+
+实机 / 通用力控算法入口，不启动硬件。
+
+启动内容：
+
+- `ocs2.launch.py`
+- `force_sensor_processor_node`
+- `whole_body_force_control_node`
+
+主要参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `use_rviz` | `true` | 启动 RViz |
+| `use_sim_time` | `false` | 仿真时 true |
+| `hardware_write` | `false` | 实机运动门 |
+| `initial_task_phase` | `-1` | `-1` 使用 task 文件；力控 Execution 建议设 `2` |
+| `admittance.enable` | `false` | 是否进入导纳控制 |
+| `admittance.output` | `false` | 是否发布力控参考 |
+| `urdf_file` | description URDF | OCS2 和力控使用 |
+| `task_file` | `config/real/task.info` | 实机任务 |
+| `ocs2_config` | `""` | 可选 OCS2 覆盖 |
+| `force_base_params_file` | `config/common/force_control.yaml` | 公共力控参数 |
+| `force_params_file` | `config/real/force_control.yaml` | 实机力控覆盖 |
+| `lib_folder` | `/tmp/wbmm_ocs2_auto_generated` | OCS2 生成库目录 |
+| `odom_topic` | `/wheel/odometry` | 状态反馈 |
+
+安全门：
+
+- `admittance.output:=true` 时必须同时 `hardware_write:=true`，否则 launch 直接报错。
+- 默认 shadow 模式为 `hardware_write:=false`、`admittance.enable:=false`、`admittance.output:=false`。
+
+### 7.8 `whole_body_force_control_profiles.launch.py`
+
+仿真力控算法入口，不启动 MuJoCo。
+
+启动内容：
+
+- `wbmm_mpc_node`
+- `wbmm_mrt_node`
+- `force_sensor_processor_node`
+- `whole_body_force_control_node`
+- 可选 RViz2
+
+参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `profile` | `sensor_z` | 选择实验 profile |
+| `use_rviz` | `true` | 启动 RViz |
+
+内置 profile：
+
+| profile | 对应/推荐 MuJoCo 场景 | 特点 |
+|---|---|---|
+| `sensor_z` | `scene_force_follow_infinite.xml` | Z 轴平移导纳，`K=150` |
+| `three_axis_admittance` | `scene_force_follow_infinite.xml` | 三轴平移弹性导纳 |
+| `three_axis_follow` | `scene_force_follow_infinite.xml` | 三轴平移力跟随，`K=0` |
+| `infinite` | `scene_force_follow_infinite.xml` | 单轴无限力跟随，`K=0` |
+| `20s` | `scene_force_follow_5m.xml` | 有限行程弹性终点，`K=1` |
+| `six_axis_sequence` | `scene_force_follow_infinite.xml` | 六轴力/力矩序列 |
+
+注意：profile 字典里的 `mujoco_model` / `init_keyframe` 当前没有在 `_launch_nodes` 中用于启动硬件；对应 MuJoCo 场景需要单独用 `mujoco_hardware_interface.launch.py` 或测试入口启动。
+
+该 launch 使用：
+
+```text
+config/common/ocs2.yaml + config/sim/ocs2.yaml
+config/common/force_control.yaml + config/sim/force_control.yaml
+config/sim/task.info
+```
+
+因此它假定仿真环境和 `use_sim_time=true`。
+
+### 7.9 `moveit.launch.py`
+
+只启动 MoveIt 和 RViz，不启动硬件。
+
+启动内容：
+
+- `moveit_ros_move_group/move_group`
+- 可选 RViz2
+
+参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `use_sim_time` | `false` | 仿真时 true |
+| `use_rviz` | `true` | 启动 MoveIt RViz |
+| `hardware_write` | `false` | 映射为 `allow_trajectory_execution` |
+
+使用条件：
+
+- 实机需要先启动带 `arm_trajectory_controller` 的硬件后端。
+- MuJoCo 后端本身提供 `/arm_trajectory_controller/follow_joint_trajectory` action。
+- `hardware_write:=true` 才允许 MoveIt 真正执行轨迹。
+
+### 7.10 `remani_mpc.launch.py`
+
+组合入口：定位 + OCS2 + REMANI，不启动硬件。
+
+启动内容：
+
+- `localization.launch.py`：EKF + 可选 SLAM
+- 延迟 8 s：`ocs2.launch.py`
+- 延迟 12 s：`remani.launch.py`
+
+主要参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `use_sim_time` | `false` | 仿真时 true |
+| `use_rviz` | `true` | 启动 RViz |
+| `hardware_write` | `false` | OCS2 输出门 |
+| `start_slam` | `true` | 是否启动 SLAM |
+| `static_esdf_file` | `""` | **必需**，启动前检查存在 |
+| `odom_topic` | `/odometry/filtered` | OCS2 / REMANI 输入 |
+| `joint_state_topic` | `/joint_states` | REMANI 输入 |
+| `scan_topic` | `/scan` | SLAM 输入 |
+| `wheel_odom_topic` | `/wheel/odometry` | EKF 输入 |
+| `imu_topic` | `/imu/data` | EKF 输入 |
+| `urdf_file` | description URDF | 算法 URDF |
+| `task_file` | `config/real/task.info` | OCS2 任务 |
+| `ocs2_config` | `""` | 可选 OCS2 覆盖 |
+| `remani_config` | `config/real/remani.yaml` | REMANI 覆盖 |
+| `ekf_config` | `config/real/ekf.yaml` | EKF 覆盖 |
+| `slam_config` | `""` | 可选 SLAM 覆盖 |
+| `lib_folder` | `/tmp/wbmm_ocs2_auto_generated` | OCS2 生成库 |
+| `planner_frame` | `odom` | REMANI 规划 frame |
+| `target_frame` | `odom` | OCS2 目标 frame |
+| `use_tf_transform` | `false` | frame 不同时必须 true |
+
+### 7.11 `remani_mpc_localized.launch.py`
+
+组合入口：EKF + AMCL 保存地图定位 + OCS2 + REMANI，不启动硬件。
+
+启动内容：
+
+- `localization.launch.py`：EKF，`start_slam=false`
+- `tracer_jaka_localization/amcl_localization.launch.py`：`map_server` + `amcl`
+- `odom_to_map_relay.py`
+- `ocs2.launch.py`
+- 延迟 15 s：`remani.launch.py`
+
+主要参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `use_sim_time` | `false` | 仿真时 true |
+| `use_rviz` | `true` | RViz |
+| `hardware_write` | `false` | OCS2 输出门 |
+| `start_ocs2` | `true` | 当前源码中已声明，但 OCS2 include 未加 `IfCondition`；实际仍会启动 OCS2 |
+| `start_remani` | `true` | 是否启动 REMANI |
+| `start_bridge` | `true` | 是否启动参考桥 |
+| `task_file` | `config/real/task.info` | OCS2 任务 |
+| `urdf_file` | description URDF | 算法 URDF |
+| `ocs2_config` | `""` | OCS2 覆盖 |
+| `remani_config` | `config/real/remani.yaml` | REMANI 覆盖 |
+| `ekf_config` | `config/real/ekf.yaml` | EKF 覆盖 |
+| `lib_folder` | `/tmp/wbmm_ocs2_auto_generated` | OCS2 生成库 |
+| `odom_topic` | `/odometry/filtered` | EKF 输出 |
+| `map_odom_topic` | `/odometry/filtered_map` | relay 输出 |
+| `joint_state_topic` | `/joint_states` | REMANI 输入 |
+| `wheel_odom_topic` | `/wheel/odometry` | EKF 输入 |
+| `imu_topic` | `/imu/data` | EKF 输入 |
+| `scan_topic` | `/scan` | AMCL / SLAM 输入 |
+| `static_esdf_file` | `""` | `start_remani:=true` 时必需，且 `frame_id=map` |
+| `map_file` | `tracer_jaka_localization/maps/factory_map.yaml` | AMCL 地图 |
+| `initial_x` | `0.0` | AMCL 初始位姿 |
+| `initial_y` | `0.0` | AMCL 初始位姿 |
+| `initial_yaw` | `0.0` | AMCL 初始位姿 |
+
+注意：
+
+- `start_ocs2:=false` 在当前源码中不会阻止 OCS2 启动；需要关闭 OCS2 时应修改该 launch 或直接使用更底层的组件入口。
+
+安全检查：
+
+- `map_file` 必须存在；
+- `start_remani:=true` 时 `static_esdf_file` 必须存在；
+- ESDF NPZ 必须包含标量 `frame_id`，且值必须为 `map`；
+- REMANI 使用 `map` frame，OCS2 继续使用 `odom`，桥通过 TF 转换。
+
+### 7.12 `real_ocs2_ee_hold.launch.py`
+
+实机 + OCS2 末端保持。
+
+命令路径：
+
+```text
+external base teleop -> /cmd_vel -> tracer_base_node
+OCS2 MRT             -> /arm_controller/commands -> JAKA arm
+```
+
+OCS2 的底盘输出被 remap 到：
+
+```text
+/ocs2/disabled_base_cmd
+```
+
+这样外部遥控拥有底盘，OCS2 只观察底盘运动并补偿机械臂。
+
+主要参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `hardware_write` | `false` | 实机运动门，同时传给硬件和 OCS2 |
+| `initial_task_phase` | `0` | `0=Navigation, 1=Transition, 2=Execution, 3=Retract` |
+| `use_target` | `true` | 启动 RViz 交互末端目标 |
+| `use_rviz` | `true` | RViz |
+| `lib_folder` | `/tmp/wbmm_ocs2_real_ee_hold` | OCS2 生成库 |
+| `base_config_file` | `config/common/ocs2.yaml` | OCS2 公共配置 |
+| `ocs2_config` | `""` | OCS2 覆盖 |
+| `task_file` | `config/real/task.info` | 实机任务 |
+| `urdf_file` | description URDF | 算法 URDF |
+| `robot_ip` | `10.5.5.100` | JAKA IP |
+| `local_ip` | `10.5.5.127` | 本机 IP |
+| `can_port` | `can0` | Tracer CAN |
+| `serial_port` | `/dev/ttyUSB0` | IMU 串口 |
+| `odom_topic` | `/wheel/odometry` | OCS2 状态反馈 |
+| `publish_odom_tf` | `true` | tracer_base 发布 `odom -> base_footprint` |
+| `start_base` | `true` | 启动底盘 |
+| `start_imu` | `false` | 启动 IMU |
+| `start_lidar` | `false` | 启动 LiDAR |
+| `start_jaka_fts` | `false` | 启动 F/T broadcaster |
+| `lidar_host_ip` | `0.0.0.0` | 雷达 host IP |
+| `lidar_sensor_ip` | `192.168.198.2` | 雷达 sensor IP |
+
+### 7.13 `mujoco_ocs2_ee_hold.launch.py`
+
+MuJoCo + OCS2 末端保持。
+
+命令路径：
+
+```text
+teleop_twist_keyboard -> /cmd_vel -> mujoco_bridge (base)
+OCS2 MRT              -> /arm_controller/commands -> mujoco_bridge (arm)
+```
+
+OCS2 的 `/base_controller/cmd_vel` 被 remap 到：
+
+```text
+/ocs2/disabled_base_cmd
+```
+
+主要参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `scene` | `empty` | MuJoCo 场景 |
+| `viewer` | `true` | viewer |
+| `initial_pose` | `low` | 初始 keyframe |
+| `use_target` | `true` | 启动交互目标节点 |
+| `use_rviz` | `true` | RViz |
+| `initial_task_phase` | `2` | 仿真默认 Execution |
+| `command_output_enabled` | `true` | MRT 输出总门 |
+| `lib_folder` | `/tmp/wbmm_ocs2_mujoco_ee_hold` | OCS2 生成库 |
+
+注意：
+
+- 该 launch 是仿真专用；
+- MuJoCo 桥发布 `/wheel/odometry`，不启动 EKF；
+- OCS2 观察底盘运动并输出机械臂命令。
+
+### 7.14 力控实验 / 测试 Launch
+
+#### `force_control_mujoco_test.launch.py`
+
+启动：
+
+- MuJoCo 硬件
+- `whole_body_force_control_profiles.launch.py profile:=sensor_z`
+- `whole_body_force_control_test.py` 假力测试器
+
+主要参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `viewer` | `false` | MuJoCo viewer |
+| `use_rviz` | `false` | RViz |
+| `run_test` | `true` | 是否运行自动测试 |
+| `low_force` | `5.0` | 低力阶段 |
+| `high_force` | `12.0` | 高力阶段 |
+| `pull_force` | `-8.0` | 反向拉力 |
+| `baseline_duration` | `4.0` | 基线时长 |
+| `low_force_duration` | `10.0` | 低力时长 |
+| `high_force_duration` | `15.0` | 高力时长 |
+| `release_duration` | `10.0` | 释放时长 |
+| `pull_duration` | `12.0` | 拉力时长 |
+| `final_release_duration` | `10.0` | 最终释放时长 |
+| `report_file` | `/tmp/whole_body_force_control_test_report.json` | 报告文件 |
+
+#### `force_control_20s_follow_test.launch.py`
+
+启动：
+
+- MuJoCo `scene:=force_follow_5m`
+- `whole_body_force_control_profiles.launch.py profile:=20s`
+- 20 秒持续力跟随测试器
+
+参数：
+
+| 参数 | 默认值 |
+|---|---|
+| `viewer` | `true` |
+| `use_rviz` | `true` |
+| `force` | `7.0` |
+| `duration` | `20.0` |
+| `report_file` | `/tmp/whole_body_force_control_20s_report.json` |
+
+#### `force_control_infinite_follow_test.launch.py`
+
+启动：
+
+- MuJoCo `scene:=force_follow_infinite`
+- `whole_body_force_control_profiles.launch.py profile:=infinite`
+- 持续无限力跟随测试器
+
+参数：
+
+| 参数 | 默认值 |
+|---|---|
+| `viewer` | `true` |
+| `use_rviz` | `true` |
+| `force` | `7.0` |
+| `duration` | `30.0` |
+| `report_file` | `/tmp/whole_body_force_control_infinite_report.json` |
+
+### 7.15 相机与录制 Launch
+
+#### `d435_camera.launch.py`
+
+臂端 RealSense D435，相机 frame 为 `d435i_link`。
+
+参数：
+
+| 参数 | 默认值 |
+|---|---|
+| `serial_no` | `''` |
+| `camera_namespace` | `camera` |
+| `camera_name` | `d435i` |
+| `ros_domain_id` | `20` |
+| `rmw_implementation` | `rmw_fastrtps_cpp` |
+
+#### `d455_camera.launch.py`
+
+底盘 RealSense D455，相机 frame 为 `d455_link`。
+
+参数同 D435，但 `camera_name` 默认 `d455`。
+
+#### `record_d455_esdf_bag.launch.py`
+
+录制 D455 RGB-D、TF、定位、关节、雷达和 IMU 数据，用于离线 ESDF 建图。
+
+参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `output` | `d455_esdf_bag` | 输出目录；每次录制使用新名字 |
+
+该 launch 固定：
+
+- `ROS_DOMAIN_ID=20`
+- `RMW_IMPLEMENTATION=rmw_fastrtps_cpp`
+- `ROS_LOCALHOST_ONLY=0`
+
+使用示例：
 
 ```bash
-cd /home/a/WBMM
+ros2 launch tracer_jaka_bringup record_d455_esdf_bag.launch.py \
+  output:=/home/a/WBMM/bags/d455_esdf_$(date +%Y%m%d_%H%M%S)
+```
+
+---
+
+## 8. 实机启动方式
+
+### 8.1 前置条件
+
+1. 已编译并 source 工作空间：
+
+```bash
+cd ~/WBMM
 source /opt/ros/humble/setup.bash
 source install/setup.bash
-
-ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py \
-  can_port:=can0 \
-  serial_port:=/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_e6872e3dafebed119ff7429aa88ea882-if00-port0 \
-  lidar_host_ip:=192.168.8.1 \
-  lidar_sensor_ip:=192.168.8.2 \
-  map_file:=/home/a/WBMM/maps/map1/site_2d.yaml \
-  static_esdf_file:=/home/a/WBMM/maps/map1/site_remani.npz \
-  lib_folder:=/tmp/wbmm_ocs2_conservative/auto_generated \
-  initial_x:=0.0 \
-  initial_y:=0.0 \
-  initial_yaw:=0.0 \
-  use_rviz:=true \
-  tracking_error_replan_enabled:=false \
-  freeze_manipulator:=false \
-  manipulator_max_vel:=0.10 \
-  manipulator_max_acc:=0.20 \
-  mobile_base_max_wheel_omega:=1.5 \
-  mobile_base_max_wheel_alpha:=3.0 \
-  mobile_base_non_singul_vel:=0.05 \
-  hardware_write:=true \
-  start_ocs2:=true \
-  start_remani:=true \
-  start_bridge:=true \
-  start_arm_pose:=false \
-  arm_max_delta_per_step:=0.05 \
-  arm_max_command_velocity:=0.10
 ```
 
-#### 1 m 前方，机械臂 `pose_00`
+2. 已配置并启动硬件：
 
 ```bash
-ros2 topic pub --once /remani_planner/whole_body_goal traj_utils/msg/WholeBodyGoal "{
-  header: {
-    frame_id: 'map'
-  },
-  base_pose: {
-    position: {
-      x: 3.032,
-      y: 1.238,
-      z: 0.0
-    },
-    orientation: {
-      x: 0.0,
-      y: 0.0,
-      z: -0.694,
-      w: 0.720
-    }
-  },
-  joint_names: [
-    'joint_1',
-    'joint_2',
-    'joint_3',
-    'joint_4',
-    'joint_5',
-    'joint_6'
-  ],
-  joint_positions: [
-    -0.515,
-    1.5707,
-    -1.5707,
-    1.5707,
-    1.5707,
-    0.254
-  ]
-}"
+./deploy/start.sh
 ```
 
-#### 1 m 后方，机械臂 `up`
+`deploy/start.sh` 只负责 CAN、JAKA 登录和初始化校验，不会启动完整 WBMM 栈。
 
-```bash
-ros2 topic pub --once /remani_planner/whole_body_goal traj_utils/msg/WholeBodyGoal "{
-  header: {
-    frame_id: 'map'
-  },
-  base_pose: {
-    position: {
-      x: 2.958,
-      y: 3.236,
-      z: 0.0
-    },
-    orientation: {
-      x: 0.0,
-      y: 0.0,
-      z: -0.694,
-      w: 0.720
-    }
-  },
-  joint_names: [
-    'joint_1',
-    'joint_2',
-    'joint_3',
-    'joint_4',
-    'joint_5',
-    'joint_6'
-  ],
-  joint_positions: [
-    0.0,
-    1.5707,
-    0.0,
-    1.5707,
-    3.14159,
-    0.785398
-  ]
-}"
-```
+3. 确认：
 
-#### 2 m 前方，机械臂 `pose_00`
+- Tracer CAN 接口 `can0` 为 `UP`；
+- JAKA `jaka_login` 成功；
+- 机器人周围安全，急停可用；
+- 所有 `hardware_write` 先保持 `false`。
 
-```bash
-ros2 topic pub --once /remani_planner/whole_body_goal traj_utils/msg/WholeBodyGoal "{
-  header: {
-    frame_id: 'map'
-  },
-  base_pose: {
-    position: {
-      x: 3.069,
-      y: 0.238,
-      z: 0.0
-    },
-    orientation: {
-      x: 0.0,
-      y: 0.0,
-      z: -0.694,
-      w: 0.720
-    }
-  },
-  joint_names: [
-    'joint_1',
-    'joint_2',
-    'joint_3',
-    'joint_4',
-    'joint_5',
-    'joint_6'
-  ],
-  joint_positions: [
-    -0.515,
-    1.5707,
-    -1.5707,
-    1.5707,
-    1.5707,
-    0.254
-  ]
-}"
-```
-
-#### 2 m 后方，机械臂 `up`
-
-```bash
-ros2 topic pub --once /remani_planner/whole_body_goal traj_utils/msg/WholeBodyGoal "{
-  header: {
-    frame_id: 'map'
-  },
-  base_pose: {
-    position: {
-      x: 2.921,
-      y: 4.236,
-      z: 0.0
-    },
-    orientation: {
-      x: 0.0,
-      y: 0.0,
-      z: -0.694,
-      w: 0.720
-    }
-  },
-  joint_names: [
-    'joint_1',
-    'joint_2',
-    'joint_3',
-    'joint_4',
-    'joint_5',
-    'joint_6'
-  ],
-  joint_positions: [
-    0.0,
-    1.5707,
-    0.0,
-    1.5707,
-    3.14159,
-    0.785398
-  ]
-}"
-```
-
-> 注意：一次只发一个目标，等上一条轨迹执行完成、机器人停稳后再发下一个。
-> 如果仍出现 `max right wheel omega is not feasible`，可继续放宽到：
+> **重要：`hardware_write` 不是跨 launch 的全局状态。**  
+> 当硬件后端与算法入口分开启动时：
+> - 硬件后端的 `hardware_write` 控制 JAKA 是否允许写入；
+> - 算法入口的 `hardware_write` 控制 OCS2 MRT / MoveIt 是否发布命令；
+> - 要真正运动，两个入口都必须显式为 `true`。
 >
-> ```text
-> mobile_base_max_wheel_omega:=1.5
-> mobile_base_max_wheel_alpha:=3.5
-> ```
+> 推荐流程：两者先都用 `false` 启动并完成检查，确认安全后同时重启为 `true`；或者一开始就在两个 launch 中都传 `true`。
 
-
-## 1. 启动内容与坐标系
-
-```text
-remani_mpc_localized_real.launch.py
-├── real_slam.launch.py (start_slam:=false)
-│   ├── Tracer CAN 驱动                     -> /wheel/odometry
-│   ├── Hipnuc IMU                         -> /imu/data
-│   ├── Lakibeam LiDAR                     -> /scan
-│   ├── robot_localization EKF             -> /odometry/filtered
-│   └── robot_state_publisher              -> 机器人静态/关节 TF
-├── amcl_localization.launch.py
-│   ├── map_server                         -> /map
-│   └── AMCL                               -> map -> odom
-├── odom_to_map_relay.py                   -> /odometry/filtered_map
-├── ocs2_real.launch.py
-│   ├── JAKA ros2_control
-│   ├── joint_state_broadcaster            -> /joint_states
-│   ├── fts_broadcaster                -> /fts_broadcaster/wrench
-│   ├── arm_controller
-│   └── OCS2 MPC/MRT（默认 dry-run）        -> 仅在双安全开关打开后发布控制命令
-└── remani_mpc_tracking.launch.py（延迟 15 s）
-    ├── REMANI（在 map 中规划）             -> /planning/trajectory
-    └── REMANI -> OCS2 bridge（map -> odom）-> /mobile_manipulator_mpc_target
-```
-
-坐标系的发布权必须唯一：
-
-```text
-AMCL:                  map -> odom
-robot_localization:    odom -> base_footprint
-robot_state_publisher: base_footprint -> base_link -> LiDAR/IMU/JAKA links
-```
-
-REMANI 和静态 ESDF 使用持久化的 `map` 坐标系；OCS2/MRT 仍使用连续、不跳变的
-`odom` 坐标系。bridge 每次通过 TF 动态执行 `map -> odom`，所以 AMCL 修正不会直接
-造成控制坐标系跳变。`odom_to_map_relay.py` 只把 EKF 位姿转换到 `map`，twist 仍按
-`base_footprint` 表达。
-
-## 2. 部署前必须准备
-
-### 2.1 软件与构建
-
-推荐 Ubuntu 22.04 + ROS 2 Humble。先安装系统依赖：
+### 8.2 最小只读硬件启动
 
 ```bash
-source /opt/ros/humble/setup.bash
-sudo apt update
-sudo apt install \
-  can-utils libzip-dev libompl-dev python3-yaml \
-  ros-humble-xacro ros-humble-pinocchio \
-  ros-humble-robot-localization ros-humble-slam-toolbox \
-  ros-humble-nav2-map-server ros-humble-nav2-lifecycle-manager \
-  ros-humble-nav2-amcl ros-humble-controller-manager \
-  ros-humble-ros2-controllers ros-humble-joy
-```
-
-构建实机链路。`jaka_hardware_interface` 必须显式构建，因为当前它没有被
-`wbmm_ocs2_ros/package.xml` 声明为运行依赖：
-
-```bash
-cd /home/a/WBMM
-source /opt/ros/humble/setup.bash
-
-colcon build --symlink-install --packages-up-to \
-  tracer_jaka_bringup \
-  tracer_jaka_localization \
-  tracer_jaka_mujoco \
-  wbmm_ocs2_ros \
-  remani_planner \
-  grid_map \
-  tracer_base \
-  hipnuc_imu \
-  lakibeam1 \
-  jaka_driver \
-  jaka_hardware_interface \
-  --cmake-args \
-    -DBUILD_TESTING=OFF \
-    -DBUILD_JAKA_JOY_TO_SERVO=OFF
-
-source /home/a/WBMM/install/setup.bash
-```
-
-这里关闭的是测试目标，不影响实机运行功能。当前
-`jaka_hardware_interface` 在启用 `BUILD_TESTING` 时还会查找
-`ros2_control_test_assets`；仅部署实机时关闭测试可以避免因该测试依赖缺失而中断构建。
-`BUILD_JAKA_JOY_TO_SERVO=OFF` 只关闭本次实机链路不用的 MoveIt Servo/夹爪摇杆组件，
-不会关闭 `jaka_login`、`jaka_logout`、`jaka_edg_node` 或 JAKA SDK。
-
-每个新终端都要 source ROS 和工作空间。可先确认入口已安装：
-
-```bash
-ros2 pkg prefix tracer_jaka_bringup
-ros2 pkg executables jaka_driver
-ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py --show-args
-```
-
-### 2.2 2D 地图与 3D ESDF
-
-一次运行需要两个互相对齐的地图：
-
-- `site_2d.yaml` + `site_2d.pgm`：供 `map_server` 和 AMCL 使用；
-- `site_remani.npz`：供 REMANI 做三维碰撞检查。
-
-仓库当前默认路径是：
-
-```text
-/home/a/WBMM/maps/site_2d.yaml
-/home/a/WBMM/maps/site_remani.npz
-```
-
-`site_2d.yaml` 中的 `image` 可以是相对路径，但 PGM 必须位于相对路径能找到的位置。
-部署到其他目录或其他用户名后，**不要依赖 launch 中写死的 `/home/a/WBMM` 默认值**，
-启动时显式传入 `map_file` 和 `static_esdf_file`。
-
-两个地图必须来自同一现场并使用同一个 `map` 原点、朝向和米制尺度。若 NPZ 只存在
-固定平移误差，可用 `static_esdf_offset_x/y/z` 校正；这三个量是 **ESDF 相对 map 的
-平移**，不是“本次开机 odom 原点”的补偿。当前入口没有 ESDF yaw 旋转参数，若有
-旋转误差，应重新按正确坐标系导出地图，不能只靠 offset 修好。
-
-部署前检查文件：
-
-```bash
-test -r /home/a/WBMM/maps/site_2d.yaml
-test -r /home/a/WBMM/maps/site_2d.pgm
-test -r /home/a/WBMM/maps/site_remani.npz
-```
-
-### 2.3 JAKA 网络
-
-先确认工控机与机械臂控制柜在同一网段：
-
-```bash
-ip -br address
-ping -c 3 10.5.5.100
-```
-
-默认配置为机器人 `10.5.5.100`、工控机 `10.5.5.127`。工控机网卡应设置静态地址，
-并确保 JAKA EDG 使用的 UDP 端口没有被防火墙拦截。
-
-本机当前对应网卡连接名为 `Wired connection 1`（设备 `enp89s0`）。若检查发现工控机
-误用了机器人的 `.100` 地址，可改为 `.127`；专用直连网卡不设置网关，避免抢占系统
-默认路由：
-
-```bash
-sudo nmcli connection modify "Wired connection 1" \
-  ipv4.method manual ipv4.addresses 10.5.5.127/24 \
-  ipv4.gateway "" ipv4.never-default yes
-sudo nmcli connection up "Wired connection 1"
-
-ip -br address show enp89s0
-ip route get 10.5.5.100
-ping -c 3 10.5.5.100
-```
-
-执行 `nmcli connection up` 会让这张网卡短暂断开；如果正通过该网卡远程维护，先切换到
-本地终端或其他管理网络。
-
-`ocs2_real.launch.py` 会把顶层的 `robot_ip`、`local_ip` 注入
-统一 ros2_control xacro 的实机后端参数。单独运行 `real_slam.launch.py`
-的只读 JAKA 状态链时，对应参数名为 `jaka_robot_ip`、`jaka_local_ip`。
-
-### 2.4 JAKA 通讯初始化（`jaka_login`）
-
-`jaka_login` 是一个执行完即退出的一次性初始化工具。它依次执行：
-
-1. 登录 JAKA 控制柜；
-2. 机器人上电，等待 8 秒；
-3. 机器人使能，等待 4 秒；
-4. 设置关节伺服一阶低通滤波参数为 `2`；
-5. 将力矩传感器模式设置为 `1`。
-
-它不会主动下发关节运动目标，但“上电”和“使能”会让机械臂进入可执行状态。运行前必须
-清空机械臂工作区、准备物理急停，并确认 NUC 已使用 `10.5.5.127/24`，机器人
-`10.5.5.100` 能够 ping 通。
-
-```bash
-cd /home/a/WBMM
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-ping -c 3 10.5.5.100
-ros2 run jaka_driver jaka_login
-```
-
-默认机器人 IP 为 `10.5.5.100`。需要连接其他地址时，把 IP 作为位置参数传入：
-
-```bash
-ros2 run jaka_driver jaka_login 10.5.5.100
-```
-
-只有看到下面一行且进程以状态码 `0` 退出，才表示全部初始化步骤成功：
-
-```text
-JAKA communication initialization completed
-```
-
-任一步失败时程序会打印 `SDK error code` 并以非零状态退出。不要同时运行
-`jaka_login` 与 `jaka_hardware_interface`、`ocs2_real.launch.py` 或完整实机 launch；
-先让 `jaka_login` 正常退出，再启动 ros2_control/OCS2，避免两个进程同时占用 JAKA SDK
-连接。
-
-如果只需重新构建这一工具及其工作区依赖：
-
-```bash
-cd /home/a/WBMM
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-colcon build --symlink-install --packages-up-to jaka_driver \
-  --cmake-args \
-    -DBUILD_TESTING=OFF \
-    -DBUILD_JAKA_JOY_TO_SERVO=OFF
-source install/setup.bash
-ros2 pkg executables jaka_driver
-```
-
-### 2.5 CAN、IMU 与 LiDAR
-
-```bash
-sudo modprobe gs_usb
-sudo ip link set can0 down
-sudo ip link set can0 up type can bitrate 500000
-ip -details link show can0
-candump can0
-```
-
-本机的 `gs_usb` 适配器不支持 `restart-ms`，不要在 `ip link set` 命令中添加该参数；
-若发生 Bus-Off，手动执行一次 `can0 down`，再用上面的 500 kbit/s 命令重新上线。
-
-`candump` 看到报文后按 `Ctrl-C` 退出。IMU 建议把当前用户永久加入 `dialout` 组：
-
-```bash
-sudo usermod -aG dialout "$USER"
-# 注销桌面会话后重新登录（仅新开终端不够），然后验证：
-id -nG | tr ' ' '\n' | grep -x dialout
-ls -l /dev/ttyUSB0
-test -r /dev/ttyUSB0 && test -w /dev/ttyUSB0 && echo "TTYUSB permission OK"
-ls -l /dev/serial/by-id/
-```
-
-如果机器上可能同时连接多个 USB 串口，建议把启动参数 `serial_port` 改成上面
-`/dev/serial/by-id/` 中对应 IMU 的稳定路径，避免重插设备后 `ttyUSB0` 编号变化。
-
-只有来不及注销重登的临时调试场景才直接放宽当前设备权限；USB 重插后该权限会失效：
-
-```bash
-sudo chmod 666 /dev/ttyUSB0
-```
-
-当前顶层可覆盖 `can_port`、`serial_port`、`scan_topic`，也可通过被包含的
-`real_slam.launch.py` 参数覆盖 Lakibeam 的主机 IP、传感器 IP、UDP 端口、倒装和
-角度偏移。默认值位于
-`src/bringup/tracer_jaka_bringup/launch/real_slam.launch.py`：
-
-```text
-lidar_host_ip=0.0.0.0
-lidar_sensor_ip=192.168.198.2
-lidar_port=2368
-lidar_inverted=false
-lidar_angle_offset=0
-```
-
-本机实测的 Richbeam/Lakibeam 是 USB RNDIS 直连设备：主机
-`192.168.8.1`、雷达 `192.168.8.2`，与源码默认值不同。启动本机实机链路时应显式覆盖：
-
-```bash
-lidar_host_ip:=192.168.8.1 lidar_sensor_ip:=192.168.8.2
-```
-
-可在启动前用 `ping -c 3 192.168.8.2` 验证；配置页标题应为
-`LiDAR web panel - Richbeam`。现场设备若使用其他网段，以设备配置页和
-`ip -br address` 的实际结果为准。
-
-## 3. 推荐的分阶段实机部署
-
-### 阶段 A：断开执行能力，核对安全条件
-
-- 清空机械臂和底盘工作区，首次测试将底盘架空或机械固定；
-- 示教器、底盘遥控器和物理急停由专人握持；
-- JAKA 切到允许外部控制的正确模式，但先不要发送目标；
-- 确认按下物理急停能同时阻止底盘和机械臂运动；`Ctrl-C` 不是急停；
-- 首次运行保持 `tracking_error_replan_enabled:=false`。
-
-### 阶段 B：验证底盘传感器、JAKA 真实状态、EKF 与 AMCL
-
-先执行一次 JAKA 初始化，并等待它正常退出：
-
-```bash
-cd /home/a/WBMM
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-ros2 run jaka_driver jaka_login
-```
-
-终端 1 启动底盘、传感器、EKF，以及 JAKA **只读** hardware interface；不启 SLAM，
-不加载机械臂命令控制器：
-
-```bash
-cd /home/a/WBMM
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-ros2 launch tracer_jaka_bringup real_slam.launch.py \
-  start_slam:=false \
-  start_arm_pose:=false \
-  start_jaka_hardware:=true \
-  start_jaka_fts:=true \
+ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py \
+  hardware_write:=false \
+  can_port:=can0 \
   jaka_robot_ip:=10.5.5.100 \
   jaka_local_ip:=10.5.5.127 \
-  rviz:=true \
-  can_port:=can0 \
-  serial_port:=/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_e6872e3dafebed119ff7429aa88ea882-if00-port0 \
-  lidar_host_ip:=192.168.8.1 \
-  lidar_sensor_ip:=192.168.8.2 \
-  scan_topic:=/scan
+  start_arm_controller:=false \
+  start_jaka_fts:=true \
+  publish_odom_tf:=false
 ```
 
-这里的 JAKA 硬件参数固定注入 `hardware_write:=false`：会登录 EDG、读取真实关节角/速度
-和六维力数据，但不会启用 servo mode、不会加载位置控制器，`write()` 也不会向机械臂
-发送命令。`joint_state_broadcaster` 发布 `/joint_states`，力传感器广播器发布
-`/fts_broadcaster/wrench`。力传感器启动时会采样约 0.5 秒计算零偏，这段时间保持
-机械臂和末端负载静止。
-
-终端 2 启动保存地图定位：
+检查：
 
 ```bash
-source /opt/ros/humble/setup.bash
-source /home/a/WBMM/install/setup.bash
+ros2 topic hz /joint_states
+ros2 topic hz /wheel/odometry
+ros2 topic hz /fts_broadcaster/wrench
+ros2 topic echo /joint_states --once
+ros2 run tf2_tools view_frames
+```
 
-ros2 launch tracer_jaka_localization amcl_localization.launch.py \
-  map_file:=/home/a/WBMM/maps/site_2d.yaml \
-  scan_topic:=/scan \
+说明：上面使用 `publish_odom_tf:=false`，因为本流程没有启动 EKF；如果只是检查完整 TF 树，可以临时设为 `true`，但不要同时运行另一个 `odom -> base_footprint` 发布者。
+
+### 8.3 实机 OCS2 末端保持
+
+```bash
+# 终端 1：硬件
+ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py \
+  hardware_write:=false \
+  start_arm_controller:=true \
+  arm_controller_name:=arm_controller \
+  publish_odom_tf:=true
+
+# 终端 2：OCS2
+ros2 launch tracer_jaka_bringup ocs2.launch.py \
+  task_file:=$(ros2 pkg prefix tracer_jaka_bringup)/share/tracer_jaka_bringup/config/real/task.info \
+  urdf_file:=$(ros2 pkg prefix tracer_jaka_description)/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf \
+  lib_folder:=/tmp/wbmm_ocs2_real_ee_hold \
+  use_target:=true \
+  use_rviz:=true \
+  initial_task_phase:=2 \
+  command_output_enabled:=false \
+  odom_topic:=/wheel/odometry
+```
+
+或者使用组合入口：
+
+```bash
+ros2 launch tracer_jaka_bringup real_ocs2_ee_hold.launch.py \
+  hardware_write:=false \
+  use_target:=true \
+  use_rviz:=true \
+  initial_task_phase:=0
+```
+
+确认无误后再将 `hardware_write` 改为 `true`：
+
+```bash
+ros2 launch tracer_jaka_bringup real_ocs2_ee_hold.launch.py \
+  hardware_write:=true \
+  use_target:=true \
+  use_rviz:=true \
+  initial_task_phase:=0
+```
+
+外部底盘遥控：
+
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
+
+注意：OCS2 的底盘输出被 remap 到 `/ocs2/disabled_base_cmd`，`/cmd_vel` 归外部遥控。
+
+### 8.4 实机 REMANI + OCS2（在线定位）
+
+硬件和算法分开启动：
+
+```bash
+# 终端 1：硬件，先只读
+ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py \
+  hardware_write:=false \
+  start_arm_controller:=true \
+  arm_controller_name:=arm_controller \
+  publish_odom_tf:=false
+
+# 终端 2：EKF + SLAM + OCS2 + REMANI
+ros2 launch tracer_jaka_bringup remani_mpc.launch.py \
+  use_sim_time:=false \
+  static_esdf_file:=/absolute/path/to/site.npz \
+  hardware_write:=false \
+  start_slam:=true \
+  odom_topic:=/odometry/filtered
+```
+
+该入口要求：
+
+- `static_esdf_file` 存在；
+- 如果使用 SLAM，`map -> odom` 由 `slam_toolbox` 发布；
+- `odom -> base_footprint` 由 EKF 发布；
+- 硬件后端的 `publish_odom_tf` 应为 `false`。
+
+确认规划与 TF 正常后，需要**同时**把硬件后端和算法入口都改为 `hardware_write:=true`。先停止上面两个终端，再启动：
+
+```bash
+# 终端 1：硬件，允许 JAKA 写入
+ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py \
+  hardware_write:=true \
+  start_arm_controller:=true \
+  arm_controller_name:=arm_controller \
+  publish_odom_tf:=false
+
+# 终端 2：算法，允许 OCS2 MRT 输出
+ros2 launch tracer_jaka_bringup remani_mpc.launch.py \
+  use_sim_time:=false \
+  static_esdf_file:=/absolute/path/to/site.npz \
+  hardware_write:=true \
+  start_slam:=true \
+  odom_topic:=/odometry/filtered
+```
+
+### 8.5 实机保存地图定位 + REMANI + OCS2
+
+适用于已有 `map` 的现场。
+
+```bash
+# 终端 1：硬件，先只读
+ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py \
+  hardware_write:=false \
+  start_arm_controller:=true \
+  arm_controller_name:=arm_controller \
+  publish_odom_tf:=false
+
+# 终端 2：EKF + AMCL + OCS2 + REMANI
+ros2 launch tracer_jaka_bringup remani_mpc_localized.launch.py \
+  map_file:=/absolute/path/to/factory_map.yaml \
+  static_esdf_file:=/absolute/path/to/site_map_frame.npz \
   initial_x:=0.0 \
   initial_y:=0.0 \
   initial_yaw:=0.0 \
-  start_esdf_visualization:=true \
-  esdf_file:=/home/a/WBMM/maps/site_remani.npz \
-  esdf_offset_x:=0.0 \
-  esdf_offset_y:=0.0 \
-  esdf_offset_z:=0.0
+  hardware_write:=false
 ```
 
-若要让后续 3D ESDF/REMANI 直接获得 `map` 坐标系下的里程计，再开终端 3（仍然不会
-启动任何控制器）：
+安全检查：
+
+- `map_file` 必须存在；
+- `static_esdf_file` 必须存在；
+- ESDF NPZ 中 `frame_id` 必须为 `map`；
+- 初始位姿必须与现场实际位置一致。
+
+确认 AMCL 收敛、TF 正常、规划路径安全后，同样需要**同时**把硬件后端和算法入口改为 `hardware_write:=true`：
 
 ```bash
-source /opt/ros/humble/setup.bash
-source /home/a/WBMM/install/setup.bash
+# 终端 1：硬件
+ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py \
+  hardware_write:=true \
+  start_arm_controller:=true \
+  arm_controller_name:=arm_controller \
+  publish_odom_tf:=false
 
+# 终端 2：算法
+ros2 launch tracer_jaka_bringup remani_mpc_localized.launch.py \
+  map_file:=/absolute/path/to/factory_map.yaml \
+  static_esdf_file:=/absolute/path/to/site_map_frame.npz \
+  initial_x:=0.0 \
+  initial_y:=0.0 \
+  initial_yaw:=0.0 \
+  hardware_write:=true
+```
+
+### 8.6 实机力控
+
+先 shadow 模式：
+
+```bash
+# 终端 1：硬件
+# 本流程未启动 EKF，因此由 tracer_base 发布 odom -> base_footprint。
+# 如果另起 EKF，则把 publish_odom_tf 改为 false，避免重复发布 TF。
+ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py \
+  hardware_write:=false \
+  start_arm_controller:=true \
+  arm_controller_name:=arm_controller \
+  publish_odom_tf:=true
+
+# 终端 2：力控 shadow
+# 本终端未启动 EKF，因此 OCS2 直接使用 /wheel/odometry。
+# 如果另起 EKF，则把 odom_topic 改为 /odometry/filtered。
+ros2 launch tracer_jaka_bringup whole_body_force_control.launch.py \
+  hardware_write:=false \
+  admittance.enable:=false \
+  admittance.output:=false \
+  initial_task_phase:=2 \
+  odom_topic:=/wheel/odometry
+```
+
+检查：
+
+```bash
+ros2 topic hz /fts_broadcaster/wrench
+ros2 topic hz /whole_body_force_control/processed_wrench
+ros2 topic echo /whole_body_force_control/force_sensor_states
+ros2 topic echo /whole_body_force_control/states
+```
+
+确认 F/T 零点、负载补偿、frame、TF、限幅均正常后，再由现场负责人决定是否打开。**硬件和力控算法两个终端都必须以 `hardware_write:=true` 重启**：
+
+```bash
+# 终端 1：硬件，允许 JAKA 写入
+ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py \
+  hardware_write:=true \
+  start_arm_controller:=true \
+  arm_controller_name:=arm_controller \
+  publish_odom_tf:=true
+
+# 终端 2：力控，允许导纳和参考输出
+ros2 launch tracer_jaka_bringup whole_body_force_control.launch.py \
+  hardware_write:=true \
+  admittance.enable:=true \
+  admittance.output:=true \
+  initial_task_phase:=2 \
+  odom_topic:=/wheel/odometry
+```
+
+力控节点故障恢复：
+
+```bash
+ros2 service call /whole_body_force_control/force_sensor/reset std_srvs/srv/Trigger "{}"
+ros2 service call /whole_body_force_control/reset std_srvs/srv/Trigger "{}"
+```
+
+### 8.7 实机 MoveIt
+
+```bash
+# 终端 1：硬件，spawn arm_trajectory_controller
+ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py \
+  hardware_write:=false \
+  start_arm_controller:=true \
+  arm_controller_name:=arm_trajectory_controller \
+  publish_odom_tf:=false
+
+# 终端 2：MoveIt
+ros2 launch tracer_jaka_bringup moveit.launch.py \
+  use_sim_time:=false \
+  use_rviz:=true \
+  hardware_write:=false
+```
+
+确认规划路径安全后，需要**同时**把硬件后端和 MoveIt 入口改为 `hardware_write:=true`：
+
+```bash
+# 终端 1：硬件
+ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py \
+  hardware_write:=true \
+  start_arm_controller:=true \
+  arm_controller_name:=arm_trajectory_controller \
+  publish_odom_tf:=false
+
+# 终端 2：MoveIt
+ros2 launch tracer_jaka_bringup moveit.launch.py \
+  use_sim_time:=false \
+  use_rviz:=true \
+  hardware_write:=true
+```
+
+### 8.8 实机相机与数据录制
+
+```bash
+# 臂端 D435
+ros2 launch tracer_jaka_bringup d435_camera.launch.py serial_no:=<serial>
+
+# 底盘 D455
+ros2 launch tracer_jaka_bringup d455_camera.launch.py serial_no:=<serial>
+
+# 录制 ESDF 数据
+ros2 launch tracer_jaka_bringup record_d455_esdf_bag.launch.py \
+  output:=/home/a/WBMM/bags/d455_esdf_run1
+```
+
+### 8.9 运行时只读审计
+
+```bash
+ros2 run tracer_jaka_bringup readiness_check.py --ros-args \
+  -p audit_duration:=5.0 \
+  -p command_output_enabled:=false \
+  -p mpc_target_topic:=/mobile_manipulator_mpc_target \
+  -p base_command_topic:=/cmd_vel \
+  -p arm_command_topic:=/arm_controller/commands
+```
+
+该脚本检查：
+
+- 目标话题发布者数量；
+- 干跑时 `/cmd_vel` 和 `/arm_controller/commands` 是否没有发布者；
+- 是否存在重复的 TF child owner。
+
+注意：`readiness_check.py` 的默认 `mpc_target_topic` 是 `/mobile_manipulator_mpc_target`；当前 OCS2 主要目标话题为：
+
+```text
+/mobile_manipulator_whole_body_target   # 9D 全身参考
+/mobile_manipulator_ee_target           # 7D 末端参考
+```
+
+使用时应按当前目标所有者，把 `mpc_target_topic` 改成实际期望只有 1 个发布者的话题。
+
+---
+
+## 9. 仿真启动方式
+
+### 9.1 MuJoCo 硬件接口
+
+```bash
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py \
+  scene:=empty \
+  viewer:=true \
+  start_camera:=false \
+  publish_odom_tf:=false
+```
+
+可选场景：
+
+```bash
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py scene:=room
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py scene:=task_table
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py scene:=force_follow_infinite
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py scene:=force_follow_5m
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py scene:=nvblox_remani_demo
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py scene:=esdf_validation
+```
+
+手动控制：
+
+```bash
+ros2 topic pub /cmd_vel geometry_msgs/Twist \
+  "{linear:{x:0.2}, angular:{z:0.3}}"
+
+ros2 topic pub /arm_controller/commands std_msgs/Float64MultiArray \
+  "{data:[0,0.5,1.0,0,0.5,0]}"
+```
+
+### 9.2 MuJoCo + OCS2 末端保持
+
+```bash
+ros2 launch tracer_jaka_bringup mujoco_ocs2_ee_hold.launch.py \
+  scene:=empty \
+  viewer:=true \
+  initial_task_phase:=2 \
+  use_target:=true \
+  use_rviz:=true \
+  command_output_enabled:=true
+```
+
+另开终端遥控底盘：
+
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
+
+### 9.3 仿真力控 Profile
+
+方式一：分别启动 MuJoCo 和力控。
+
+```bash
+# 终端 1
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py \
+  scene:=force_follow_infinite \
+  init_keyframe:=low \
+  start_camera:=false \
+  publish_odom_tf:=true
+
+# 终端 2
+ros2 launch tracer_jaka_bringup whole_body_force_control_profiles.launch.py \
+  profile:=sensor_z \
+  use_rviz:=true
+```
+
+方式二：使用自动测试入口。
+
+```bash
+ros2 launch tracer_jaka_bringup force_control_mujoco_test.launch.py \
+  viewer:=true \
+  use_rviz:=true
+```
+
+20 秒持续力跟随：
+
+```bash
+ros2 launch tracer_jaka_bringup force_control_20s_follow_test.launch.py \
+  viewer:=true \
+  use_rviz:=true \
+  force:=7.0 \
+  duration:=20.0
+```
+
+无限场景持续力跟随：
+
+```bash
+ros2 launch tracer_jaka_bringup force_control_infinite_follow_test.launch.py \
+  viewer:=true \
+  use_rviz:=true \
+  force:=7.0 \
+  duration:=30.0
+```
+
+六轴序列：
+
+```bash
+ros2 launch tracer_jaka_bringup whole_body_force_control_profiles.launch.py \
+  profile:=six_axis_sequence \
+  use_rviz:=false
+
+ros2 run whole_body_force_control axis_wrench_sequence.py
+```
+
+### 9.4 仿真一键组合
+
+启动 MuJoCo + EKF + SLAM + OCS2：
+
+```bash
+ros2 launch tracer_jaka_bringup wbmm.launch.py \
+  hardware_backend:=mujoco \
+  config_profile:=sim \
+  scene:=room \
+  start_localization:=true \
+  start_slam:=true \
+  start_ocs2:=true \
+  odom_topic:=/odometry/filtered \
+  use_rviz:=true
+```
+
+启动 MuJoCo + 定位 + REMANI + OCS2：
+
+```bash
+ros2 launch tracer_jaka_bringup wbmm.launch.py \
+  hardware_backend:=mujoco \
+  config_profile:=sim \
+  scene:=nvblox_remani_demo \
+  start_localization:=true \
+  start_slam:=true \
+  start_remani:=true \
+  static_esdf_file:=/absolute/path/to/sim_esdf.npz \
+  odom_topic:=/odometry/filtered \
+  use_rviz:=true
+```
+
+注意：
+
+- `wbmm.launch.py` 把 `hardware_write` 同时传给 OCS2 的 `command_output_enabled`；仿真中需要 OCS2 真正输出时要加 `hardware_write:=true`，只观察/规划时保持 `false`；
+- `start_remani:=true` 时 `static_esdf_file` 必需；
+- 需要 EKF 时 `publish_odom_tf:=false`；
+- `start_force_control:=true` 已包含 OCS2，不要再同时设置 `start_ocs2:=true`。
+
+关于 `wbmm.launch.py start_force_control:=true`：
+
+- 它会包含 `whole_body_force_control.launch.py`；
+- 但顶层入口当前不转发 `admittance.enable` / `admittance.output`；
+- `whole_body_force_control.launch.py` 的默认值是两者都为 `false`，会覆盖 `config/sim/force_control.yaml` 中的 `true`；
+- 因此**仿真力控 profile 建议直接使用**：
+
+```bash
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py \
+  scene:=force_follow_infinite \
+  publish_odom_tf:=true
+
+ros2 launch tracer_jaka_bringup whole_body_force_control_profiles.launch.py \
+  profile:=sensor_z \
+  use_rviz:=true
+```
+
+或者使用自动测试入口 `force_control_mujoco_test.launch.py`。
+
+### 9.5 仿真 MoveIt
+
+```bash
+ros2 launch tracer_jaka_bringup wbmm.launch.py \
+  hardware_backend:=mujoco \
+  config_profile:=sim \
+  scene:=empty \
+  start_moveit:=true \
+  hardware_write:=true \
+  use_rviz:=true
+```
+
+或分别启动：
+
+```bash
+ros2 launch tracer_jaka_bringup mujoco_hardware_interface.launch.py \
+  scene:=empty \
+  viewer:=true
+
+ros2 launch tracer_jaka_bringup moveit.launch.py \
+  use_sim_time:=true \
+  use_rviz:=true \
+  hardware_write:=true
+```
+
+---
+
+## 10. 安全与运行注意事项
+
+1. **`hardware_write` 是实机运动唯一总门**  
+   默认 `false`。`true` 才允许 JAKA 写入和 OCS2/MoveIt 命令输出。
+
+2. **不要同时启动多个 `map -> odom` 或 `odom -> base_footprint` 发布者**  
+   - SLAM 模式：`slam_toolbox` 发布 `map -> odom`；
+   - 保存地图模式：AMCL 发布 `map -> odom`；
+   - EKF 模式：`robot_localization` 发布 `odom -> base_footprint`；
+   - 硬件后端的 `publish_odom_tf` 在 EKF 启动时应为 `false`。
+
+3. **REMANI 必须使用明确的静态 ESDF**
+   - `static_esdf_file` 必须存在；
+   - 在 `remani_mpc_localized` 中必须为 `frame_id=map`；
+   - 不能只改 `frame_id` 而不改 ESDF 原点和几何。
+
+4. **力控默认 shadow**
+   - 实机 `config/real/force_control.yaml` 显式关闭 `admittance.enable` 和 `admittance.output`；
+   - 打开 `admittance.output` 必须同时 `hardware_write:=true`；
+   - 故障后按流程 reset，不要盲目重新使能。
+
+5. **OCS2 `lib_folder` 不要并发混用**
+   - MPC 和 MRT 分别使用 `<lib_folder>/mpc` 和 `<lib_folder>/mrt`；
+   - 修改 `task.info` 中影响动力学的参数后，建议更换新目录或清理旧生成库。
+
+6. **MoveIt 执行受 `hardware_write` 控制**
+   - 仿真中同样默认 `false`，需要显式打开才会执行轨迹。
+
+7. **`task.info` 中的碰撞 link 必须真实存在**
+   - 修改 URDF 后要同步检查 `selfCollision.collisionLinkPairs` 和 `removeJoints`。
+
+8. **不要让多个机械臂命令所有者同时运行**
+   - OCS2/力控输出 `/arm_controller/commands`；
+   - MoveIt 输出 `/arm_trajectory_controller/follow_joint_trajectory`；
+   - 同时启动并打开多个所有者可能导致命令竞争；除非明确设计了仲裁，否则只保留一个机械臂命令所有者。
+
+---
+
+## 11. 辅助脚本
+
+### 11.1 `arm_pose_publisher.py`
+
+发布固定 arm-up 关节状态，便于没有真实关节状态时补全 TF 树。
+
+```bash
+ros2 run tracer_jaka_bringup arm_pose_publisher.py
+```
+
+通常通过 `wbmm_hardware_interface.launch.py start_arm_pose:=true` 启动。
+
+### 11.2 `odom_to_map_relay.py`
+
+把 `/odometry/filtered` 的 pose 从 `odom` 转到 `map`，输出 `/odometry/filtered_map`，twist 保持 body frame。
+
+```bash
 ros2 run tracer_jaka_bringup odom_to_map_relay.py --ros-args \
   -p odom_topic:=/odometry/filtered \
   -p output_topic:=/odometry/filtered_map \
@@ -710,502 +1773,117 @@ ros2 run tracer_jaka_bringup odom_to_map_relay.py --ros-args \
   -p child_frame:=base_footprint
 ```
 
-定位 launch 现在会同时管理 `map_server` 和 `amcl` 的生命周期，两者都应自动进入
-`active`，并设置 `set_initial_pose=true`，因此命令行的 `initial_x/y/yaw` 会在启动时
-真正用于初始化粒子滤波器。没有 `map -> odom` 时不要继续发送目标。
+### 11.3 `readiness_check.py`
 
-`initial_x/y/yaw` 是机器人 `base_footprint` 在保存地图中的初始位姿，单位分别为米、
-米、弧度；它不是地图 origin。尽量测量后填写。若不确定，在 RViz 用
-`2D Pose Estimate` 重新给 AMCL 初值，缓慢原地转动/短距离移动，确认激光与地图墙面
-重合，再进入下一阶段。
-
-检查定位：
+只读运行时审计：
 
 ```bash
-ros2 topic hz /wheel/odometry
-ros2 topic hz /imu/data
-ros2 topic hz /scan
-ros2 topic hz /odometry/filtered
-ros2 topic hz /odometry/filtered_map
-ros2 topic echo /map --once
-ros2 lifecycle get /map_server
-ros2 lifecycle get /amcl
-ros2 run tf2_ros tf2_echo map odom
-ros2 run tf2_ros tf2_echo odom base_footprint
-ros2 run tf2_ros tf2_echo map base_footprint
-ros2 topic hz /joint_states
-ros2 topic echo /fts_broadcaster/wrench --once
-ros2 service call /controller_manager/list_controllers \
-  controller_manager_msgs/srv/ListControllers "{}"
-ros2 node list | grep -E 'amcl|map_server|ekf|slam_toolbox'
+ros2 run tracer_jaka_bringup readiness_check.py --ros-args \
+  -p audit_duration:=5.0 \
+  -p command_output_enabled:=false
 ```
 
-`map_server`、`amcl` 应为 `active`；控制器列表只应看到
-`joint_state_broadcaster` 和 `fts_broadcaster` 为 `active`，不应出现或启动
-`arm_controller`/`arm_trajectory_controller`。应看到 AMCL、map_server 和 EKF，且
-不应看到 `slam_toolbox`。RViz 的 Fixed Frame 设为 `map`，TF 应连续、无大幅跳动。
-验证完先退出这两个 launch，避免下一步重复启动驱动和 TF。
+---
 
-`tf2_echo map base_footprint` 输出的 `(x, y, z)` 与姿态，就是机器人在持久化 `map`
-坐标系中的实时位姿。只要 `site_2d.yaml` 与 `site_remani.npz` 来自同一现场且已对齐，
-这同时也是机器人在 3D ESDF 中的坐标；AMCL 本身只估计平面 `x/y/yaw`，高度和机械臂
-各 link 的 3D 位姿由机器人 TF 树补齐。完整 REMANI 启动入口还会通过
-`odom_to_map_relay` 生成 `/odometry/filtered_map`，供规划器直接消费。
+## 12. 测试
 
-上述定位命令还会把保存的 ESDF 发布到 `/esdf_cloud`。`slam.rviz` 已加入
-`Saved 3D ESDF` 的 PointCloud2 显示：红色接近/进入障碍，蓝色距离障碍较远；为了避免
-显示近两百万个自由空间体素，只显示距离障碍表面 `0.35 m` 内、步长为 2 的 3D 体素。
-这是保存地图的只读可视化，不会启动 nvblox，也不会改变 REMANI 使用的 ESDF。三个
-`esdf_offset_*` 默认保持 `0.0`，只有完成 2D 地图与 3D ESDF 的固定平移标定后才修改。
+运行 bringup 包测试：
 
-### 阶段 C：确认实机 OCS2 task 文件
+```bash
+colcon test --packages-select tracer_jaka_bringup
+colcon test-result --verbose
+```
 
-顶层参数 `manipulator_max_vel/acc` 只限制 REMANI 生成的机械臂参考轨迹；最终控制输入
-还受 OCS2 task 文件约束。当前实机统一使用：
+当前测试覆盖：
+
+- 核心算法 launch 不启动硬件后端；
+- `wbmm.launch.py` 默认 fail-closed；
+- REMANI 跨 frame 必须使用 TF；
+- MoveIt 只使用 `hardware_write` 作为运动门；
+- 实机 ros2_control 控制器名和配置路径；
+- 力控 common/real/sim 配置分层和 profile 参数；
+- 实机力控输出门；
+- localized 实机 ESDF `frame_id=map` 安全门；
+- launch 组合静态解析。
+
+---
+
+## 13. 常见问题
+
+### 13.1 `wbmm.launch.py` 启动后什么都没有
+
+这是设计行为。默认：
 
 ```text
-src/bringup/config/real/task.info
-```
-
-该文件当前在 `jointVelocityLimits` 中使用：
-
-```text
-wheelBasedMobileManipulator lowerBound: -0.10, -0.40
-wheelBasedMobileManipulator upperBound:  0.10,  0.40
-arm lowerBound:  6 个 -0.50
-arm upperBound:  6 个  0.50
-```
-
-单位依次为底盘线速度 m/s、角速度 rad/s、机械臂关节速度 rad/s。修改 task 后要重启
-MPC；如果遇到自动微分库仍复用旧模型，可换一个新的 `lib_folder` 或清理该任务专用
-的 `/tmp` 生成目录后重启。
-
-`task.info` 的 `environmentCollision.obstacles` 还包含一个测试用 `box_1`
-（位置约为 `odom` 中 `[0.8, -0.6, 0.30]`）。它不是 REMANI 的 ESDF 障碍物，也不会
-随 AMCL 的 `map -> odom` 自动变换。制作实机 task 时必须结合现场决定是删除、关闭
-`environmentCollision`，还是改成真实且与本次 `odom` 对齐的障碍；不要把测试方盒
-原样带到实机并误以为它来自 NPZ 地图。关闭该项也意味着 OCS2 不再提供这层环境
-碰撞约束，仍需依靠 REMANI ESDF、低速和实体安全措施。
-
-### 阶段 0：消除 MRT 重名
-
-进入 D0 前，必须保证 ROS 图中只有一个 `/wbmm_mrt_node` 主节点和一个
-`/wbmm_mrt_node_ocs2_internal` 内部节点：
-
-```bash
-# 关闭所有 launch 终端后
-ros2 daemon stop
-ros2 daemon start
-
-pgrep -af wbmm_mrt_node
-ros2 node list | grep wbmm_mrt
-```
-
-期望：
-
-- 操作系统中只有一个 `wbmm_mrt_node` 进程；
-- ROS 图中只有 `/wbmm_mrt_node` 与 `/wbmm_mrt_node_ocs2_internal`。
-
-如果出现两个完全相同的 `/wbmm_mrt_node`，优先检查
-`src/bringup/launch/ocs2_real.launch.py` 是否仍给 MRT
-节点显式 `name='wbmm_mrt_node'`。当前使用 C++ 节点自身名称；同时
-`WbmmMrtNode.cpp` 中 OCS2 内部节点使用 `use_global_arguments(false)`，避免被
-launch 层 `__node` 重命名成同一个名字。修改后重新编译：
-
-```bash
-cd /home/a/WBMM
-source /opt/ros/humble/setup.bash
-colcon build --symlink-install --packages-select wbmm_ocs2_ros
-source install/setup.bash
-```
-
-未消除重名前，不得设置 `hardware_write:=true`。
-
-### 阶段 D0：一键启动 dry-run（允许规划，本链路不下发命令）
-
-确认阶段 B 的节点全部退出后执行：
-
-```bash
-cd /home/a/WBMM
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py \
-  can_port:=can0 \
-  serial_port:=/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_e6872e3dafebed119ff7429aa88ea882-if00-port0 \
-  lidar_host_ip:=192.168.8.1 \
-  lidar_sensor_ip:=192.168.8.2 \
-  map_file:=/home/a/WBMM/maps/site_2d.yaml \
-  static_esdf_file:=/home/a/WBMM/maps/site_remani.npz \
-  lib_folder:=/tmp/wbmm_ocs2_conservative/auto_generated \
-  initial_x:=0.0 \
-  initial_y:=0.0 \
-  initial_yaw:=0.0 \
-  use_rviz:=true \
-  tracking_error_replan_enabled:=false \
-  freeze_manipulator:=true \
-  manipulator_max_vel:=0.10 \
-  manipulator_max_acc:=0.20 \
-  mobile_base_max_wheel_omega:=1.0 \
-  mobile_base_max_wheel_alpha:=2.0 \
-  mobile_base_non_singul_vel:=0.02 \
-  hardware_write:=false \
-  start_ocs2:=true \
-  start_remani:=true \
-  start_bridge:=true \
-  start_arm_pose:=false
-```
-
-这个阶段使用单层安全门：`hardware_write:=false` 让 JAKA hardware interface 不启用
-servo 且 `write()` 不访问机器人，同时 OCS2 MRT 不使能命令输出。因此可以在 RViz 用
-`2D Goal Pose` 发一个目标，验证 REMANI、map/odom 变换、MPC policy 和轨迹显示，底盘
-和机械臂都不应动作。`freeze_manipulator:=true` 还会让 REMANI 保持当前实测臂型。
-这里切断的是本 launch 的 MRT 输出，不会阻止工作空间外的遥控、teleop 或遗留节点向
-`/cmd_vel` 发布；启动前必须退出这些节点，并保留底盘物理急停。
-
-启动后等待约 20 秒，再执行：
-
-```bash
-ros2 service call /controller_manager/list_controllers \
-  controller_manager_msgs/srv/ListControllers "{}"
-ros2 topic hz /joint_states
-ros2 topic echo /fts_broadcaster/wrench --once
-ros2 topic hz /odometry/filtered_map
-ros2 topic echo /mobile_manipulator_mpc_observation --once
-ros2 topic info /cmd_vel -v
-ros2 topic info /arm_controller/commands -v
-ros2 topic info /mobile_manipulator_mpc_target -v
-```
-
-dry-run 的期望结果：
-
-- `joint_state_broadcaster`、`fts_broadcaster`、`arm_controller` 为
-  `active`；forward controller 激活不代表能写硬件，此时硬件仍为只读；
-- `/odometry/filtered_map.header.frame_id` 为 `map`，`map -> odom -> base_footprint` 连续；
-- `/cmd_vel` 和 `/arm_controller/commands` 只有订阅者，没有 MRT 发布者；
-- `/mobile_manipulator_mpc_target` 只有 REMANI bridge 一个发布者；
-- 日志出现 `DRY-RUN safety gate active` 和 JAKA `ReadOnly=true`；
-- RViz 中 2D 地图、激光、机器人、保存的 3D ESDF 和 REMANI 轨迹位置一致。
-
-若任何一项不满足，停在本阶段，不要打开执行开关。
-
-### 阶段 D1-A：只使能 JAKA hardware 写入
-
-清空机械臂工作区并准备物理急停。退出 D0 后重启，改为：
-
-```text
-hardware_write:=true
+hardware_backend:=none
+start_localization:=false
 start_ocs2:=false
 start_remani:=false
-start_bridge:=false
-freeze_manipulator:=true
+start_force_control:=false
+start_moveit:=false
 ```
 
-此阶段 JAKA servo 会启用，但 MRT 仍不创建命令发布器。观察至少 30 秒：
+必须显式选择后端和算法。
 
-- 机械臂保持启动时的实测姿态；
-- 不应回零、跳变或抖动；
-- `/cmd_vel` 发布者为 0；
-- `/arm_controller/commands` 发布者为 0；
-- 关节速度建议保持在 ±0.02 rad/s 内。
+### 13.2 `start_force_control:=true` 和 `start_ocs2:=true` 同时设置报错
 
-出现任何运动立即按物理急停。
+力控 launch 已经包含 OCS2，二者互斥。
 
-### 阶段 D1-B：OCS2/MRT 当前姿态保持
+### 13.3 `admittance.output:=true` 但 `hardware_write:=false` 报错
 
-D1-A 通过后，重启并只修改：
+这是安全门，必须同时打开 `hardware_write`。
 
-```text
-hardware_write:=true
-start_ocs2:=true
-start_remani:=false
-start_bridge:=false
-```
+### 13.4 REMANI 报 `static_esdf_file` 不存在
 
-此时 OCS2/MRT 以真实 `/joint_states` 和 EKF 状态作为初始目标。检查：
+`remani_mpc.launch.py` 和 `wbmm.launch.py start_remani:=true` 都要求显式存在的 ESDF 文件。请传入绝对路径。
+
+### 13.5 localized 模式报 ESDF frame 错误
+
+`remani_mpc_localized.launch.py` 要求：
+
+- `map_file` 存在；
+- `static_esdf_file` 存在；
+- ESDF NPZ 中 `frame_id` 为标量且等于 `map`。
+
+### 13.6 TF 树有重复 child
+
+检查是否同时启动了：
+
+- `slam_toolbox` 和 AMCL；
+- EKF 和硬件后端的 `publish_odom_tf:=true`；
+- 多个 `robot_state_publisher`。
+
+可用 `readiness_check.py` 或：
 
 ```bash
-ros2 topic info /cmd_vel -v
-ros2 topic info /arm_controller/commands -v
-ros2 topic echo /cmd_vel
-ros2 topic echo /arm_controller/commands
-ros2 topic echo /joint_states
+ros2 run tf2_tools view_frames
 ```
 
-验收标准：
+### 13.7 力控没有输出
 
-- 两个命令话题各只有一个 MRT 发布者；
-- 底盘保持 `|linear.x| < 0.01 m/s`、`|angular.z| < 0.03 rad/s`；
-- 机械臂命令与实测关节角误差小于 0.03 rad；
-- 连续观察至少 30 秒，无回零、跳动或振荡。
+按顺序检查：
 
-注意 `/joint_states.name` 当前顺序不是固定 `joint_1...joint_6`，比较命令与实测值
-时必须按关节名称匹配，不能直接按数组下标比较。
+1. `/fts_broadcaster/wrench` 是否有数据；
+2. `/whole_body_force_control/processed_wrench` 是否有数据；
+3. `/whole_body_force_control/force_sensor_states` 是否 fault；
+4. `admittance.enable` 和 `admittance.output` 是否为 true；
+5. `hardware_write` 是否为 true；
+6. OCS2 是否在运行且 `command_output_enabled` 已打开；
+7. TF `sensor_frame -> tcp_frame` 是否可用。
 
-### 阶段 E：恢复 REMANI 后发送小目标
+---
 
-退出 D1-B，再用阶段 D0 的完整命令启动，并将安全开关改为：
+## 14. 相关文档
 
-```text
-hardware_write:=true
-start_remani:=true
-start_bridge:=true
-```
+- `src/bringup/config/README.md`：配置分层说明
+- `docs/frame_contract.md`：TF 和 frame 契约
+- `docs/math_contract.md`：状态、输入、轨迹和力控数学契约
+- `src/control/whole_body_force_control/README.md`：力控算法包
+- `src/control/wbmm_ocs2_ros/README.md`：OCS2 ROS 适配层
+- `src/sim/tracer_jaka_mujoco/README.md`：MuJoCo 桥和传感器
+- `src/map/tracer_jaka_localization/README.md`：AMCL / 保存地图定位
+- `deploy/README.md`：实机部署脚本
 
-首次只在机器人正前方空旷区发送约 `0.20 m` 的直线目标，目标必须位于 `map`
-坐标系。观察规划轨迹无碰撞、指令方向正确后再逐步增大距离。确认底盘流程稳定后，
-才将 `freeze_manipulator` 改为 `false`，仍保持低速，对机械臂发送很小的构型变化。
+---
 
-此时 `/cmd_vel` 和 `/arm_controller/commands` 应各只有 OCS2 MRT 一个发布者；
-`/joint_states` 仍只能来自真实 JAKA 的 joint-state broadcaster。任一命令话题出现多个
-发布者，都应退出并排除冲突节点。
-
-完整数据流为：
-
-```text
-RViz 2D Goal Pose (/goal_pose, frame=map)
-  -> REMANI
-  -> /planning/trajectory (map)
-  -> remani_to_ocs2_reference_bridge + TF(map -> odom)
-  -> /mobile_manipulator_mpc_target (odom)
-  -> OCS2 MPC/MRT
-  -> /cmd_vel + /arm_controller/commands
-```
-
-## 4. 顶层 launch 参数
-
-下列参数可以直接在 `ros2 launch ... 参数:=值` 中覆盖，不需要改源码：
-
-| 参数 | 默认值 | 作用与实机建议 |
-| --- | --- | --- |
-| `map_file` | `/home/a/WBMM/maps/site_2d.yaml` | 保存的 Nav2 2D 地图 YAML；换机器时显式传绝对路径 |
-| `static_esdf_file` | `/home/a/WBMM/maps/site_remani.npz` | 与 2D 地图对齐的 REMANI ESDF NPZ |
-| `static_esdf_offset_x/y/z` | `0.0/0.0/0.0` | ESDF 相对 `map` 的固定平移；先保持 0，只根据实测校准 |
-| `initial_x/y/yaw` | `0.0/0.0/0.0` | 机器人在保存地图中的 AMCL 初值，yaw 单位 rad |
-| `scan_topic` | `/scan` | AMCL 与 LiDAR 共用的 LaserScan 话题 |
-| `odom_topic` | `/odometry/filtered` | OCS2/MRT 使用的连续 odom；通常不要改 |
-| `map_odom_topic` | `/odometry/filtered_map` | REMANI 使用的 map-frame odometry；通常不要改 |
-| `joint_state_topic` | `/joint_states` | 真实机械臂关节状态 |
-| `task_file` | `tracer_jaka_bringup/config/real/task.info` | 当前唯一实机 OCS2 task 配置；修改后重启 MPC |
-| `urdf_file` | `tracer_jaka_description/urdf/tracer_jaka_zu5.urdf` | 运动学、碰撞体及传感器外参；硬件参数由 controlled xacro 注入 |
-| `lib_folder` | `/tmp/wbmm_ocs2_real/auto_generated` | OCS2 自动生成库目录；不同 task 建议使用不同目录 |
-| `manipulator_max_vel` | `0.10` | REMANI 机械臂参考最大速度 rad/s |
-| `manipulator_max_acc` | `0.20` | REMANI 机械臂参考最大加速度 rad/s² |
-| `freeze_manipulator` | `true` | `true` 时 REMANI 保持当前臂型；底盘验证完成后才改 `false` |
-| `mobile_base_max_wheel_omega` | `1.0` | REMANI 轮速上限 rad/s；轮径 0.07 m 时直线约 0.07 m/s |
-| `mobile_base_max_wheel_alpha` | `2.0` | REMANI 轮角加速度上限 rad/s² |
-| `mobile_base_non_singul_vel` | `0.02` | REMANI 非奇异最小规划线速度 m/s |
-| `tracking_error_replan_enabled` | `false` | 跟踪误差自动重规划；调通前保持 `false` |
-| `use_rviz` | `true` | 是否启动 OCS2 RViz |
-| `hardware_write` | `false` | 唯一实机执行保护；`true` 才允许 hardware interface 写 JAKA |
-| `start_ocs2` | `true` | 是否启动 MPC/MRT；dry-run 保持 `true` 以验证完整计算链 |
-| `start_remani` / `start_bridge` | `true/true` | 是否启动规划器/OCS2 参考桥；保持测试阶段可把 `start_remani` 设为 `false` |
-| `arm_max_delta_per_step` | `0.05` | 机械臂命令相对实测角的最大超前量 rad |
-| `arm_max_command_velocity` | `0.15` | MRT 机械臂位置命令的斜率上限 rad/s |
-| `can_port` | `can0` | Tracer CAN 接口 |
-| `serial_port` | `/dev/ttyUSB0` | Hipnuc IMU 串口 |
-| `start_imu` / `start_lidar` | `true/true` | 驱动已由外部启动时设 `false`，避免重复发布 |
-| `start_arm_pose` | `false` | 默认禁止假关节状态；仅无 JAKA 调试时可显式设 `true` |
-| `lidar_host_ip/lidar_sensor_ip` | `0.0.0.0/192.168.198.2` | 会透传给 LiDAR 驱动；现场为 192.168.8.x 时必须显式覆盖 |
-| `robot_ip/local_ip` | `10.5.5.100/10.5.5.127` | 会注入 OCS2 使用的 JAKA xacro/hardware interface |
-
-## 5. 参数到底去哪里修改
-
-配置归属约定：
-
-- 通用算法/接口参数统一放 `config/common/`：
-  - `interface.yaml`
-  - `ocs2.yaml`
-  - `force_control.yaml`
-  - `ekf.yaml`
-  - `slam_toolbox.yaml`
-  - `remani.yaml`
-  - `moveit_bringup.yaml`
-- 实机差异参数放 `config/real/`：
-  - `ocs2.yaml`、`force_control.yaml`、`ekf.yaml`、
-    `slam_toolbox.yaml`、`remani.yaml`
-  - `task.info` 是实机 OCS2 task 文件，单独保留
-- 仿真差异参数放 `config/sim/`：
-  - `ocs2.yaml`、`force_control.yaml`、`ekf.yaml`、
-    `slam_toolbox.yaml`、`remani.yaml`
-  - `task.info` 是仿真 OCS2 task 文件，单独保留
-- 运行时按顺序加载：
-  ```text
-  config/common/<name>.yaml
-  -> config/real/<name>.yaml  或  config/sim/<name>.yaml
-  -> launch 显式参数覆盖
-  ```
-- D455 录制 QoS：`src/bringup/config/real/d455_esdf_record_qos.yaml`
-
-
-| 想调整的内容 | 真正生效的位置 | 是否可由本入口覆盖 |
-| --- | --- | --- |
-| 地图文件、AMCL 初值、ESDF 平移、执行保护、REMANI 速度/加速度 | `src/bringup/tracer_jaka_bringup/launch/remani_mpc_localized_real.launch.py` | 是，优先用 launch 参数 |
-| AMCL 粒子数、激光模型、更新阈值、初始协方差 | `src/perception/tracer_jaka_localization/config/amcl_real.yaml` | 否，改 YAML 后重启 |
-| EKF 融合项、频率、超时、IMU/轮速配置 | `src/bringup/config/real/ekf.yaml` | 否，改 YAML 后重启 |
-| LiDAR IP/端口/倒装/角度，驱动默认话题 | `src/bringup/tracer_jaka_bringup/launch/real_slam.launch.py` | 顶层透传 host/sensor IP 与 `scan_topic`；端口等可直接作为嵌套 launch 参数传入 |
-| IMU 驱动原始配置 | `src/drivers/sensors/hipnuc_imu/config/hipnuc_config.yaml` | 顶层只透传串口和话题 |
-| JAKA IP、本机 EDG IP、力传感器偏置 | `tracer_jaka_description/urdf/tracer_jaka_zu5.ros2_control.xacro` | IP 可由 `robot_ip/local_ip`（OCS2）或 `jaka_robot_ip/jaka_local_ip`（real_slam）覆盖 |
-| LiDAR/IMU/JAKA 安装外参、机器人碰撞体 | `tracer_jaka_description/urdf/tracer_jaka_zu5.urdf` | 否，修改后重建/重启 |
-| OCS2 底盘/机械臂最终速度上限 | `src/bringup/config/real/task.info` 的 `jointVelocityLimits` | 否，改 `task.info` 后重启 MPC |
-| OCS2 输入平滑程度 | 同一 task 的 `inputCost.R` | 否，改 `task.info` 后重启 MPC |
-| OCS2 跟踪权重 | 同一 task 的 `wholeBodyTracking.Q` | 否，改 `task.info` 后重启 MPC |
-| OCS2 自碰撞/静态障碍物安全距离 | 同一 task 的 `selfCollision`、`environmentCollision` | 否，改 `task.info` 后重启 MPC |
-| REMANI 车体尺寸、轮径、机械臂关节限位 | `src/vendor/remani_planner/plan_manage/config/mm_param.yaml` | 轮速/轮加速度/非奇异速度及臂速度/加速度可由本入口覆盖 |
-| REMANI 搜索、优化、安全距离 | `src/vendor/remani_planner/plan_manage/config/remani_planner_param.yaml` | 否，改 YAML 后重启 |
-| REMANI 跟踪误差重规划阈值 | 同一 `remani_planner_param.yaml`，并在 `remani_mpc_tracking.launch.py` 声明 | 顶层目前只透传启用开关 |
-| AMCL 生命周期管理 | `src/perception/tracer_jaka_localization/launch/amcl_localization.launch.py` 的 `node_names` | 当前应确认包含 `amcl` |
-
-REMANI 参数实际按以下顺序合并，后面的值覆盖前面的值：
-
-```text
-mm_param.yaml -> remani_planner_param.yaml -> exp0_param.yaml
-              -> remani_mpc_tracking.launch.py 中的显式覆盖
-              -> 本顶层 launch 透传值
-```
-
-修改源码目录中的 launch/YAML/URDF 后，`--symlink-install` 通常只需重启节点；若安装
-空间不是符号链接、修改了 C++，或发现安装空间仍是旧文件，就重新执行对应的
-`colcon build` 并重新 source。
-
-## 6. “先保守”应同时限制哪些层
-
-建议首轮采用下面的组合，而不是只改一个速度值：
-
-| 层 | 首轮建议 | 原因 |
-| --- | --- | --- |
-| 本启动链输出闸 | dry-run 使用 `hardware_write=false` | 同时切断 JAKA 写入和 OCS2 命令输出 |
-| 自动行为 | `tracking_error_replan_enabled=false` | 避免误差或定位抖动触发意外新轨迹 |
-| REMANI 机械臂 | `freeze_manipulator=true`、`vel=0.10`、`acc=0.20` | 先验证底盘和坐标系 |
-| REMANI 底盘 | 轮速 `1.0 rad/s`、轮加速度 `2.0 rad/s²` | 使规划参考本身也保持低速 |
-| OCS2 底盘 | task 中线速度 `±0.05 m/s`、角速度 `±0.20 rad/s` | 限制最终实际控制输入 |
-| OCS2 机械臂 | task 中每关节 `±0.15 rad/s` | REMANI 限速之外再加执行层上限 |
-| 目标距离 | 首次 `0.20~0.30 m`、正前方、无障碍 | 便于快速判断方向和坐标是否正确 |
-| ESDF offset | 先全为 `0.0` | 未经测量不要用 offset “目测调图” |
-
-调快时一次只改一组参数，每次保留日志和安全员。推荐顺序是：定位稳定性 → 底盘速度
-→ 允许机械臂规划 → 机械臂速度/加速度 → 最后才启用误差自动重规划。
-
-## 7. 常见故障
-
-### AMCL 报 `class differential ... does not exist`
-
-ROS 2 Humble 要求 `robot_model_type` 使用完整 pluginlib 类名。当前配置应为：
-
-```yaml
-robot_model_type: nav2_amcl::DifferentialMotionModel
-```
-
-修改后重新编译并重新 source；如果日志仍显示 `differential`，说明终端还在使用旧的
-install 空间：
-
-```bash
-cd /home/a/WBMM
-source /opt/ros/humble/setup.bash
-colcon build --symlink-install --packages-select tracer_jaka_localization
-source install/setup.bash
-```
-
-### `fts_broadcaster` 初始化失败
-
-若 JAKA 日志已经打印 6 个 `init pos` 且显示 `ReadOnly=true`，说明机械臂通讯和关节状态
-读取已成功，失败仅发生在力传感器 broadcaster。Humble 的该 broadcaster 要求非空
-`frame_id`；本功能包通过独立的 `fts_broadcaster.yaml`、全节点通配段 `/**` 和
-spawner 的 `--param-file` 显式加载配置，并在
-`joint_state_broadcaster` 启动完成后再顺序加载它。重新编译
-`tracer_jaka_mujoco` 后重启终端 1。临时只验证关节数据时可设
-`start_jaka_fts:=false`，这不会启用任何机械臂控制。Humble 中 broadcaster 的原始私有
-话题会解析为 `/controller_manager/wrench`，启动文件已将它重映射为工程统一使用的
-`/fts_broadcaster/wrench`。
-
-这些修改只涉及“如何加载并发布”力传感器状态，没有修改硬件接口里的 F/T 原始读取、
-零偏采样、滤波、力臂补偿或单位换算。现在 `moveit_real.launch.py` 通过 `wbmm_hardware_interface.launch.py`
-按 joint state broadcaster、机械臂控制器、F/T broadcaster 的顺序加载；而
-旧配置使用的控制器名是 `fts_broadcaster`，本只读链使用
-`fts_broadcaster`，参数段必须按实际名称和当前 controller_manager 的命名空间规则
-匹配。另外，本机当前安装的 Humble FTS broadcaster 会在构造阶段强制检查非空
-`frame_id`，缺少它就直接初始化失败。以控制器列表为准，不要只看 launch 是否退出：
-
-```bash
-ros2 service call /controller_manager/list_controllers \
-  controller_manager_msgs/srv/ListControllers "{}"
-```
-
-### 没有 `map -> odom`
-
-检查 `/scan`、`/map`、AMCL 生命周期和初始位姿。确认没有另一个
-`slam_toolbox`/AMCL 同时发布该 TF：
-
-```bash
-ros2 node list
-ros2 lifecycle get /map_server
-ros2 lifecycle get /amcl
-ros2 topic echo /map --once
-ros2 run tf2_ros tf2_echo map odom
-```
-
-如果看到 `Please set the initial pose`，先确认当前安装空间参数为 true：
-
-```bash
-ros2 param get /amcl set_initial_pose
-```
-
-当前 launch 会自动设为 `true`。若机器人实际不在命令行给出的初始位置，在 RViz 点击
-`2D Pose Estimate` 后，在地图中的真实位置拖出朝向；也可以直接重启定位 launch，并把
-`initial_x/y/yaw` 改成实测值。初始位姿错误时即使出现 `map` 坐标系，激光也不会与地图
-正确重合。
-
-### `/odometry/filtered_map` 没有数据
-
-它要求 `/odometry/filtered` 和 `map -> odom` 同时存在。先分别检查 EKF 和 AMCL，
-再检查 `odom_to_map_relay` 日志。当前 relay 使用“最新可用”的 `map -> odom` 修正来
-转换实时 EKF pose：机器人静止时 AMCL 可能不刷新 TF 时间戳，不能用每条较新的 EKF
-时间戳做精确查询，否则会因向未来外推而一直丢弃输出。
-
-### 地图中机器人位置正确，但 REMANI 障碍物整体偏移
-
-2D 地图和 ESDF 的原点不一致。先确认是否来自同一建图会话，再核对 NPZ 的 origin。
-只有纯平移误差才使用 `static_esdf_offset_*`；存在 yaw 或尺度误差时重新导出。
-
-### JAKA 无法连接或 EDG 超时
-
-先核对 URDF 中的实际 IP，而不是只看 launch 命令；再检查主机静态 IP、路由、UDP
-防火墙和控制柜模式。运行时日志应打印与现场一致的 Robot/Local IP。
-
-### 控制器已启动但机器人意外尝试回到某个姿态
-
-立即急停。检查真实 `/joint_states` 是否在 OCS2 启动前稳定发布，确认
-`start_arm_pose=false`，并核对 task 的 `initialState.arm` 与当前启动策略。首次上机不要
-把“控制器 active”当成“不会运动”。
-
-### 目标发布者不止一个
-
-```bash
-ros2 topic info /mobile_manipulator_mpc_target -v
-```
-
-停止 joy target、手工 target 或其他测试节点，只保留
-`remani_to_ocs2_reference_bridge`。
-
-## 8. 安全边界
-
-这个 launch 负责系统组合，不是经过安全认证的保护系统。软件限速、碰撞代价、状态
-超时和零速度命令都不能替代物理急停、安全围栏、机械限位及现场监护。首次实机测试
-至少做到：
-
-- 底盘架空/机械固定，机械臂低速，工作区无人；
-- 开机前核对地图、初始位姿、TF、关节状态和命令发布者；
-- 地图或定位跳变、控制方向错误、持续振荡时立即物理急停；
-- 不在人员附近测试自动重规划；
-- 每次换地图、URDF、task 或控制器配置后，都从小目标和最低速度重新验收。
-
-## 9. 其他入口
-
-| 场景 | 命令 |
-| --- | --- |
-| 保存地图 + AMCL + REMANI/OCS2 实机闭环 | `ros2 launch tracer_jaka_bringup remani_mpc_localized_real.launch.py` |
-| 在线 SLAM + REMANI/OCS2 旧实机流程 | `ros2 launch tracer_jaka_bringup remani_mpc_real.launch.py` |
-| 实机仅传感器/EKF/SLAM | `ros2 launch tracer_jaka_bringup real_slam.launch.py` |
-| 实机仅保存地图定位 | `ros2 launch tracer_jaka_localization amcl_localization.launch.py` |
-| 实机仅 OCS2/JAKA/底盘 | `ros2 launch tracer_jaka_bringup ocs2_real.launch.py` |
-| MuJoCo 完整闭环 | `ros2 launch tracer_jaka_bringup ocs2_sim.launch.py` |
+> 本文档为 bringup 包使用说明，参数最终以源码和实际加载的 YAML 为准。

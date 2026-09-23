@@ -72,7 +72,9 @@ if(BUILD_TESTING)
   target_compile_definitions(test_wbmm_ocs2 PRIVATE
     WBMM_OCS2_TEST_URDF_FALLBACK="${CMAKE_CURRENT_SOURCE_DIR}/../../robot/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf"
     WBMM_OCS2_TEST_TASK_FILE="${CMAKE_CURRENT_SOURCE_DIR}/test/resources/task.info"
-    WBMM_OCS2_TEST_MODE_SWITCH_TASK_FILE="${CMAKE_CURRENT_SOURCE_DIR}/test/resources/task_mode_switch.info")
+    WBMM_OCS2_TEST_MODE_SWITCH_TASK_FILE="${CMAKE_CURRENT_SOURCE_DIR}/test/resources/task_mode_switch.info"
+    WBMM_OCS2_TEST_ESDF_TASK_FILE="${CMAKE_CURRENT_SOURCE_DIR}/test/resources/task_esdf.info"
+    WBMM_OCS2_TEST_ESDF_NPZ="${CMAKE_CURRENT_SOURCE_DIR}/../../map/wbmm_environment/test/resources/test_esdf.npz")
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)

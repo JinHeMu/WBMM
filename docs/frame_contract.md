@@ -246,7 +246,9 @@ $$
 {}^GT_E^{des}={}^GT_K\,{}^KT_E^{des}
 $$
 
-这是把任务局部期望末端位姿转换为 G 中的目标；单位和姿态约定同第 4 节。任务系的统一 TF 发布者、真实 TCP 标定和法向正负目前为 `TBD`。
+这是把任务局部期望末端位姿转换为 G 中的目标；单位和姿态约定同第 4 节。[TBD] 任务系的统一 TF 发布者、真实 TCP 标定和法向正负。
+
+[CURRENT] 当前 v1 力控柔顺点按 tool0 处理。[PROPOSED] task_frame 只有在 frame 所有者、原点/轴向、相对 tool0 的外参及任务法向约定均明确并核验后，才可作为任务目标或接触语义的依据；它不会自动替代 tool0 的导纳计算 frame。
 
 ### 6.2 Wrench 必须同时说明方向和力矩参考点
 
@@ -263,24 +265,91 @@ $$
 
 平移项是“A 原点指向 B 原点”的向量，表达在 A 中。只旋转力矩会漏掉力臂效应。[当前 transformWrench()](../src/control/whole_body_force_control/src/controllers.cpp) 采用此形式。例：A 到 B 为 `(0,0,0.1) m`、旋转为单位阵，B 处力为 `(10,0,0) N` 且力矩为零，则 A 处力矩为 `(0,1,0) N·m`。
 
-### 6.3 当前力信号链与待确认事项
+### 6.3 力传感器处理链：当前实现与统一协议
 
-| 路径 | CURRENT 行为 | 契约含义与限制 |
+#### 当前实现（CURRENT）
+
+| 环节 | 当前行为 |
+|---|---|
+| 传感器输入 | [JAKA 驱动](../src/drivers/arm/jaka_hardware_interface/src/jaka_hardware_interface.cpp)透传 EDG 的原始 F/T 数值。实机 broadcaster 声明 jk_se_vi_200_link，当前 sensor_frame 默认也为该 frame；仿真从 tcp_fts_site 读数并按配置填写 header。header 本身不证明原点、轴向、单位和符号已经与实机一致。 |
+| 当前处理器 | [力传感器处理节点](../src/control/whole_body_force_control/src/force_sensor_processor_node.cpp)要求输入 frame 等于 sensor_frame，并按消息时间查询 sensor_frame 到 tcp_frame 的 TF。ForceProcessor 先检查输入有限性。未启用负载补偿时，在自动 tare 前检查缩放后的原始值硬限；启用负载补偿时先在 sensor_frame 减去偏置与模型负载 wrench、跳过自动 tare，随后应用六轴 wrench_scale 并检查补偿后硬限。两种路径都将完整 wrench 变换到 tcp_frame，再在该系滤波、死区并检查输出硬限；死区只作用于输出，保留低通滤波内部状态。 |
+| 当前输出与导纳 | 处理器内部结果和发布的 wrench 均标注 tcp_frame；当前默认 tcp_frame 为 tool0。导纳在名义 TCP/tool0 轴下计算局部修正，再按名义末端姿态转到 state_frame，与名义末端位姿组合；ROS I/O 另发布 correction 修正量数组和 states 控制状态。当前默认 state_frame 为 odom。修正量没有固定 max_offset，现有路径依赖关节硬限位、IK 可达性 anti-windup 和 MPC 碰撞约束。 |
+| 当前能力边界 | 代码只有六轴缩放向量 wrench_scale，没有通用六维标定矩阵。接触判据、阈值、偏置获取策略及其与自动 tare 的关系不能据此视为已统一实现。 |
+
+[CURRENT] 当前默认柔顺控制点为 tool0。虽然节点参数允许指定 tcp_frame，本协议不把未标定的其他 link 自动视为等价控制点。
+
+[CURRENT] [MuJoCo 模型](../src/sim/tracer_jaka_mujoco/models/tracer_jaka_zu5_robot.xml) 将 tcp_fts_site 放在 tool-side body，并设置局部姿态使 site 与仿真 jk_se_vi_200_link 同原点、同轴。MJCF 腕部固定四元数与 URDF 表中的安装旋转并非逐项相同；仿真内部对齐不证明仿真与实机外参一致，须列入 F06 联合核验。
+
+#### 拟统一的数据流（PROPOSED）
+
+以下顺序是拟采用的接口协议，不代表整条链已经按此顺序实现：
+
+1. [PROPOSED] 以消息时间戳和 sensor_frame 接收原始 wrench。入口须拒绝非有限数值和无效消息；这类入口有效性检查不代替后续量程判定。
+2. [PROPOSED] 在 sensor_frame 表示的六维向量上做零偏补偿，再应用传感器系六维标定变换：
+
+   $$
+   {}^S w_{cal}=C_S\left({}^S w_{raw}-{}^S b\right)
+   $$
+
+   其中 S=sensor_frame，wrench 排列为 [f; τ]，偏置 b_S 为传感器系六维向量；C_S 是在传感器系定义的 6×6 标定矩阵，输出仍表达在 S 中。[TBD] 偏置来源、标定矩阵结构/数值/单位及其与自动 tare 的配合方式；当前代码只有六轴缩放向量，不能称为已实现该矩阵。
+3. [PROPOSED] 对校准后的传感器系信号执行原始异常值和量程保护，再进行重力/负载补偿。保护阈值、饱和判定及故障响应均为 [TBD]。负载补偿应使用明确的负载参数、质心和采样时刻的姿态，把模型负载 wrench 从测量值中扣除：
+
+   $$
+   {}^S w_{ext}={}^S w_{cal}-{}^S w_{payload}
+   $$
+
+   具体符号须服从传感器输出定义并经人工确认。
+4. [PROPOSED] 将补偿后的完整 wrench 从 S 变换到 T=tool0。此变换既旋转表达方向，也将力矩参考点从 sensor 原点移至 tool0 原点。令 {}^T R_S 将 S 分量旋到 T，{}^T p_S 为从 tool0 原点指向 sensor 原点、并在 T 中表达的向量，则：
+
+   $$
+   {}^T f={}^T R_S\,{}^S f
+   $$
+
+   $$
+   {}^T \tau_{O_T}={}^T R_S\,{}^S\tau_{O_S}+{}^T p_S\times{}^T f
+   $$
+
+   [CURRENT] 当前 transformWrench() 已采用包含力臂项的完整 wrench 变换。力矩参考点方向与 §6.2 一致：向量从目标原点 T 指向源原点 S；不能只旋转力矩，也不能反用该平移向量。符号核对例：若 sensor 原点相对 tool0 沿 +Z 偏 0.1 m，sensor 处力为 +X 方向 10 N、力矩为零且两系同向，则 tool0 处力矩为 +Y 方向 1 N·m。
+5. [PROPOSED] 在 tool0 中对变换后的 wrench 做滤波、死区、逐轴限幅，并执行接触判断。滤波参数、各轴限值、接触阈值/迟滞、接触法向定义和传感器正负号均为 [TBD]；当前实现中的滤波/死区/限值不等于已具备统一的接触判据。
+6. [PROPOSED] 导纳以 tool0 为局部计算 frame 和柔顺控制点，输出局部位移/转角 Δx_T=[Δp_T, Δθ_T]。期望与测量 wrench 的误差定义、作用力对象和运动修正正方向须人工审查；本协议保留该符号问题，不在此裁定。
+
+#### 导纳修正到 OCS2 world frame（PROPOSED）
+
+令 G 为当前 OCS2 配置的活动 world_frame，T=tool0。以名义末端位姿 {}^G T_{T,nom} 为基准，把 tool0 局部修正旋到 G，再与名义位姿组合：
+
+$$
+{}^{G}p_{T,ref}={}^{G}p_{T,nom}+{}^{G}R_{T,nom}\,\Delta p_T
+$$
+
+$$
+{}^{G}R_{T,ref}=\exp\!\left(\left[{}^{G}R_{T,nom}\,\Delta\theta_T\right]_{\times}\right){}^{G}R_{T,nom}
+$$
+
+其中 Δp_T 的单位为 m、Δθ_T 的单位为 rad，二者都按名义 tool0 轴表达；名义旋转和目标位置按 G 表达，当前 G=odom。平移增量是向量，只旋转、不加 wrench 力臂项；姿态式等价于在名义姿态之后施加 tool0 局部小转角。内部 EndEffectorPose 目标须声明在 G 中。
+
+[PROPOSED] raw、去偏置、标定后、负载补偿后、tool0 下滤波后的 measured_wrench，以及 desired_wrench 必须分别命名和记录。比较或相减前须确认表达方向和力矩参考点相同；静态零偏补偿不等于所有姿态下的重力/负载补偿。
+
+- [PROPOSED] 力控节点的 state_frame 必须与活动 OCS2 world_frame 完全相同；内部 EndEffectorPose.header.frame_id 也必须等于该 frame。参数不匹配时不得只改写 frame_id 来伪装变换完成。
+- [CURRENT] 当前默认 state_frame 与 OCS2 world_frame 均为 odom；目标组合与发布入口已拒绝内部位姿 frame 与 state_frame 不同。OCS2 MpcTargetTrajectories 消息本身没有 frame_id，跨节点的 world_frame 一致性仍依赖启动配置，尚无所有运行入口的强制检查。
+- [PROPOSED] 若活动 MPC 使用 map，则 state_frame 和目标消息 frame 必须同步使用 map，并确保名义末端位姿及相关 TF 在该系中有效。不能只把 odom 目标的 frame_id 改成 map。
+- [TBD] 仿真与实机各启动入口中的有效 world_frame/state_frame、TF 连通性、采样时间对齐和参数一致性，需逐入口核验。
+
+[历史记录，已被后续实现取代（2026-09-17）] 当时记录：本轮力控移除 sensor→TCP/tool0 的 wrench 转换，力矩参考点保留在传感器原点；通用传感器到其他 link 的显式 wrench 转换与机器人几何 TF 保留。力控节点改用 sensor_frame，实机导纳通过传感器 link 的 FK 和 6D Jacobian 控制该原点的位置与姿态；URDF/FK 使用同一 link 的 TF 轴定义，没有额外手工旋转；OCS2 的 ee_frame=tool0 未修改，实机验收仍为 TBD。该段仅作历史背景；后续实现已恢复到 tcp_frame 的完整 wrench 变换，本段不构成当前契约。
+
+[CURRENT，冲突记录；TBD 人工审查] math_contract.md 第 6 节采用 desired−measured；当前标量 AdmittanceController::update() 使用 filtered−desired 驱动运动偏移。本次不改符号，也不判断哪一侧正确。须结合“环境对工具的力/工具对环境的力”、任务法向及位移正方向逐项确认；同时确认 3D 位移修正如何映射到 6D wrench，避免维度不匹配的等式。
+
+[PROPOSED] 本节是坐标与处理顺序协议，不构成实机执行授权。接触判断、导纳/阻抗结构、力/力矩与速度限幅、急停、看门狗、超时、SAFE_HOLD、FAULT 和恢复条件均须人工逐条确认；未确认的数值和行为标为 TBD。
+
+### 6.4 分层工作流核对
+
+| 层 | CURRENT | PROPOSED / TBD |
 |---|---|---|
-| [JAKA 驱动](../src/drivers/arm/jaka_hardware_interface/src/jaka_hardware_interface.cpp) | 直接透传 EDG 原始 F/T 数值，不做清零、换系、滤波、死区或过期检测 | 原始数值的坐标系、单位和符号须结合 JAKA/传感器资料与实机标定确认，不能在此处默认为 tool0 wrench |
-| [实机 F/T broadcaster](../src/robotics/tracer_jaka_description/config/ros2_controllers.yaml) | `frame_id: jk_se_vi_200_link` | EDG 原始传感器 wrench，进入力控流程后按传感器原点处理；仍需标定与有效性检查 |
-| [仿真 F/T broadcaster](../src/sim/tracer_jaka_mujoco/tracer_jaka_mujoco/fts_sensor.py) | 从 `tcp_fts_site` 读数，按配置填 header；默认 frame 由 bridge 配为 `jk_se_vi_200_link` | 填 header 本身不执行换系；必须检查 site 与所声明 frame 的原点、方向一致 |
-| [力控 ROS I/O](../src/control/whole_body_force_control/src/node_ros_io.cpp) | 接收 `sensor_frame` 下的原始 wrench，通过 TF 完整变换到 `tcp_frame`（含力臂力矩），在名义 TCP 系做导纳，再把修正量转到 `state_frame`；frame 为空或不等于 `sensor_frame` 时拒绝。发布 `correction` 修正量数组和 `states` 控制状态。 | `sensor_frame` 默认 `jk_se_vi_200_link`，`tcp_frame` 默认 `tool0`；修正量没有固定 `max_offset`，由关节硬限位、IK 可达性 anti-windup 和 MPC 碰撞约束限制。 |
+| 传感器层 | 模型中的实际 frame 为 jk_se_vi_200_link；实机 FTS 广播以此 frame 输入，仿真可按 profile 使用 MuJoCo site 或 fake_wrench，但输入 header 仍须符合 sensor_frame。零偏/自动 tare、六轴缩放、异常限值及负载重力补偿在传感器系处理；补偿参数属实机 profile。 | [TBD] 完整六维标定矩阵及实机外参、偏置采集方法需标定后启用；ft_sensor_link 只是通称，不能直接当作已发布的 TF。 |
+| 任务/接触层 | 当前按 tool0 局部六轴 selected_axes 选择导纳方向；没有 task/contact_frame 到控制器的方向输入，也没有统一的接触法向、期望接触 wrench 或施力判据。 | [PROPOSED] 任务所有者确定 task/contact_frame 的原点、法向、符号及 TF 后，把任务方向和期望 wrench 明确变换到 tool0；若参考点不同，期望力矩也要搬移。外参、任务所有者和力符号均为 [TBD]。 |
+| TCP 柔顺层 | 当前工具控制点取 tool0：完整 wrench 先从传感器原点变换到 tool0，再在 tool0 做滤波、死区与六轴独立导纳。 | [TBD] 实际接触 TCP 若不等于 tool0，须先标定并同步运动学、Jacobian、力矩参考点和 MPC 末端 frame。 |
+| 执行层 | 当前局部位移/转角按名义 tool0 姿态旋入 odom，与名义末端位姿组合为 7D EE 参考。OCS2 MPC/MRT 在 odom 下求解并执行差速底盘的 v、omega 与六关节速度。map 可作为上游定位/规划系，但力控目标进入本配置的 MPC 前应在 odom 中。 | [PROPOSED] 每个启动入口核验 force state_frame=odom、MRT world_frame=odom、二者末端 frame=tool0；不允许仅改消息名字。运行时跨节点参数一致性检查为 [TBD]。 |
 
-[CURRENT] 当前 [MuJoCo 模型](../src/sim/tracer_jaka_mujoco/models/tracer_jaka_zu5_robot.xml) 将 `tcp_fts_site` 放在 tool-side body，局部四元数抵消该 body 相对传感器父系的旋转，使 site 与仿真 `jk_se_vi_200_link` 同原点、同轴。注意该 MJCF 的腕部固定四元数与 URDF 表中的安装旋转并非逐项相同；仿真内部 site/header 对齐不等于仿真与实机外参已对齐，须列入 F06 联合核验。
-
-[CURRENT，2026-09-17] 本轮力控移除 sensor → TCP/tool0 的 wrench 转换，力矩参考点保留在传感器原点。传感器到其他 link 的通用显式 wrench 转换能力与机器人几何 TF 保留。力控节点改用 `sensor_frame` 参数，实机导纳通过传感器 link 的 FK 和 6D Jacobian 控制该原点的位置与姿态；URDF/FK 使用同一 link 的 TF 轴定义，没有额外手工旋转。OCS2 自身的 `ee_frame=tool0` 配置未修改。实机验收仍为 TBD。
-
-`desired_wrench`、`measured_wrench`、raw、去偏置、滤波后的值必须区分；相减前必须同轴、同力矩参考点并确认符号。静态去偏置不自动等于所有姿态下的重力补偿。
-
-**发现不一致，需人工确认：** `math_contract.md` 第 6 节采用 `desired - measured`；当前标量 `AdmittanceController::update()` 使用 `filtered - desired` 驱动运动偏移。本文不改任何符号，也不据此判断哪一侧正确；须结合“环境对工具的力/工具对环境的力”、任务法向与偏移正方向联合审查。数学契约中 3D 位置修正与 6D wrench 的映射也需明确轴选择，不能直接作维度不匹配的等式。
-
-[PROPOSED] 本节仅固定坐标与符号审查要求，不提供实机执行授权。实机默认 `execution_enabled=false` 的项目原则保持不变；实际入口的执行开关名称须按 launch 核对。接触判断、导纳/阻抗、力/力矩限幅、速度限幅、急停、看门狗、传感器/命令超时、SAFE_HOLD、FAULT 及恢复条件须人工逐条确认，阈值为 `TBD`。
+[CURRENT] 从内部 EndEffectorPose 转成 OCS2 MpcTargetTrajectories 时，目标位姿保留 7D 数值与时间，线上的消息不携带 frame_id；MPC 因此按自身参考系解释这些数值。此处的 odom 约定必须靠配置与运行入口维持，内部 header 检查无法代替跨节点参数核验。
 
 ## 7. 相机、激光和 IMU
 
@@ -312,9 +381,9 @@ $$
 | F03 | `WbmmMrtNode.cpp::odomCallback` | 未显式核对输入 frame | 增加匹配/转换策略，影响状态入口 | 可能改变消息接收；需独立实现及确认 |
 | F04 | bridge `getPlannerToTargetTransform/sampleAt` | TF 失败回退固定值；速度/加速度只旋转 | 区分固定仿真与动态定位，明确快照和故障策略 | 错位或参考跳变；需独立实现及确认 |
 | F05 | `odom_to_map_relay.py::odom_callback` | latest TF + 输入消息 stamp；pose covariance 原样复制，未校验输入 frame/child | 记录近似，审查时效/坐标校验和协方差处理；影响 map 里程计消费者 | 时间与统计语义；需独立实现及确认 |
-| F06 | JAKA 驱动、URDF、MuJoCo site | 实机硬编码外参，仿真另有 site | 核对原点、轴向、力臂、作用力符号 | 实机接触风险；逐项人工确认 |
+| F06 | JAKA 驱动、URDF、实机传感器外参与 MuJoCo site | 实机与仿真传感器原点/轴向/单位、负载与质心参数、标定数据、header frame 及 TF 链尚未联合证明一致 | 分别核验实机和仿真外参、零偏/负载标定、力臂、力方向与 frame 连通性，并检查采样时刻 TF | 传感器外参、负载补偿和 frame 连通性须人工逐项确认；接触前不得把仿真对齐当成实机标定证据 |
 | F07 | `math_contract.md` §6 / `controllers.cpp` | 力误差符号不同 | 联合审查力的作用对象与运动偏移方向 | 禁止仅按公式改符号；逐项人工确认 |
-| F08 | task/TCP、相机 optical、激光 frame | 尚未统一证明每个运行入口的发布者与映射 | 明确任务 frame 所有者、TCP 标定及每个入口的传感器 TF | 真实外参和运行连通性 TBD；需确认 |
+| F08 | task/contact_frame、TCP、相机 optical、激光 frame | 力控当前只按 tool0 轴选择导纳；任务接触方向尚无统一发布者与映射 | 明确任务 frame 所有者、法向与力符号、期望 wrench 到 tool0 的变换，以及各入口的传感器 TF | 真实外参、接触方向和运行连通性 TBD；需人工确认 |
 
 现有 [math_contract.md](math_contract.md) 与 [frame_tree.svg](img/frame_tree.svg) 暂不重写；本次用新文档记录冲突，避免未经审阅就覆盖原有约定。旧图应作为概念示意阅读，真实模型结构以本文核对的 URDF 为依据。
 

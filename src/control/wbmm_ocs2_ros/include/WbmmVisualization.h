@@ -7,8 +7,11 @@
 //    * 官方是 DummyObserver, 挂在 MRT_ROS_Dummy_Loop 上, 靠 rollout 生成假观测;
 //      本组件不依赖 dummy loop, 由你自己的 MRT 主循环每帧调用 update()。
 //    * 官方 publishTargetTrajectories 把 target 当 7 维 EE 位姿解析;
-//      本组件按【全身轨迹模式】处理 —— target 是 stateDim(=9) 维 [x,y,yaw,q1..q6],
-//      对其做 FK 得到参考 EE 路径, 不会把关节角误当四元数。
+//      本组件按参考维度处理:
+//        - 9D whole-body: [x,y,yaw,q1..q6], 对其做 FK 得到参考 EE 路径;
+//        - 7D EE target: [x,y,z,qx,qy,qz,qw], 直接作为 EE 参考路径。
+//      WbmmMrtNode 在 Execution phase 会把可视化参考切成当前 EE target,
+//      避免绿色 Reference EE Trajectory 继续显示旧的 REMANI 全身规划终点。
 //    * 本组件【不】发布 joint_states / world->base TF (那些由仿真或
 //      robot_state_publisher 提供), 只发布轨迹 marker 和自碰撞距离, 避免冲突。
 //

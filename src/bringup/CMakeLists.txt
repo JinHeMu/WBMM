@@ -24,6 +24,7 @@ install(PROGRAMS
   scripts/arm_pose_publisher.py
   scripts/odom_to_map_relay.py
   scripts/readiness_check.py
+  scripts/remani_phase_bridge.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

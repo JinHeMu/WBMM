@@ -1,11 +1,7 @@
-; robot model meta-information
 model_information {
   manipulatorModelType     1      // 0: Default-arm, 1: Wheel-based manipulator, 2: Floating-arm manipulator, 3: Fully actuated floating-arm manipulator
 
-  ; motion joints in the URDF to consider fixed
-  ; 对于 wheelBasedMobileManipulator (=1), OCS2 不会建模轮子,
-  ; 必须把所有 movable wheel joint 放到这里, 否则会被当成 arm DoF
-  ; (URDF 里 fl_wheel/fr_wheel/rl_wheel/rr_wheel 是 FIXED_JOINT, 不用列)
+
   removeJoints {
     [0] "left_wheel"
     [1] "right_wheel"
@@ -104,8 +100,8 @@ mpc
   ; 想在终端看 MPC 每次求解耗时时, 把它设成 true (见文末延迟测试说明)
   debugPrint                      false
 
-  mpcDesiredFrequency             100   ; [Hz]
-  mrtDesiredFrequency             400   ; [Hz]
+  mpcDesiredFrequency             50   ; [Hz]
+  mrtDesiredFrequency             125   ; [Hz]
 }
 
 ; initial state
@@ -191,14 +187,13 @@ inputCost
   }
 }
 
-; ============================================================================
-; 全身轨迹跟踪 cost (WholeBodyTrajectoryCost)
-; ============================================================================
+
+
 wholeBodyTracking
 {
   activate   true
 
-  ; phase:    Navigation Transition Execution Retract
+
   phaseWeights
   {
     (0,0)  1.0
@@ -206,9 +201,6 @@ wholeBodyTracking
     (2,0)  0.0
     (3,0)  0.5
   }
-
-  ; [问题1] 终端权重缩放 5 -> 1.0, 避免末尾过度追逐横向位置
-  finalWeightScale  1.0
 
   Q
   {
@@ -230,13 +222,8 @@ wholeBodyTracking
   }
 }
 
-; ============================================================================
-; 末端参考跟踪 cost (EndEffectorTrackingCost)
-;
-;   目标来自 mobile_manipulator_ee_target，单目标 7D:
-;     [x, y, z, qx, qy, qz, qw]
-;   Execution 阶段由该 cost 主导。
-; ============================================================================
+
+
 endEffectorTracking
 {
   activate true
@@ -266,9 +253,7 @@ endEffectorTracking
   }
 }
 
-; ============================================================================
-; 自碰撞 (环境避障复用它的几何模型, 必须保持 activate true)
-; ============================================================================
+
 selfCollision
 {
   activate true
@@ -320,24 +305,11 @@ selfCollision
   delta            1e-3
 }
 
-; ============================================================================
-; 环境避障 (EnvironmentCollisionConstraint)
-;
-;   activate=true 时, 对 collisionLinks 里的每个 link 与 obstacles 里的每个静态
-;   障碍物做距离约束, 用 ThresholdRelaxedBarrierPenalty 软约束推离。
-;
-;   penalty 仅在 距离 < activationDistance 时激活;
-;   minimumDistance 是期望保持的最小间隙 (约束值 h = 实际距离 - minimumDistance)。
-;
-;   障碍物坐标系 = 全身状态所在的世界系 (你这里是 odom)。
-;   collisionLinks 里的 link 名必须存在于 URDF; 建议先从少量 link 开始, 越多越慢。
-;
-;   注意: 这些障碍物是【构造时一次性加载】的静态环境, 用来测试避障与开销。
-;         想动态增删障碍物需要额外的服务/话题接口, 这里先不涉及。
-; ============================================================================
+
+
+
 environmentCollision
 {
-  ; 测试阶段先关闭所有环境障碍物，避免静态测试障碍影响实机力控调试。
   activate            false
 
   mu                  1e-3
@@ -345,7 +317,6 @@ environmentCollision
   minimumDistance     0.05    ; 期望最小间隙 [m]
   activationDistance  0.20  ; 距离 < 此值才开始惩罚 [m] (缺省=5*minimumDistance)
 
-  ; 参与环境避障的机器人 link (少而关键, 便于控制求解开销)
   collisionLinks
   {
     [0] "base_link"
@@ -357,25 +328,7 @@ environmentCollision
     [6] "d435i_link"
   }
 
-  ; ---- 静态测试障碍物 ----
-  ; position:    [x, y, z]        (在 odom 世界系)
-  ; orientation: [w, x, y, z]     (可选, 缺省单位四元数)
-  ; box.halfExtents: [hx, hy, hz] (半边长)
-  ; 提示: 位置请按你的实际轨迹微调, 让障碍物贴近但不完全压住参考路径,
-  ;       这样既能看到明显绕行, 又不至于让软约束和跟踪 cost 打架到发散。
-  obstacles
-  {
-    box_1
-    {
-      type box
-      position    { [0] 0.8   [1] -0.6 [2] 0.30 }
-      orientation { [0] 1.0   [1] 0.0   [2] 0.0   [3] 0.0 }
-      halfExtents { [0] 0.2 [1] 0.2  [2] 0.25 }
-      minimumDistance 0.05
-    }
-  }
 }
-
 
 jointPositionLimits
 {

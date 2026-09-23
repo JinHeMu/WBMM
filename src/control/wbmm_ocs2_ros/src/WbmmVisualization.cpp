@@ -397,6 +397,14 @@ namespace wbmm
             markerArray.markers.emplace_back(
                 ros_msg_helpers::getLineMsg(std::move(eeRef), green, LINEWIDTH));
             markerArray.markers.back().ns = "Reference EE Trajectory";
+
+            // Whole-body reference is not active in Execution. Remove the
+            // previously published orange base reference marker so it does
+            // not remain in RViz pointing at the old REMANI plan.
+            visualization_msgs::msg::Marker deleteBaseRef;
+            deleteBaseRef.ns = "Reference Base Trajectory";
+            deleteBaseRef.action = visualization_msgs::msg::Marker::DELETE;
+            markerArray.markers.push_back(std::move(deleteBaseRef));
         }
         else
         {

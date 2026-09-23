@@ -20,8 +20,14 @@ install(DIRECTORY include/ DESTINATION include)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
-  ament_add_gtest(test_collision_skeleton test/test_collision_skeleton.cpp)
-  target_link_libraries(test_collision_skeleton ${PROJECT_NAME})
+  find_package(wbmm_search REQUIRED)
+
+  ament_add_gtest(test_environment_collision_checker test/test_environment_collision_checker.cpp)
+  target_link_libraries(test_environment_collision_checker ${PROJECT_NAME})
+
+  ament_add_gtest(test_search_collision_integration test/test_search_collision_integration.cpp)
+  target_link_libraries(test_search_collision_integration
+    ${PROJECT_NAME} wbmm_search::wbmm_search)
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)

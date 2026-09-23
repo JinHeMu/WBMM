@@ -42,6 +42,14 @@ def generate_launch_description():
             description=(
                 "REMANI-format ESDF NPZ for the current site/model.")),
         DeclareLaunchArgument(
+            "esdf_file", default_value="",
+            description=(
+                "Optional OCS2 environmentCollision ESDF NPZ; empty uses "
+                "the task file.")),
+        DeclareLaunchArgument(
+            "world_frame", default_value="",
+            description="Optional OCS2 world frame override."),
+        DeclareLaunchArgument(
             "odom_topic", default_value="/odometry/filtered"),
         DeclareLaunchArgument(
             "joint_state_topic", default_value="/joint_states"),
@@ -60,9 +68,8 @@ def generate_launch_description():
             default_value=PathJoinSubstitution([
                 bringup, "config", "real", "task.info"])),
         DeclareLaunchArgument(
-            "ocs2_config",
-            default_value=PathJoinSubstitution([
-                bringup, "config", "real", "ocs2.yaml"])),
+            "ocs2_config", default_value="",
+            description="Optional override; empty uses common defaults."),
         DeclareLaunchArgument(
             "remani_config",
             default_value=PathJoinSubstitution([
@@ -72,9 +79,8 @@ def generate_launch_description():
             default_value=PathJoinSubstitution([
                 bringup, "config", "real", "ekf.yaml"])),
         DeclareLaunchArgument(
-            "slam_config",
-            default_value=PathJoinSubstitution([
-                bringup, "config", "real", "slam_toolbox.yaml"])),
+            "slam_config", default_value="",
+            description="Optional override; empty uses common defaults."),
         DeclareLaunchArgument(
             "lib_folder", default_value="/tmp/wbmm_ocs2_auto_generated"),
         DeclareLaunchArgument("planner_frame", default_value="odom"),
@@ -110,6 +116,8 @@ def generate_launch_description():
                 "command_output_enabled": LaunchConfiguration(
                     "hardware_write"),
                 "odom_topic": LaunchConfiguration("odom_topic"),
+                "esdf_file": LaunchConfiguration("esdf_file"),
+                "world_frame": LaunchConfiguration("world_frame"),
             }.items())]),
         TimerAction(period=12.0, actions=[IncludeLaunchDescription(
             PythonLaunchDescriptionSource(PathJoinSubstitution([

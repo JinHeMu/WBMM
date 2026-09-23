@@ -290,7 +290,8 @@ void ForceSensorProcessorNode::rawWrenchCallback(
     }
 
     const auto result = processor_.process(
-        *raw, tcp_rotation_sensor, sensor_origin_in_tcp, sensor_rotation_base);
+        *raw, parameters_.tcp_frame, tcp_rotation_sensor,
+        sensor_origin_in_tcp, sensor_rotation_base);
     if (result.taring) {
       publishState("TARING");
       return;
@@ -303,7 +304,7 @@ void ForceSensorProcessorNode::rawWrenchCallback(
 
     geometry_msgs::msg::WrenchStamped output;
     output.header = message->header;
-    output.header.frame_id = parameters_.tcp_frame;
+    output.header.frame_id = result.wrench.header.frame_id;
     output.wrench.force.x = result.wrench.force.x;
     output.wrench.force.y = result.wrench.force.y;
     output.wrench.force.z = result.wrench.force.z;

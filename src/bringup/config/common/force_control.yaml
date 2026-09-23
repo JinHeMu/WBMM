@@ -1,4 +1,8 @@
-# Common raw F/T preprocessing shared by real and simulation.
+# Common F/T pipeline shared by real and simulation.
+# sensor_frame: raw checks, tare or bias/load compensation, six-axis scale.
+# tcp_frame: full wrench transform, low-pass filter, deadband and output limits.
+# Current profile uses jk_se_vi_200_link -> tool0; calibration values and
+# contact-direction semantics require separate review.
 force_sensor_processor:
   ros__parameters:
     topics:
@@ -15,7 +19,10 @@ force_sensor_processor:
       monitor_rate: 50.0
       tare_samples: 50
       filter_alpha: 0.15
+      # Legacy six-axis scale in sensor_frame; no 6x6 calibration matrix yet.
       wrench_scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      # CURRENT: the same numeric hard limits are checked at the sensor and
+      # TCP origins. Both interpretations need independent human review.
       hard_force_norm_limit: 50.0
       hard_wrench_limit: [50.0, 50.0, 50.0, 2.0, 2.0, 2.0]
       force_deadband_n: 0.0
@@ -39,6 +46,8 @@ force_sensor_processor:
 whole_body_force_control:
   ros__parameters:
     robot_name: mobile_manipulator
+    # EE targets are composed in odom, matching OCS2 MRT world_frame.
+    # The OCS2 target wire message has no frame_id; keep these configs paired.
     state_frame: odom
 
     topics:

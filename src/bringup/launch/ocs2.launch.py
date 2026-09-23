@@ -28,6 +28,8 @@ def _make_nodes(context):
     task_file = _value(context, "task_file")
     urdf_file = _value(context, "urdf_file")
     lib_folder = _value(context, "lib_folder")
+    esdf_file = _value(context, "esdf_file")
+    world_frame = _value(context, "world_frame")
 
     for label, path in (
         ("OCS2 base_config_file", base_config_file),
@@ -72,6 +74,12 @@ def _make_nodes(context):
         "use_sim_time": use_sim_time,
         "initial_task_phase": initial_task_phase,
     }
+    if esdf_file:
+        if not os.path.isfile(esdf_file):
+            raise RuntimeError(f"OCS2 esdf_file does not exist: {esdf_file!r}")
+        common_parameters["esdfFile"] = esdf_file
+    if world_frame:
+        common_parameters["world_frame"] = world_frame
     nodes = [
         Node(
             package="wbmm_ocs2_ros",
@@ -98,12 +106,16 @@ def _make_nodes(context):
     ]
 
     if use_target:
+        target_parameters = {"use_sim_time": use_sim_time}
+        if world_frame:
+            # Keep the interactive marker in the same frame as the OCS2 state.
+            target_parameters["marker_frame"] = world_frame
         nodes.append(Node(
             package="wbmm_ocs2_ros",
             executable="wbmm_target_node",
             name="wbmm_target_node",
             output="screen",
-            parameters=[*config_layers, {"use_sim_time": use_sim_time}],
+            parameters=[*config_layers, target_parameters],
         ))
 
     if use_rviz:
@@ -132,6 +144,16 @@ def generate_launch_description():
         DeclareLaunchArgument("task_file", default_value=""),
         DeclareLaunchArgument("urdf_file", default_value=""),
         DeclareLaunchArgument("lib_folder", default_value=""),
+        DeclareLaunchArgument(
+            "esdf_file", default_value="",
+            description=(
+                "Optional ESDF NPZ override for environmentCollision; "
+                "empty uses environmentCollision.esdf.file from task_file.")),
+        DeclareLaunchArgument(
+            "world_frame", default_value="",
+            description=(
+                "Optional OCS2 world frame override; empty uses the loaded "
+                "ROS parameter profile.")),
         DeclareLaunchArgument("use_sim_time", default_value="false"),
         DeclareLaunchArgument("use_target", default_value="false"),
         DeclareLaunchArgument("use_rviz", default_value="true"),

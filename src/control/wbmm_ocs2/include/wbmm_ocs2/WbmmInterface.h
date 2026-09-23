@@ -76,7 +76,9 @@ namespace wbmm_ocs2
          * @param [in] urdfFile: The absolute path to the URDF file for the robot.
          */
         WbmmInterface(const std::string& taskFile, const std::string& libraryFolder,
-                                   const std::string& urdfFile);
+                                   const std::string& urdfFile,
+                                   const std::string& esdfFileOverride = "",
+                                   const std::string& worldFrame = "odom");
 
         const ocs2::vector_t& getInitialState() { return initialState_; }
 
@@ -267,6 +269,14 @@ namespace wbmm_ocs2
 
         // 环境碰撞约束是否启用
         bool envCollisionEnabled_ = false;
+
+        // Optional ESDF file override from ROS parameters. Empty means use
+        // environmentCollision.esdf.file from the task file.
+        std::string esdfFileOverride_;
+
+        // OCS2 state/world frame. The ESDF backend requires the NPZ frame_id
+        // to match this frame; no implicit TF conversion is performed here.
+        std::string worldFrame_;
 
         ocs2::vector_t initialState_;
 

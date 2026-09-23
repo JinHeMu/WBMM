@@ -29,6 +29,10 @@ public:
     CheckScope scope = CheckScope::kWholeBody) const;
 
 private:
+  [[nodiscard]] CollisionResult checkWithScope(
+    const wbmm::core::WholeBodyState & state, CheckScope scope,
+    bool validate_state) const;
+
   wbmm::core::RobotModelPtr robot_model_;
   std::shared_ptr<const wbmm::environment::EsdfGrid> environment_;
   CollisionModel collision_model_;

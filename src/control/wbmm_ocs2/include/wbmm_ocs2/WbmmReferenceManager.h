@@ -69,6 +69,7 @@ public:
 
     void setWholeBodyTarget(const ocs2::TargetTrajectories& target);
     void setEndEffectorTarget(const ocs2::TargetTrajectories& target);
+    void clearEndEffectorTarget();
     void setTaskPhase(TaskPhase phase);
 
     TaskPhase getTaskPhase() const;

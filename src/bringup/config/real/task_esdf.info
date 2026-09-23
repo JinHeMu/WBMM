@@ -1,11 +1,7 @@
-; robot model meta-information
 model_information {
   manipulatorModelType     1      // 0: Default-arm, 1: Wheel-based manipulator, 2: Floating-arm manipulator, 3: Fully actuated floating-arm manipulator
 
-  ; motion joints in the URDF to consider fixed
-  ; 对于 wheelBasedMobileManipulator (=1), OCS2 不会建模轮子,
-  ; 必须把所有 movable wheel joint 放到这里, 否则会被当成 arm DoF
-  ; (URDF 里 fl_wheel/fr_wheel/rl_wheel/rr_wheel 是 FIXED_JOINT, 不用列)
+
   removeJoints {
     [0] "left_wheel"
     [1] "right_wheel"
@@ -21,6 +17,25 @@ model_settings
 {
   usePreComputation               true
   recompileLibraries              true
+}
+
+; ============================================================================
+; 双参考 + 模式切换
+;
+;   phase: 0=Navigation, 1=Transition, 2=Execution, 3=Retract
+;
+;   Navigation : whole-body 跟踪
+;   Transition : whole-body 与 EE 同时加权
+;   Execution  : EE 主导; wholeBody 权重 0.0，避免末端执行时被
+;                初始全身参考拉回
+;   Retract    : whole-body 重新主导
+;
+;   运行中通过 /mobile_manipulator_set_task_phase service 切换。
+; ============================================================================
+modeSwitch
+{
+  activate       true
+  initialPhase   0
 }
 
 ; DDP settings
@@ -52,7 +67,7 @@ ddp
 
   preComputeRiccatiTerms          true
 
-  useFeedbackPolicy               true
+  useFeedbackPolicy               false
 
   strategy                        LINE_SEARCH
   lineSearch
@@ -85,8 +100,8 @@ mpc
   ; 想在终端看 MPC 每次求解耗时时, 把它设成 true (见文末延迟测试说明)
   debugPrint                      false
 
-  mpcDesiredFrequency             100   ; [Hz]
-  mrtDesiredFrequency             400   ; [Hz]
+  mpcDesiredFrequency             50   ; [Hz]
+  mrtDesiredFrequency             125   ; [Hz]
 }
 
 ; initial state
@@ -123,14 +138,12 @@ initialState
 
   arm
   {
-    ; 与 MuJoCo 的 home keyframe 保持一致。该姿态高约 1.52 m，
-    ; 无法直接穿过 1.10 m 桌底，迫使 REMANI 在路径中规划折叠动作。
-    (0,0)  0.0    ; joint_1
+    (0,0)  -0.515 ; joint_1
     (1,0)  1.5707 ; joint_2
-    (2,0)  0.0    ; joint_3
+    (2,0)  -1.5707; joint_3
     (3,0)  1.5707 ; joint_4
-    (4,0)  3.14159; joint_5
-    (5,0)  0.785398; joint_6
+    (4,0)  1.5707 ; joint_5
+    (5,0)  0.254  ; joint_6
 
   }
 }
@@ -156,7 +169,7 @@ inputCost
       wheelBasedMobileManipulator
       {
         ; [问题1] 提高转向输入代价给底盘角速度加阻尼, 抑制末尾左右抖动
-        scaling 1e-1
+        scaling 1
         (0,0)  2.5   ; forward velocity
         (1,1)  10.0  ; turning velocity  (was 2.5)
       }
@@ -174,39 +187,73 @@ inputCost
   }
 }
 
-; ============================================================================
-; 全身轨迹跟踪 cost (WholeBodyTrajectoryCost)
-; ============================================================================
+
+
 wholeBodyTracking
 {
   activate   true
 
-  ; [问题1] 终端权重缩放 5 -> 1.0, 避免末尾过度追逐横向位置
-  finalWeightScale  1.0
+
+  phaseWeights
+  {
+    (0,0)  1.0
+    (1,0)  0.5
+    (2,0)  0.0
+    (3,0)  0.5
+  }
 
   Q
   {
     base
     {
-      (0,0)  5.0   ; x   [m]
-      (1,1)  5.0   ; y   [m]
-      (2,2)  2.0   ; yaw [rad]  [问题1] 0.5 -> 2.0, 优先对齐航向
+      (0,0)  1.0   ; x   [m]
+      (1,1)  1.0  ; y   [m]
+      (2,2)  0.5   ; yaw [rad]  [问题1] 0.5 -> 2.0, 优先对齐航向
     }
     arm
     {
-      (0,0)  2.0   ; joint_1
-      (1,1)  2.0   ; joint_2
-      (2,2)  2.0   ; joint_3
-      (3,3)  2.0   ; joint_4
-      (4,4)  2.0   ; joint_5
-      (5,5)  2.0   ; joint_6
+      (0,0)  1.0   ; joint_1
+      (1,1)  1.0   ; joint_2
+      (2,2)  1.0   ; joint_3
+      (3,3)  1.0   ; joint_4
+      (4,4)  1.0   ; joint_5
+      (5,5)  1.0   ; joint_6
     }
   }
 }
 
-; ============================================================================
-; 自碰撞 (环境避障复用它的几何模型, 必须保持 activate true)
-; ============================================================================
+
+
+endEffectorTracking
+{
+  activate true
+
+  phaseWeights
+  {
+    (0,0)  0.0
+    (1,0)  0.5
+    (2,0)  1.0
+    (3,0)  0.0
+  }
+
+  Q
+  {
+    position
+    {
+      (0,0)  100.0
+      (1,1)  100.0
+      (2,2)  100.0
+    }
+    orientation
+    {
+      (0,0)  25.0
+      (1,1)  25.0
+      (2,2)  25.0
+    }
+  }
+}
+
+
 selfCollision
 {
   activate true
@@ -253,42 +300,40 @@ selfCollision
     [27] "Link_5, d435i_link"
   }
 
-  minimumDistance    0.02
-  activationDistance 0.05  ; 距离小于 5 cm 时才激活自碰撞惩罚
-  mu                  1e-2
-  delta               1e-3
+  minimumDistance 0.02
+  mu               1e-2
+  delta            1e-3
 }
 
-; ============================================================================
-; 环境避障 (EnvironmentCollisionConstraint)
-;
-;   手工 obstacles 已删除，环境几何以 REMANI 的静态 ESDF 为准。
-;   这里保持 activate=false，避免 OCS2 再使用手工 obstacles。
-;   如需 OCS2 ESDF backend，请使用 task_esdf*.info 并配置 esdf_file。
-; ============================================================================
+
+
+
 environmentCollision
 {
-  activate            false
+  backend esdf
+  esdf
+  {
+    frame "odom"
+  }
+
+  activate            true
 
   mu                  1e-3
   delta               1e-3
   minimumDistance     0.05    ; 期望最小间隙 [m]
-  activationDistance  0.20    ; 距离 < 此值才开始惩罚 [m]
+  activationDistance  0.20  ; 距离 < 此值才开始惩罚 [m] (缺省=5*minimumDistance)
 
   collisionLinks
   {
     [0] "base_link"
-    [1] "d455_link"
-    [2] "Link_0"
-    [3] "Link_1"
-    [4] "Link_2"
-    [5] "Link_3"
-    [6] "Link_4"
-    [7] "Link_5"
-    [8] "Link_6"
-    [9] "tool0_and_camera_link"
-    [10] "d435i_link"
+    [1] "Link_3"
+    [2] "Link_4"
+    [3] "Link_5"
+    [4] "Link_6"
+    [5] "tool0_and_camera_link"
+    [6] "d435i_link"
   }
+
 }
 
 jointPositionLimits
@@ -320,18 +365,18 @@ jointVelocityLimits
       }
       wheelBasedMobileManipulator
       {
-        (0,0)  -0.5
-        (1,0)  -1.0
+        (0,0)  -0.1
+        (1,0)  -0.4
       }
     }
     arm
     {
-      (0,0)  -2.0
-      (1,0)  -2.0
-      (2,0)  -2.0
-      (3,0)  -2.0
-      (4,0)  -2.0
-      (5,0)  -2.0
+      (0,0)  -0.5
+      (1,0)  -0.5
+      (2,0)  -0.5
+      (3,0)  -0.5
+      (4,0)  -0.5
+      (5,0)  -0.5
     }
   }
 
@@ -352,18 +397,18 @@ jointVelocityLimits
       }
       wheelBasedMobileManipulator
       {
-        (0,0)  0.5
-        (1,0)  1.0
+        (0,0)  0.1
+        (1,0)  0.4
       }
     }
     arm
     {
-      (0,0)  2.0
-      (1,0)  2.0
-      (2,0)  2.0
-      (3,0)  2.0
-      (4,0)  2.0
-      (5,0)  2.0
+      (0,0)  0.5
+      (1,0)  0.5
+      (2,0)  0.5
+      (3,0)  0.5
+      (4,0)  0.5
+      (5,0)  0.5
     }
   }
 }

@@ -247,3 +247,68 @@ def test_wbmm_backend_composition_declares_all_forwarded_args(
     visited = set()
     describe_actions(module.generate_launch_description().entities, context, visited)
     assert expected_launch in visited
+
+
+def test_esdf_validation_launch_and_task_are_wired():
+    launch_path = LAUNCH_DIR / 'ocs2_esdf_validation.launch.py'
+    assert launch_path.is_file()
+
+    ocs2_args = launch_arguments(LAUNCH_FILES['ocs2.launch.py'])
+    assert 'esdf_file' in ocs2_args
+    assert 'world_frame' in ocs2_args
+
+    wbmm_args = launch_arguments(LAUNCH_FILES['wbmm.launch.py'])
+    assert 'esdf_file' in wbmm_args
+    assert 'world_frame' in wbmm_args
+
+    task_file = BRINGUP / 'config' / 'sim' / 'task_esdf.info'
+    assert task_file.is_file()
+    text = task_file.read_text(encoding='utf-8')
+    assert 'backend esdf' in text
+    assert 'activate            true' in text
+
+
+def test_remani_tracking_launch_wires_esdf_and_phase_bridge():
+    path = LAUNCH_DIR / 'remani_tracking.launch.py'
+    assert path.is_file()
+    content = path.read_text(encoding='utf-8')
+    assert '"start_ocs2": "true"' in content
+    assert '"start_remani": "true"' in content
+    assert '"use_target": "true"' in content
+    assert 'remani_phase_bridge.py' in content
+
+    declared = launch_arguments(path)
+    assert {
+        'task_file', 'static_esdf_file', 'esdf_file', 'remani_config',
+    }.issubset(declared)
+
+    task_file = BRINGUP / 'config' / 'sim' / 'task_esdf_tracking.info'
+    assert task_file.is_file()
+    task = task_file.read_text(encoding='utf-8')
+    assert 'modeSwitch' in task
+    assert 'initialPhase 0' in task
+    assert ('backend esdf' in task or 'backend             esdf' in task)
+    assert 'activate            true' in task
+    assert 'frame "map"' in task
+
+    assert 'default_value="map"' in content
+    assert '/home/a/WBMM/maps/map1/site_remani.npz' in content
+    assert 'remani_planner_frame": "map"' in content
+    assert 'publish_map_odom_tf' in content
+
+    rviz_config = BRINGUP / 'rviz' / 'remani_tracking_map1.rviz'
+    assert rviz_config.is_file()
+    assert 'Fixed Frame: map' in rviz_config.read_text(encoding='utf-8')
+
+    remani_profile = BRINGUP / 'config' / 'sim' / 'remani_tracking.yaml'
+    assert remani_profile.is_file()
+    assert 'tracking_error_replan_enabled: false' in remani_profile.read_text(
+        encoding='utf-8')
+
+
+def test_localized_launch_defaults_to_map1():
+    content = (
+        LAUNCH_DIR / 'remani_mpc_localized.launch.py').read_text(
+            encoding='utf-8')
+    assert '/home/a/WBMM/maps/map1/site_remani.npz' in content
+    assert '/home/a/WBMM/maps/map1/site_2d.yaml' in content

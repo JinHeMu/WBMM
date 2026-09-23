@@ -122,12 +122,17 @@ wbmm::core::Wrench ForceProcessor::toWrench(
 
 ForceProcessorResult ForceProcessor::process(
   const wbmm::core::Wrench & raw_source,
+  const std::string & target_frame,
   const Eigen::Matrix3d & target_rotation_source,
   const Eigen::Vector3d & target_to_source,
   const Eigen::Matrix3d & source_rotation_base)
 {
   ForceProcessorResult result;
   result.wrench.header = raw_source.header;
+  if (target_frame.empty()) {
+    return result;
+  }
+  result.wrench.header.frame_id = target_frame;
 
   const Vector6d raw = toVector(raw_source);
   if (!raw.allFinite() || !source_rotation_base.allFinite()) {
@@ -244,31 +249,32 @@ ForceProcessorResult ForceProcessor::process(
     return result;
   }
 
-  // Deadband after low-pass filtering: small residual noise is reported as
-  // exactly zero so it cannot drive the admittance integrator.
+  // Deadband changes the published TCP wrench, not the low-pass filter state.
+  // Keeping the state continuous avoids delaying a later genuine force step.
+  Vector6d output = filtered_wrench_;
   for (Eigen::Index i = 0; i < 3; ++i) {
-    if (std::abs(filtered_wrench_[i]) < config_.force_deadband_n) {
-      filtered_wrench_[i] = 0.0;
+    if (std::abs(output[i]) < config_.force_deadband_n) {
+      output[i] = 0.0;
     }
   }
   for (Eigen::Index i = 3; i < 6; ++i) {
-    if (std::abs(filtered_wrench_[i]) < config_.torque_deadband_nm) {
-      filtered_wrench_[i] = 0.0;
+    if (std::abs(output[i]) < config_.torque_deadband_nm) {
+      output[i] = 0.0;
     }
   }
 
   if (config_.hard_limit_enabled &&
     ((config_.hard_force_norm_limit > 0.0 &&
-    filtered_wrench_.head<3>().norm() > config_.hard_force_norm_limit) ||
-    (filtered_wrench_.cwiseAbs().array() >
+    output.head<3>().norm() > config_.hard_force_norm_limit) ||
+    (output.cwiseAbs().array() >
     config_.hard_wrench_limit.array()).any()))
   {
     result.hard_limit_exceeded = true;
     return result;
   }
 
-  last_output_ = filtered_wrench_;
-  result.wrench = toWrench(filtered_wrench_, raw_source.header);
+  last_output_ = output;
+  result.wrench = toWrench(output, result.wrench.header);
   result.ok = true;
   return result;
 }

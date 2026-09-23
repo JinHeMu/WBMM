@@ -7,13 +7,14 @@
 #include <Eigen/Core>
 
 #include <cstddef>
+#include <string>
 
 namespace whole_body_force_control
 {
 
 // Force preprocessing pipeline:
-//   raw FTS -> finite/raw hard-limit checks -> tare -> coordinate transform
-//           -> scale -> low-pass -> finite/hard-limit/rate-limit checks
+//   sensor frame: finite/limit checks, tare or bias/load compensation, scale
+//   target TCP frame: full wrench transform, low-pass filter, deadband, limits
 //
 // The controller layer receives an already processed wrench.
 // End-effector gravity-load compensation.
@@ -76,6 +77,7 @@ public:
   void startTare();
   void reset();
 
+  // target_frame: frame and moment-reference origin of the returned wrench.
   // target_rotation_source: rotation from source frame to target frame.
   // target_to_source: source origin position expressed in target frame.
   // source_rotation_base: rotation from base frame to source frame, used only
@@ -83,6 +85,7 @@ public:
   // callers/tests keep the original behaviour.
   ForceProcessorResult process(
     const wbmm::core::Wrench & raw_source,
+    const std::string & target_frame,
     const Eigen::Matrix3d & target_rotation_source,
     const Eigen::Vector3d & target_to_source,
     const Eigen::Matrix3d & source_rotation_base =

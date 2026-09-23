@@ -92,6 +92,8 @@ int main(int argc, char* argv[])
   nodeHandle->declare_parameter<std::string>("taskFile", "");
   nodeHandle->declare_parameter<std::string>("libFolder", "");
   nodeHandle->declare_parameter<std::string>("urdfFile", "");
+  nodeHandle->declare_parameter<std::string>("esdfFile", "");
+  nodeHandle->declare_parameter<std::string>("world_frame", "odom");
   nodeHandle->declare_parameter<std::string>("robot_name", kDefaultRobotName);
   nodeHandle->declare_parameter<std::string>("whole_body_target_topic", "");
   nodeHandle->declare_parameter<std::string>("ee_target_topic", "");
@@ -102,6 +104,8 @@ int main(int argc, char* argv[])
   const auto taskFile = nodeHandle->get_parameter("taskFile").as_string();
   const auto libFolder = nodeHandle->get_parameter("libFolder").as_string();
   const auto urdfFile = nodeHandle->get_parameter("urdfFile").as_string();
+  const auto esdfFile = nodeHandle->get_parameter("esdfFile").as_string();
+  const auto worldFrame = nodeHandle->get_parameter("world_frame").as_string();
   const auto robotName =
       nodeHandle->get_parameter("robot_name").as_string();
 
@@ -135,9 +139,14 @@ int main(int argc, char* argv[])
   RCLCPP_INFO(nodeHandle->get_logger(), "Task file : %s", taskFile.c_str());
   RCLCPP_INFO(nodeHandle->get_logger(), "Lib folder: %s", libFolder.c_str());
   RCLCPP_INFO(nodeHandle->get_logger(), "URDF file : %s", urdfFile.c_str());
+  RCLCPP_INFO(nodeHandle->get_logger(), "World frame: %s", worldFrame.c_str());
+  RCLCPP_INFO(
+      nodeHandle->get_logger(), "ESDF file override: %s",
+      esdfFile.empty() ? "<task file>" : esdfFile.c_str());
 
   // -- OCS2 problem interface ------------------------------------------------
-  wbmm_ocs2::WbmmInterface interface(taskFile, libFolder, urdfFile);
+  wbmm_ocs2::WbmmInterface interface(
+      taskFile, libFolder, urdfFile, esdfFile, worldFrame);
   const bool modeSwitchEnabled = interface.isModeSwitchEnabled();
   const std::size_t wholeBodyStateDim =
       interface.getWbmmModelInfo().stateDim;

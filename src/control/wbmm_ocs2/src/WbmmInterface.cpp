@@ -141,8 +141,13 @@ namespace wbmm_ocs2
 
     WbmmInterface::WbmmInterface(const std::string &taskFile,
                                  const std::string &libraryFolder,
-                                 const std::string &urdfFile)
+                                 const std::string &urdfFile,
+                                 const std::string &esdfFileOverride,
+                                 const std::string &worldFrame)
     {
+        esdfFileOverride_ = esdfFileOverride;
+        worldFrame_ = worldFrame;
+
         // check that task file exists
         boost::filesystem::path taskFilePath(taskFile);
         if (boost::filesystem::exists(taskFilePath))
@@ -974,14 +979,17 @@ namespace wbmm_ocs2
             std::string esdfFile;
             std::string esdfFrame;
             loadData::loadPtreeValue(
-                pt, esdfFile, prefix + ".esdf.file", true);
+                pt, esdfFile, prefix + ".esdf.file", false);
             loadData::loadPtreeValue(
                 pt, esdfFrame, prefix + ".esdf.frame", false);
+            if (!esdfFileOverride_.empty()) {
+                esdfFile = esdfFileOverride_;
+            }
             if (esdfFile.empty())
             {
                 throw std::runtime_error(
                     "[EnvironmentCollision] esdf backend requires "
-                    "environmentCollision.esdf.file.");
+                    "environmentCollision.esdf.file or an esdf_file override.");
             }
 
             const auto loadResult =
@@ -995,13 +1003,21 @@ namespace wbmm_ocs2
                     loadResult.message);
             }
 
-            if (!esdfFrame.empty() &&
-                esdfFrame != loadResult.grid->info().frame_id)
+            const std::string gridFrame = loadResult.grid->info().frame_id;
+            if (!esdfFrame.empty() && esdfFrame != gridFrame)
             {
                 throw std::runtime_error(
                     "[EnvironmentCollision] Configured ESDF frame '" +
                     esdfFrame + "' does not match NPZ frame '" +
-                    loadResult.grid->info().frame_id + "'.");
+                    gridFrame + "'.");
+            }
+            if (!worldFrame_.empty() && gridFrame != worldFrame_)
+            {
+                throw std::runtime_error(
+                    "[EnvironmentCollision] ESDF frame '" + gridFrame +
+                    "' does not match OCS2 world_frame '" + worldFrame_ +
+                    "'; refusing to query an ESDF in a different frame. "
+                    "No implicit TF conversion is performed.");
             }
 
             scalar_t maxExcess = 0.01;

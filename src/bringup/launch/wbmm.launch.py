@@ -62,7 +62,7 @@ def _make_actions(context):
         os.path.join(bringup_share, "config", "sim", "task.info"))
     ocs2_config = config_value(
         "ocs2_config",
-        os.path.join(bringup_share, "config", "real", "ocs2.yaml"),
+        "",  # Real uses common OCS2 defaults without an override file.
         os.path.join(bringup_share, "config", "sim", "ocs2.yaml"))
     remani_config = config_value(
         "remani_config",
@@ -74,7 +74,7 @@ def _make_actions(context):
         os.path.join(bringup_share, "config", "sim", "ekf.yaml"))
     slam_config = config_value(
         "slam_config",
-        os.path.join(bringup_share, "config", "real", "slam_toolbox.yaml"),
+        "",  # Real uses common SLAM defaults without an override file.
         os.path.join(bringup_share, "config", "sim", "slam_toolbox.yaml"))
     force_params_file = config_value(
         "force_params_file",
@@ -140,19 +140,26 @@ def _make_actions(context):
         ))
 
     if start_ocs2:
+        ocs2_launch_arguments = {
+            "use_sim_time": use_sim_time,
+            "use_rviz": _value(context, "use_rviz"),
+            "config_file": ocs2_config,
+            "task_file": task_file,
+            "urdf_file": _value(context, "urdf_file"),
+            "lib_folder": lib_folder,
+            "command_output_enabled": _value(
+                context, "hardware_write"),
+            "odom_topic": _value(context, "odom_topic"),
+            "esdf_file": _value(context, "esdf_file"),
+            "world_frame": _value(context, "world_frame"),
+            "use_target": _value(context, "use_target"),
+        }
+        rviz_config = _value(context, "rviz_config")
+        if rviz_config:
+            ocs2_launch_arguments["rviz_config"] = rviz_config
         actions.append(IncludeLaunchDescription(
             _source(bringup, "ocs2.launch.py"),
-            launch_arguments={
-                "use_sim_time": use_sim_time,
-                "use_rviz": _value(context, "use_rviz"),
-                "config_file": ocs2_config,
-                "task_file": task_file,
-                "urdf_file": _value(context, "urdf_file"),
-                "lib_folder": lib_folder,
-                "command_output_enabled": _value(
-                    context, "hardware_write"),
-                "odom_topic": _value(context, "odom_topic"),
-            }.items(),
+            launch_arguments=ocs2_launch_arguments.items(),
         ))
 
     if _as_bool(_value(context, "start_remani")):
@@ -165,6 +172,10 @@ def _make_actions(context):
                 "static_esdf_file": _value(context, "static_esdf_file"),
                 "odom_topic": _value(context, "odom_topic"),
                 "joint_state_topic": _value(context, "joint_state_topic"),
+                "planner_frame": _value(context, "remani_planner_frame"),
+                "target_frame": _value(context, "remani_target_frame"),
+                "use_tf_transform": _value(
+                    context, "remani_use_tf_transform"),
             }.items(),
         ))
 
@@ -181,6 +192,8 @@ def _make_actions(context):
                 "urdf_file": _value(context, "urdf_file"),
                 "lib_folder": lib_folder,
                 "odom_topic": _value(context, "odom_topic"),
+                "esdf_file": _value(context, "esdf_file"),
+                "world_frame": _value(context, "world_frame"),
             }.items(),
         ))
 
@@ -256,5 +269,29 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "joint_state_topic", default_value="/joint_states"),
         DeclareLaunchArgument("static_esdf_file", default_value=""),
+        DeclareLaunchArgument(
+            "esdf_file", default_value="",
+            description=(
+                "Optional ESDF NPZ override for environmentCollision; "
+                "empty uses the task file/default.")),
+        DeclareLaunchArgument(
+            "world_frame", default_value="",
+            description=(
+                "Optional OCS2 world frame override; empty uses the "
+                "loaded parameter profile.")),
+        DeclareLaunchArgument(
+            "remani_planner_frame", default_value="odom",
+            description="REMANI planning frame."),
+        DeclareLaunchArgument(
+            "remani_target_frame", default_value="odom",
+            description="REMANI trajectory target frame for OCS2 bridge."),
+        DeclareLaunchArgument(
+            "remani_use_tf_transform", default_value="false",
+            description="Use TF in the REMANI-to-OCS2 bridge."),
+        DeclareLaunchArgument("use_target", default_value="false"),
+        DeclareLaunchArgument(
+            "rviz_config", default_value="",
+            description=(
+                "Optional RViz config path for the OCS2 stack.")),
         OpaqueFunction(function=_make_actions),
     ])

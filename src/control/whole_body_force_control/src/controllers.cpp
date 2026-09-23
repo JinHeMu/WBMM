@@ -155,6 +155,10 @@ wbmm::core::EndEffectorPose makeEndEffectorPoseTarget(
     throw std::invalid_argument(
       "End-effector pose target requires a valid frame and stamp");
   }
+  if (nominal_pose.header.frame_id != frame_id) {
+    throw std::invalid_argument(
+      "Nominal end-effector pose and target frame must match");
+  }
   if (!local_correction.allFinite() ||
     !wbmm::core::isFinite(nominal_pose.position))
   {

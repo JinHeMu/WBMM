@@ -253,6 +253,10 @@ TEST(EndEffectorPoseTarget, AppliesLocalCorrectionInNominalFrame)
     (target_q.normalized().toRotationMatrix() - expected_rotation).norm(),
     1.0e-12);
   EXPECT_TRUE(wbmm::core::validate(target).ok);
+  EXPECT_THROW(
+    whole_body_force_control::makeEndEffectorPoseTarget(
+      nominal, correction, "map", 0.5),
+    std::invalid_argument);
 }
 
 TEST(PinocchioRobotModel, MatchesCoreDimensionAndJointContract)
@@ -602,16 +606,17 @@ TEST(ForceProcessor, AutoTareAndProcessedOutput)
   const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
   const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
 
-  auto result = processor.process(raw, rotation, translation);
+  auto result = processor.process(raw, "tool0", rotation, translation);
   EXPECT_TRUE(result.taring);
-  result = processor.process(raw, rotation, translation);
+  result = processor.process(raw, "tool0", rotation, translation);
   EXPECT_TRUE(result.taring);
-  result = processor.process(raw, rotation, translation);
+  result = processor.process(raw, "tool0", rotation, translation);
   ASSERT_TRUE(result.ok);
+  EXPECT_EQ(result.wrench.header.frame_id, "tool0");
   EXPECT_NEAR(result.wrench.force.x, 0.0, 1.0e-12);
 
   raw.force.x = 12.0;
-  result = processor.process(raw, rotation, translation);
+  result = processor.process(raw, "tool0", rotation, translation);
   ASSERT_TRUE(result.ok);
   EXPECT_NEAR(result.wrench.force.x, 2.0, 1.0e-12);
 }
@@ -633,14 +638,44 @@ TEST(ForceProcessor, LowPassFilterUsesConfiguredAlpha)
   const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
   const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
 
-  auto result = processor.process(raw, rotation, translation);
+  auto result = processor.process(raw, "tool0", rotation, translation);
   ASSERT_TRUE(result.ok);
   EXPECT_NEAR(result.wrench.force.x, 10.0, 1.0e-12);
 
   raw.force.x = 20.0;
-  result = processor.process(raw, rotation, translation);
+  result = processor.process(raw, "tool0", rotation, translation);
   ASSERT_TRUE(result.ok);
   EXPECT_NEAR(result.wrench.force.x, 15.0, 1.0e-12);
+}
+
+TEST(ForceProcessor, DeadbandDoesNotEraseTcpFilterMemory)
+{
+  using whole_body_force_control::ForceProcessor;
+  using whole_body_force_control::ForceProcessorConfig;
+  using whole_body_force_control::Vector6d;
+
+  ForceProcessorConfig config;
+  config.filter_alpha = Vector6d::Constant(0.5);
+  config.hard_wrench_limit = Vector6d::Constant(100.0);
+  config.hard_force_norm_limit = 100.0;
+  config.force_deadband_n = 1.0;
+  ForceProcessor processor(config);
+
+  wbmm::core::Wrench raw;
+  raw.header.frame_id = "sensor_frame";
+  raw.force.x = 0.5;
+  const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
+  const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
+
+  auto result = processor.process(raw, "tool0", rotation, translation);
+  ASSERT_TRUE(result.ok);
+  EXPECT_DOUBLE_EQ(result.wrench.force.x, 0.0);
+  EXPECT_EQ(result.wrench.header.frame_id, "tool0");
+
+  raw.force.x = 2.0;
+  result = processor.process(raw, "tool0", rotation, translation);
+  ASSERT_TRUE(result.ok);
+  EXPECT_NEAR(result.wrench.force.x, 1.25, 1.0e-12);
 }
 
 TEST(ForceProcessor, TransformIncludesLeverArmTorque)
@@ -656,12 +691,14 @@ TEST(ForceProcessor, TransformIncludesLeverArmTorque)
   ForceProcessor processor(config);
 
   wbmm::core::Wrench raw;
+  raw.header.frame_id = "sensor_frame";
   raw.force.x = 1.0;
   const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
   const Eigen::Vector3d translation(0.0, 0.0, 1.0);
 
-  const auto result = processor.process(raw, rotation, translation);
+  const auto result = processor.process(raw, "tool0", rotation, translation);
   ASSERT_TRUE(result.ok);
+  EXPECT_EQ(result.wrench.header.frame_id, "tool0");
   EXPECT_NEAR(result.wrench.force.x, 1.0, 1.0e-12);
   EXPECT_NEAR(result.wrench.torque.y, 1.0, 1.0e-12);
 }
@@ -683,7 +720,7 @@ TEST(ForceProcessor, HardLimitIsReported)
   const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
   const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
 
-  auto result = processor.process(raw, rotation, translation);
+  auto result = processor.process(raw, "tool0", rotation, translation);
   EXPECT_FALSE(result.ok);
   EXPECT_TRUE(result.hard_limit_exceeded);
 
@@ -710,13 +747,13 @@ TEST(ForceProcessor, RawForceNormLimitStopsDuringTare)
   const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
   const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
 
-  auto result = processor.process(raw, rotation, translation);
+  auto result = processor.process(raw, "tool0", rotation, translation);
   ASSERT_TRUE(result.taring);
   EXPECT_FALSE(result.hard_limit_exceeded);
 
   raw.force.x = 3.1;
   raw.force.y = 4.1;
-  result = processor.process(raw, rotation, translation);
+  result = processor.process(raw, "tool0", rotation, translation);
   EXPECT_FALSE(result.ok);
   EXPECT_TRUE(result.hard_limit_exceeded);
   EXPECT_FALSE(result.taring);
@@ -751,7 +788,8 @@ TEST(ForceProcessor, LoadCompensationSkipsTareAndRemovesGravity)
   const Eigen::Matrix3d source_rotation_base = Eigen::Matrix3d::Identity();
 
   const auto result = processor.process(
-      raw, target_rotation_source, target_to_source, source_rotation_base);
+      raw, "tool0", target_rotation_source, target_to_source,
+      source_rotation_base);
   ASSERT_TRUE(result.ok);
   EXPECT_FALSE(result.taring);
   EXPECT_NEAR(result.wrench.force.z, 0.0, 1e-12);
@@ -782,7 +820,7 @@ TEST(ForceProcessor, DeadbandZerosSmallForceAndTorque)
   const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
   const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
 
-  const auto result = processor.process(raw, rotation, translation);
+  const auto result = processor.process(raw, "tool0", rotation, translation);
   ASSERT_TRUE(result.ok);
   EXPECT_DOUBLE_EQ(result.wrench.force.x, 0.0);
   EXPECT_DOUBLE_EQ(result.wrench.torque.y, 0.0);

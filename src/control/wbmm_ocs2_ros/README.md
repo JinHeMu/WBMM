@@ -218,77 +218,109 @@ ros2 launch tracer_jaka_bringup ocs2_sim.launch.py \
   viewer:=false use_rviz:=false
 ```
 
-### 使用真实 bag 导出的 ESDF 做纯地图验证
+### OCS2 ESDF 碰撞端到端验证
 
-先在 Isaac ROS 容器中完成 bag 回放和自动导出：
-
-```bash
-docker exec -it -u admin --workdir /workspaces/isaac_ros-dev \
-  isaac_ros_dev-x86_64-container bash
-source /workspaces/isaac_ros-dev/install/setup.bash
-ros2 launch my_nvblox_bringup d455_bag_esdf.launch.py \
-  bag:=/workspaces/isaac_ros-dev/bags/d455_rgbd_esdf_02
-```
-
-回放期间 nvblox RViz 显示 RGB-D mesh、3D ESDF 和 bag 中的 `/map`。
-回放结束后，REMANI 使用的文件默认是：
-
-```text
-/home/a/workspaces/isaac_ros-dev/bag_export/d455_bag_remani_esdf.npz
-```
-
-然后在宿主机启动纯 ESDF 验证：
+当前仓库提供的验证入口：
 
 ```bash
 cd /home/a/WBMM
 source install/setup.bash
-export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-ros2 launch tracer_jaka_bringup ocs2_esdf_validation.launch.py
+ros2 launch tracer_jaka_bringup ocs2_esdf_validation.launch.py \
+  viewer:=false use_rviz:=false hardware_write:=false
 ```
 
-该入口有意隔离三种环境来源：
+默认组合：
 
-| 环境来源 | 状态 | 用途 |
-|---|---|---|
-| MuJoCo `scene_esdf_validation.xml` | 仅机器人和地面 | 保留动力学接触，不放桌子、墙和障碍物 |
-| OCS2 `task_esdf_only.info` | `environmentCollision.activate=false` | 不再使用 info 中手工障碍物 |
-| nvblox 导出的 NPZ | 启用 | REMANI 搜索、轨迹优化和碰撞检测的唯一外部环境 |
+| 项目 | 默认值 |
+|---|---|
+| MuJoCo scene | `room`，与 `tracer_jaka_zu5_scene_esdf.npz` 对齐 |
+| OCS2 task | `tracer_jaka_bringup/config/sim/task_esdf.info` |
+| `environmentCollision` | `activate=true`, `backend=esdf` |
+| ESDF NPZ | `grid_map/maps/tracer_jaka_zu5_scene_esdf.npz` |
+| OCS2 `world_frame` | `odom`，必须与 NPZ `frame_id` 一致 |
 
-验证入口默认通过 map_server 加载
-`/home/a/WBMM/src/bringup/tracer_jaka_bringup/maps/factory_map.yaml`。RViz 使用 `odom` 作为 Fixed Frame，
-并显示保存的 `/map`、
-`/esdf_cloud`、`/esdf_occ2d` 和机器人模型。`/esdf_cloud` 只显示已观测且靠近障碍物的
-体素；`/esdf_occ2d` 是指定高度带内的 2D ESDF 占据投影。使用 RViz 的
-**2D Goal Pose** 向 `/goal_pose` 发目标即可触发：
+`hardware_write:=false` 时只做 MPC/MRT dry-run；设为 `true` 后 MRT 会把
+底盘和机械臂命令发给 MuJoCo。启动后在 OCS2 日志中应看到：
 
 ```text
-真实场景 ESDF -> REMANI -> /planning/trajectory
-              -> REMANI-to-OCS2 bridge -> MPC/MRT -> MuJoCo 机器人
+#### backend: esdf
+[INFO] [wbmm_mrt_node]: Publishing base commands as Twist on ...
+[INFO] [wbmm_mrt_node]: Got first MPC policy. Entering MRT loop ...
 ```
 
-自定义文件或降低显示量：
+替换 ESDF 时显式传入 `esdf_file`：
 
 ```bash
 ros2 launch tracer_jaka_bringup ocs2_esdf_validation.launch.py \
   esdf_file:=/absolute/path/site_remani.npz \
-  map2d_yaml:=/absolute/path/site_2d.yaml \
-  esdf_display_distance:=0.35 esdf_display_stride:=3
+  world_frame:=odom
 ```
 
-这里要求导出 ESDF、仿真初始位姿和实际录包时的 `odom` 原点一致；若不
-一致，应先做刚体坐标变换后再导出，不能只在 RViz 中旋转显示。
+当前 C++ `WbmmInterface` 不会做隐式 TF 或刚体变换：如果 NPZ 的
+`frame_id` 与 OCS2 `world_frame` 不一致，会在启动时直接报错。真实
+nvblox bag 导出的 ESDF 通常是 `map` frame；若要直接用于 OCS2 避障，
+需要先在导出后转换到 `odom`，或者把 OCS2 状态、目标、力控和命令链
+统一切换到同一个 frame，并确认 TF 与坐标原点确实一致。
 
-联合启动后的检查命令：
+纯 ESDF 可视化仍可用 `grid_map/esdf_rviz_publisher` 或
+`my_nvblox_bringup/esdf_visualizer`，但它们不参与上述 OCS2 碰撞约束。
+
+### 空场景 ESDF 全身导航 + EE 跟踪
+
+整合入口：
 
 ```bash
-ros2 topic hz /wheel/odometry
-ros2 topic hz /imu/data
-ros2 topic hz /odometry/filtered
-ros2 topic hz /scan
-ros2 topic echo /map --once
-ros2 run tf2_ros tf2_echo map odom
-ros2 run tf2_ros tf2_echo odom base_footprint
+cd /home/a/WBMM
+source install/setup.bash
+ros2 launch tracer_jaka_bringup remani_tracking.launch.py
 ```
+
+默认组合：
+
+| 项目 | 默认值 |
+|---|---|
+| MuJoCo scene | `esdf_validation`（机器人 + 地面） |
+| REMANI/OCS2 ESDF | `/home/a/WBMM/maps/map1/site_remani.npz` |
+| OCS2 task | `config/sim/task_esdf_tracking.info`（`esdf.frame=map`） |
+| REMANI 配置 | `config/sim/remani_tracking.yaml` |
+| world/planner frame | `map` |
+| map→odom | 默认发布 identity 静态 TF，用于空场景 odom 别名 |
+| RViz | 默认启动，Fixed Frame `map` |
+| MuJoCo command output | `hardware_write=true` |
+
+工作流：
+
+1. 在 RViz 中选择 **2D Goal Pose**，向 `/goal_pose` 发一个平面目标。
+   `remani_phase_bridge.py` 收到目标后把 OCS2 任务阶段切到
+   `Navigation`（0），REMANI 负责全身导航。
+2. 底盘到达目标并保持约 1 s 后，`remani_phase_bridge` 保持在
+   `Navigation`（0），只标记导航完成，不再切到中间 `Transition`。
+   这样不会出现“底盘继续追全身参考、机械臂同时追旧末端目标”的混合运动。
+3. 在 RViz 的 **EE Target Marker**（InteractiveMarkers 命名空间
+   `target_marker`）上右键选择 **Send target**，`WbmmTargetNode` 会发布
+   7D 末端目标；`remani_phase_bridge` 收到后直接切到 `Execution`（2），
+   OCS2 由末端跟踪 cost 主导。
+4. 再次发送新的 2D Goal 时，阶段自动回到 `Navigation`（0），并清除上一次
+   的末端目标；到达新目标后不会自动追回旧 EE target，必须重新发送 marker。
+
+验证日志：
+
+```text
+[remani_phase_bridge]: Task phase -> 0 (new navigation goal)
+[remani_phase_bridge]: Base reached goal ... waiting for EE target
+[remani_phase_bridge]: Task phase -> 2 (end-effector target received)
+```
+
+说明：
+- 为了让求解器稳定，演示 task 暂时关闭了
+  `armManipulability.activate`，并将 `tracking_error_replan_enabled` 设为
+  `false`，避免导航结束后 REMANI 与 OCS2 末端跟踪争抢 reference。
+- `WbmmReferenceManager::getTargetTrajectories()` 始终返回 9D 全身参考，
+  以保证 OCS2 solver/MPC 缓冲区维度一致；双参考 cost 仍通过
+  `PhaseWeightedStateCost` 分别读取 9D/7D 目标。
+- 该入口把 MuJoCo 的 `odom` 数值通过 identity `map->odom` 当作 `map`
+  使用，适合空场景虚拟 ESDF 演示。接入真实定位时，应设置
+  `publish_map_odom_tf:=false`，由 AMCL/SLAM 提供真实 `map->odom`。
 
 ### 低桌穿越场景
 

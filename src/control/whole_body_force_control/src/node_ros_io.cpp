@@ -262,6 +262,15 @@ bool WholeBodyForceControlNode::publishEndEffectorReference(
     return false;
   }
 
+  if (target.header.frame_id != parameters_.state_frame)
+  {
+    RCLCPP_ERROR_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Refusing EE target in %s; expected %s",
+        target.header.frame_id.c_str(), parameters_.state_frame.c_str());
+    return false;
+  }
+
   const auto validation = wbmm::core::validate(target);
   if (!validation.ok)
   {

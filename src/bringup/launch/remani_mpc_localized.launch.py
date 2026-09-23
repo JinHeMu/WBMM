@@ -83,9 +83,8 @@ def generate_launch_description():
             default_value=PathJoinSubstitution([
                 description, "urdf", "tracer_jaka_zu5.urdf"])),
         DeclareLaunchArgument(
-            "ocs2_config",
-            default_value=PathJoinSubstitution([
-                bringup, "config", "real", "ocs2.yaml"])),
+            "ocs2_config", default_value="",
+            description="Optional override; empty uses common defaults."),
         DeclareLaunchArgument(
             "remani_config",
             default_value=PathJoinSubstitution([
@@ -105,11 +104,23 @@ def generate_launch_description():
             "wheel_odom_topic", default_value="/wheel/odometry"),
         DeclareLaunchArgument("imu_topic", default_value="/imu/data"),
         DeclareLaunchArgument("scan_topic", default_value="/scan"),
-        DeclareLaunchArgument("static_esdf_file", default_value=""),
+        DeclareLaunchArgument(
+            "static_esdf_file",
+            default_value="/home/a/WBMM/maps/map1/site_remani.npz",
+            description=(
+                "REMANI-format ESDF for map1; frame_id must be map.")),
+        DeclareLaunchArgument(
+            "esdf_file", default_value="",
+            description=(
+                "Optional OCS2 environmentCollision ESDF NPZ; empty uses "
+                "the task file.")),
+        DeclareLaunchArgument(
+            "world_frame", default_value="",
+            description="Optional OCS2 world frame override."),
         DeclareLaunchArgument(
             "map_file",
-            default_value=PathJoinSubstitution([
-                localization, "maps", "factory_map.yaml"])),
+            default_value="/home/a/WBMM/maps/map1/site_2d.yaml",
+            description="2D map matching the map1 ESDF."),
         DeclareLaunchArgument("initial_x", default_value="0.0"),
         DeclareLaunchArgument("initial_y", default_value="0.0"),
         DeclareLaunchArgument("initial_yaw", default_value="0.0"),
@@ -168,6 +179,8 @@ def generate_launch_description():
                 "command_output_enabled": LaunchConfiguration(
                     "hardware_write"),
                 "odom_topic": LaunchConfiguration("odom_topic"),
+                "esdf_file": LaunchConfiguration("esdf_file"),
+                "world_frame": LaunchConfiguration("world_frame"),
             }.items(),
         ),
         TimerAction(period=15.0, actions=[IncludeLaunchDescription(

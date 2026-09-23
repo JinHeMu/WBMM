@@ -32,4 +32,11 @@ Common files:
 
 Profile files use the same base names under `real/` and `sim/`.
 OCS2 `task.info` files remain separate because they are full text task
-definitions, not ROS parameter YAML.
+definitions, not ROS parameter YAML. The `task_esdf.info` variants enable
+`environmentCollision.backend=esdf`; the runtime `esdf_file` parameter can
+override the NPZ path without editing the task file. `task_esdf_tracking.info`
+is the dual-reference navigation/EE-tracking profile used by
+`remani_tracking.launch.py`; that entry now defaults to the map1 ESDF and
+runs in the `map` frame (with an identity map->odom alias for the empty
+MuJoCo demo). `sim/remani_tracking.yaml` disables REMANI tracking-error
+replanning for that demo.

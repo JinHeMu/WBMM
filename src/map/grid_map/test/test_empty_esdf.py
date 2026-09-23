@@ -11,7 +11,7 @@ def test_obstacle_free_scene_produces_all_free_esdf(tmp_path):
     """Ensure an empty static scene stays free throughout the ESDF volume."""
     scene = (
         Path(__file__).resolve().parents[3]
-        / 'simulation'
+        / 'sim'
         / 'tracer_jaka_mujoco'
         / 'models'
         / 'scene_esdf_validation.xml'

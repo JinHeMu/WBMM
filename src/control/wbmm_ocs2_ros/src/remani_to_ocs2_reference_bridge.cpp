@@ -911,6 +911,16 @@ private:
         return;  // 在收到首次 MPC 观测之前无法发布参考
       }
 
+      // 在 REMANI 还没有给出任何轨迹时不要发布“跟随当前观测”的 hold
+      // 参考。否则 bridge 会以 20 Hz 把不断下坠的实测机械臂状态持续覆盖
+      // 到 OCS2 whole-body target 上，MRT 再把它作为位置指令发回 MuJoCo，
+      // 形成“实测跟随”而不是“位置保持”，机械臂会因重力自然下坠。
+      // 此时让 WbmmMrtNode 启动时 reset 的初始观测保持目标继续生效即可。
+      if (active_.empty() && pending_.empty())
+      {
+        return;
+      }
+
       // ---- 锚定帧：以当前观测状态作为第一条参考点，避免参考跳变 ------------
       const ocs2::vector_t holdState = observationState_;
 

@@ -63,6 +63,14 @@ namespace wbmm_ocs2
         endEffectorTarget_.setBuffer(target);
     }
 
+    void WbmmReferenceManager::clearEndEffectorTarget()
+    {
+        // Drop the previous tracking target. This is required when a new
+        // navigation goal starts: otherwise the stale EE target would become
+        // active again as soon as the phase reaches Transition/Execution.
+        endEffectorTarget_.setBuffer(TargetTrajectories{});
+    }
+
     void WbmmReferenceManager::setTaskPhase(TaskPhase phase)
     {
         const auto value = static_cast<std::size_t>(phase);
@@ -70,6 +78,11 @@ namespace wbmm_ocs2
         {
             throw std::invalid_argument(
                 "[WbmmReferenceManager] Unknown task phase value.");
+        }
+
+        if (phase == TaskPhase::kNavigation)
+        {
+            clearEndEffectorTarget();
         }
 
         requestedPhase_.store(value, std::memory_order_relaxed);
@@ -107,9 +120,20 @@ namespace wbmm_ocs2
 
     const TargetTrajectories &WbmmReferenceManager::getTargetTrajectories() const
     {
-        return isEndEffectorDominant()
-                   ? endEffectorTarget_.get()
-                   : wholeBodyTarget_.get();
+        // OCS2 copies this into the MPC/MRT command for visualization and
+        // generic reference consumers. In Execution, expose the 7D EE target
+        // so RViz does not keep drawing the old REMANI whole-body plan. If no
+        // EE target has arrived yet, keep the 9D whole-body target as a
+        // dimensionally safe fallback instead of returning an empty trajectory.
+        if (isEndEffectorDominant())
+        {
+            const auto &endEffectorTarget = endEffectorTarget_.get();
+            if (!endEffectorTarget.empty())
+            {
+                return endEffectorTarget;
+            }
+        }
+        return wholeBodyTarget_.get();
     }
 
     bool WbmmReferenceManager::hasStateDim(

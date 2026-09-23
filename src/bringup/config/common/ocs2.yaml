@@ -29,7 +29,9 @@ wbmm_mrt_node:
     joint_state_topic: /joint_states
     arm_cmd_topic: /arm_controller/commands
     base_frame: base_footprint
+    # Keep this equal to whole_body_force_control.state_frame.
     world_frame: odom
+    # Keep this equal to force_sensor.tcp_frame in the force-control profile.
     ee_frame: tool0
     arm_joint_names:
       - joint_1

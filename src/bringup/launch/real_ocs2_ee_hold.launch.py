@@ -52,8 +52,6 @@ def generate_launch_description():
 
     default_base_config = os.path.join(
         bringup_share, "config", "common", "ocs2.yaml")
-    default_ocs2_config = os.path.join(
-        bringup_share, "config", "real", "ocs2.yaml")
     default_task_file = os.path.join(
         bringup_share, "config", "real", "task.info")
     default_urdf_file = os.path.join(
@@ -135,8 +133,8 @@ def generate_launch_description():
             description="Common OCS2 ROS parameter file."),
         DeclareLaunchArgument(
             "ocs2_config",
-            default_value=default_ocs2_config,
-            description="Real OCS2 ROS parameter override file."),
+            default_value="",
+            description="Optional OCS2 override; empty uses common defaults."),
         DeclareLaunchArgument(
             "task_file",
             default_value=default_task_file,

@@ -557,6 +557,8 @@ TEST(WbmmReferenceManager, LatchesPhaseAndKeepsTargetsSeparate)
     20.0);
   EXPECT_EQ(
     manager->getTargetTrajectories().stateTrajectory.front()(0), 20.0);
+  EXPECT_EQ(
+    manager->getEndEffectorTarget().stateTrajectory.front()(0), 20.0);
   EXPECT_TRUE(wholeBodyCost->isActive(0.0));
   EXPECT_TRUE(endEffectorCost->isActive(0.0));
 }
@@ -769,4 +771,95 @@ TEST(WholeBodyTrajectoryCost, InvalidReferenceFallsBackToHoldState)
   EXPECT_NEAR(
     cost.getValue(0.0, displaced, targets, preComputation), 0.5 * 0.2 * 0.2,
     1.0e-15);
+}
+
+TEST(WbmmInterface, LoadsEsdfBackendAndQueriesGrid)
+{
+#ifndef WBMM_OCS2_TEST_ESDF_TASK_FILE
+#error "WBMM_OCS2_TEST_ESDF_TASK_FILE must be defined"
+#endif
+#ifndef WBMM_OCS2_TEST_ESDF_NPZ
+#error "WBMM_OCS2_TEST_ESDF_NPZ must be defined"
+#endif
+  wbmm_ocs2::WbmmInterface interface(
+    WBMM_OCS2_TEST_ESDF_TASK_FILE,
+    "/tmp/wbmm_ocs2_esdf_interface_test_lib",
+    testRobotUrdfPath(),
+    WBMM_OCS2_TEST_ESDF_NPZ,
+    "odom");
+
+  EXPECT_TRUE(interface.isEnvironmentCollisionEnabled());
+  const auto environment = interface.getEsdfEnvironmentInterface();
+  ASSERT_NE(environment, nullptr);
+  EXPECT_EQ(environment->getFrameId(), "odom");
+  ASSERT_GT(environment->getNumSpheres(), 0U);
+
+  wbmm_ocs2::WbmmPreComputation preComputation(
+    interface.getPinocchioInterface(), interface.getWbmmModelInfo());
+  const auto state = sampleState();
+  const ocs2::vector_t input =
+    ocs2::vector_t::Zero(static_cast<Eigen::Index>(interface.getWbmmModelInfo().inputDim));
+  preComputation.request(
+    ocs2::Request::Constraint + ocs2::Request::Approximation,
+    0.0, state, input);
+
+  const auto distances =
+    environment->computeDistances(preComputation.getPinocchioInterface());
+  ASSERT_EQ(distances.size(), environment->getNumSpheres());
+  std::size_t valid_queries = 0U;
+  for (const auto & distance : distances) {
+    if (distance.gradientValid) {
+      ++valid_queries;
+    }
+  }
+  EXPECT_GT(valid_queries, 0U);
+}
+
+TEST(WbmmInterface, RejectsEsdfFrameMismatch)
+{
+#ifndef WBMM_OCS2_TEST_ESDF_TASK_FILE
+#error "WBMM_OCS2_TEST_ESDF_TASK_FILE must be defined"
+#endif
+#ifndef WBMM_OCS2_TEST_ESDF_NPZ
+#error "WBMM_OCS2_TEST_ESDF_NPZ must be defined"
+#endif
+  EXPECT_THROW(
+    wbmm_ocs2::WbmmInterface(
+      WBMM_OCS2_TEST_ESDF_TASK_FILE,
+      "/tmp/wbmm_ocs2_esdf_frame_mismatch_test_lib",
+      testRobotUrdfPath(),
+      WBMM_OCS2_TEST_ESDF_NPZ,
+      "map"),
+    std::runtime_error);
+}
+
+TEST(WbmmReferenceManager, NavigationClearsStaleEndEffectorTarget)
+{
+  const auto state = sampleState();
+  auto manager = std::make_shared<wbmm_ocs2::WbmmReferenceManager>(
+    wbmm_ocs2::TaskPhase::kExecution);
+
+  ocs2::vector_t wholeBodyValue = state;
+  ocs2::vector_t endEffectorValue(7);
+  endEffectorValue << 0.5, 0.0, 0.5, 0.0, 0.0, 0.0, 1.0;
+
+  manager->setWholeBodyTarget(
+    ocs2::TargetTrajectories({0.0}, {wholeBodyValue}));
+  manager->setEndEffectorTarget(
+    ocs2::TargetTrajectories({0.0}, {endEffectorValue}));
+  manager->preSolverRun(0.0, 1.0, state);
+  ASSERT_FALSE(manager->getEndEffectorTarget().empty());
+
+  // Starting a new navigation goal must invalidate the old EE target.
+  manager->setTaskPhase(wbmm_ocs2::TaskPhase::kNavigation);
+  manager->preSolverRun(0.0, 1.0, state);
+  EXPECT_TRUE(manager->getEndEffectorTarget().empty());
+
+  auto endEffectorCost = std::make_unique<wbmm_ocs2::PhaseWeightedStateCost>(
+    std::make_unique<TargetEchoCost>(), manager,
+    wbmm_ocs2::TargetKind::kEndEffector,
+    std::array<ocs2::scalar_t, 4>{0.0, 0.5, 1.0, 0.0});
+  manager->setTaskPhase(wbmm_ocs2::TaskPhase::kTransition);
+  manager->preSolverRun(0.0, 1.0, state);
+  EXPECT_FALSE(endEffectorCost->isActive(0.0));
 }

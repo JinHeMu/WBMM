@@ -1,0 +1,11 @@
+# REMANI simulation profile for the ESDF navigation + EE tracking demo.
+# Base tuning comes from config/common/remani.yaml.
+#
+# The demo keeps REMANI as the navigation reference and hands the reference to
+# the OCS2 phase-weighted EE tracking after the base goal is reached. Disable
+# REMANI tracking-error replanning so it holds the final navigation reference
+# instead of fighting the EE tracking phase.
+tracking_error_replan_enabled: false
+manipulator_max_vel: 1.57
+manipulator_max_acc: 3.14
+freeze_manipulator: false

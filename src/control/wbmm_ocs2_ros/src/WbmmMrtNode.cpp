@@ -127,6 +127,7 @@ private:
     declare_parameter<std::string>("taskFile", "");
     declare_parameter<std::string>("libFolder", "");
     declare_parameter<std::string>("urdfFile", "");
+    declare_parameter<std::string>("esdfFile", "");
     declare_parameter<std::string>("robot_name", kDefaultRobotName);
     declare_parameter<std::string>("task_phase_state_topic", "");
     declare_parameter<int>("initial_task_phase", -1);
@@ -161,6 +162,7 @@ private:
     taskFile_ = get_parameter("taskFile").as_string();
     libFolder_ = get_parameter("libFolder").as_string();
     urdfFile_ = get_parameter("urdfFile").as_string();
+    esdfFile_ = get_parameter("esdfFile").as_string();
     robotName_ = get_parameter("robot_name").as_string();
     initialTaskPhase_ = get_parameter("initial_task_phase").as_int();
 
@@ -239,7 +241,8 @@ private:
 
   void setupRobotModel()
   {
-    interface_ = std::make_unique<wbmm_ocs2::WbmmInterface>(taskFile_, libFolder_, urdfFile_);
+    interface_ = std::make_unique<wbmm_ocs2::WbmmInterface>(
+      taskFile_, libFolder_, urdfFile_, esdfFile_, worldFrame_);
 
     const auto &info = interface_->getWbmmModelInfo();
     stateDim_ = info.stateDim;
@@ -878,17 +881,21 @@ private:
         return false;
       }
 
-      const double delta = std::abs(target - measured[i]);
-      if (delta > armMaxDeltaPerStep_)
+      const double delta = target - measured[i];
+      if (std::abs(delta) > armMaxDeltaPerStep_)
       {
-        RCLCPP_ERROR(get_logger(),
-                     "[SAFETY] Arm joint %zu command jump too large: "
-                     "command=%.3f measured=%.3f delta=%.3f limit=%.3f",
-                     i + 1, target, measured[i], delta, armMaxDeltaPerStep_);
-        command.clear();
-        return false;
+        // Rate-limit instead of rejecting the whole command. Rejecting made
+        // the MRT safety gate hold the arm and could leave the MPC plan
+        // expired whenever the new EE target required a large joint step.
+        RCLCPP_WARN_THROTTLE(
+            get_logger(), *get_clock(), 1000,
+            "[SAFETY] Arm joint %zu target is rate-limited: "
+            "target=%.3f measured=%.3f delta=%.3f limit=%.3f",
+            i + 1, target, measured[i], delta, armMaxDeltaPerStep_);
       }
-      command[i] = target;
+      command[i] = std::clamp(
+          target, measured[i] - armMaxDeltaPerStep_,
+          measured[i] + armMaxDeltaPerStep_);
     }
     return true;
   }
@@ -982,6 +989,7 @@ private:
   std::string taskFile_;
   std::string libFolder_;
   std::string urdfFile_;
+  std::string esdfFile_;
   std::string robotName_{kDefaultRobotName};
   std::string taskPhaseStateTopic_;
   std::string baseFrame_;

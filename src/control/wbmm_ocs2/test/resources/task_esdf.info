@@ -262,13 +262,18 @@ selfCollision
 ; ============================================================================
 ; 环境避障 (EnvironmentCollisionConstraint)
 ;
-;   手工 obstacles 已删除，环境几何以 REMANI 的静态 ESDF 为准。
-;   这里保持 activate=false，避免 OCS2 再使用手工 obstacles。
-;   如需 OCS2 ESDF backend，请使用 task_esdf*.info 并配置 esdf_file。
+;   手工 obstacles 已删除，环境碰撞以 ESDF 为准。
+;   esdf_file 由 launch 的 esdf_file 参数注入。
 ; ============================================================================
 environmentCollision
 {
-  activate            false
+  backend esdf
+  esdf
+  {
+    frame "odom"
+  }
+
+  activate            true
 
   mu                  1e-3
   delta               1e-3
