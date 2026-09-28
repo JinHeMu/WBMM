@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>wbmm_planner_ros</name>
+  <version>0.1.0</version>
+  <description>
+    ROS wrapper for the WBMM whole-body planner: consumes a 2D goal and robot
+    state, publishes a wbmm_planning_msgs/WholeBodyTrajectory.
+  </description>
+  <maintainer email="user@todo.todo">WBMM</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf2</depend>
+  <depend>eigen</depend>
+  <depend>wbmm_core</depend>
+  <depend>wbmm_environment</depend>
+  <depend>wbmm_collision</depend>
+  <depend>wbmm_pinocchio</depend>
+  <depend>wbmm_planner</depend>
+  <depend>wbmm_planning_msgs</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

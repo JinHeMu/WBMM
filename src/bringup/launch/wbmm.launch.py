@@ -86,6 +86,12 @@ def _make_actions(context):
             "/tmp/wbmm_ocs2_sim/auto_generated" if profile == "sim"
             else "/tmp/wbmm_ocs2_real/auto_generated")
 
+    # The planner needs a concrete ESDF path. esdf_file is the OCS2 override and
+    # may be empty; fall back to static_esdf_file, which is what the planner used
+    # before the two were split.
+    planner_esdf_file = (
+        _value(context, "esdf_file") or _value(context, "static_esdf_file"))
+
     start_ocs2 = _as_bool(_value(context, "start_ocs2"))
     start_force_control = _as_bool(_value(context, "start_force_control"))
     start_moveit = _as_bool(_value(context, "start_moveit"))
@@ -162,21 +168,35 @@ def _make_actions(context):
             launch_arguments=ocs2_launch_arguments.items(),
         ))
 
-    if _as_bool(_value(context, "start_remani")):
+    # WBMM-native planner. `start_remani` is kept as a deprecated alias so
+    # existing commands keep working, but both spellings now start the WBMM
+    # planner and its reference bridge; the REMANI upstream is no longer used.
+    if _as_bool(_value(context, "start_planning")) or _as_bool(
+        _value(context, "start_remani")
+    ):
+        planning_arguments = {
+            "use_sim_time": use_sim_time,
+            "urdf_file": _value(context, "urdf_file"),
+            "esdf_file": planner_esdf_file,
+            "world_frame": _value(context, "remani_planner_frame"),
+            "bridge_world_frame": _value(context, "world_frame") or "odom",
+            "odom_topic": _value(context, "odom_topic"),
+            "joint_state_topic": _value(context, "joint_state_topic"),
+            "goal_topic": _value(context, "goal_topic"),
+            "cruise_speed": _value(context, "planner_cruise_speed"),
+            "max_linear_velocity": _value(context, "planner_max_linear_velocity"),
+            "max_yaw_rate": _value(context, "planner_max_yaw_rate"),
+            "max_joint_velocity": _value(context, "planner_max_joint_velocity"),
+            "max_base_speed": _value(context, "planner_max_base_speed"),
+            "max_base_yaw_rate": _value(context, "planner_max_base_yaw_rate"),
+            "collision_safety_margin": _value(
+                context, "planner_collision_safety_margin"),
+            "treat_unknown_as_occupied": _value(
+                context, "planner_treat_unknown_as_occupied"),
+        }
         actions.append(IncludeLaunchDescription(
-            _source(bringup, "remani.launch.py"),
-            launch_arguments={
-                "use_sim_time": use_sim_time,
-                "config_file": remani_config,
-                "urdf_file": _value(context, "urdf_file"),
-                "static_esdf_file": _value(context, "static_esdf_file"),
-                "odom_topic": _value(context, "odom_topic"),
-                "joint_state_topic": _value(context, "joint_state_topic"),
-                "planner_frame": _value(context, "remani_planner_frame"),
-                "target_frame": _value(context, "remani_target_frame"),
-                "use_tf_transform": _value(
-                    context, "remani_use_tf_transform"),
-            }.items(),
+            _source(bringup, "wbmm_planning.launch.py"),
+            launch_arguments=planning_arguments.items(),
         ))
 
     if start_force_control:
@@ -280,14 +300,42 @@ def generate_launch_description():
                 "Optional OCS2 world frame override; empty uses the "
                 "loaded parameter profile.")),
         DeclareLaunchArgument(
-            "remani_planner_frame", default_value="odom",
-            description="REMANI planning frame."),
+            "start_planning", default_value="false",
+            description=(
+                "Start the WBMM planner and its OCS2 reference bridge.")),
+        DeclareLaunchArgument(
+            "goal_topic", default_value="/goal_pose",
+            description="2D navigation goal consumed by the WBMM planner."),
+        DeclareLaunchArgument("planner_cruise_speed", default_value="0.35"),
+        DeclareLaunchArgument(
+            "planner_max_linear_velocity", default_value="0.5",
+            description=(
+                "Controller envelope the planner must stay inside. Must match "
+                "jointVelocityLimits in the task file.")),
+        DeclareLaunchArgument(
+            "planner_max_yaw_rate", default_value="1.0"),
+        DeclareLaunchArgument(
+            "planner_max_joint_velocity", default_value="2.0"),
+        DeclareLaunchArgument("planner_max_base_speed", default_value="0.5"),
+        DeclareLaunchArgument(
+            "planner_max_base_yaw_rate", default_value="1.0"),
+        DeclareLaunchArgument(
+            "planner_collision_safety_margin", default_value="0.0",
+            description="Extra clearance added to every collision sphere."),
+        DeclareLaunchArgument(
+            "planner_treat_unknown_as_occupied", default_value="false",
+            description=(
+                "Reject ESDF queries touching unobserved space. map1 records "
+                "unknown_is_occupied=false, so the default trusts it.")),
+        DeclareLaunchArgument(
+            "remani_planner_frame", default_value="",
+            description="Planning frame; empty adopts the ESDF frame."),
         DeclareLaunchArgument(
             "remani_target_frame", default_value="odom",
-            description="REMANI trajectory target frame for OCS2 bridge."),
+            description="Deprecated; the WBMM planner uses world_frame only."),
         DeclareLaunchArgument(
             "remani_use_tf_transform", default_value="false",
-            description="Use TF in the REMANI-to-OCS2 bridge."),
+            description="Deprecated; the WBMM planner uses world_frame only."),
         DeclareLaunchArgument("use_target", default_value="false"),
         DeclareLaunchArgument(
             "rviz_config", default_value="",

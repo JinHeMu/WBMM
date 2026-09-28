@@ -23,6 +23,27 @@ wbmm_mrt_node:
     arm_max_command_velocity: 0.15
     arm_max_delta_per_step: 0.05
 
+    # Hard clamp on the published base command. Must match
+    # jointVelocityLimits/wheelBasedMobileManipulator in the task file:
+    #   config/real/task*.info  -> v in [-0.1, 0.1], w in [-0.4, 0.4]
+    #   config/sim/task*.info   -> v in [-0.5, 0.5], w in [-1.0, 1.0]
+    # (overridden in config/sim/ocs2.yaml).
+    base_max_linear_velocity: 0.1
+    base_max_angular_velocity: 0.4
+
+    # Must match the consumer's message type. Both backends consume plain
+    # geometry_msgs/Twist, so keep this false:
+    #   sim  -> mujoco_bridge_node.py subscribes Twist on /base_controller/cmd_vel
+    #   real -> tracer_base_node subscribes Twist on /cmd_vel
+    #           (tracer_base/tracer_messenger.hpp:57)
+    # A mismatch fails silently: publisher and subscriber simply never match
+    # and no base command is delivered, with no error on either side.
+    #
+    # Do NOT switch this to true based on the diff_drive_controller entry in
+    # tracer_jaka_description/config/ros2_controllers.yaml: that controller
+    # sets use_stamped_vel: true but is never spawned by any launch file, and
+    # the URDF declares left_wheel/right_wheel as fixed joints, so it could
+    # not drive the base anyway. It is dead config.
     use_stamped_cmd: false
     base_cmd_topic: /cmd_vel
     odom_topic: /odometry/filtered

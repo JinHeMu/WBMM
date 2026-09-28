@@ -246,6 +246,16 @@ CollisionResult EnvironmentCollisionChecker::checkWithScope(
         return result;
     }
 
+    // Unobserved corners are provenance, not invalidity. Only a caller that
+    // opted into conservative handling rejects them.
+    if (!query.fully_observed && options_.treat_unknown_as_occupied) {
+      result.status = CollisionStatus::kUnknownSpace;
+      result.message =
+        "Sphere '" + sphere.name + "' reaches unobserved space and "
+        "treat_unknown_as_occupied is enabled.";
+      return result;
+    }
+
     if (!std::isfinite(query.distance)) {
       result.status = CollisionStatus::kInvalidInput;
       result.message = "ESDF query returned a non-finite distance.";

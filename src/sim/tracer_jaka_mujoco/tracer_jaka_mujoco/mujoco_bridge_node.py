@@ -85,6 +85,17 @@ class MujocoBridge(Node):
         self.declare_parameter("odom_topic", "/wheel/odometry")
         self.declare_parameter("exact_base", True)
         self.declare_parameter("spin_wheels", True)
+        # Safety envelope on the simulated base. With exact_base=True the
+        # commanded (v, w) is integrated straight into qpos, so a diverging
+        # controller command is applied verbatim and nothing physical can
+        # stop it. Keep these equal to the OCS2 base limits in
+        # config/*/task*.info -> jointVelocityLimits.
+        self.declare_parameter("cmd_vel_max_linear", 0.5)
+        self.declare_parameter("cmd_vel_max_angular", 1.0)
+        # Zero the base if no command arrives for this long (wall seconds).
+        # Without it the last command persists forever if the controller
+        # stops publishing or dies.
+        self.declare_parameter("cmd_vel_timeout", 0.5)
         self.declare_parameter("use_viewer", True)
         self.declare_parameter("arm_actuator_suffix", "_servo")
         self.declare_parameter("init_keyframe", "home")
@@ -185,6 +196,9 @@ class MujocoBridge(Node):
         self.odom_topic = gp("odom_topic")
         self.exact_base = bool(gp("exact_base"))
         self.spin_wheels = bool(gp("spin_wheels"))
+        self.cmd_vel_max_linear = abs(float(gp("cmd_vel_max_linear")))
+        self.cmd_vel_max_angular = abs(float(gp("cmd_vel_max_angular")))
+        self.cmd_vel_timeout = abs(float(gp("cmd_vel_timeout")))
         self.use_viewer = bool(gp("use_viewer"))
         arm_suffix = gp("arm_actuator_suffix")
         init_key = gp("init_keyframe")
@@ -233,6 +247,7 @@ class MujocoBridge(Node):
         self.physics_lock = threading.Lock()  # 保护 mj_step 与传感器快照
         self.cmd_v = 0.0
         self.cmd_w = 0.0
+        self.cmd_stamp = None  # perf_counter() of the last accepted cmd_vel
         self.arm_target = np.array(
             [self.data.qpos[self.qadr[j]] for j in ARM_JOINTS], dtype=float)
         self.arm_traj = None
@@ -370,9 +385,20 @@ class MujocoBridge(Node):
     #  订阅回调
     # ============================================================
     def on_cmd_vel(self, msg: Twist):
+        v = float(msg.linear.x)
+        w = float(msg.angular.z)
+        if not (math.isfinite(v) and math.isfinite(w)):
+            self.get_logger().warn(
+                f"Rejecting non-finite cmd_vel (v={v}, w={w})")
+            return
+        # Clamp to the model envelope. The OCS2 base velocity limit is a soft
+        # constraint, so an out-of-limit input can reach this topic.
+        v = max(-self.cmd_vel_max_linear, min(self.cmd_vel_max_linear, v))
+        w = max(-self.cmd_vel_max_angular, min(self.cmd_vel_max_angular, w))
         with self.lock:
-            self.cmd_v = float(msg.linear.x)
-            self.cmd_w = float(msg.angular.z)
+            self.cmd_v = v
+            self.cmd_w = w
+            self.cmd_stamp = time.perf_counter()
 
     def on_arm_forward(self, msg: Float64MultiArray):
         if len(msg.data) >= 6:
@@ -469,6 +495,12 @@ class MujocoBridge(Node):
     def _integrate_planar_base(self):
         with self.lock:
             v, w = self.cmd_v, self.cmd_w
+            stamp = self.cmd_stamp
+        # Watchdog: a stale command must not keep driving the base. With
+        # exact_base=True nothing else can stop it.
+        if stamp is None or (time.perf_counter() - stamp) > self.cmd_vel_timeout:
+            v = 0.0
+            w = 0.0
         dt = self.dt
         yaw_mid = self.base_yaw + 0.5 * w * dt
         self.base_x += v * math.cos(yaw_mid) * dt

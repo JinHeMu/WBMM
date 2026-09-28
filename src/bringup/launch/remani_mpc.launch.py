@@ -47,7 +47,10 @@ def generate_launch_description():
                 "Optional OCS2 environmentCollision ESDF NPZ; empty uses "
                 "the task file.")),
         DeclareLaunchArgument(
-            "world_frame", default_value="",
+            "goal_topic", default_value="/goal_pose",
+            description="2D navigation goal for the WBMM planner."),
+        DeclareLaunchArgument(
+            "world_frame", default_value="odom",
             description="Optional OCS2 world frame override."),
         DeclareLaunchArgument(
             "odom_topic", default_value="/odometry/filtered"),
@@ -83,7 +86,7 @@ def generate_launch_description():
             description="Optional override; empty uses common defaults."),
         DeclareLaunchArgument(
             "lib_folder", default_value="/tmp/wbmm_ocs2_auto_generated"),
-        DeclareLaunchArgument("planner_frame", default_value="odom"),
+        DeclareLaunchArgument("planner_frame", default_value=""),
         DeclareLaunchArgument("target_frame", default_value="odom"),
         DeclareLaunchArgument("use_tf_transform", default_value="false"),
         OpaqueFunction(function=_enforce_safety_gate),
@@ -121,18 +124,21 @@ def generate_launch_description():
             }.items())]),
         TimerAction(period=12.0, actions=[IncludeLaunchDescription(
             PythonLaunchDescriptionSource(PathJoinSubstitution([
-                bringup, "launch", "remani.launch.py",
+                bringup, "launch", "wbmm_planning.launch.py",
             ])),
             launch_arguments={
                 "use_sim_time": LaunchConfiguration("use_sim_time"),
-                "start_bridge": "true",
-                "config_file": LaunchConfiguration("remani_config"),
                 "urdf_file": LaunchConfiguration("urdf_file"),
-                "static_esdf_file": LaunchConfiguration("static_esdf_file"),
+                "bridge_world_frame": LaunchConfiguration("world_frame"),
+                "max_linear_velocity": "0.1",
+                "max_yaw_rate": "0.4",
+                "max_joint_velocity": "0.15",
+                "max_base_speed": "0.1",
+                "max_base_yaw_rate": "0.4",
+                "esdf_file": LaunchConfiguration("static_esdf_file"),
+                "world_frame": LaunchConfiguration("planner_frame"),
                 "odom_topic": LaunchConfiguration("odom_topic"),
                 "joint_state_topic": LaunchConfiguration("joint_state_topic"),
-                "planner_frame": LaunchConfiguration("planner_frame"),
-                "target_frame": LaunchConfiguration("target_frame"),
-                "use_tf_transform": LaunchConfiguration("use_tf_transform"),
+                "goal_topic": LaunchConfiguration("goal_topic"),
             }.items())]),
     ])

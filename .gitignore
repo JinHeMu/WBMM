@@ -18,3 +18,8 @@ bag_export/
 
 # Local Python packages installed into the writable workspace (read-only system disk)
 .python_packages/
+
+# Runtime logs produced by nodes and tests
+.roslog/
+MUJOCO_LOG.TXT
+.pytest_cache/

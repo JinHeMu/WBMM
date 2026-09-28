@@ -1,0 +1,2382 @@
+--- a/src/bringup/launch/remani_tracking.launch.py
++++ b/src/bringup/launch/remani_tracking.launch.py
+@@ -86,6 +86,7 @@
+         "static_esdf_file": static_esdf_file,
+         "esdf_file": esdf_file,
+         "world_frame": world_frame,
++        "remani_planner_frame": world_frame,
+         "odom_topic": _value(context, "odom_topic"),
+         "joint_state_topic": _value(context, "joint_state_topic"),
+         "lib_folder": _value(context, "lib_folder"),
+@@ -121,9 +122,11 @@
+             name="remani_phase_bridge",
+             output="screen",
+             parameters=[{
++                "use_sim_time": True,
+                 "phase_service": "/mobile_manipulator_set_task_phase",
+                 "goal_topic": "/goal_pose",
+                 "finish_topic": "/planning/finish",
++                "enable_odom_fallback": False,
+                 "odom_topic": _value(context, "odom_topic"),
+                 "goal_position_tolerance": 0.15,
+                 "goal_yaw_tolerance": 0.30,
+--- a/src/bringup/launch/wbmm_planning.launch.py
++++ b/src/bringup/launch/wbmm_planning.launch.py
+@@ -61,6 +61,12 @@
+         "odom_topic": _value(context, "odom_topic"),
+         "joint_state_topic": _value(context, "joint_state_topic"),
+         "trajectory_topic": _value(context, "trajectory_topic"),
++        "sample_rrt_max_time": float(_value(context, "sample_rrt_max_time")),
++        "whole_body_rrt_max_time": float(_value(context, "whole_body_rrt_max_time")),
++        "rrt_max_nodes": int(_value(context, "rrt_max_nodes")),
++        "rrt_random_seed": int(_value(context, "rrt_random_seed")),
++        "enable_whole_body_rrt": _as_bool(_value(context, "enable_whole_body_rrt")),
++        "enable_primitive_fallback": _as_bool(_value(context, "enable_primitive_fallback")),
+         "cruise_speed": float(_value(context, "cruise_speed")),
+         "max_linear_velocity": float(_value(context, "max_linear_velocity")),
+         "max_yaw_rate": float(_value(context, "max_yaw_rate")),
+@@ -135,6 +141,12 @@
+         DeclareLaunchArgument("target_topic", default_value=""),
+         DeclareLaunchArgument("observation_topic", default_value=""),
+ 
++        DeclareLaunchArgument("sample_rrt_max_time", default_value="2.0"),
++        DeclareLaunchArgument("whole_body_rrt_max_time", default_value="3.0"),
++        DeclareLaunchArgument("rrt_max_nodes", default_value="12000"),
++        DeclareLaunchArgument("rrt_random_seed", default_value="1"),
++        DeclareLaunchArgument("enable_whole_body_rrt", default_value="true"),
++        DeclareLaunchArgument("enable_primitive_fallback", default_value="true"),
+         DeclareLaunchArgument("cruise_speed", default_value="0.35"),
+         DeclareLaunchArgument("max_linear_velocity", default_value="0.5"),
+         DeclareLaunchArgument("max_yaw_rate", default_value="1.0"),
+--- a/src/bringup/launch/wbmm_tracking.launch.py
++++ b/src/bringup/launch/wbmm_tracking.launch.py
+@@ -143,12 +143,12 @@
+             name="remani_phase_bridge",
+             output="screen",
+             parameters=[{
++                "use_sim_time": True,
+                 "phase_service": "/mobile_manipulator_set_task_phase",
+                 "goal_topic": _value(context, "goal_topic"),
+-                # Nothing publishes /planning/finish any more; the bridge falls
+-                # back to odom arrival, which is enabled by default.
++                # WBMM publishes measured arrival after the trajectory finishes.
+                 "finish_topic": "/planning/finish",
+-                "enable_odom_fallback": True,
++                "enable_odom_fallback": False,
+                 "odom_topic": _value(context, "odom_topic"),
+                 "goal_position_tolerance": 0.15,
+                 "goal_yaw_tolerance": 0.30,
+--- a/src/bringup/package.xml
++++ b/src/bringup/package.xml
+@@ -55,6 +55,7 @@
+   <exec_depend>whole_body_force_control</exec_depend>
+   <exec_depend>wbmm_visualization</exec_depend>
+   <exec_depend>wbmm_planner_ros</exec_depend>
++  <exec_depend>wbmm_planning_msgs</exec_depend>
+   <exec_depend>wbmm_reference_bridge</exec_depend>
+   <exec_depend>grid_map</exec_depend>
+   <exec_depend>xacro</exec_depend>
+--- a/src/bringup/scripts/remani_phase_bridge.py
++++ b/src/bringup/scripts/remani_phase_bridge.py
+@@ -20,7 +20,8 @@
+ from ocs2_msgs.msg import MpcTargetTrajectories
+ from rclpy.node import Node
+ from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+-from std_msgs.msg import Bool
++from std_msgs.msg import Bool, Header
++from wbmm_planning_msgs.msg import WholeBodyGoal
+ 
+ from wbmm_ocs2_ros.srv import SetTaskPhase
+ 
+@@ -77,6 +78,12 @@
+         )
+         self.create_subscription(PoseStamped, goal_topic, self.on_goal, qos)
+         self.create_subscription(Bool, finish_topic, self.on_finish, qos)
++        self.create_subscription(WholeBodyGoal, "/wbmm/whole_body_goal", self.on_whole_goal, qos)
++        self.cancel_publisher = self.create_publisher(Header, "/wbmm/planning/cancel", qos)
++        self._desired_phase = None
++        self._phase_future = None
++        self._phase_generation = 0
++        self.create_timer(0.2, self.retry_phase)
+         self.create_subscription(Odometry, odom_topic, self.on_odom, qos)
+         self.create_subscription(
+             MpcTargetTrajectories, ee_target_topic, self.on_ee_target, qos)
+@@ -95,11 +102,18 @@
+         position = message.pose.position
+         yaw = _yaw_from_quaternion(message.pose.orientation)
+         self._goal = (float(position.x), float(position.y), float(yaw))
++        self._goal_frame = message.header.frame_id
+         self._goal_reached_since = None
+         self._navigation_done = False
+         self._execution_requested = False
+         self.request_phase(self.navigation_phase, "new navigation goal")
+ 
++    def on_whole_goal(self, message):
++        pose = PoseStamped()
++        pose.header = message.header
++        pose.pose = message.base_pose
++        self.on_goal(pose)
++
+     def on_finish(self, message):
+         if not message.data:
+             self._navigation_done = False
+@@ -113,11 +127,17 @@
+             "for a fresh end-effector target.")
+ 
+     def on_ee_target(self, message):
+-        if len(message.state_trajectory) == 0:
++        if (len(message.state_trajectory) == 0 or
++                any(len(state.value) != 7 or
++                    not all(math.isfinite(v) for v in state.value)
++                    for state in message.state_trajectory)):
+             return
+         if self._execution_requested:
+             return
+         self._execution_requested = True
++        cancel = Header()
++        cancel.stamp = self.get_clock().now().to_msg()
++        self.cancel_publisher.publish(cancel)
+         self.request_phase(
+             self.execution_phase, "end-effector target received")
+ 
+@@ -126,6 +146,8 @@
+                 self._navigation_done):
+             return
+ 
++        if message.header.frame_id != self._goal_frame:
++            return
+         goal_x, goal_y, goal_yaw = self._goal
+         dx = float(message.pose.pose.position.x) - goal_x
+         dy = float(message.pose.pose.position.y) - goal_y
+@@ -158,19 +180,26 @@
+         return self.get_clock().now().nanoseconds * 1.0e-9
+ 
+     def request_phase(self, phase, reason):
+-        if not self.client.service_is_ready():
+-            self.get_logger().warning(
+-                f"Cannot switch to phase {phase} ({reason}): "
+-                f"service {self.phase_service} is not ready yet.")
+-            return
+-
++        self._phase_generation += 1
++        self._desired_phase = (phase, reason, self._phase_generation)
++        self.retry_phase()
++
++    def retry_phase(self):
++        if (self._desired_phase is None or self._phase_future is not None or
++                not self.client.service_is_ready()):
++            return
++        phase, reason, generation = self._desired_phase
+         request = SetTaskPhase.Request()
+         request.phase = int(phase)
+-        future = self.client.call_async(request)
+-        future.add_done_callback(
+-            lambda done, p=phase, r=reason: self.on_phase_response(done, p, r))
+-
+-    def on_phase_response(self, future, phase, reason):
++        self._phase_future = self.client.call_async(request)
++        self._phase_future.add_done_callback(
++            lambda done, p=phase, r=reason, g=generation:
++            self.on_phase_response(done, p, r, g))
++
++    def on_phase_response(self, future, phase, reason, generation):
++        self._phase_future = None
++        if generation != self._phase_generation:
++            return
+         try:
+             response = future.result()
+         except Exception as error:  # noqa: BLE001 - service exceptions vary
+@@ -186,6 +215,7 @@
+             if phase == self.execution_phase:
+                 self._execution_requested = False
+             return
++        self._desired_phase = None
+         self.get_logger().info(
+             f"Task phase -> {phase} ({reason}); requested="
+             f"{response.requested_phase}, active={response.active_phase}")
+--- a/src/bringup/test/planning_migration_regression.py
++++ b/src/bringup/test/planning_migration_regression.py
+@@ -19,10 +19,12 @@
+ from nav_msgs.msg import Odometry
+ from ocs2_msgs.msg import MpcObservation, MpcTargetTrajectories
+ from rclpy.qos import qos_profile_sensor_data
++from rclpy.duration import Duration
+ from sensor_msgs.msg import JointState
+ from std_srvs.srv import SetBool
++from std_msgs.msg import Header, String
+ from tf2_ros import StaticTransformBroadcaster
+-from wbmm_planning_msgs.msg import WholeBodyTrajectory
++from wbmm_planning_msgs.msg import WholeBodyTrajectory, WholeBodyGoal
+ 
+ 
+ def main():
+@@ -30,13 +32,16 @@
+     processes, logs = [], []
+     rclpy.init()
+     node = rclpy.create_node('migration_regression')
+-    trajectories, targets = [], []
++    trajectories, targets, statuses = [], [], []
++    node.create_subscription(String, "/wbmm/planning/status", lambda msg: statuses.append(msg.data), 10)
+     node.create_subscription(WholeBodyTrajectory, '/wbmm/whole_body_trajectory', trajectories.append, 10)
+     node.create_subscription(MpcTargetTrajectories, '/mobile_manipulator_whole_body_target', targets.append, 10)
+     odom_pub = node.create_publisher(Odometry, '/wheel/odometry', qos_profile_sensor_data)
+     joints_pub = node.create_publisher(JointState, '/joint_states', qos_profile_sensor_data)
+     obs_pub = node.create_publisher(MpcObservation, '/mobile_manipulator_mpc_observation', qos_profile_sensor_data)
+     goal_pub = node.create_publisher(PoseStamped, '/goal_pose', 10)
++    cancel_pub = node.create_publisher(Header, "/wbmm/planning/cancel", 10)
++    whole_goal_pub = node.create_publisher(WholeBodyGoal, "/wbmm/whole_body_goal", 10)
+     traj_pub = node.create_publisher(WholeBodyTrajectory, '/wbmm/whole_body_trajectory', 10)
+     client = node.create_client(SetBool, '/wbmm_reference_bridge/set_reference_enabled')
+     broadcaster = StaticTransformBroadcaster(node)
+@@ -44,12 +49,13 @@
+     odom_frame = 'map'
+     publish_feedback = True
+     publish_observation = True
++    feedback_lead = 0.0
+     epoch = time.monotonic()
+ 
+     def tick(duration):
+         end = time.monotonic() + duration
+         while time.monotonic() < end:
+-            stamp = node.get_clock().now().to_msg()
++            stamp = (node.get_clock().now()+Duration(seconds=feedback_lead)).to_msg()
+             if publish_feedback:
+                 odom = Odometry(); odom.header.stamp = stamp
+                 odom.header.frame_id = odom_frame
+@@ -111,7 +117,9 @@
+         publish_feedback = True; tick(0.3); goal()
+         until(lambda: bool(trajectories))
+         tick(0.3)
+-        assert not targets, 'reference published without map/odom TF'
++        assert all(all(abs(v)<1e-8 for inp in target.input_trajectory for v in inp.value)
++                   for target in targets), 'navigation reference published without map/odom TF'
++        targets.clear()
+         print('PASS invalid quaternion, stale state, missing TF rejection', flush=True)
+         tf = TransformStamped(); tf.header.stamp = node.get_clock().now().to_msg()
+         tf.header.frame_id = 'map'; tf.child_frame_id = 'odom'
+@@ -145,6 +153,52 @@
+         publish_observation=True; tick(0.3)
+         assert not targets, 'old plan resumed after observation expiry'
+         print('PASS observation expiry invalidates old plan', flush=True)
++        # Cancellation installs a measured-state hold and prevents delayed old
++        # navigation messages from reactivating a trajectory.
++        delayed_cancel=Header(); delayed_cancel.stamp=node.get_clock().now().to_msg()
++        tick(0.05)
++        valid.header.stamp=node.get_clock().now().to_msg()
++        traj_pub.publish(valid); until(lambda: bool(targets))
++        tick(0.1)
++        targets.clear();cancel_pub.publish(delayed_cancel);tick(0.2)
++        assert any(abs(inp.value[0])>1e-3 for target in targets for inp in target.input_trajectory), \
++            'delayed cancellation replaced a newer plan with a hold'
++        print('PASS cross-topic delayed cancellation ordering', flush=True)
++        cancel=Header(); cancel.stamp=node.get_clock().now().to_msg()
++        cancel_pub.publish(cancel); tick(0.2); targets.clear()
++        traj_pub.publish(valid); tick(0.3)
++        assert targets, 'cancellation did not install a measured hold'
++        for target in targets:
++            for state, inp in zip(target.state_trajectory, target.input_trajectory):
++                assert abs(state.value[0]+2)<1e-5 and abs(state.value[1]-1)<1e-5
++                assert all(abs(v)<1e-8 for v in inp.value)
++        print('PASS cancellation holds measured state and rejects delayed old plan', flush=True)
++        before=len(trajectories);statuses.clear();goal()
++        until(lambda:any(value == 'PLANNING' for value in statuses))
++        cancel=Header();cancel.stamp=node.get_clock().now().to_msg()
++        cancel_pub.publish(cancel);tick(1.0)
++        cutoff=cancel.stamp.sec*10**9+cancel.stamp.nanosec
++        assert all(msg.header.stamp.sec*10**9+msg.header.stamp.nanosec<=cutoff
++                   for msg in trajectories[before:]), 'cancelled planning result was published'
++        print('PASS in-flight planning cancellation', flush=True)
++        # Mimic feedback reaching the subscriber slightly before /clock. The
++        # executor must use the same small future tolerance as the callbacks.
++        feedback_lead=0.02
++        tick(0.1)
++        # Named full-body goal is accepted in arbitrary message joint order;
++        # published trajectory remains in the configured controller order.
++        whole=WholeBodyGoal();whole.header.frame_id='map'
++        whole.header.stamp=node.get_clock().now().to_msg()
++        whole.base_pose.orientation.w=1.0
++        whole.joint_names=list(reversed(names))
++        whole.joint_positions=[0.2]+[0.0]*5
++        before=len(trajectories);whole_goal_pub.publish(whole)
++        until(lambda:len(trajectories)>before)
++        latest=trajectories[-1]
++        assert latest.joint_names==names
++        assert abs(latest.joint_positions[-1]-0.2)<1e-6
++        assert all(abs(v)<1e-6 for v in latest.joint_positions[:6])
++        print('PASS full-body goal, initial joints, and small feedback clock skew', flush=True)
+         print('PASS isolated ROS planner/bridge regression', flush=True)
+     finally:
+         for p in processes:
+--- /dev/null
++++ b/src/bringup/test/planning_tracking_check.py
+@@ -0,0 +1,155 @@
++#!/usr/bin/env python3
++"""Headless MuJoCo + OCS2 check on map1; never starts hardware.
++
++Run after sourcing install/setup.bash in an unused ROS_DOMAIN_ID with
++ROS_LOCALHOST_ONLY=1. Logs/report go to --output (default /tmp/wbmm_tracking_check).
++This is a small navigation/rotation/EE regression, not general map acceptance.
++"""
++import argparse
++import json
++import math
++import os
++from pathlib import Path
++import signal
++import subprocess
++import time
++
++import rclpy
++from geometry_msgs.msg import PoseStamped
++from nav_msgs.msg import Odometry
++from ocs2_msgs.msg import MpcObservation, MpcTargetTrajectories, MpcState, MpcInput
++from rclpy.parameter import Parameter
++from rclpy.qos import QoSProfile, DurabilityPolicy, qos_profile_sensor_data
++from std_msgs.msg import String
++from tf2_ros import Buffer, TransformListener
++from wbmm_ocs2_ros.msg import TaskPhaseState
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--output', default='/tmp/wbmm_tracking_check')
++    parser.add_argument('--entrypoint', choices=['wbmm_tracking.launch.py', 'remani_tracking.launch.py'], default='wbmm_tracking.launch.py')
++    args = parser.parse_args()
++    if os.environ.get('ROS_LOCALHOST_ONLY') != '1' or int(os.environ.get('ROS_DOMAIN_ID', '0')) == 0:
++        raise RuntimeError('Use ROS_LOCALHOST_ONLY=1 and a dedicated nonzero ROS_DOMAIN_ID')
++    # This composition has more than ten DDS participants. Give this isolated
++    # test process and its children a sufficient local discovery budget.
++    os.environ['CYCLONEDDS_URI'] = (
++        '<CycloneDDS><Domain><Discovery><ParticipantIndex>auto</ParticipantIndex>'
++        '<MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>'
++        '</Discovery></Domain></CycloneDDS>')
++    output = Path(args.output); output.mkdir(parents=True, exist_ok=True)
++    report = {'passed': False, 'entrypoint': args.entrypoint, 'stages': []}
++    log = (output / 'launch.log').open('w')
++    process = subprocess.Popen([
++        'ros2', 'launch', 'tracer_jaka_bringup', args.entrypoint,
++        'viewer:=false', 'use_rviz:=false',
++        'lib_folder:=' + str(output / 'ocs2_cache'),
++    ], stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
++    rclpy.init()
++    node = rclpy.create_node('wbmm_tracking_check', parameter_overrides=[Parameter('use_sim_time', value=True)])
++    state = {'odom': None, 'obs': None, 'phase': None, 'status': None}
++    def record(key, message):
++        state[key] = message
++        if key == 'status': print(message.data, flush=True)
++    node.create_subscription(Odometry, '/wheel/odometry', lambda msg: record('odom', msg), qos_profile_sensor_data)
++    node.create_subscription(MpcObservation, '/mobile_manipulator_mpc_observation', lambda msg: record('obs', msg), qos_profile_sensor_data)
++    durable = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
++    node.create_subscription(TaskPhaseState, '/mobile_manipulator_task_phase_state', lambda msg: record('phase', msg), durable)
++    node.create_subscription(String, '/wbmm/planning/status', lambda msg: record('status', msg), durable)
++    goal_pub = node.create_publisher(PoseStamped, '/goal_pose', 10)
++    ee_pub = node.create_publisher(MpcTargetTrajectories, '/mobile_manipulator_ee_target', 10)
++    buffer = Buffer(); listener = TransformListener(buffer, node)
++
++    def wait(predicate, timeout, stage):
++        deadline = time.monotonic() + timeout
++        while time.monotonic() < deadline:
++            if process.poll() is not None: raise RuntimeError('launch exited during ' + stage)
++            rclpy.spin_once(node, timeout_sec=0.05)
++            if predicate(): return
++        raise RuntimeError('timeout: ' + stage)
++
++    def pose():
++        return buffer.lookup_transform('map', 'tool0', rclpy.time.Time()).transform
++
++    def navigation(x, y, yaw, stage):
++        state['status'] = None
++        goal = PoseStamped(); goal.header.frame_id = 'map'
++        goal.header.stamp = node.get_clock().now().to_msg()
++        goal.pose.position.x = float(x); goal.pose.position.y = float(y)
++        goal.pose.orientation.z = math.sin(yaw / 2); goal.pose.orientation.w = math.cos(yaw / 2)
++        goal_pub.publish(goal)
++        wait(lambda: state['status'] is not None and
++             (state['status'].data == 'SUCCEEDED' or
++              state['status'].data.startswith(('FAILED', 'FAULT'))), 100, stage)
++        if state['status'].data != 'SUCCEEDED': raise RuntimeError(state['status'].data)
++        odom = state['odom'].pose.pose
++        error = math.hypot(odom.position.x - x, odom.position.y - y)
++        q = odom.orientation
++        measured_yaw = math.atan2(2*(q.w*q.z+q.x*q.y), 1-2*(q.y*q.y+q.z*q.z))
++        yaw_error = abs(math.remainder(measured_yaw-yaw, 2*math.pi))
++        assert error <= 0.20 and yaw_error <= 0.30, (error, yaw_error)
++        report['stages'].append({'stage': stage, 'position_error': error, 'yaw_error': yaw_error})
++        print('PASS', stage, error, yaw_error, flush=True)
++
++    try:
++        wait(lambda: all(state.values()) and buffer.can_transform('map', 'tool0', rclpy.time.Time()), 240, 'startup')
++        # Allow feedback to settle before handing the first goal to the planner.
++        navigation(0.8, 0.0, 0.0, 'navigation')
++        odom = state['odom'].pose.pose
++        navigation(odom.position.x, odom.position.y, 0.6, 'rotation')
++        current = pose(); target = [current.translation.x + 0.04, current.translation.y, current.translation.z]
++        q = current.rotation
++        ee = MpcTargetTrajectories(); ee.time_trajectory = [state['obs'].time]
++        ee.state_trajectory = [MpcState(value=target + [q.x, q.y, q.z, q.w])]
++        ee.input_trajectory = [MpcInput(value=[0.] * 8)]
++        ee_pub.publish(ee)
++        wait(lambda: state['phase'].active_phase == 2, 20, 'Execution phase')
++        reached_since = None
++        def ee_reached():
++            nonlocal reached_since
++            transform = pose()
++            measured = transform.translation
++            rotation = transform.rotation
++            dot = abs(q.x*rotation.x+q.y*rotation.y+q.z*rotation.z+q.w*rotation.w)
++            angular_error = 2*math.acos(min(1.0, dot))
++            within = math.dist(target, [measured.x, measured.y, measured.z]) < 0.02 and angular_error < 0.1
++            if not within:
++                reached_since = None
++                return False
++            if reached_since is None:
++                reached_since = time.monotonic()
++            return time.monotonic()-reached_since >= 1.0
++        wait(ee_reached, 40, 'EE translation')
++        measured = pose().translation
++        error = math.dist(target, [measured.x, measured.y, measured.z])
++        report['stages'].append({'stage': 'EE tracking', 'active_phase': 2, 'position_error': error})
++        print('PASS EE tracking', error, flush=True)
++        odom = state['odom'].pose.pose
++        rotation = odom.orientation
++        yaw = math.atan2(2*(rotation.w*rotation.z+rotation.x*rotation.y),
++                         1-2*(rotation.y*rotation.y+rotation.z*rotation.z))
++        navigation(odom.position.x, odom.position.y, yaw, 'return to navigation')
++        wait(lambda: state['phase'].active_phase == 0, 10, 'Navigation phase')
++        report['passed'] = True
++    except Exception as error:
++        report['error'] = str(error)
++        if state['odom'] is not None:
++            odom = state['odom']
++            report['last_base'] = [odom.pose.pose.position.x, odom.pose.pose.position.y,
++                                   odom.twist.twist.linear.x, odom.twist.twist.angular.z]
++        if state['obs'] is not None:
++            report['last_observation'] = list(state['obs'].state.value)
++            report['last_input'] = list(state['obs'].input.value)
++        raise
++    finally:
++        (output / 'report.json').write_text(json.dumps(report, indent=2))
++        if process.poll() is None: os.killpg(process.pid, signal.SIGINT)
++        try: process.wait(timeout=15)
++        except subprocess.TimeoutExpired:
++            os.killpg(process.pid, signal.SIGKILL); process.wait()
++        log.close(); node.destroy_node(); rclpy.shutdown()
++
++
++if __name__ == '__main__':
++    main()
+--- a/src/bringup/test/test_common_launch.py
++++ b/src/bringup/test/test_common_launch.py
+@@ -357,3 +357,10 @@
+     assert planner['parameters'][0]['world_frame'] == 'map'
+     assert bridge['parameters'][0]['world_frame'] == 'odom'
+     assert not bridge['condition'].evaluate(context)
++
++
++def test_tracking_phase_bridge_uses_sim_clock_and_planner_arrival():
++    for filename in ('wbmm_tracking.launch.py', 'remani_tracking.launch.py'):
++        content = LAUNCH_FILES[filename].read_text()
++        assert '"use_sim_time": True' in content
++        assert '"enable_odom_fallback": False' in content
+--- /dev/null
++++ b/src/bringup/test/test_phase_bridge.py
+@@ -0,0 +1,60 @@
++"""Phase request retries and latest-request ordering, without a running ROS graph."""
++import importlib.util
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import Mock
++
++_spec = importlib.util.spec_from_file_location(
++    'phase_bridge', Path(__file__).resolve().parents[1] / 'scripts/remani_phase_bridge.py')
++module = importlib.util.module_from_spec(_spec)
++_spec.loader.exec_module(module)
++
++
++def bridge():
++    # Exercise the policy using a lightweight object; Node initialization is not
++    # necessary for these service-future state transitions.
++    obj = SimpleNamespace(
++        client=Mock(), _phase_generation=0, _desired_phase=None,
++        _phase_future=None, _execution_requested=False, execution_phase=2,
++        get_logger=lambda: Mock())
++    for method in ('request_phase', 'retry_phase', 'on_phase_response'):
++        setattr(obj, method, getattr(module.RemaniPhaseBridge, method).__get__(obj))
++    return obj
++
++
++def test_request_retries_when_service_becomes_ready():
++    obj = bridge()
++    obj.client.service_is_ready.return_value = False
++    obj.request_phase(2, 'EE target')
++    obj.client.call_async.assert_not_called()
++    obj.client.service_is_ready.return_value = True
++    obj.retry_phase()
++    assert obj.client.call_async.call_args.args[0].phase == 2
++    assert obj._desired_phase is not None
++
++
++def test_new_navigation_request_supersedes_inflight_execution_response():
++    obj = bridge()
++    obj.client.service_is_ready.return_value = True
++    old = Mock()
++    obj.client.call_async.return_value = old
++    obj.request_phase(2, 'EE target')
++    obj.request_phase(0, 'new goal')
++    obj.on_phase_response(old, 2, 'EE target', 1)
++    assert obj._desired_phase[0] == 0
++    obj.retry_phase()
++    assert obj.client.call_async.call_args.args[0].phase == 0
++
++
++def test_rejection_is_retried_until_acknowledged():
++    obj = bridge()
++    obj.client.service_is_ready.return_value = True
++    obj.request_phase(0, 'goal')
++    response = Mock()
++    response.result.return_value = SimpleNamespace(success=False, message='busy')
++    obj.on_phase_response(response, 0, 'goal', 1)
++    assert obj._desired_phase is not None
++    obj.retry_phase()
++    response.result.return_value = SimpleNamespace(success=True, requested_phase=0, active_phase=0)
++    obj.on_phase_response(response, 0, 'goal', 1)
++    assert obj._desired_phase is None
+--- a/src/control/wbmm_reference_bridge/CMakeLists.txt
++++ b/src/control/wbmm_reference_bridge/CMakeLists.txt
+@@ -12,6 +12,7 @@
+ 
+ find_package(ament_cmake REQUIRED)
+ find_package(rclcpp REQUIRED)
++find_package(std_msgs REQUIRED)
+ find_package(tf2_ros REQUIRED)
+ find_package(tf2 REQUIRED)
+ find_package(std_srvs REQUIRED)
+@@ -35,7 +36,7 @@
+ target_compile_options(${PROJECT_NAME}_node PRIVATE -Wall -Wextra -Wpedantic)
+ target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_sampler)
+ ament_target_dependencies(${PROJECT_NAME}_node
+-  rclcpp tf2 tf2_ros std_srvs Eigen3 ocs2_core ocs2_msgs ocs2_ros_interfaces
++  rclcpp std_msgs tf2 tf2_ros std_srvs Eigen3 ocs2_core ocs2_msgs ocs2_ros_interfaces
+   wbmm_planning_msgs)
+ 
+ install(TARGETS ${PROJECT_NAME}_node
+--- a/src/control/wbmm_reference_bridge/package.xml
++++ b/src/control/wbmm_reference_bridge/package.xml
+@@ -13,6 +13,7 @@
+   <buildtool_depend>ament_cmake</buildtool_depend>
+ 
+   <depend>rclcpp</depend>
++  <depend>std_msgs</depend>
+   <depend>tf2_ros</depend>
+   <depend>tf2</depend>
+   <depend>std_srvs</depend>
+--- a/src/control/wbmm_reference_bridge/src/wbmm_reference_bridge_node.cpp
++++ b/src/control/wbmm_reference_bridge/src/wbmm_reference_bridge_node.cpp
+@@ -31,11 +31,12 @@
+ #include <vector>
+ 
+ #include <rclcpp/rclcpp.hpp>
++#include <std_msgs/msg/header.hpp>
++#include <std_srvs/srv/set_bool.hpp>
+ #include <tf2/LinearMath/Matrix3x3.h>
+ #include <tf2/LinearMath/Quaternion.h>
+ #include <tf2_ros/buffer.h>
+ #include <tf2_ros/transform_listener.h>
+-#include <std_srvs/srv/set_bool.hpp>
+ 
+ #include <ocs2_core/Types.h>
+ #include <ocs2_core/reference/TargetTrajectories.h>
+@@ -182,6 +183,23 @@
+         RCLCPP_INFO(get_logger(), "%s", response->message.c_str());
+       });
+ 
++    cancelSub_ = create_subscription<std_msgs::msg::Header>(
++        "/wbmm/planning/cancel", targetQos, [this](std_msgs::msg::Header::SharedPtr msg) {
++          const std::lock_guard<std::mutex> lock(mutex_);
++          const rclcpp::Time stamp(msg->stamp, get_clock()->get_clock_type());
++          if (stamp <= lastCancelStamp_)
++            return;
++          lastCancelStamp_ = stamp;
++          // Different DDS topics may be delivered out of order. A newer plan
++          // supersedes a delayed cancellation sent before that plan was built.
++          if (haveTrajectory_ && trajectoryStartStamp_ > stamp)
++            return;
++          haveTrajectory_ = false;
++          holdPending_ = true;
++          if (haveObservation_ && (now() - observationRosStamp_).seconds() >= 0 &&
++              (now() - observationRosStamp_).seconds() <= observationTimeout_)
++            installMeasuredHold();
++        });
+     const auto period = std::chrono::duration<double>(1.0 / publishRate_);
+     publishTimer_ = create_wall_timer(
+       std::chrono::duration_cast<std::chrono::nanoseconds>(period),
+@@ -196,10 +214,41 @@
+       observationTopic_.c_str());
+   }
+ 
++  // Hold is built in the controller frame from measured MPC state. It is a
++  // zero-feedforward reference, not a claim of instantaneous physical braking.
++  void installMeasuredHold() {
++    if (!referenceEnabled_ || observationState_.size() != jointNames_.size() + 3U)
++      return;
++    wbmm_planning_msgs::msg::WholeBodyTrajectory hold;
++    hold.header.frame_id = worldFrame_;
++    hold.trajectory_id = "cancel_hold";
++    hold.joint_names = jointNames_;
++    hold.time_from_start = {0.0, sampleDt_};
++    for (int k = 0; k < 2; ++k) {
++      hold.base_x.push_back(observationState_[0]);
++      hold.base_y.push_back(observationState_[1]);
++      hold.base_yaw.push_back(observationState_[2]);
++      hold.base_linear_velocity.push_back(0);
++      hold.base_yaw_rate.push_back(0);
++      hold.phase.push_back(0);
++      for (std::size_t j = 0; j < jointNames_.size(); ++j) {
++        hold.joint_positions.push_back(observationState_[3 + j]);
++        hold.joint_velocities.push_back(0);
++      }
++    }
++    sampler_ = wbmm::reference_bridge::TrajectorySampler(hold);
++    trajectoryStartStamp_ = now();
++    haveTrajectory_ = true;
++    holdPending_ = false;
++  }
++
+   void setReferenceEnabled(bool enabled)
+   {
+     const std::lock_guard<std::mutex> lock(mutex_);
+-    if (!enabled) { haveTrajectory_ = false; }
++    if (!enabled) {
++      haveTrajectory_ = false;
++      holdPending_ = false;
++    }
+     referenceEnabled_ = enabled;
+   }
+ 
+@@ -251,7 +300,10 @@
+     }
+ 
+     const std::lock_guard<std::mutex> lock(mutex_);
+-    if (!referenceEnabled_) { return; }
++    if (!referenceEnabled_ || startStamp <= lastCancelStamp_) {
++      return;
++    }
++    holdPending_ = false;
+     sampler_ = wbmm::reference_bridge::TrajectorySampler(*msg);
+     trajectoryStartStamp_ = startStamp;
+     haveTrajectory_ = true;
+@@ -275,10 +327,15 @@
+     const std::lock_guard<std::mutex> lock(mutex_);
+     if (haveObservation_ && msg->time < observationTime_) {
+       haveTrajectory_ = false;  // An MPC reset requires a new plan.
+-    }
++      holdPending_ = false;
++      lastCancelStamp_ = rclcpp::Time(0, 0, get_clock()->get_clock_type());
++    }
++    observationState_.assign(msg->state.value.begin(), msg->state.value.end());
+     observationTime_ = msg->time;
+     observationRosStamp_ = now();
+     haveObservation_ = true;
++    if (holdPending_)
++      installMeasuredHold();
+   }
+ 
+   void publishReference()
+@@ -369,6 +426,10 @@
+       ocs2::ros_msg_conversions::createTargetTrajectoriesMsg(target));
+   }
+ 
++  rclcpp::Subscription<std_msgs::msg::Header>::SharedPtr cancelSub_;
++  rclcpp::Time lastCancelStamp_{0, 0, RCL_ROS_TIME};
++  std::vector<double> observationState_;
++  bool holdPending_{false};
+   std::string robotName_;
+   std::string worldFrame_;
+   std::string trajectoryTopic_;
+--- a/src/planning/search/CMakeLists.txt
++++ b/src/planning/search/CMakeLists.txt
+@@ -6,7 +6,8 @@
+ 
+ add_library(${PROJECT_NAME}
+   src/kino_astar.cpp
+-  src/arm_seed_search.cpp)
++  src/arm_seed_search.cpp
++  src/whole_body_rrt.cpp)
+ target_include_directories(${PROJECT_NAME} PUBLIC
+   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+   $<INSTALL_INTERFACE:include>)
+@@ -26,6 +27,8 @@
+ 
+ if(BUILD_TESTING)
+   find_package(ament_cmake_gtest REQUIRED)
++  ament_add_gtest(test_whole_body_rrt test/test_whole_body_rrt.cpp)
++  target_link_libraries(test_whole_body_rrt ${PROJECT_NAME})
+   ament_add_gtest(test_kino_astar test/test_kino_astar.cpp)
+   target_link_libraries(test_kino_astar ${PROJECT_NAME})
+ 
+--- /dev/null
++++ b/src/planning/search/include/wbmm_search/whole_body_rrt.hpp
+@@ -0,0 +1,53 @@
++#pragma once
++
++#include <optional>
++#include <wbmm_search/arm_seed_search.hpp>
++#include <wbmm_search/kino_astar.hpp>
++
++namespace wbmm::search {
++
++struct WholeBodyRrtConfig {
++  std::size_t max_nodes{12000};
++  std::size_t max_iterations{24000};
++  double max_search_time{3.0};
++  double translation_step{0.4};
++  double joint_step{0.6};
++  double collision_translation_step{0.02};
++  double collision_angle_step{0.03};
++  std::uint32_t random_seed{1};
++};
++
++struct WholeBodyRrtResult {
++  bool success{false};
++  // Invalid input/checker exceptions must not be hidden by another backend.
++  bool fatal{false};
++  std::string message;
++  wbmm::core::SearchResult search;
++  // Exactly one constant-control differential-drive edge per adjacent pair.
++  // An edge with v=omega=0 permits arm reconfiguration at a fixed base.
++  std::vector<MotionPrimitive> primitives;
++  double solve_time{0.0};
++  std::size_t generated_nodes{0};
++};
++
++// A tree in (base-path index, joints). It retains alternative parents and can
++// reconfigure at a fixed index. Unlike a greedy sweep, a failed continuation
++// does not discard previously discovered branches. This is feasible RRT, not RRT*.
++WholeBodyRrtResult
++sampleArmRrt(const wbmm::core::Header &, const BaseSearchResult &, const wbmm::core::JointState &,
++             const wbmm::core::RobotLimits &, const WholeBodyCollisionChecker &,
++             const WholeBodyRrtConfig & = {},
++             const std::optional<wbmm::core::JointState> &goal_joints = std::nullopt);
++
++// Fallback tree in (x,y,yaw,joints). Local steering uses exact differential
++// rotate/translate/rotate connections and checks all swept states. Bounds and
++// goal tolerances come from the existing KinoAstarConfig contract.
++WholeBodyRrtResult
++searchWholeBodyRrt(const wbmm::core::Header &, const wbmm::core::BaseState &start,
++                   const wbmm::core::BaseState &goal, const wbmm::core::JointState &,
++                   const wbmm::core::RobotLimits &, const BaseCollisionChecker &,
++                   const WholeBodyCollisionChecker &, const KinoAstarConfig &,
++                   const WholeBodyRrtConfig & = {},
++                   const std::optional<wbmm::core::JointState> &goal_joints = std::nullopt);
++
++} // namespace wbmm::search
+--- /dev/null
++++ b/src/planning/search/src/whole_body_rrt.cpp
+@@ -0,0 +1,348 @@
++#include <algorithm>
++#include <chrono>
++#include <cmath>
++#include <limits>
++#include <random>
++#include <set>
++#include <stdexcept>
++#include <wbmm_search/whole_body_rrt.hpp>
++
++namespace wbmm::search {
++namespace {
++using namespace wbmm::core;
++using Clock = std::chrono::steady_clock;
++constexpr std::size_t none = std::numeric_limits<std::size_t>::max();
++double angle(double x) { return std::remainder(x, 2.0 * M_PI); }
++struct Node {
++  BaseState base;
++  JointState joints;
++  std::size_t parent{none};
++  std::size_t layer{0};
++  MotionPrimitive edge;
++};
++double jointDistance(const JointState &a, const JointState &b) {
++  double d = 0;
++  for (std::size_t j = 0; j < a.positions.size(); ++j)
++    d = std::max(d, std::abs(a.positions[j] - b.positions[j]));
++  return d;
++}
++JointState blend(const JointState &a, const JointState &b, double t) {
++  auto q = a;
++  for (std::size_t j = 0; j < q.positions.size(); ++j) {
++    q.positions[j] += t * (b.positions[j] - a.positions[j]);
++    q.velocities[j] = 0;
++  }
++  return q;
++}
++bool finitePose(const BaseState &s) {
++  return std::isfinite(s.x) && std::isfinite(s.y) && std::isfinite(s.yaw);
++}
++struct Search {
++  Header header;
++  RobotLimits limits;
++  WholeBodyCollisionChecker checker;
++  WholeBodyRrtConfig config;
++  Search(Header h, RobotLimits l, WholeBodyCollisionChecker c, WholeBodyRrtConfig cfg)
++      : header(std::move(h)), limits(std::move(l)), checker(std::move(c)), config(cfg) {}
++  Clock::time_point started{Clock::now()};
++  std::vector<Node> nodes;
++  WholeBodyRrtResult result;
++  bool timedOut() const {
++    return std::chrono::duration<double>(Clock::now() - started).count() >= config.max_search_time;
++  }
++  void validate(const JointState &q, const std::optional<JointState> &goal) {
++    if (header.frame_id.empty() || !checker || q.positions.empty() ||
++        q.positions.size() != q.names.size() || q.positions.size() != q.velocities.size() ||
++        limits.joint_min.size() != q.positions.size() ||
++        limits.joint_max.size() != q.positions.size() || config.max_nodes < 2 ||
++        config.max_iterations == 0)
++      throw std::invalid_argument("Invalid RRT contract/budget.");
++    for (double v : {config.max_search_time, config.translation_step, config.joint_step,
++                     config.collision_translation_step, config.collision_angle_step})
++      if (!std::isfinite(v) || v <= 0)
++        throw std::invalid_argument("Invalid RRT resolution/time.");
++    std::set<std::string> names;
++    for (std::size_t j = 0; j < q.names.size(); ++j)
++      if (q.names[j].empty() || !names.insert(q.names[j]).second || !std::isfinite(q.velocities[j]))
++        throw std::invalid_argument("Invalid initial joint names/velocities.");
++    const auto checkQ = [&](const JointState &state) {
++      if (state.names != q.names || state.positions.size() != q.positions.size())
++        throw std::invalid_argument("Goal joint names/order/size mismatch.");
++      for (std::size_t j = 0; j < q.positions.size(); ++j)
++        if (!std::isfinite(limits.joint_min[j]) || !std::isfinite(limits.joint_max[j]) ||
++            !std::isfinite(state.positions[j]) || state.positions[j] < limits.joint_min[j] ||
++            state.positions[j] > limits.joint_max[j])
++          throw std::invalid_argument("Invalid RRT joints/limits.");
++    };
++    checkQ(q);
++    if (goal)
++      checkQ(*goal);
++  }
++  bool free(const BaseState &b, const JointState &q) {
++    WholeBodyState s;
++    s.header = header;
++    s.base_model = BaseModel::kDifferentialDrive;
++    s.base = b;
++    s.joints = q;
++    return checker(header, s);
++  }
++  bool edgeFree(const Node &a, const JointState &q, const MotionPrimitive &p) {
++    const double count =
++        std::max({1.0, std::ceil(std::abs(p.v) * p.duration / config.collision_translation_step),
++                  std::ceil(std::abs(p.omega) * p.duration / config.collision_angle_step),
++                  std::ceil(jointDistance(a.joints, q) / config.collision_angle_step)});
++    if (!std::isfinite(count) || count > 100000)
++      throw std::invalid_argument("RRT edge check budget exceeded.");
++    for (std::size_t k = 1; k <= static_cast<std::size_t>(count); ++k) {
++      if (timedOut())
++        return false;
++      const double t = k / count;
++      if (!free(propagate(a.base, p, t * p.duration), blend(a.joints, q, t)))
++        return false;
++    }
++    return true;
++  }
++  std::size_t add(std::size_t parent, const MotionPrimitive &p, const JointState &q,
++                  std::size_t layer) {
++    if (nodes.size() >= config.max_nodes || !edgeFree(nodes[parent], q, p))
++      return none;
++    Node n;
++    n.base = propagate(nodes[parent].base, p, p.duration);
++    n.joints = q;
++    n.parent = parent;
++    n.layer = layer;
++    n.edge = p;
++    nodes.push_back(n);
++    return nodes.size() - 1;
++  }
++  WholeBodyRrtResult finish(std::size_t tip = none,
++                            std::string message = "RRT exhausted its search budget.") {
++    result.solve_time = std::chrono::duration<double>(Clock::now() - started).count();
++    result.generated_nodes = nodes.size();
++    result.message = std::move(message);
++    if (tip != none) {
++      for (auto i = tip; i != none; i = nodes[i].parent) {
++        result.search.base_path.push_back(nodes[i].base);
++        result.search.arm_seed.push_back(nodes[i].joints);
++        if (nodes[i].parent != none)
++          result.primitives.push_back(nodes[i].edge);
++      }
++      std::reverse(result.search.base_path.begin(), result.search.base_path.end());
++      std::reverse(result.search.arm_seed.begin(), result.search.arm_seed.end());
++      std::reverse(result.primitives.begin(), result.primitives.end());
++      for (auto &p : result.primitives)
++        result.search.path_length += std::abs(p.v) * p.duration;
++      result.search.phases.assign(result.search.base_path.size(), ExecutionPhase::kNavigate);
++      result.success = result.search.success = true;
++      result.search.solve_time = result.solve_time;
++      result.message = "ok";
++    }
++    return result;
++  }
++};
++JointState draw(const JointState &initial, const RobotLimits &limits, std::mt19937 &rng) {
++  auto q = initial;
++  for (std::size_t j = 0; j < q.positions.size(); ++j)
++    q.positions[j] =
++        std::uniform_real_distribution<double>(limits.joint_min[j], limits.joint_max[j])(rng);
++  return q;
++}
++JointState steer(const JointState &from, const JointState &to, double step) {
++  const double d = jointDistance(from, to);
++  return blend(from, to, d > step ? step / d : 1.0);
++}
++} // namespace
++
++WholeBodyRrtResult sampleArmRrt(const Header &h, const BaseSearchResult &path,
++                                const JointState &initial, const RobotLimits &limits,
++                                const WholeBodyCollisionChecker &checker,
++                                const WholeBodyRrtConfig &config,
++                                const std::optional<JointState> &goal) {
++  Search s{h, limits, checker, config};
++  try {
++    s.validate(initial, goal);
++    if (path.path.empty() || path.primitives.size() + 1 != path.path.size())
++      throw std::invalid_argument("Base path and primitive sizes disagree.");
++    for (std::size_t i = 0; i < path.path.size(); ++i) {
++      if (!finitePose(path.path[i]))
++        throw std::invalid_argument("Non-finite base path.");
++      if (i > 0) {
++        const auto b =
++            propagate(path.path[i - 1], path.primitives[i - 1], path.primitives[i - 1].duration);
++        if (std::hypot(b.x - path.path[i].x, b.y - path.path[i].y) > 1e-6 ||
++            std::abs(angle(b.yaw - path.path[i].yaw)) > 1e-6)
++          throw std::invalid_argument("Base primitive does not reproduce path.");
++      }
++    }
++    s.nodes.push_back({path.path.front(), initial, none, 0, {}});
++    if (!s.free(path.path.front(), initial))
++      return s.finish(none, "Arm seeding failed: start is in collision.");
++    std::mt19937 rng(config.random_seed);
++    auto extend = [&](std::size_t index) {
++      // Carry a newly found branch forward as far as possible. Failed edges
++      // leave all parents in the tree for later random reconfiguration.
++      while (s.nodes[index].layer + 1 < path.path.size() && !s.timedOut()) {
++        const auto layer = s.nodes[index].layer;
++        auto next = s.add(index, path.primitives[layer], s.nodes[index].joints, layer + 1);
++        if (next == none)
++          break;
++        index = next;
++      }
++      return index;
++    };
++    auto reached = [&](std::size_t i) {
++      return s.nodes[i].layer + 1 == path.path.size() &&
++             (!goal || jointDistance(s.nodes[i].joints, *goal) < 1e-8);
++    };
++    auto tip = extend(0);
++    if (reached(tip))
++      return s.finish(tip);
++    for (std::size_t it = 0;
++         it < config.max_iterations && s.nodes.size() < config.max_nodes && !s.timedOut(); ++it) {
++      const auto layer =
++          s.nodes[std::uniform_int_distribution<std::size_t>(0, s.nodes.size() - 1)(rng)].layer;
++      auto target = (goal && it % 4 == 0) ? *goal : draw(initial, limits, rng);
++      std::size_t near = none;
++      double best = std::numeric_limits<double>::infinity();
++      for (std::size_t i = 0; i < s.nodes.size(); ++i)
++        if (s.nodes[i].layer == layer) {
++          const double d = jointDistance(s.nodes[i].joints, target);
++          if (d < best) {
++            best = d;
++            near = i;
++          }
++        }
++      if (near == none || best < 1e-9)
++        continue;
++      const auto q = steer(s.nodes[near].joints, target, config.joint_step);
++      // Both stationary-arm and simultaneous base/arm extensions are tried.
++      auto next = s.add(near, {0, 0, 1}, q, layer);
++      if (next != none) {
++        tip = extend(next);
++        if (reached(tip))
++          return s.finish(tip);
++      }
++      if (layer + 1 < path.path.size()) {
++        next = s.add(near, path.primitives[layer], q, layer + 1);
++        if (next != none) {
++          tip = extend(next);
++          if (reached(tip))
++            return s.finish(tip);
++        }
++      }
++    }
++    return s.finish();
++  } catch (const std::exception &e) {
++    s.result.fatal = true;
++    return s.finish(none, e.what());
++  } catch (...) {
++    s.result.fatal = true;
++    return s.finish(none, "RRT collision checker exception.");
++  }
++}
++
++WholeBodyRrtResult
++searchWholeBodyRrt(const Header &h, const BaseState &start, const BaseState &goal_base,
++                   const JointState &initial, const RobotLimits &limits,
++                   const BaseCollisionChecker &base_checker,
++                   const WholeBodyCollisionChecker &checker, const KinoAstarConfig &bounds,
++                   const WholeBodyRrtConfig &config, const std::optional<JointState> &goal) {
++  const auto valid = [&](const Header &header, const WholeBodyState &state) {
++    const auto &b = state.base;
++    return b.x >= bounds.min_x && b.x <= bounds.max_x && b.y >= bounds.min_y &&
++           b.y <= bounds.max_y && base_checker(header, b) && checker(header, state);
++  };
++  Search s{h, limits, valid, config};
++  try {
++    if (!base_checker || !checker || !finitePose(start) || !finitePose(goal_base) ||
++        !std::isfinite(bounds.min_x) || !std::isfinite(bounds.max_x) ||
++        bounds.min_x >= bounds.max_x || !std::isfinite(bounds.min_y) ||
++        !std::isfinite(bounds.max_y) || bounds.min_y >= bounds.max_y ||
++        !std::isfinite(limits.max_base_speed) || limits.max_base_speed <= 0 ||
++        !std::isfinite(limits.max_base_yaw_rate) || limits.max_base_yaw_rate <= 0 ||
++        !std::isfinite(bounds.position_tolerance) || bounds.position_tolerance <= 0 ||
++        !std::isfinite(bounds.yaw_tolerance) || bounds.yaw_tolerance <= 0)
++      throw std::invalid_argument("Invalid whole-body RRT bounds/checkers/base limits.");
++    s.validate(initial, goal);
++    s.nodes.push_back({start, initial, none, 0, {}});
++    if (!s.free(start, initial))
++      return s.finish(none, "Arm seeding failed: start is in collision.");
++    auto reached = [&](std::size_t i) {
++      const auto &n = s.nodes[i];
++      return std::hypot(n.base.x - goal_base.x, n.base.y - goal_base.y) <=
++                 bounds.position_tolerance &&
++             std::abs(angle(n.base.yaw - goal_base.yaw)) <= bounds.yaw_tolerance &&
++             (!goal || jointDistance(n.joints, *goal) < 1e-8);
++    };
++    if (reached(0))
++      return s.finish(0);
++    std::mt19937 rng(config.random_seed);
++    for (std::size_t it = 0;
++         it < config.max_iterations && s.nodes.size() < config.max_nodes && !s.timedOut(); ++it) {
++      BaseState target = goal_base;
++      const bool biased = it % 4 == 0;
++      if (!biased) {
++        target.x = std::uniform_real_distribution<double>(bounds.min_x, bounds.max_x)(rng);
++        target.y = std::uniform_real_distribution<double>(bounds.min_y, bounds.max_y)(rng);
++        target.yaw = std::uniform_real_distribution<double>(-M_PI, M_PI)(rng);
++      }
++      auto q = biased ? (goal ? *goal : initial) : draw(initial, limits, rng);
++      std::size_t near = 0;
++      double best = std::numeric_limits<double>::infinity();
++      for (std::size_t i = 0; i < s.nodes.size(); ++i) {
++        const auto &n = s.nodes[i];
++        const double d = std::hypot(n.base.x - target.x, n.base.y - target.y) +
++                         0.15 * std::abs(angle(n.base.yaw - target.yaw)) +
++                         0.1 * jointDistance(n.joints, q);
++        if (d < best) {
++          best = d;
++          near = i;
++        }
++      }
++      const auto from = s.nodes[near];
++      q = steer(from.joints, q, config.joint_step);
++      double distance = std::hypot(target.x - from.base.x, target.y - from.base.y);
++      const bool clipped = distance > config.translation_step;
++      distance = std::min(distance, config.translation_step);
++      double heading = distance > 1e-9 ? std::atan2(target.y - from.base.y, target.x - from.base.x)
++                                       : from.base.yaw;
++      double turn = angle(heading - from.base.yaw);
++      const double gear = std::abs(turn) > M_PI / 2 ? -1.0 : 1.0;
++      if (gear < 0)
++        heading = angle(heading + M_PI);
++      turn = angle(heading - from.base.yaw);
++      auto tip = near;
++      if (std::abs(turn) > 1e-9)
++        tip = s.add(tip,
++                    {0, std::copysign(limits.max_base_yaw_rate, turn),
++                     std::abs(turn) / limits.max_base_yaw_rate},
++                    from.joints, 0);
++      if (tip == none)
++        continue;
++      if (distance > 1e-9)
++        tip = s.add(tip, {gear * limits.max_base_speed, 0, distance / limits.max_base_speed}, q, 0);
++      else if (jointDistance(from.joints, q) > 1e-9)
++        tip = s.add(tip, {0, 0, 1}, q, 0);
++      if (tip == none)
++        continue;
++      if (!clipped) {
++        turn = angle(target.yaw - s.nodes[tip].base.yaw);
++        if (std::abs(turn) > 1e-9)
++          tip = s.add(tip,
++                      {0, std::copysign(limits.max_base_yaw_rate, turn),
++                       std::abs(turn) / limits.max_base_yaw_rate},
++                      q, 0);
++      }
++      if (tip != none && reached(tip))
++        return s.finish(tip);
++    }
++    return s.finish();
++  } catch (const std::exception &e) {
++    s.result.fatal = true;
++    return s.finish(none, e.what());
++  } catch (...) {
++    s.result.fatal = true;
++    return s.finish(none, "RRT collision checker exception.");
++  }
++}
++} // namespace wbmm::search
+--- /dev/null
++++ b/src/planning/search/test/test_whole_body_rrt.cpp
+@@ -0,0 +1,109 @@
++#include <gtest/gtest.h>
++#include <stdexcept>
++#include <wbmm_search/whole_body_rrt.hpp>
++
++namespace {
++using namespace wbmm::search;
++wbmm::core::JointState joints(double q = 0) { return {{"joint"}, {q}, {0}, {0}}; }
++wbmm::core::RobotLimits limits() {
++  wbmm::core::RobotLimits l;
++  l.joint_min = {-2};
++  l.joint_max = {2};
++  l.max_joint_speed = {1};
++  l.max_base_speed = 0.5;
++  l.max_base_yaw_rate = 1;
++  return l;
++}
++BaseSearchResult path() {
++  BaseSearchResult p;
++  p.path.push_back({});
++  for (int i = 0; i < 5; ++i) {
++    p.primitives.push_back({0.5, 0, 0.4});
++    p.path.push_back(propagate(p.path.back(), p.primitives.back(), 0.4));
++  }
++  p.success = true;
++  return p;
++}
++TEST(WholeBodyRrt, KeepsStartAndEscapesGreedyDeadEnd) {
++  // Arm must retract before entering a gate; carrying q=0 reaches a dead end.
++  auto checker = [](const auto &, const auto &s) {
++    return s.base.x < 0.55 || s.joints.positions[0] < -0.8;
++  };
++  WholeBodyRrtConfig c;
++  c.random_seed = 7;
++  c.max_search_time = 2;
++  auto r = sampleArmRrt({"map", 0}, path(), joints(), limits(), checker, c);
++  ASSERT_TRUE(r.success) << r.message;
++  EXPECT_EQ(r.search.arm_seed.front().positions[0], 0);
++  EXPECT_LT(r.search.arm_seed.back().positions[0], -0.8);
++  EXPECT_EQ(r.primitives.size() + 1, r.search.base_path.size());
++  for (std::size_t i = 0; i < r.primitives.size(); ++i)
++    for (int k = 0; k <= 50; ++k) {
++      wbmm::core::WholeBodyState s;
++      s.base =
++          propagate(r.search.base_path[i], r.primitives[i], r.primitives[i].duration * k / 50.0);
++      s.joints = joints(
++          r.search.arm_seed[i].positions[0] +
++          k / 50.0 * (r.search.arm_seed[i + 1].positions[0] - r.search.arm_seed[i].positions[0]));
++      EXPECT_TRUE(checker(wbmm::core::Header{}, s));
++    }
++  auto repeated = sampleArmRrt({"map", 0}, path(), joints(), limits(), checker, c);
++  ASSERT_TRUE(repeated.success);
++  EXPECT_EQ(r.generated_nodes, repeated.generated_nodes);
++}
++TEST(WholeBodyRrt, FindsDetourWhenFixedBasePathIsBlockedForEveryArm) {
++  auto checker = [](const auto &, const auto &s) {
++    return !(s.base.x > 0.35 && s.base.x < 0.65 && std::abs(s.base.y) < 0.22);
++  };
++  WholeBodyRrtConfig c;
++  c.max_iterations = 1000;
++  c.max_search_time = 3;
++  EXPECT_FALSE(sampleArmRrt({"map", 0}, path(), joints(), limits(), checker, c).success);
++  KinoAstarConfig b;
++  b.min_x = -0.5;
++  b.max_x = 1.5;
++  b.min_y = -1;
++  b.max_y = 1;
++  wbmm::core::BaseState goal;
++  goal.x = 1;
++  auto r = searchWholeBodyRrt(
++      {"map", 0}, {}, goal, joints(), limits(), [](const auto &, const auto &) { return true; },
++      checker, b, c);
++  ASSERT_TRUE(r.success) << r.message;
++  bool detour = false;
++  for (const auto &p : r.search.base_path)
++    detour |= std::abs(p.y) > 0.22;
++  EXPECT_TRUE(detour);
++}
++TEST(WholeBodyRrt, SupportsTerminalArmGoalAndStationaryBase) {
++  BaseSearchResult p;
++  p.path.push_back({});
++  auto r = sampleArmRrt(
++      {"map", 0}, p, joints(), limits(), [](const auto &, const auto &) { return true; }, {},
++      joints(1.2));
++  ASSERT_TRUE(r.success) << r.message;
++  EXPECT_DOUBLE_EQ(r.search.arm_seed.front().positions[0], 0);
++  EXPECT_NEAR(r.search.arm_seed.back().positions[0], 1.2, 1e-8);
++}
++TEST(WholeBodyRrt, CollisionErrorsAreFatalAndDoNotEscape) {
++  auto r =
++      sampleArmRrt({"map", 0}, path(), joints(), limits(), [](const auto &, const auto &) -> bool {
++        throw std::runtime_error("map offline");
++      });
++  EXPECT_FALSE(r.success);
++  EXPECT_TRUE(r.fatal);
++  EXPECT_NE(r.message.find("map offline"), std::string::npos);
++}
++TEST(WholeBodyRrt, RejectsMalformedPrimitiveAndLimits) {
++  auto p = path();
++  p.primitives[0].v = 1;
++  auto free = [](const auto &, const auto &) { return true; };
++  EXPECT_TRUE(sampleArmRrt({"map", 0}, p, joints(), limits(), free).fatal);
++  auto l = limits();
++  l.joint_min.clear();
++  EXPECT_TRUE(sampleArmRrt({"map", 0}, path(), joints(), l, free).fatal);
++  WholeBodyRrtConfig c;
++  c.collision_angle_step = 0;
++  EXPECT_TRUE(sampleArmRrt({"map", 0}, path(), joints(), limits(), free, c).fatal);
++}
++} // namespace
+--- a/src/planning/wbmm_planner/include/wbmm_planner/whole_body_planner.hpp
++++ b/src/planning/wbmm_planner/include/wbmm_planner/whole_body_planner.hpp
+@@ -5,6 +5,7 @@
+ #include <wbmm_core/types.hpp>
+ #include <wbmm_search/arm_seed_search.hpp>
+ #include <wbmm_search/kino_astar.hpp>
++#include <wbmm_search/whole_body_rrt.hpp>
+ #include <wbmm_traj_opt/whole_body_trajectory_builder.hpp>
+ 
+ #include <cstdint>
+@@ -17,7 +18,11 @@
+ struct PlannerConfig
+ {
+   wbmm::search::KinoAstarConfig base_search{};
+-  wbmm::search::ArmSeedConfig arm_seed{};
++  wbmm::search::ArmSeedConfig arm_seed{};  // legacy profile, retained for callers
++  wbmm::search::WholeBodyRrtConfig sample_rrt{};
++  wbmm::search::WholeBodyRrtConfig whole_body_rrt{};
++  bool enable_whole_body_rrt{true};
++  bool enable_primitive_fallback{true};
+   wbmm::traj_opt::TrajectoryBuilderConfig builder{};
+ 
+   // Time allocation for the MINCO pieces. The base cruise speed sets the
+@@ -55,6 +60,7 @@
+   wbmm::core::BaseState start;
+   wbmm::core::JointState start_joints;
+   wbmm::core::BaseState goal;
++  std::optional<wbmm::core::JointState> goal_joints;
+   wbmm::core::RobotLimits limits;
+ 
+   // Carried into the published trajectory so a consumer can detect that it was
+@@ -73,6 +79,12 @@
+   // The publishable output.
+   wbmm::core::WholeBodyTrajectory trajectory;
+ 
++  std::string search_backend;
++  std::string trajectory_backend;
++  std::string fallback_reason;
++  bool whole_body_rrt_attempted{false};
++  double whole_body_rrt_time{0.0};
++
+   // Diagnostics, seconds.
+   double base_search_time{0.0};
+   double arm_seed_time{0.0};
+@@ -87,9 +99,7 @@
+   double max_heading_step{0.0};
+   int time_scale_attempts{0};
+ 
+-  // Differential-drive gear of the planned path. A path that mixes gears is
+-  // rejected rather than flattened, because a gear flip is a heading
+-  // discontinuity and needs its own trajectory section.
++  // Differential-drive gear; -2 denotes a segmented mixed-gear trajectory.
+   int gear{1};
+ };
+ 
+--- a/src/planning/wbmm_planner/src/whole_body_planner.cpp
++++ b/src/planning/wbmm_planner/src/whole_body_planner.cpp
+@@ -68,6 +68,7 @@
+   const auto fail = [&result, this](std::string message)
+   {
+     result.success = false;
++    result.trajectory.points.clear();
+     result.message = std::move(message);
+     last_error_ = result.message;
+     return result;
+@@ -137,229 +138,335 @@
+     request.header, request.start, request.goal, request.limits, base_checker);
+   result.base_search_time = secondsSince(base_started);
+ 
+-  if (!base.success) {
+-    return fail(
+-      "Base search failed: " + std::string(wbmm::search::statusName(base.status)) +
+-      " (" + base.message + ").");
+-  }
+-  if (base.path.size() < 2U) {
+-    return fail("Base search returned a degenerate path.");
+-  }
+-
+-  // ---- 2. Arm seeding -----------------------------------------------------
+-  const auto seed_started = Clock::now();
+-  const auto seed = wbmm::search::searchArmSeed(
+-    request.header, base.path, request.start_joints, request.limits,
+-    whole_body_checker, config_.arm_seed);
+-  result.arm_seed_time = secondsSince(seed_started);
+-
++  wbmm::search::WholeBodyRrtResult seed;
++  if (base.success) {
++    const auto seed_started = Clock::now();
++    seed = wbmm::search::sampleArmRrt(request.header, base, request.start_joints, request.limits,
++                                      whole_body_checker, config_.sample_rrt, request.goal_joints);
++    result.arm_seed_time = secondsSince(seed_started);
++    result.search_backend = "astar_sample_rrt";
++    if (seed.fatal)
++      return fail("Arm seeding failed: " + seed.message);
++  } else if (base.status != wbmm::search::SearchStatus::kNoPath &&
++             base.status != wbmm::search::SearchStatus::kTimeout &&
++             base.status != wbmm::search::SearchStatus::kNodeLimit) {
++    return fail("Base search failed: " + base.message);
++  }
+   if (!seed.success) {
+-    return fail("Arm seeding failed: " + seed.message);
+-  }
+-
+-  // Carry the base-search diagnostics across; the geometry is replaced by the
+-  // resampled path that the arm seed was actually found for.
+-  wbmm::core::SearchResult base_result;
+-  base_result.path_length = base.path_length;
+-  base_result.solve_time = base.solve_time;
+-  base_result.success = base.success;
+-
+-  result.search = seed.toSearchResult(std::move(base_result));
+-  if (result.search.base_path.size() < 2U) {
+-    return fail("The resampled base path is degenerate.");
+-  }
+-
+-  // ---- 3. Gear ------------------------------------------------------------
+-  const int gear = pathGear(result.search.base_path);
+-  if (gear == kMixedGear) {
+-    return fail(
+-      "The planned base path mixes forward and reverse segments. A gear flip is "
+-      "a heading discontinuity and needs its own trajectory section, which is "
+-      "not implemented yet.");
+-  }
+-  result.gear = gear;
+-
+-  // ---- 4. Shape a MINCO through the waypoints -----------------------------
+-  const auto build_started = Clock::now();
+-  const auto & full_path = result.search.base_path;
+-  const auto & full_seed = result.search.arm_seed;
+-  const auto joint_count = static_cast<Eigen::Index>(request.start_joints.positions.size());
+-
+-  // Decimate to the shaping control points, always keeping the last waypoint.
+-  const std::size_t stride = std::max<std::size_t>(1U, config_.minco_waypoint_stride);
+-  std::vector<std::size_t> control;
+-  for (std::size_t i = 0U; i < full_path.size(); i += stride) {
+-    control.push_back(i);
+-  }
+-  if (control.back() != full_path.size() - 1U) {
+-    control.push_back(full_path.size() - 1U);
+-  }
+-  // Remove redundant collinear control points in the full [x,y,q] space.
+-  // A tiny final segment with a minimum duration can otherwise make MINCO
+-  // overshoot and reverse even on a straight, collision-free search path.
+-  for (std::size_t k = 1U; k + 1U < control.size();) {
+-    const auto ia = control[k - 1U], ib = control[k], ic = control[k + 1U];
+-    const Eigen::Vector2d a(full_path[ia].x, full_path[ia].y);
+-    const Eigen::Vector2d b(full_path[ib].x, full_path[ib].y);
+-    const Eigen::Vector2d c(full_path[ic].x, full_path[ic].y);
+-    const double length2 = (c - a).squaredNorm();
+-    const double fraction = length2 > 1e-16 ? (b - a).dot(c - a) / length2 : -1.0;
+-    bool redundant = fraction > 0.0 && fraction < 1.0 &&
+-      (b - (a + fraction * (c - a))).norm() <= 1e-8;
+-    for (std::size_t j = 0; redundant && j < 6U; ++j) {
+-      redundant = std::abs(full_seed[ib].positions[j] -
+-        (full_seed[ia].positions[j] + fraction *
+-          (full_seed[ic].positions[j] - full_seed[ia].positions[j]))) <= 1e-8;
+-    }
+-    if (redundant) { control.erase(control.begin() + k); }
+-    else { ++k; }
+-  }
+-  if (control.size() < 2U) {
+-    return fail("Too few waypoints to shape a trajectory.");
+-  }
+-
+-  const auto at = [&control, &full_path](std::size_t k) -> const wbmm::core::BaseState &
+-  {return full_path[control[k]];};
+-  const auto jointsAt = [&control, &full_seed](std::size_t k) -> const wbmm::core::JointState &
+-  {return full_seed[control[k]];};
+-
+-  const auto piece_count = static_cast<int>(control.size()) - 1;
+-
+-  const auto fillState = [&](const wbmm::core::BaseState & base_state,
+-                             const wbmm::core::JointState & joints)
+-  {
+-    Eigen::VectorXd position(2 + joint_count);
+-    position(0) = base_state.x;
+-    position(1) = base_state.y;
+-    for (Eigen::Index j = 0; j < joint_count; ++j) {
+-      position(2 + j) = joints.positions[static_cast<std::size_t>(j)];
+-    }
+-    return position;
++    result.fallback_reason = base.success ? "Arm seeding failed: " + seed.message
++                                          : "Base search failed: " + base.message;
++    if (!config_.enable_whole_body_rrt)
++      return fail(result.fallback_reason);
++    result.whole_body_rrt_attempted = true;
++    seed = wbmm::search::searchWholeBodyRrt(request.header, request.start, request.goal,
++                                            request.start_joints, request.limits, base_checker,
++                                            whole_body_checker, config_.base_search,
++                                            config_.whole_body_rrt, request.goal_joints);
++    result.whole_body_rrt_time = seed.solve_time;
++    result.search_backend = "whole_body_rrt";
++    if (!seed.success)
++      return fail(result.fallback_reason + "; whole-body RRT: " + seed.message);
++  }
++  result.search = seed.search;
++
++  // Keep the existing smooth MINCO route. Exact time-scaled primitives are a
++  // conservative fallback for rotations, gear changes or failed smoothing.
++  const auto shape = [&]() -> PlanResult {
++    if (result.search.base_path.size() < 2U)
++      return fail("Stationary goal requires a hold.");
++    for (const auto &primitive : seed.primitives) {
++      if (std::abs(primitive.v) < 1e-9)
++        return fail("Path contains a stationary primitive; using segmented timing.");
++    }
++    // ---- 3. Gear ------------------------------------------------------------
++    const int gear = pathGear(result.search.base_path);
++    if (gear == kMixedGear) {
++      return fail("The planned base path mixes forward and reverse segments. A gear flip is "
++                  "a heading discontinuity and needs its own trajectory section, which is "
++                  "not implemented yet.");
++    }
++    result.gear = gear;
++
++    // ---- 4. Shape a MINCO through the waypoints -----------------------------
++    const auto build_started = Clock::now();
++    const auto &full_path = result.search.base_path;
++    const auto &full_seed = result.search.arm_seed;
++    const auto joint_count = static_cast<Eigen::Index>(request.start_joints.positions.size());
++
++    // Decimate to the shaping control points, always keeping the last waypoint.
++    const std::size_t stride = std::max<std::size_t>(1U, config_.minco_waypoint_stride);
++    std::vector<std::size_t> control;
++    for (std::size_t i = 0U; i < full_path.size(); i += stride) {
++      control.push_back(i);
++    }
++    if (control.back() != full_path.size() - 1U) {
++      control.push_back(full_path.size() - 1U);
++    }
++    // Remove redundant collinear control points in the full [x,y,q] space.
++    // A tiny final segment with a minimum duration can otherwise make MINCO
++    // overshoot and reverse even on a straight, collision-free search path.
++    for (std::size_t k = 1U; k + 1U < control.size();) {
++      const auto ia = control[k - 1U], ib = control[k], ic = control[k + 1U];
++      const Eigen::Vector2d a(full_path[ia].x, full_path[ia].y);
++      const Eigen::Vector2d b(full_path[ib].x, full_path[ib].y);
++      const Eigen::Vector2d c(full_path[ic].x, full_path[ic].y);
++      const double length2 = (c - a).squaredNorm();
++      const double fraction = length2 > 1e-16 ? (b - a).dot(c - a) / length2 : -1.0;
++      bool redundant =
++          fraction > 0.0 && fraction < 1.0 && (b - (a + fraction * (c - a))).norm() <= 1e-8;
++      for (std::size_t j = 0; redundant && j < 6U; ++j) {
++        redundant =
++            std::abs(full_seed[ib].positions[j] -
++                     (full_seed[ia].positions[j] +
++                      fraction * (full_seed[ic].positions[j] - full_seed[ia].positions[j]))) <=
++            1e-8;
++      }
++      if (redundant) {
++        control.erase(control.begin() + k);
++      } else {
++        ++k;
++      }
++    }
++    if (control.size() < 2U) {
++      return fail("Too few waypoints to shape a trajectory.");
++    }
++
++    const auto at = [&control, &full_path](std::size_t k) -> const wbmm::core::BaseState & {
++      return full_path[control[k]];
++    };
++    const auto jointsAt = [&control, &full_seed](std::size_t k) -> const wbmm::core::JointState & {
++      return full_seed[control[k]];
++    };
++
++    const auto piece_count = static_cast<int>(control.size()) - 1;
++
++    const auto fillState = [&](const wbmm::core::BaseState &base_state,
++                               const wbmm::core::JointState &joints) {
++      Eigen::VectorXd position(2 + joint_count);
++      position(0) = base_state.x;
++      position(1) = base_state.y;
++      for (Eigen::Index j = 0; j < joint_count; ++j) {
++        position(2 + j) = joints.positions[static_cast<std::size_t>(j)];
++      }
++      return position;
++    };
++
++    Eigen::MatrixXd head(kDim, 4);
++    Eigen::MatrixXd tail(kDim, 4);
++    head.setZero();
++    tail.setZero();
++    head.col(0) = fillState(at(0U), jointsAt(0U));
++    tail.col(0) = fillState(at(control.size() - 1U), jointsAt(control.size() - 1U));
++
++    Eigen::MatrixXd inner(kDim, std::max(0, piece_count - 1));
++    for (int i = 0; i < piece_count - 1; ++i) {
++      inner.col(i) =
++          fillState(at(static_cast<std::size_t>(i + 1)), jointsAt(static_cast<std::size_t>(i + 1)));
++    }
++
++    Eigen::VectorXd durations(piece_count);
++    for (int i = 0; i < piece_count; ++i) {
++      const auto from = static_cast<std::size_t>(i);
++      const auto to = static_cast<std::size_t>(i + 1);
++      const double distance = std::hypot(at(to).x - at(from).x, at(to).y - at(from).y);
++
++      double joint_travel = 0.0;
++      for (Eigen::Index j = 0; j < joint_count; ++j) {
++        joint_travel =
++            std::max(joint_travel, std::abs(jointsAt(to).positions[static_cast<std::size_t>(j)] -
++                                            jointsAt(from).positions[static_cast<std::size_t>(j)]));
++      }
++
++      const double by_base = config_.cruise_speed > 0.0 ? distance / config_.cruise_speed : 0.0;
++      const double by_arm =
++          config_.max_joint_speed > 0.0 ? joint_travel / config_.max_joint_speed : 0.0;
++      durations(i) = std::max({by_base, by_arm, config_.min_segment_duration});
++    }
++
++    wbmm::traj_opt::MinSnapOpt<kDim> minco;
++    // ---- 5. Publishable trajectory -----------------------------------------
++    auto builder_config = config_.builder;
++    builder_config.max_linear_velocity =
++        std::min(builder_config.max_linear_velocity, request.limits.max_base_speed);
++    builder_config.max_yaw_rate =
++        std::min(builder_config.max_yaw_rate, request.limits.max_base_yaw_rate);
++    builder_config.max_joint_velocity = std::min(
++        builder_config.max_joint_velocity, *std::min_element(request.limits.max_joint_speed.begin(),
++                                                             request.limits.max_joint_speed.end()));
++    builder_config.gear = gear;
++    builder_config.initial_yaw = request.start.yaw;
++    builder_config.trajectory_id = config_.trajectory_id;
++    builder_config.environment_revision = request.environment_revision;
++    builder_config.collision_model_revision = request.collision_model_revision;
++
++    // A rest-to-rest septic peaks at roughly 2.19x its average speed, so
++    // allocating the duration from an average speed alone always overshoots the
++    // envelope. Stretch the durations until the emitted reference fits, which is
++    // the quantity that actually matters. REMANI does the same thing, but scales
++    // on a dense-sample estimate instead of on the published trajectory.
++    wbmm::traj_opt::TrajectoryBuildResult built;
++    for (int attempt = 0; attempt < kMaxTimeScaleAttempts; ++attempt) {
++      result.time_scale_attempts = attempt + 1;
++      if (!durations.allFinite() || durations.sum() > config_.max_trajectory_duration) {
++        return fail("Time scaling exceeds the trajectory duration budget.");
++      }
++      minco.reset(head, tail, piece_count);
++      minco.generate(inner, durations);
++
++      built = wbmm::traj_opt::buildWholeBodyTrajectory(
++          minco.getTraj(gear), request.start_joints.names, request.header.frame_id, builder_config);
++      if (!built.success) {
++        result.build_time = secondsSince(build_started);
++        return fail("Trajectory shaping failed: " + built.message);
++      }
++      result.max_linear_velocity = built.max_linear_velocity;
++      result.max_yaw_rate = built.max_yaw_rate;
++      result.max_joint_velocity = built.max_joint_velocity;
++      result.max_heading_step = built.max_heading_step;
++      if (built.within_limits) {
++        break;
++      }
++
++      const double scale =
++          std::max({built.max_linear_velocity / std::max(1e-9, builder_config.max_linear_velocity),
++                    built.max_yaw_rate / std::max(1e-9, builder_config.max_yaw_rate),
++                    built.max_joint_velocity / std::max(1e-9, builder_config.max_joint_velocity)});
++      if (!(scale > 1.0) || !std::isfinite(scale)) {
++        // Stretching time cannot fix this: the remaining violation is a heading
++        // discontinuity, i.e. a gear flip with no planned turn.
++        break;
++      }
++      durations *= kTimeScaleStep * scale;
++    }
++    result.build_time = secondsSince(build_started);
++
++    if (!built.success) {
++      return fail("Trajectory shaping failed: " + built.message);
++    }
++    if (!built.within_limits) {
++      // Never publish a reference the controller cannot track; the caller has to
++      // re-plan with a slower profile instead.
++      return fail("Trajectory shaping produced an untrackable reference after " +
++                  std::to_string(kMaxTimeScaleAttempts) +
++                  " time-scaling attempts: " + built.message);
++    }
++
++    const double total_duration =
++        built.trajectory.points.empty() ? 0.0 : built.trajectory.points.back().time_from_start;
++    if (config_.max_trajectory_duration > 0.0 && total_duration > config_.max_trajectory_duration) {
++      return fail("A trackable reference would take " + std::to_string(total_duration) +
++                  " s, which exceeds the " + std::to_string(config_.max_trajectory_duration) +
++                  " s budget. The controller envelope and the goal are inconsistent.");
++    }
++
++    result.trajectory = std::move(built.trajectory);
++    result.trajectory_backend = "minco";
++    result.success = true;
++    return result;
+   };
+-
+-  Eigen::MatrixXd head(kDim, 4);
+-  Eigen::MatrixXd tail(kDim, 4);
+-  head.setZero();
+-  tail.setZero();
+-  head.col(0) = fillState(at(0U), jointsAt(0U));
+-  tail.col(0) = fillState(at(control.size() - 1U), jointsAt(control.size() - 1U));
+-
+-  Eigen::MatrixXd inner(kDim, std::max(0, piece_count - 1));
+-  for (int i = 0; i < piece_count - 1; ++i) {
+-    inner.col(i) = fillState(at(static_cast<std::size_t>(i + 1)),
+-                             jointsAt(static_cast<std::size_t>(i + 1)));
+-  }
+-
+-  Eigen::VectorXd durations(piece_count);
+-  for (int i = 0; i < piece_count; ++i) {
+-    const auto from = static_cast<std::size_t>(i);
+-    const auto to = static_cast<std::size_t>(i + 1);
+-    const double distance = std::hypot(
+-      at(to).x - at(from).x, at(to).y - at(from).y);
+-
+-    double joint_travel = 0.0;
+-    for (Eigen::Index j = 0; j < joint_count; ++j) {
+-      joint_travel = std::max(
+-        joint_travel,
+-        std::abs(
+-          jointsAt(to).positions[static_cast<std::size_t>(j)] -
+-          jointsAt(from).positions[static_cast<std::size_t>(j)]));
+-    }
+-
+-    const double by_base =
+-      config_.cruise_speed > 0.0 ? distance / config_.cruise_speed : 0.0;
+-    const double by_arm =
+-      config_.max_joint_speed > 0.0 ? joint_travel / config_.max_joint_speed : 0.0;
+-    durations(i) = std::max(
+-      {by_base, by_arm, config_.min_segment_duration});
+-  }
+-
+-  wbmm::traj_opt::MinSnapOpt<kDim> minco;
+-  // ---- 5. Publishable trajectory -----------------------------------------
+-  auto builder_config = config_.builder;
+-  builder_config.max_linear_velocity = std::min(
+-    builder_config.max_linear_velocity, request.limits.max_base_speed);
+-  builder_config.max_yaw_rate = std::min(
+-    builder_config.max_yaw_rate, request.limits.max_base_yaw_rate);
+-  builder_config.max_joint_velocity = std::min(builder_config.max_joint_velocity,
+-    *std::min_element(request.limits.max_joint_speed.begin(), request.limits.max_joint_speed.end()));
+-  builder_config.gear = gear;
+-  builder_config.initial_yaw = request.start.yaw;
+-  builder_config.trajectory_id = config_.trajectory_id;
+-  builder_config.environment_revision = request.environment_revision;
+-  builder_config.collision_model_revision = request.collision_model_revision;
+-
+-  // A rest-to-rest septic peaks at roughly 2.19x its average speed, so
+-  // allocating the duration from an average speed alone always overshoots the
+-  // envelope. Stretch the durations until the emitted reference fits, which is
+-  // the quantity that actually matters. REMANI does the same thing, but scales
+-  // on a dense-sample estimate instead of on the published trajectory.
+-  wbmm::traj_opt::TrajectoryBuildResult built;
+-  for (int attempt = 0; attempt < kMaxTimeScaleAttempts; ++attempt) {
+-    result.time_scale_attempts = attempt + 1;
+-    if (!durations.allFinite() || durations.sum() > config_.max_trajectory_duration) {
+-      return fail("Time scaling exceeds the trajectory duration budget.");
+-    }
+-    minco.reset(head, tail, piece_count);
+-    minco.generate(inner, durations);
+-
+-    built = wbmm::traj_opt::buildWholeBodyTrajectory(
+-      minco.getTraj(gear), request.start_joints.names, request.header.frame_id,
+-      builder_config);
+-    if (!built.success) {
+-      result.build_time = secondsSince(build_started);
+-      return fail("Trajectory shaping failed: " + built.message);
+-    }
+-    result.max_linear_velocity = built.max_linear_velocity;
+-    result.max_yaw_rate = built.max_yaw_rate;
+-    result.max_joint_velocity = built.max_joint_velocity;
+-    result.max_heading_step = built.max_heading_step;
+-    if (built.within_limits) {
+-      break;
+-    }
+-
+-    const double scale = std::max(
+-      {built.max_linear_velocity / std::max(1e-9, builder_config.max_linear_velocity),
+-       built.max_yaw_rate / std::max(1e-9, builder_config.max_yaw_rate),
+-       built.max_joint_velocity / std::max(1e-9, builder_config.max_joint_velocity)});
+-    if (!(scale > 1.0) || !std::isfinite(scale)) {
+-      // Stretching time cannot fix this: the remaining violation is a heading
+-      // discontinuity, i.e. a gear flip with no planned turn.
+-      break;
+-    }
+-    durations *= kTimeScaleStep * scale;
+-  }
+-  result.build_time = secondsSince(build_started);
+-
+-  if (!built.success) {
+-    return fail("Trajectory shaping failed: " + built.message);
+-  }
+-  if (!built.within_limits) {
+-    // Never publish a reference the controller cannot track; the caller has to
+-    // re-plan with a slower profile instead.
+-    return fail(
+-      "Trajectory shaping produced an untrackable reference after " +
+-      std::to_string(kMaxTimeScaleAttempts) + " time-scaling attempts: " +
+-      built.message);
+-  }
+-
+-  const double total_duration = built.trajectory.points.empty()
+-                                  ? 0.0
+-                                  : built.trajectory.points.back().time_from_start;
+-  if (config_.max_trajectory_duration > 0.0 &&
+-    total_duration > config_.max_trajectory_duration)
+-  {
+-    return fail(
+-      "A trackable reference would take " + std::to_string(total_duration) +
+-      " s, which exceeds the " +
+-      std::to_string(config_.max_trajectory_duration) +
+-      " s budget. The controller envelope and the goal are inconsistent.");
+-  }
+-
++  auto shaped = shape();
++  if (!shaped.success) {
++    if (!config_.enable_primitive_fallback)
++      return shaped;
++    result.fallback_reason += (result.fallback_reason.empty() ? "" : "; ") + shaped.message;
++    result.trajectory = {};
++    result.trajectory.trajectory_id = config_.trajectory_id;
++    result.trajectory.environment_revision = request.environment_revision;
++    result.trajectory.collision_model_revision = request.collision_model_revision;
++    result.trajectory_backend = "time_scaled_primitives";
++    result.gear = pathGear(result.search.base_path);
++    result.max_linear_velocity = result.max_yaw_rate = result.max_joint_velocity =
++        result.max_heading_step = 0;
++    const auto started = Clock::now();
++    const double vmax =
++        std::min(config_.builder.max_linear_velocity, request.limits.max_base_speed);
++    const double wmax = std::min(config_.builder.max_yaw_rate, request.limits.max_base_yaw_rate);
++    const double qmax = std::min({config_.builder.max_joint_velocity, config_.max_joint_speed,
++                                  *std::min_element(request.limits.max_joint_speed.begin(),
++                                                    request.limits.max_joint_speed.end())});
++    for (double value :
++         {vmax, wmax, qmax, config_.builder.sample_dt, config_.builder.max_heading_step})
++      if (!std::isfinite(value) || value <= 0)
++        return fail("Invalid primitive trajectory envelope.");
++    double elapsed = 0;
++    double previous_yaw = request.start.yaw;
++    auto append = [&](std::size_t edge, double fraction, double speed, double t) {
++      wbmm::core::WholeBodyTrajectoryPoint point;
++      point.time_from_start = t;
++      point.phase = wbmm::core::ExecutionPhase::kNavigate;
++      point.state.header = request.header;
++      point.state.base_model = wbmm::core::BaseModel::kDifferentialDrive;
++      point.state.base =
++          seed.primitives.empty()
++              ? request.start
++              : wbmm::search::propagate(seed.search.base_path[edge], seed.primitives[edge],
++                                        fraction * seed.primitives[edge].duration);
++      auto &base_state = point.state.base;
++      base_state.yaw = previous_yaw + std::remainder(base_state.yaw - previous_yaw, 2 * M_PI);
++      result.max_heading_step =
++          std::max(result.max_heading_step, std::abs(base_state.yaw - previous_yaw));
++      previous_yaw = base_state.yaw;
++      base_state.linear_velocity = seed.primitives.empty() ? 0 : seed.primitives[edge].v * speed;
++      base_state.yaw_rate = seed.primitives.empty() ? 0 : seed.primitives[edge].omega * speed;
++      base_state.lateral_velocity = 0;
++      point.state.joints = seed.search.arm_seed[edge];
++      for (std::size_t j = 0; j < 6; ++j) {
++        const double delta = seed.primitives.empty() ? 0
++                                                     : seed.search.arm_seed[edge + 1].positions[j] -
++                                                           seed.search.arm_seed[edge].positions[j];
++        point.state.joints.positions[j] += fraction * delta;
++        point.state.joints.velocities[j] =
++            seed.primitives.empty() ? 0 : delta * speed / seed.primitives[edge].duration;
++        result.max_joint_velocity =
++            std::max(result.max_joint_velocity, std::abs(point.state.joints.velocities[j]));
++      }
++      wbmm::core::WholeBodyInput input;
++      input.base_model = wbmm::core::BaseModel::kDifferentialDrive;
++      input.joint_names = request.start_joints.names;
++      input.base_command = {base_state.linear_velocity, base_state.yaw_rate};
++      input.joint_velocities = point.state.joints.velocities;
++      point.feedforward_input = input;
++      result.max_linear_velocity =
++          std::max(result.max_linear_velocity, std::abs(base_state.linear_velocity));
++      result.max_yaw_rate = std::max(result.max_yaw_rate, std::abs(base_state.yaw_rate));
++      result.trajectory.points.push_back(std::move(point));
++    };
++    append(0, 0, 0, 0);
++    for (std::size_t i = 0; i < seed.primitives.size(); ++i) {
++      const auto &primitive = seed.primitives[i];
++      double duration = std::max({config_.min_segment_duration,
++                                  1.875 * std::abs(primitive.v) * primitive.duration / vmax,
++                                  1.875 * std::abs(primitive.omega) * primitive.duration / wmax});
++      for (std::size_t j = 0; j < 6; ++j)
++        duration = std::max(duration, 1.875 *
++                                          std::abs(seed.search.arm_seed[i + 1].positions[j] -
++                                                   seed.search.arm_seed[i].positions[j]) /
++                                          qmax);
++      if (!std::isfinite(duration) || elapsed + duration > config_.max_trajectory_duration)
++        return fail("Primitive trajectory duration budget exceeded.");
++      const double dt =
++          std::min(config_.builder.sample_dt, config_.builder.max_heading_step / wmax);
++      const double count = std::ceil(duration / dt);
++      if (!std::isfinite(count) || count > 100000 - result.trajectory.points.size())
++        return fail("Primitive trajectory sample budget exceeded.");
++      for (std::size_t k = 1; k <= static_cast<std::size_t>(count); ++k) {
++        const double u = k / count;
++        const double fraction = u * u * u * (10 + u * (-15 + 6 * u));
++        const double rate = 30 * u * u * (1 - u) * (1 - u) / duration;
++        append(i, fraction, rate * primitive.duration, elapsed + u * duration);
++      }
++      elapsed += duration;
++    }
++    if (seed.primitives.empty())
++      append(0, 0, 0, config_.builder.sample_dt);
++    result.build_time = secondsSince(started);
++  } else {
++    result = std::move(shaped);
++  }
+   // Validate the actual sampled reference AND the linear interpolation used by
+   // the bridge. Seed checks cannot certify a polynomial that cuts corners.
+   // These are bounded discrete checks, not a continuous collision certificate.
+-  const auto & points = built.trajectory.points;
++  const auto &points = result.trajectory.points;
+   std::size_t checks = 0U;
+   try {
+     for (std::size_t i = 0; i < points.size(); ++i) {
+@@ -411,7 +518,12 @@
+         config_.base_search.yaw_tolerance + 1e-9) {
+     return fail("Shaped trajectory does not meet the requested terminal pose tolerance.");
+   }
+-  result.trajectory = std::move(built.trajectory);
++  if (request.goal_joints) {
++    for (std::size_t j = 0; j < 6; ++j)
++      if (std::abs(points.back().state.joints.positions[j] - request.goal_joints->positions[j]) >
++          1e-6)
++        return fail("Final trajectory does not meet requested terminal joints.");
++  }
+   result.success = true;
+   result.message = "ok";
+   last_error_.clear();
+--- a/src/planning/wbmm_planner/test/test_whole_body_planner.cpp
++++ b/src/planning/wbmm_planner/test/test_whole_body_planner.cpp
+@@ -317,4 +317,71 @@
+   }
+ }
+ 
++TEST(WholeBodyPlanner, RotationAtFixedBaseUsesSegmentedTrajectory) {
++  auto request = makeRequest(0);
++  request.goal.yaw = 1.2;
++  auto result =
++      wbmm::planning::WholeBodyPlanner(makeConfig()).plan(request, freeBase(), freeWholeBody());
++  ASSERT_TRUE(result.success) << result.message;
++  EXPECT_EQ(result.trajectory_backend, "time_scaled_primitives");
++  EXPECT_NEAR(result.trajectory.points.front().state.base.yaw, 0, 1e-9);
++  EXPECT_NEAR(result.trajectory.points.back().state.base.yaw, 1.2, 0.35);
++}
++TEST(WholeBodyPlanner, ExplicitArmGoalPreservesMeasuredStart) {
++  auto request = makeRequest(0);
++  request.goal_joints = makeJoints(0.8);
++  auto result =
++      wbmm::planning::WholeBodyPlanner(makeConfig()).plan(request, freeBase(), freeWholeBody());
++  ASSERT_TRUE(result.success) << result.message;
++  EXPECT_EQ(result.trajectory_backend, "time_scaled_primitives");
++  EXPECT_NEAR(result.trajectory.points.front().state.joints.positions[0], 0, 1e-9);
++  EXPECT_NEAR(result.trajectory.points.back().state.joints.positions[0], 0.8, 1e-8);
++  EXPECT_NEAR(result.trajectory.points.back().state.base.x, 0, 1e-9);
++}
++TEST(WholeBodyPlanner, FallsBackAfterAstarBudgetExhaustion) {
++  auto config = makeConfig();
++  config.base_search.max_nodes = 2;
++  auto result =
++      wbmm::planning::WholeBodyPlanner(config).plan(makeRequest(1), freeBase(), freeWholeBody());
++  ASSERT_TRUE(result.success) << result.message;
++  EXPECT_TRUE(result.whole_body_rrt_attempted);
++  EXPECT_EQ(result.search_backend, "whole_body_rrt");
++}
++TEST(WholeBodyPlanner, SegmentedReferenceObeysDifferentialDrive) {
++  auto config = makeConfig();
++  config.base_search.max_nodes = 2;
++  auto request = makeRequest(0.8);
++  request.goal.y = 0.8;
++  request.goal.yaw = 1.5;
++  auto result = wbmm::planning::WholeBodyPlanner(config).plan(request, freeBase(), freeWholeBody());
++  ASSERT_TRUE(result.success) << result.message;
++  const auto &p = result.trajectory.points;
++  for (std::size_t i = 1; i < p.size(); ++i) {
++    const auto &a = p[i - 1].state.base;
++    const auto &b = p[i].state.base;
++    const double dt = p[i].time_from_start - p[i - 1].time_from_start;
++    const double yaw = (a.yaw + b.yaw) / 2;
++    EXPECT_NEAR(-(b.x - a.x) * std::sin(yaw) + (b.y - a.y) * std::cos(yaw), 0, 1e-7);
++    EXPECT_LE(std::hypot(b.x - a.x, b.y - a.y) / dt, 0.5 + 1e-6);
++    EXPECT_LE(std::abs(b.yaw - a.yaw) / dt, 1.0 + 1e-6);
++  }
++}
++
++TEST(WholeBodyPlanner, FallsBackWhenArmCannotUseTheAstarCorridor) {
++  auto config = makeConfig();
++  config.sample_rrt.max_iterations = 128;
++  config.base_search.min_x = -0.5;
++  config.base_search.max_x = 1.5;
++  config.base_search.min_y = -1;
++  config.base_search.max_y = 1;
++  auto checker = [](const auto &, const auto &state) {
++    return !(state.base.x > 0.35 && state.base.x < 0.65 && std::abs(state.base.y) < 0.22);
++  };
++  auto result = wbmm::planning::WholeBodyPlanner(config).plan(makeRequest(1), freeBase(), checker);
++  ASSERT_TRUE(result.success) << result.message;
++  EXPECT_EQ(result.search_backend, "whole_body_rrt");
++  EXPECT_TRUE(result.whole_body_rrt_attempted);
++  EXPECT_EQ(result.trajectory_backend, "time_scaled_primitives");
++}
++
+ }  // namespace
+--- a/src/planning/wbmm_planner_ros/CMakeLists.txt
++++ b/src/planning/wbmm_planner_ros/CMakeLists.txt
+@@ -12,6 +12,7 @@
+ 
+ find_package(ament_cmake REQUIRED)
+ find_package(rclcpp REQUIRED)
++find_package(std_msgs REQUIRED)
+ find_package(tf2_ros REQUIRED)
+ find_package(geometry_msgs REQUIRED)
+ find_package(nav_msgs REQUIRED)
+@@ -30,7 +31,7 @@
+ add_executable(${PROJECT_NAME}_node src/wbmm_planner_node.cpp)
+ target_compile_options(${PROJECT_NAME}_node PRIVATE -Wall -Wextra -Wpedantic)
+ ament_target_dependencies(${PROJECT_NAME}_node
+-  rclcpp tf2_ros geometry_msgs nav_msgs sensor_msgs tf2 Eigen3
++  rclcpp std_msgs tf2_ros geometry_msgs nav_msgs sensor_msgs tf2 Eigen3
+   wbmm_core wbmm_environment wbmm_collision wbmm_pinocchio
+   wbmm_planner wbmm_planning_msgs)
+ 
+--- a/src/planning/wbmm_planner_ros/package.xml
++++ b/src/planning/wbmm_planner_ros/package.xml
+@@ -13,6 +13,7 @@
+   <buildtool_depend>ament_cmake</buildtool_depend>
+ 
+   <depend>rclcpp</depend>
++  <depend>std_msgs</depend>
+   <depend>tf2_ros</depend>
+   <depend>geometry_msgs</depend>
+   <depend>nav_msgs</depend>
+--- a/src/planning/wbmm_planner_ros/src/wbmm_planner_node.cpp
++++ b/src/planning/wbmm_planner_ros/src/wbmm_planner_node.cpp
+@@ -18,10 +18,17 @@
+ #include <wbmm_planner/whole_body_planner.hpp>
+ #include <wbmm_planning_msgs/msg/whole_body_trajectory.hpp>
+ 
++#include <chrono>
++#include <future>
+ #include <geometry_msgs/msg/pose_stamped.hpp>
+ #include <nav_msgs/msg/odometry.hpp>
++#include <optional>
+ #include <rclcpp/rclcpp.hpp>
+ #include <sensor_msgs/msg/joint_state.hpp>
++#include <std_msgs/msg/bool.hpp>
++#include <std_msgs/msg/header.hpp>
++#include <std_msgs/msg/string.hpp>
++#include <wbmm_planning_msgs/msg/whole_body_goal.hpp>
+ 
+ #include <tf2/LinearMath/Matrix3x3.h>
+ #include <tf2/LinearMath/Quaternion.h>
+@@ -103,6 +110,17 @@
+     declare_parameter<int>("collision_model_revision", 1);
+     declare_parameter<bool>("plan_on_goal", true);
+     declare_parameter<double>("state_timeout", 0.5);
++    declare_parameter<std::string>("whole_body_goal_topic", "/wbmm/whole_body_goal");
++    declare_parameter<std::string>("cancel_topic", "/wbmm/planning/cancel");
++    declare_parameter<double>("sample_rrt_max_time", 2.0);
++    declare_parameter<double>("whole_body_rrt_max_time", 3.0);
++    declare_parameter<int>("rrt_max_nodes", 12000);
++    declare_parameter<int>("rrt_random_seed", 1);
++    declare_parameter<bool>("enable_whole_body_rrt", true);
++    declare_parameter<bool>("enable_primitive_fallback", true);
++    declare_parameter<double>("goal_wait_timeout", 10.0);
++    declare_parameter<double>("arrival_position_tolerance", 0.20);
++    declare_parameter<double>("arrival_yaw_tolerance", 0.30);
+   }
+ 
+   void loadEnvironment()
+@@ -210,6 +228,56 @@
+       [this](const sensor_msgs::msg::JointState::SharedPtr msg)
+       {jointCallback(msg);});
+ 
++    statusPublisher_ = create_publisher<std_msgs::msg::String>("/wbmm/planning/status",
++                                                               rclcpp::QoS(1).transient_local());
++    finishPublisher_ = create_publisher<std_msgs::msg::Bool>("/planning/finish", trajectoryQos);
++    cancelPublisher_ = create_publisher<std_msgs::msg::Header>(
++        get_parameter("cancel_topic").as_string(), trajectoryQos);
++    cancelSub_ = create_subscription<std_msgs::msg::Header>(
++        get_parameter("cancel_topic").as_string(), trajectoryQos,
++        [this](std_msgs::msg::Header::SharedPtr msg) {
++          const rclcpp::Time stamp(msg->stamp, get_clock()->get_clock_type());
++          if (stamp <= lastCancel_)
++            return;
++          lastCancel_ = stamp;
++          ++generation_;
++          pending_.reset();
++          executing_.reset();
++          setStatus("CANCELLED");
++        });
++    wholeGoalSub_ = create_subscription<wbmm_planning_msgs::msg::WholeBodyGoal>(
++        get_parameter("whole_body_goal_topic").as_string(), trajectoryQos,
++        [this](wbmm_planning_msgs::msg::WholeBodyGoal::SharedPtr msg) {
++          std::optional<wbmm::core::JointState> joints;
++          if (!msg->joint_names.empty() || !msg->joint_positions.empty()) {
++            if (msg->joint_names.size() != jointNames_.size() ||
++                msg->joint_positions.size() != jointNames_.size()) {
++              setStatus("REJECTED: whole-body goal joint dimensions");
++              return;
++            }
++            wbmm::core::JointState q;
++            q.names = jointNames_;
++            q.velocities.assign(jointNames_.size(), 0);
++            for (const auto &name : jointNames_) {
++              const auto i = std::find(msg->joint_names.begin(), msg->joint_names.end(), name);
++              if (i == msg->joint_names.end() ||
++                  std::count(msg->joint_names.begin(), msg->joint_names.end(), name) != 1) {
++                setStatus("REJECTED: whole-body goal joint names");
++                return;
++              }
++              const double value = msg->joint_positions[std::distance(msg->joint_names.begin(), i)];
++              if (!std::isfinite(value)) {
++                setStatus("REJECTED: non-finite goal joint");
++                return;
++              }
++              q.positions.push_back(value);
++            }
++            joints = q;
++          }
++          queueGoal(msg->header, msg->base_pose, joints);
++        });
++    planningTimer_ = create_wall_timer(std::chrono::milliseconds(50), [this]() { planningTick(); });
++    setStatus("WAITING_FOR_GOAL");
+     RCLCPP_INFO(
+       get_logger(), "Planner ready: %s -> %s.",
+       get_parameter("goal_topic").as_string().c_str(),
+@@ -330,6 +398,14 @@
+       get_parameter("base_search_position_tolerance").as_double();
+     config.base_search.yaw_tolerance =
+       get_parameter("base_search_yaw_tolerance").as_double();
++    // Leave half of the measured-arrival tolerance for tracking error. A
++    // search endpoint on the arrival boundary otherwise never finishes after
++    // even a sub-millimetre controller error.
++    config.base_search.position_tolerance =
++        std::min(config.base_search.position_tolerance,
++                 0.5 * get_parameter("arrival_position_tolerance").as_double());
++    config.base_search.yaw_tolerance = std::min(
++        config.base_search.yaw_tolerance, 0.5 * get_parameter("arrival_yaw_tolerance").as_double());
+     config.base_search.max_search_time =
+       get_parameter("base_search_max_time").as_double();
+ 
+@@ -341,45 +417,146 @@
+       get_parameter("arm_seed_max_joint_step").as_double();
+     config.arm_seed.max_search_time =
+       get_parameter("arm_seed_max_time").as_double();
++    config.sample_rrt.max_search_time = get_parameter("sample_rrt_max_time").as_double();
++    config.whole_body_rrt.max_search_time = get_parameter("whole_body_rrt_max_time").as_double();
++    config.sample_rrt.max_nodes = config.whole_body_rrt.max_nodes =
++        static_cast<std::size_t>(std::max<int64_t>(2, get_parameter("rrt_max_nodes").as_int()));
++    config.sample_rrt.random_seed = config.whole_body_rrt.random_seed =
++        static_cast<std::uint32_t>(get_parameter("rrt_random_seed").as_int());
++    config.enable_whole_body_rrt = get_parameter("enable_whole_body_rrt").as_bool();
++    config.enable_primitive_fallback = get_parameter("enable_primitive_fallback").as_bool();
++    // Search bounds follow the loaded map, including custom deployment maps.
++    const auto &info = environment_->info();
++    config.base_search.min_x = info.origin.x();
++    config.base_search.min_y = info.origin.y();
++    config.base_search.max_x = info.origin.x() + info.shape.x() * info.voxel_size;
++    config.base_search.max_y = info.origin.y() + info.shape.y() * info.voxel_size;
+     return config;
+   }
+ 
+-  void goalCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
+-  {
+-    if (!get_parameter("plan_on_goal").as_bool()) {
++  void setStatus(const std::string &value) {
++    std_msgs::msg::String msg;
++    msg.data = value;
++    statusPublisher_->publish(msg);
++    RCLCPP_INFO(get_logger(), "Planning state: %s", value.c_str());
++  }
++
++  bool freshState() const {
++    return haveOdom_ && haveJoints_ && (now() - odomStamp_).seconds() >= -0.05 &&
++           (now() - jointStamp_).seconds() >= -0.05 &&
++           (now() - odomStamp_).seconds() <= get_parameter("state_timeout").as_double() &&
++           (now() - jointStamp_).seconds() <= get_parameter("state_timeout").as_double();
++  }
++  bool stationary() const {
++    return std::abs(start_.linear_velocity) <= 0.02 && std::abs(start_.yaw_rate) <= 0.02 &&
++           std::all_of(startJoints_.velocities.begin(), startJoints_.velocities.end(),
++                       [](double v) { return std::isfinite(v) && std::abs(v) <= 0.02; });
++  }
++  void goalCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
++    queueGoal(msg->header, msg->pose, std::nullopt);
++  }
++  void queueGoal(const std_msgs::msg::Header &header, const geometry_msgs::msg::Pose &pose,
++                 const std::optional<wbmm::core::JointState> &joints) {
++    if (!get_parameter("plan_on_goal").as_bool())
+       return;
+-    }
+     wbmm::planning::PlanRequest request;
+-    {
+-      const std::lock_guard<std::mutex> lock(stateMutex_);
+-      if (!haveOdom_ || !haveJoints_ ||
+-          (now() - odomStamp_).seconds() < 0.0 ||
+-          (now() - jointStamp_).seconds() < 0.0 ||
+-          (now() - odomStamp_).seconds() > get_parameter("state_timeout").as_double() ||
+-          (now() - jointStamp_).seconds() > get_parameter("state_timeout").as_double()) {
+-        RCLCPP_WARN(
+-          get_logger(), "Ignoring goal: waiting for odom and joint states.");
++    request.header.frame_id = worldFrame_;
++    if (!poseInWorld(header, pose, request.goal)) {
++      setStatus("REJECTED: goal pose/TF");
++      return;
++    }
++    request.goal_joints = joints;
++    ++generation_;
++    executing_.reset();
++    pending_ = request;
++    pendingSince_ = now();
++    lastCancel_ = now();
++    std_msgs::msg::Header cancel;
++    cancel.stamp = lastCancel_;
++    cancelPublisher_->publish(cancel);
++    std_msgs::msg::Bool finish;
++    finish.data = false;
++    finishPublisher_->publish(finish);
++    setStatus("WAITING_FOR_STOP");
++  }
++  void planningTick() {
++    if (future_.valid()) {
++      if (future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+         return;
+-      }
+-      request.start = start_;
+-      request.start_joints = startJoints_;
+-    }
+-
+-    request.header.frame_id = worldFrame_;
+-    if (!poseInWorld(msg->header, msg->pose, request.goal)) {
+-      RCLCPP_ERROR(get_logger(), "Goal has an invalid pose or unavailable frame transform.");
++      auto result = future_.get();
++      if (planningGeneration_ != generation_)
++        return;
++      if (!result.success) {
++        pending_.reset();
++        setStatus("FAILED: " + result.message);
++        return;
++      }
++      bool unchanged =
++          freshState() && stationary() &&
++          std::hypot(start_.x - inflight_.start.x, start_.y - inflight_.start.y) < 0.03 &&
++          std::abs(std::remainder(start_.yaw - inflight_.start.yaw, 2 * M_PI)) < 0.03;
++      for (std::size_t j = 0; unchanged && j < jointNames_.size(); ++j)
++        unchanged =
++            std::abs(startJoints_.positions[j] - inflight_.start_joints.positions[j]) < 0.03;
++      if (!unchanged) {
++        setStatus("WAITING_FOR_STOP: state changed during planning");
++        return;
++      }
++      auto message = toMessage(result.trajectory);
++      message.header.stamp = now();
++      message.trajectory_id += "_" + std::to_string(generation_);
++      trajectoryPublisher_->publish(message);
++      executing_ = inflight_;
++      pending_.reset();
++      executionStart_ = now();
++      executionDuration_ = result.trajectory.points.back().time_from_start;
++      arrivalSince_.reset();
++      setStatus("EXECUTING: " + result.search_backend + " / " + result.trajectory_backend);
++      RCLCPP_INFO(get_logger(), "%zu samples, %.2f s; fallback: %s", message.time_from_start.size(),
++                  executionDuration_, result.fallback_reason.c_str());
+       return;
+     }
+-    // This backend constructs rest-to-rest boundaries; moving replans need a
+-    // different boundary contract and must not silently discard measured speed.
+-    if (std::abs(request.start.linear_velocity) > 0.02 ||
+-        std::abs(request.start.yaw_rate) > 0.02 ||
+-        std::any_of(request.start_joints.velocities.begin(), request.start_joints.velocities.end(),
+-          [](double v) { return !std::isfinite(v) || std::abs(v) > 0.02; })) {
+-      RCLCPP_WARN(get_logger(), "Rest-to-rest planning requires a stationary robot.");
++    if (executing_) {
++      if (!freshState()) {
++        cancelExecution(
++            "FAULT: stale state (odom age=" + std::to_string((now() - odomStamp_).seconds()) +
++            ", joint age=" + std::to_string((now() - jointStamp_).seconds()) + ")");
++        return;
++      }
++      bool arrived = (now() - executionStart_).seconds() >= executionDuration_ && stationary() &&
++                     std::hypot(start_.x - executing_->goal.x, start_.y - executing_->goal.y) <=
++                         get_parameter("arrival_position_tolerance").as_double() &&
++                     std::abs(std::remainder(start_.yaw - executing_->goal.yaw, 2 * M_PI)) <=
++                         get_parameter("arrival_yaw_tolerance").as_double();
++      if (executing_->goal_joints)
++        for (std::size_t j = 0; arrived && j < jointNames_.size(); ++j)
++          arrived =
++              std::abs(startJoints_.positions[j] - executing_->goal_joints->positions[j]) < 0.05;
++      if (arrived && !arrivalSince_)
++        arrivalSince_ = now();
++      if (!arrived)
++        arrivalSince_.reset();
++      if (arrivalSince_ && (now() - *arrivalSince_).seconds() > 0.5) {
++        std_msgs::msg::Bool msg;
++        msg.data = true;
++        finishPublisher_->publish(msg);
++        executing_.reset();
++        setStatus("SUCCEEDED");
++      } else if ((now() - executionStart_).seconds() > executionDuration_ + 10)
++        cancelExecution("FAULT: arrival timeout");
++    }
++    if (!pending_)
+       return;
+-    }
+-
++    if ((now() - pendingSince_).seconds() > get_parameter("goal_wait_timeout").as_double()) {
++      pending_.reset();
++      setStatus("FAILED: fresh stationary state timeout");
++      return;
++    }
++    if (!freshState() || !stationary())
++      return;
++    auto request = *pending_;
++    request.start = start_;
++    request.start_joints = startJoints_;
+     request.limits = robotModel_->limits();
+     request.limits.joint_min = get_parameter("joint_min").as_double_array();
+     request.limits.joint_max = get_parameter("joint_max").as_double_array();
+@@ -411,28 +588,34 @@
+         .isFree();
+     };
+ 
+-    wbmm::planning::WholeBodyPlanner planner(buildConfig());
+-    const auto result = planner.plan(request, baseChecker, wholeBodyChecker);
+-
+-    if (!result.success) {
+-      RCLCPP_ERROR(get_logger(), "Planning failed: %s", result.message.c_str());
+-      return;
+-    }
+-
+-    RCLCPP_INFO(
+-      get_logger(),
+-      "Planned %zu samples over %.2f s (base %.0f ms, seed %.0f ms, shape %.0f ms, "
+-      "gear %+d, v_max %.3f m/s, w_max %.3f rad/s).",
+-      result.trajectory.points.size(),
+-      result.trajectory.points.back().time_from_start,
+-      result.base_search_time * 1000.0, result.arm_seed_time * 1000.0,
+-      result.build_time * 1000.0, result.gear, result.max_linear_velocity,
+-      result.max_yaw_rate);
+-
+-    auto message = toMessage(result.trajectory);
+-    // Rest-to-rest playback starts when the finished plan is made available.
+-    message.header.stamp = now();
+-    trajectoryPublisher_->publish(message);
++    inflight_ = request;
++    planningGeneration_ = generation_;
++    const auto config = buildConfig();
++    setStatus("PLANNING");
++    future_ = std::async(std::launch::async, [request, config, baseChecker, wholeBodyChecker]() {
++      try {
++        return wbmm::planning::WholeBodyPlanner(config).plan(request, baseChecker,
++                                                             wholeBodyChecker);
++      } catch (const std::exception &e) {
++        wbmm::planning::PlanResult result;
++        result.message = e.what();
++        return result;
++      } catch (...) {
++        wbmm::planning::PlanResult result;
++        result.message = "Unknown planning exception";
++        return result;
++      }
++    });
++  }
++  void cancelExecution(const std::string &reason) {
++    ++generation_;
++    pending_.reset();
++    executing_.reset();
++    lastCancel_ = now();
++    std_msgs::msg::Header cancel;
++    cancel.stamp = lastCancel_;
++    cancelPublisher_->publish(cancel);
++    setStatus(reason);
+   }
+ 
+   static wbmm_planning_msgs::msg::WholeBodyTrajectory toMessage(
+@@ -487,6 +670,19 @@
+     return message;
+   }
+ 
++  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr statusPublisher_;
++  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr finishPublisher_;
++  rclcpp::Publisher<std_msgs::msg::Header>::SharedPtr cancelPublisher_;
++  rclcpp::Subscription<std_msgs::msg::Header>::SharedPtr cancelSub_;
++  rclcpp::Subscription<wbmm_planning_msgs::msg::WholeBodyGoal>::SharedPtr wholeGoalSub_;
++  rclcpp::TimerBase::SharedPtr planningTimer_;
++  std::optional<wbmm::planning::PlanRequest> pending_, executing_;
++  wbmm::planning::PlanRequest inflight_;
++  std::uint64_t generation_{0}, planningGeneration_{0};
++  rclcpp::Time lastCancel_{0, 0, RCL_ROS_TIME}, pendingSince_{0, 0, RCL_ROS_TIME},
++      executionStart_{0, 0, RCL_ROS_TIME};
++  std::optional<rclcpp::Time> arrivalSince_;
++  double executionDuration_{0};
+   std::string urdfFile_;
+   std::string esdfFile_;
+   std::string worldFrame_;
+@@ -512,6 +708,7 @@
+   wbmm::core::JointState startJoints_;
+   bool haveOdom_{false};
+   bool haveJoints_{false};
++  std::future<wbmm::planning::PlanResult> future_;
+ };
+ 
+ int main(int argc, char ** argv)
+--- a/src/planning/wbmm_planning_msgs/CMakeLists.txt
++++ b/src/planning/wbmm_planning_msgs/CMakeLists.txt
+@@ -9,6 +9,7 @@
+ find_package(ament_cmake REQUIRED)
+ find_package(rosidl_default_generators REQUIRED)
+ find_package(std_msgs REQUIRED)
++find_package(geometry_msgs REQUIRED)
+ 
+ # rosidl_generator_py still uses the legacy FindPythonInterp module. Other
+ # packages in this workspace pre-populate PYTHON_EXECUTABLE as empty, so resolve
+@@ -22,7 +23,8 @@
+ 
+ rosidl_generate_interfaces(${PROJECT_NAME}
+   "msg/WholeBodyTrajectory.msg"
+-  DEPENDENCIES std_msgs
++  "msg/WholeBodyGoal.msg"
++  DEPENDENCIES std_msgs geometry_msgs
+ )
+ 
+ if(BUILD_TESTING)
+--- /dev/null
++++ b/src/planning/wbmm_planning_msgs/msg/WholeBodyGoal.msg
+@@ -0,0 +1,6 @@
++# Base pose in header.frame_id; optional terminal arm configuration.
++# Empty joint arrays leave the final arm posture free.
++std_msgs/Header header
++geometry_msgs/Pose base_pose
++string[] joint_names
++float64[] joint_positions
+--- a/src/planning/wbmm_planning_msgs/package.xml
++++ b/src/planning/wbmm_planning_msgs/package.xml
+@@ -12,6 +12,7 @@
+ 
+   <exec_depend>rosidl_default_runtime</exec_depend>
+   <depend>std_msgs</depend>
++  <depend>geometry_msgs</depend>
+ 
+   <member_of_group>rosidl_interface_packages</member_of_group>
+ 

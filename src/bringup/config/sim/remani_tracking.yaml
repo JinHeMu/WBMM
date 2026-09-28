@@ -9,3 +9,39 @@ tracking_error_replan_enabled: false
 manipulator_max_vel: 1.57
 manipulator_max_acc: 3.14
 freeze_manipulator: false
+
+# ---------------------------------------------------------------------------
+# Base speed budget — MUST stay below the OCS2 base velocity limit.
+#
+# REMANI converts this wheel speed into a linear base speed limit with
+#   max_base_vel = mobile_base_max_wheel_omega * mobile_base_wheel_radius
+#                = omega * 0.07 m            (config/mm_param.yaml)
+# and then time-scales every reference so its PEAK stays at 90% of that value
+# (the converged peak is ~0.9*max_base_vel/1.05 because of the 1.05 step).
+#
+# The OCS2 controller caps the base input in
+# config/sim/task_esdf_tracking.info -> jointVelocityLimits:
+#   v in [-0.5, 0.5] m/s,  omega in [-1.0, 1.0] rad/s   (soft constraint)
+#
+# With the upstream default (10.0 rad/s -> 0.7 m/s) the reference peaks at
+# 0.60 m/s: above what the controller can drive. The average reference speed
+# is only ~0.27 m/s, so the resulting lag is a few tenths of a metre rather
+# than a constant 0.1 m/s — but any segment where the reference clips the
+# limit leaves the solver fighting an unreachable target, which is what
+# inflates the SLQ solve time and trips the MRT plan-expiry gate.
+#
+# 7.0 rad/s -> 0.49 m/s limit, ~0.42 m/s peak: strictly trackable.
+# Trade-off: the reference gets ~40% slower. If you would rather keep the
+# original pace, raise the controller limit instead (both
+# jointVelocityLimits/wheelBasedMobileManipulator in the task file and
+# base_max_linear_velocity in config/sim/ocs2.yaml) to >= 0.65 m/s.
+#
+# NOTE: mobile_base_wheel_radius is 0.07 here but 0.082 in the URDF, the
+# MuJoCo model and ros2_controllers.yaml, so REMANI over-estimates wheel
+# speed by ~17% and rejects some physically feasible trajectories
+# ("max left wheel omega is not feasible ... opt failed"). Fixing the radius
+# requires compensating omega in the same commit: 0.082 * 6.0 keeps the same
+# speed budget. Left as-is deliberately — the conservatism is fail-safe.
+# ---------------------------------------------------------------------------
+mobile_base_max_wheel_omega: 7.0
+mobile_base_max_wheel_alpha: 20.0

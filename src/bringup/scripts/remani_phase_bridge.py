@@ -20,7 +20,8 @@ from nav_msgs.msg import Odometry
 from ocs2_msgs.msg import MpcTargetTrajectories
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Header
+from wbmm_planning_msgs.msg import WholeBodyGoal
 
 from wbmm_ocs2_ros.srv import SetTaskPhase
 
@@ -77,6 +78,12 @@ class RemaniPhaseBridge(Node):
         )
         self.create_subscription(PoseStamped, goal_topic, self.on_goal, qos)
         self.create_subscription(Bool, finish_topic, self.on_finish, qos)
+        self.create_subscription(WholeBodyGoal, "/wbmm/whole_body_goal", self.on_whole_goal, qos)
+        self.cancel_publisher = self.create_publisher(Header, "/wbmm/planning/cancel", qos)
+        self._desired_phase = None
+        self._phase_future = None
+        self._phase_generation = 0
+        self.create_timer(0.2, self.retry_phase)
         self.create_subscription(Odometry, odom_topic, self.on_odom, qos)
         self.create_subscription(
             MpcTargetTrajectories, ee_target_topic, self.on_ee_target, qos)
@@ -95,10 +102,17 @@ class RemaniPhaseBridge(Node):
         position = message.pose.position
         yaw = _yaw_from_quaternion(message.pose.orientation)
         self._goal = (float(position.x), float(position.y), float(yaw))
+        self._goal_frame = message.header.frame_id
         self._goal_reached_since = None
         self._navigation_done = False
         self._execution_requested = False
         self.request_phase(self.navigation_phase, "new navigation goal")
+
+    def on_whole_goal(self, message):
+        pose = PoseStamped()
+        pose.header = message.header
+        pose.pose = message.base_pose
+        self.on_goal(pose)
 
     def on_finish(self, message):
         if not message.data:
@@ -113,11 +127,17 @@ class RemaniPhaseBridge(Node):
             "for a fresh end-effector target.")
 
     def on_ee_target(self, message):
-        if len(message.state_trajectory) == 0:
+        if (len(message.state_trajectory) == 0 or
+                any(len(state.value) != 7 or
+                    not all(math.isfinite(v) for v in state.value)
+                    for state in message.state_trajectory)):
             return
         if self._execution_requested:
             return
         self._execution_requested = True
+        cancel = Header()
+        cancel.stamp = self.get_clock().now().to_msg()
+        self.cancel_publisher.publish(cancel)
         self.request_phase(
             self.execution_phase, "end-effector target received")
 
@@ -126,6 +146,8 @@ class RemaniPhaseBridge(Node):
                 self._navigation_done):
             return
 
+        if message.header.frame_id != self._goal_frame:
+            return
         goal_x, goal_y, goal_yaw = self._goal
         dx = float(message.pose.pose.position.x) - goal_x
         dy = float(message.pose.pose.position.y) - goal_y
@@ -158,19 +180,26 @@ class RemaniPhaseBridge(Node):
         return self.get_clock().now().nanoseconds * 1.0e-9
 
     def request_phase(self, phase, reason):
-        if not self.client.service_is_ready():
-            self.get_logger().warning(
-                f"Cannot switch to phase {phase} ({reason}): "
-                f"service {self.phase_service} is not ready yet.")
-            return
+        self._phase_generation += 1
+        self._desired_phase = (phase, reason, self._phase_generation)
+        self.retry_phase()
 
+    def retry_phase(self):
+        if (self._desired_phase is None or self._phase_future is not None or
+                not self.client.service_is_ready()):
+            return
+        phase, reason, generation = self._desired_phase
         request = SetTaskPhase.Request()
         request.phase = int(phase)
-        future = self.client.call_async(request)
-        future.add_done_callback(
-            lambda done, p=phase, r=reason: self.on_phase_response(done, p, r))
+        self._phase_future = self.client.call_async(request)
+        self._phase_future.add_done_callback(
+            lambda done, p=phase, r=reason, g=generation:
+            self.on_phase_response(done, p, r, g))
 
-    def on_phase_response(self, future, phase, reason):
+    def on_phase_response(self, future, phase, reason, generation):
+        self._phase_future = None
+        if generation != self._phase_generation:
+            return
         try:
             response = future.result()
         except Exception as error:  # noqa: BLE001 - service exceptions vary
@@ -186,6 +215,7 @@ class RemaniPhaseBridge(Node):
             if phase == self.execution_phase:
                 self._execution_requested = False
             return
+        self._desired_phase = None
         self.get_logger().info(
             f"Task phase -> {phase} ({reason}); requested="
             f"{response.requested_phase}, active={response.active_phase}")

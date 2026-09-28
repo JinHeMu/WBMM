@@ -62,7 +62,6 @@ find_package(ocs2_ros_interfaces REQUIRED)
 find_package(wbmm_ocs2 REQUIRED)
 find_package(ocs2_msgs REQUIRED)
 find_package(ocs2_self_collision_visualization REQUIRED)
-find_package(quadrotor_msgs REQUIRED)
 
 # ---- Generated interfaces for dual-reference task phase control ----
 # Some mixed Python/Pinocchio dependency chains define PYTHON_SOABI with a
@@ -102,7 +101,6 @@ set(common_deps
   ocs2_msgs
   std_srvs
   ocs2_self_collision_visualization
-  quadrotor_msgs
 )
 
 include_directories(include)
@@ -151,19 +149,6 @@ target_link_libraries(wbmm_target_node
   Boost::log_setup
 )
 
-# ---- REMANI polynomial trajectory -> OCS2 whole-body reference ----
-add_executable(remani_to_ocs2_reference_bridge
-  src/remani_to_ocs2_reference_bridge.cpp
-)
-ament_target_dependencies(remani_to_ocs2_reference_bridge ${common_deps})
-target_link_libraries(remani_to_ocs2_reference_bridge
-  Eigen3::Eigen
-  Boost::system
-  Boost::filesystem
-  Boost::thread
-  Boost::log
-  Boost::log_setup
-)
 
 
 
@@ -172,7 +157,6 @@ install(TARGETS
   wbmm_mpc_node
   wbmm_mrt_node
   wbmm_target_node
-  remani_to_ocs2_reference_bridge
   DESTINATION lib/${PROJECT_NAME}
 )
 

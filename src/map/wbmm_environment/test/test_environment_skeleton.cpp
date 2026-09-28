@@ -77,7 +77,11 @@ TEST(EnvironmentEsdf, RejectsFrameMismatchAndOutOfBounds)
   EXPECT_FALSE(out_of_bounds.gradient_valid);
 }
 
-TEST(EnvironmentEsdf, MarksUnobservedInterpolationCornersAsUnknown)
+// Unobserved corners are provenance, not invalidity: the ESDF payload is
+// defined in every voxel, so the query must still return a usable distance and
+// gradient and only flag the stencil. Rejecting here would make ~89% of the
+// deployed map1 unqueryable.
+TEST(EnvironmentEsdf, FlagsUnobservedInterpolationCornersWithoutRejecting)
 {
   const auto loaded = wbmm::environment::NpzEsdfLoader::load(WBMM_ENV_TEST_NPZ);
   ASSERT_EQ(loaded.status, wbmm::environment::LoadStatus::kSuccess);
@@ -92,9 +96,25 @@ TEST(EnvironmentEsdf, MarksUnobservedInterpolationCornersAsUnknown)
   const auto query =
     grid_with_unknown.query("odom", Eigen::Vector3d(1.25, 1.5, 1.5));
 
-  EXPECT_EQ(query.status, wbmm::environment::QueryStatus::kUnknown);
-  EXPECT_FALSE(query.gradient_valid);
-  EXPECT_FALSE(query.gradient.allFinite());
+  EXPECT_EQ(query.status, wbmm::environment::QueryStatus::kSuccess);
+  EXPECT_FALSE(query.fully_observed);
+  EXPECT_TRUE(query.gradient_valid);
+  EXPECT_TRUE(query.gradient.allFinite());
+  // The distance is unchanged from the fully observed case.
+  EXPECT_NEAR(query.distance, 1.25, 1e-6);
+  EXPECT_NEAR(query.gradient.x(), 1.0, 1e-6);
+}
+
+TEST(EnvironmentEsdf, FullyObservedStencilIsReportedAsSuch)
+{
+  const auto loaded = wbmm::environment::NpzEsdfLoader::load(WBMM_ENV_TEST_NPZ);
+  ASSERT_EQ(loaded.status, wbmm::environment::LoadStatus::kSuccess);
+  ASSERT_NE(loaded.grid, nullptr);
+
+  const auto query =
+    loaded.grid->query("odom", Eigen::Vector3d(1.25, 1.5, 1.5));
+  EXPECT_EQ(query.status, wbmm::environment::QueryStatus::kSuccess);
+  EXPECT_TRUE(query.fully_observed);
 }
 
 TEST(EnvironmentEsdf, MissingObservedArrayIsTreatedAsFullyObserved)

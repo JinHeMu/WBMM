@@ -168,11 +168,11 @@ DistanceQuery EsdfGrid::query(
   result.gradient(0) *= inverse_voxel;
 
   if (!observed) {
-    result.status = QueryStatus::kUnknown;
-    result.message = "At least one interpolation corner is unobserved.";
-    result.gradient.setConstant(std::numeric_limits<double>::quiet_NaN());
-    result.gradient_valid = false;
-    return result;
+    // Provenance only. The ESDF payload is defined in every voxel, and on the
+    // deployed map every unobserved voxel holds the clamp maximum, so the
+    // interpolated distance is meaningful. Report the flag and let the caller
+    // decide; a hard rejection here would make ~89% of the map unqueryable.
+    result.fully_observed = false;
   }
 
   if (!std::isfinite(result.distance) || !isFinite(result.gradient)) {
@@ -183,7 +183,7 @@ DistanceQuery EsdfGrid::query(
 
   result.status = QueryStatus::kSuccess;
   result.gradient_valid = true;
-  result.message = "ok";
+  result.message = observed ? "ok" : "ok (at least one corner unobserved)";
   return result;
 }
 

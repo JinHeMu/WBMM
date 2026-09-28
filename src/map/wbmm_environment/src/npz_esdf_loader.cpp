@@ -279,6 +279,28 @@ bool copyScalarString(
   return true;
 }
 
+// Optional map-level policy flag. numpy stores it as a |b1 scalar.
+bool copyScalarBool(
+  const NpyArray & source, bool & destination, std::string & error)
+{
+  if (!source.shape.empty()) {
+    error = "Expected a scalar boolean NPY array.";
+    return false;
+  }
+  if (source.descriptor != "|b1" && source.descriptor != "|u1" &&
+    source.descriptor != "|i1") {
+    error = "Expected a scalar boolean NPY array, received '" +
+      source.descriptor + "'.";
+    return false;
+  }
+  if (source.data.size() != 1U) {
+    error = "Scalar boolean NPY payload has an invalid byte count.";
+    return false;
+  }
+  destination = source.data[0] != 0U;
+  return true;
+}
+
 bool loadArchive(
   const std::string & file_name, EsdfGridData & data, std::string & error)
 {
@@ -296,8 +318,11 @@ bool loadArchive(
   NpyArray voxel_array;
   NpyArray bounds_array;
   NpyArray frame_array;
+  NpyArray unknown_array;
 
   const bool observed_present = hasNpyMember(archive, "observed.npy");
+  const bool unknown_present =
+    hasNpyMember(archive, "unknown_is_occupied.npy");
   const bool members_ok =
     readNpyMember(archive, "esdf.npy", esdf_array, error) &&
     readNpyMember(archive, "occupancy.npy", occupancy_array, error) &&
@@ -306,7 +331,9 @@ bool loadArchive(
     readNpyMember(archive, "bounds_max.npy", bounds_array, error) &&
     readNpyMember(archive, "frame_id.npy", frame_array, error) &&
     (!observed_present ||
-    readNpyMember(archive, "observed.npy", observed_array, error));
+    readNpyMember(archive, "observed.npy", observed_array, error)) &&
+    (!unknown_present ||
+    readNpyMember(archive, "unknown_is_occupied.npy", unknown_array, error));
 
   zip_close(archive);
   if (!members_ok) {
@@ -369,6 +396,12 @@ bool loadArchive(
   }
 
   if (!copyScalarString(frame_array, data.info.frame_id, error)) {
+    return false;
+  }
+
+  // Absent flag keeps the MapInfo default (false = unknown is free).
+  if (unknown_present &&
+    !copyScalarBool(unknown_array, data.info.unknown_is_occupied, error)) {
     return false;
   }
 

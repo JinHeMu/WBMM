@@ -8,6 +8,8 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>wbmm_core</depend>
   <depend>wbmm_environment</depend>
+  <!-- System library, not a ROS package: keeps the URDF loader ROS-free. -->
+  <depend>tinyxml2</depend>
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>wbmm_search</test_depend>
   <export><build_type>ament_cmake</build_type></export>

@@ -982,7 +982,8 @@ namespace wbmm_ocs2
                 pt, esdfFile, prefix + ".esdf.file", false);
             loadData::loadPtreeValue(
                 pt, esdfFrame, prefix + ".esdf.frame", false);
-            if (!esdfFileOverride_.empty()) {
+            if (!esdfFileOverride_.empty())
+            {
                 esdfFile = esdfFileOverride_;
             }
             if (esdfFile.empty())

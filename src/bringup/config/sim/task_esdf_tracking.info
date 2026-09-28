@@ -85,7 +85,12 @@ rollout
 mpc
 {
   timeHorizon                     2.0  ; [s]
-  solutionTimeWindow              0.2   ; [s]
+  ; MRT 判定 "MPC plan expired" 的条件是
+  ;   observation.time > policy.timeTrajectory_.back()
+  ; 而 back() == mpcInitObservation.time + solutionTimeWindow。
+  ; 0.2 s 比仿真里实测的最坏 SLQ 求解耗时 (峰值 ~0.3 s) 还短, 于是 MRT
+  ; 反复停止底盘并保持机械臂。0.5 s 可以容忍这个抖动。
+  solutionTimeWindow              0.5   ; [s]
   coldStart                       false
 
   ; 想在终端看 MPC 每次求解耗时时, 把它设成 true (见文末延迟测试说明)

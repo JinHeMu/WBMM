@@ -1,0 +1,41 @@
+wbmm_visualization:
+  ros__parameters:
+    # MPC state = [base_x, base_y, base_yaw, joints in this order].
+    joint_names: [joint_1, joint_2, joint_3, joint_4, joint_5, joint_6]
+    # Empty means the URDF root; may also name a link fixed to the root.
+    base_frame: ''
+    # For auxiliary movable joints, set both lists, e.g.:
+    # default_joint_names: [gripper_joint]
+    # default_joint_positions: [0.0]
+    mpc_frame: odom
+    planner_topic: /wbmm/whole_body_trajectory
+    mpc_policy_topic: /mobile_manipulator_mpc_policy
+    planner_marker_topic: /wbmm/visualization/planner
+    mpc_marker_topic: /wbmm/visualization/mpc
+    publish_rate: 5.0
+    max_trajectory_points: 100000
+    planner:
+      # Sparse whole-robot ghosts: approximate time spacing, retaining both ends.
+      sample_interval: 0.5
+      max_robot_poses: 8
+      max_markers: 5000
+      rgba: [0.5, 0.5, 0.5, 0.25]
+      use_urdf_materials: false
+      use_embedded_materials: false
+      show_base_path: false
+      show_ee_path: false
+      ee_frame: tool0
+      line_width: 0.015
+      timeout: 0.0  # Keep last planned geometry until replaced, invalidated or empty.
+    mpc:
+      sample_interval: 0.2
+      max_robot_poses: 8
+      max_markers: 5000
+      rgba: [0.10, 0.80, 0.55, 0.25]
+      use_urdf_materials: false
+      use_embedded_materials: false
+      show_base_path: false
+      show_ee_path: false
+      ee_frame: tool0
+      line_width: 0.015
+      timeout: 1.0  # Wall time: stale MPC ghosts disappear, even if /clock stops.

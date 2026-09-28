@@ -22,7 +22,7 @@ CORE_ALGORITHM_LAUNCHES = {
     'localization.launch.py',
     'moveit.launch.py',
     'ocs2.launch.py',
-    'remani.launch.py',
+    'wbmm_planning.launch.py',
     'whole_body_force_control.launch.py',
     'remani_mpc.launch.py',
     'remani_mpc_localized.launch.py',
@@ -98,15 +98,6 @@ def test_removed_entry_and_offset_arguments_have_no_bringup_references():
         assert 'planner_to_ocs2_' not in content
 
 
-def test_remani_requires_tf_between_different_frames():
-    module = load_module(LAUNCH_FILES['remani.launch.py'])
-    context = LaunchContext()
-    context.launch_configurations.update({
-        'planner_frame': 'map', 'target_frame': 'odom',
-        'use_tf_transform': 'false',
-    })
-    with pytest.raises(RuntimeError, match='use_tf_transform'):
-        module._make_include(context)
 
 
 def test_moveit_uses_only_hardware_write_as_motion_gate():
@@ -273,14 +264,14 @@ def test_remani_tracking_launch_wires_esdf_and_phase_bridge():
     assert path.is_file()
     content = path.read_text(encoding='utf-8')
     assert '"start_ocs2": "true"' in content
-    assert '"start_remani": "true"' in content
+    # WBMM-native planner; the REMANI upstream is no longer used.
+    assert '"start_planning": "true"' in content
+    assert '"start_remani"' not in content
     assert '"use_target": "true"' in content
     assert 'remani_phase_bridge.py' in content
 
     declared = launch_arguments(path)
-    assert {
-        'task_file', 'static_esdf_file', 'esdf_file', 'remani_config',
-    }.issubset(declared)
+    assert {'task_file', 'static_esdf_file', 'esdf_file'}.issubset(declared)
 
     task_file = BRINGUP / 'config' / 'sim' / 'task_esdf_tracking.info'
     assert task_file.is_file()
@@ -293,17 +284,17 @@ def test_remani_tracking_launch_wires_esdf_and_phase_bridge():
 
     assert 'default_value="map"' in content
     assert '/home/a/WBMM/maps/map1/site_remani.npz' in content
-    assert 'remani_planner_frame": "map"' in content
+    assert '"planner_max_linear_velocity": "0.5"' in content
+    assert '"planner_treat_unknown_as_occupied": "false"' in content
     assert 'publish_map_odom_tf' in content
 
     rviz_config = BRINGUP / 'rviz' / 'remani_tracking_map1.rviz'
     assert rviz_config.is_file()
     assert 'Fixed Frame: map' in rviz_config.read_text(encoding='utf-8')
 
-    remani_profile = BRINGUP / 'config' / 'sim' / 'remani_tracking.yaml'
-    assert remani_profile.is_file()
-    assert 'tracking_error_replan_enabled: false' in remani_profile.read_text(
-        encoding='utf-8')
+    # The planner envelope now lives in the launch arguments above; the old
+    # REMANI tuning profile is no longer referenced by any launch.
+    assert 'remani_config' not in content
 
 
 def test_localized_launch_defaults_to_map1():
@@ -312,3 +303,64 @@ def test_localized_launch_defaults_to_map1():
             encoding='utf-8')
     assert '/home/a/WBMM/maps/map1/site_remani.npz' in content
     assert '/home/a/WBMM/maps/map1/site_2d.yaml' in content
+
+
+@pytest.mark.parametrize('entry', ['remani_mpc.launch.py', 'remani_mpc_localized.launch.py'])
+def test_planner_receives_static_map_and_explicit_controller_frame(entry):
+    module = load_module(LAUNCH_DIR / entry)
+    description = module.generate_launch_description()
+    context = LaunchContext()
+    context.launch_configurations.update({
+        'static_esdf_file': '/tmp/planner-map.npz',
+        'esdf_file': '', 'start_bridge': 'false',
+    })
+    for action in description.entities:
+        if isinstance(action, DeclareLaunchArgument):
+            action.execute(context)
+    for action in description.entities:
+        if not isinstance(action, TimerAction):
+            continue
+        for child in action.actions:
+            if not isinstance(child, IncludeLaunchDescription):
+                continue
+            child.launch_description_source.get_launch_description(context)
+            source = child.launch_description_source.location
+            if not source.endswith('wbmm_planning.launch.py'):
+                continue
+            values = {key: perform_substitutions(context, normalize_to_list_of_substitutions(value))
+                      for key, value in child.launch_arguments}
+            assert values['esdf_file'] == '/tmp/planner-map.npz'
+            assert values['bridge_world_frame'] == 'odom'
+            assert float(values['max_linear_velocity']) == 0.1
+            assert float(values['max_yaw_rate']) == 0.4
+            if 'localized' in entry:
+                assert values['world_frame'] == 'map'
+                assert values['start_bridge'] == 'false'
+            return
+    pytest.fail('planner include missing')
+
+
+def test_planning_launch_separates_frames_and_honours_bridge_disable(tmp_path, monkeypatch):
+    module = load_module(LAUNCH_DIR / 'wbmm_planning.launch.py')
+    urdf = tmp_path / 'robot.urdf'; urdf.write_text('<robot/>')
+    esdf = tmp_path / 'map.npz'; esdf.write_bytes(b'placeholder')
+    context = LaunchContext()
+    context.launch_configurations.update({
+        'urdf_file': str(urdf), 'esdf_file': str(esdf),
+        'world_frame': 'map', 'bridge_world_frame': 'odom', 'start_bridge': 'false',
+    })
+    for action in module.generate_launch_description().entities:
+        if isinstance(action, DeclareLaunchArgument):
+            action.execute(context)
+    monkeypatch.setattr(module, 'Node', lambda **kwargs: kwargs)
+    planner, bridge = module._make_nodes(context)
+    assert planner['parameters'][0]['world_frame'] == 'map'
+    assert bridge['parameters'][0]['world_frame'] == 'odom'
+    assert not bridge['condition'].evaluate(context)
+
+
+def test_tracking_phase_bridge_uses_sim_clock_and_planner_arrival():
+    for filename in ('wbmm_tracking.launch.py', 'remani_tracking.launch.py'):
+        content = LAUNCH_FILES[filename].read_text()
+        assert '"use_sim_time": True' in content
+        assert '"enable_odom_fallback": False' in content

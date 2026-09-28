@@ -52,6 +52,7 @@ namespace
   constexpr char kDefaultRobotName[] = "mobile_manipulator";
   constexpr int kPlanExpiredMaxLog = 5;
   constexpr double kMaxCommandDt = 0.05;
+  constexpr double kSuspiciousPolicyWindow = 1.0;
 
 } // namespace
 
@@ -152,6 +153,15 @@ private:
     declare_parameter<bool>("arm_use_velocity_integrator", false);
     declare_parameter<double>("arm_max_command_velocity", 0.50);
 
+    // Hard saturation of the published base command. The OCS2 joint-velocity
+    // limit on the base is a *soft* (relaxed-barrier) constraint, so the MPC
+    // input can exceed it whenever the solve is warm-started from a bad
+    // reference. Without this clamp the excess goes straight to the base
+    // controller, and in MuJoCo the base is integrated kinematically, so the
+    // robot literally drives at whatever velocity the solver returned.
+    declare_parameter<double>("base_max_linear_velocity", 0.5);
+    declare_parameter<double>("base_max_angular_velocity", 1.0);
+
     declare_parameter<bool>("enable_visualization", true);
     declare_parameter<bool>("viz_self_collision", true);
     declare_parameter<double>("viz_rate", 20.0);
@@ -186,6 +196,9 @@ private:
     armMaxDeltaPerStep_ = get_parameter("arm_max_delta_per_step").as_double();
     armUseVelocityIntegrator_ = get_parameter("arm_use_velocity_integrator").as_bool();
     armMaxCommandVelocity_ = get_parameter("arm_max_command_velocity").as_double();
+
+    baseMaxLinearVelocity_ = get_parameter("base_max_linear_velocity").as_double();
+    baseMaxAngularVelocity_ = get_parameter("base_max_angular_velocity").as_double();
 
     enableViz_ = get_parameter("enable_visualization").as_bool();
     vizSelfCollision_ = get_parameter("viz_self_collision").as_bool();
@@ -222,6 +235,14 @@ private:
     {
       throw std::runtime_error("arm_max_command_velocity must be positive.");
     }
+    if (!std::isfinite(baseMaxLinearVelocity_) || baseMaxLinearVelocity_ <= 0.0)
+    {
+      throw std::runtime_error("base_max_linear_velocity must be positive.");
+    }
+    if (!std::isfinite(baseMaxAngularVelocity_) || baseMaxAngularVelocity_ <= 0.0)
+    {
+      throw std::runtime_error("base_max_angular_velocity must be positive.");
+    }
     if (!std::isfinite(vizRate_) || vizRate_ <= 0.0)
     {
       throw std::runtime_error("viz_rate must be positive.");
@@ -242,7 +263,7 @@ private:
   void setupRobotModel()
   {
     interface_ = std::make_unique<wbmm_ocs2::WbmmInterface>(
-      taskFile_, libFolder_, urdfFile_, esdfFile_, worldFrame_);
+        taskFile_, libFolder_, urdfFile_, esdfFile_, worldFrame_);
 
     const auto &info = interface_->getWbmmModelInfo();
     stateDim_ = info.stateDim;
@@ -374,9 +395,9 @@ private:
     observation.input.setZero(inputDim_);
     observation.time = time;
     observation.mode = modeSwitchEnabled_
-                          ? static_cast<std::size_t>(
-                                std::clamp(currentPhase_.load(), 0, 3))
-                          : 0;
+                           ? static_cast<std::size_t>(
+                                 std::clamp(currentPhase_.load(), 0, 3))
+                           : 0;
 
     std::lock_guard<std::mutex> lock(stateMutex_);
     fillStateLocked(observation.state);
@@ -506,6 +527,7 @@ private:
       return;
     }
     expiredCount = 0;
+    reportPolicyWindow(planEnd);
 
     ocs2::vector_t policyState;
     ocs2::vector_t policyInput;
@@ -542,6 +564,46 @@ private:
     publishBaseCommand(policyInput);
     publishArmPositions(armCommand);
     lastGoodArmQ_ = armCommand;
+  }
+
+  // The plan-expiry gate above compares the MRT clock against
+  // policy.timeTrajectory_.back(). With the DDP/SLQ solver that value is
+  // mpcInitObservation.time + mpc.solutionTimeWindow, so the gate is exactly
+  // "MPC latency must stay inside the solution time window". SQP and IPM
+  // ignore the solution time window when slicing the primal solution
+  // (SqpSolver.h / IpmSolver.h override getPrimalSolution and discard
+  // finalTime), which makes the window equal to the full timeHorizon and
+  // silently turns the gate into a no-op. Report the observed window once so
+  // that regression cannot pass unnoticed.
+  void reportPolicyWindow(double planEnd)
+  {
+    if (policyWindowReported_)
+    {
+      return;
+    }
+    try
+    {
+      const double initTime = mrt_->getCommand().mpcInitObservation_.time;
+      const double window = planEnd - initTime;
+      if (!std::isfinite(window) || window <= 0.0)
+      {
+        return;
+      }
+      policyWindowReported_ = true;
+      RCLCPP_INFO(get_logger(), "MPC policy window: %.3f s (planEnd - mpcInitObservation.time).", window);
+      if (window > kSuspiciousPolicyWindow)
+      {
+        RCLCPP_WARN(get_logger(),
+                    "[SAFETY] MPC policy window %.3f s is far larger than any solution time window. "
+                    "The plan-expiry gate will effectively never fire. Check ddp.algorithm (must be "
+                    "SLQ/DDP for the truncation to apply) and mpc.solutionTimeWindow.",
+                    window);
+      }
+    }
+    catch (...)
+    {
+      // Diagnostics must never interrupt control.
+    }
   }
 
   void logExpiredPlan(double time, double planEnd, int count)
@@ -907,7 +969,20 @@ private:
       publishZeroBaseCommand();
       return;
     }
-    publishBase(input(0), input(1));
+
+    // The OCS2 base velocity limit is a soft constraint, so the solver output
+    // may exceed it. Saturate before it reaches the base controller.
+    const double speed = std::clamp(input(0), -baseMaxLinearVelocity_, baseMaxLinearVelocity_);
+    const double yawRate = std::clamp(input(1), -baseMaxAngularVelocity_, baseMaxAngularVelocity_);
+    if (speed != input(0) || yawRate != input(1))
+    {
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 1000,
+          "[SAFETY] Base command saturated to the model limits: "
+          "v=%.3f (raw %.3f, limit %.3f), w=%.3f (raw %.3f, limit %.3f).",
+          speed, input(0), baseMaxLinearVelocity_, yawRate, input(1), baseMaxAngularVelocity_);
+    }
+    publishBase(speed, yawRate);
   }
 
   void publishZeroBaseCommand() { publishBase(0.0, 0.0); }
@@ -962,15 +1037,22 @@ private:
 
   void publishHoldArmCommand()
   {
+    // "Stop and hold" must freeze the arm where it physically is. Holding
+    // lastGoodArmQ_ is NOT that: makePositionArmCommand() clamps its output to
+    // measured +/- arm_max_delta_per_step, so the last published command can
+    // sit a full rate-limit step away from the measurement and the arm keeps
+    // slewing after the safety gate has already fired.
     std::vector<double> hold;
-    if (lastGoodArmQ_.size() == armJointNames_.size())
-    {
-      hold = lastGoodArmQ_;
-    }
-    else
     {
       std::lock_guard<std::mutex> lock(stateMutex_);
       hold = armQ_;
+    }
+    if (hold.size() != armJointNames_.size() ||
+        !std::all_of(hold.begin(), hold.end(), [](double value)
+                     { return std::isfinite(value); }))
+    {
+      // No usable measurement yet: fall back to the last commanded pose.
+      hold = lastGoodArmQ_;
     }
     if (hold.size() != armJointNames_.size())
     {
@@ -1010,6 +1092,8 @@ private:
   double armMaxDeltaPerStep_{0.50};
   bool armUseVelocityIntegrator_{false};
   double armMaxCommandVelocity_{0.50};
+  double baseMaxLinearVelocity_{0.5};
+  double baseMaxAngularVelocity_{1.0};
   double lastArmCommandTime_{0.0};
   std::vector<std::string> armJointNames_;
 
@@ -1018,6 +1102,7 @@ private:
   double vizRate_{20.0};
   int vizEveryN_{5};
   long vizCounter_{0};
+  bool policyWindowReported_{false};
 
   rclcpp::Time lastReport_;
   size_t loopCount_{0};

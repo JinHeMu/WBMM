@@ -46,16 +46,10 @@ def _make_actions(context):
     if not esdf_file:
         esdf_file = static_esdf_file
 
-    remani_config = _value(context, "remani_config")
-    if not remani_config:
-        remani_config = os.path.join(
-            bringup, "config", "sim", "remani_tracking.yaml")
-
     for label, path in (
         ("task_esdf_tracking file", task_file),
-        ("REMANI static ESDF file", static_esdf_file),
+        ("planner static ESDF file", static_esdf_file),
         ("OCS2 ESDF file", esdf_file),
-        ("REMANI tracking config", remani_config),
     ):
         if not os.path.isfile(path):
             raise RuntimeError(f"{label} does not exist: {path!r}")
@@ -75,7 +69,16 @@ def _make_actions(context):
         "hardware_write": _value(context, "hardware_write"),
         "start_localization": "false",
         "start_ocs2": "true",
-        "start_remani": "true",
+        # WBMM-native planner; the REMANI upstream is no longer used.
+        "start_planning": "true",
+        "goal_topic": "/goal_pose",
+        "planner_cruise_speed": "0.35",
+        "planner_max_linear_velocity": "0.5",
+        "planner_max_yaw_rate": "1.0",
+        "planner_max_base_speed": "0.5",
+        "planner_max_base_yaw_rate": "1.0",
+        "planner_collision_safety_margin": "0.0",
+        "planner_treat_unknown_as_occupied": "false",
         "start_force_control": "false",
         "start_moveit": "false",
         "use_target": "true",
@@ -83,10 +86,7 @@ def _make_actions(context):
         "static_esdf_file": static_esdf_file,
         "esdf_file": esdf_file,
         "world_frame": world_frame,
-        "remani_config": remani_config,
-        "remani_planner_frame": "map",
-        "remani_target_frame": "map",
-        "remani_use_tf_transform": "false",
+        "remani_planner_frame": world_frame,
         "odom_topic": _value(context, "odom_topic"),
         "joint_state_topic": _value(context, "joint_state_topic"),
         "lib_folder": _value(context, "lib_folder"),
@@ -122,9 +122,11 @@ def _make_actions(context):
             name="remani_phase_bridge",
             output="screen",
             parameters=[{
+                "use_sim_time": True,
                 "phase_service": "/mobile_manipulator_set_task_phase",
                 "goal_topic": "/goal_pose",
                 "finish_topic": "/planning/finish",
+                "enable_odom_fallback": False,
                 "odom_topic": _value(context, "odom_topic"),
                 "goal_position_tolerance": 0.15,
                 "goal_yaw_tolerance": 0.30,
@@ -173,11 +175,6 @@ def generate_launch_description():
             "static_esdf_file",
             default_value="/home/a/WBMM/maps/map1/site_remani.npz",
             description="REMANI ESDF; defaults to map1."),
-        DeclareLaunchArgument(
-            "remani_config", default_value="",
-            description=(
-                "REMANI profile; defaults to installed "
-                "config/sim/remani_tracking.yaml.")),
         DeclareLaunchArgument(
             "esdf_file", default_value="",
             description="OCS2 ESDF; defaults to static_esdf_file."),

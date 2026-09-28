@@ -115,7 +115,10 @@ def generate_launch_description():
                 "Optional OCS2 environmentCollision ESDF NPZ; empty uses "
                 "the task file.")),
         DeclareLaunchArgument(
-            "world_frame", default_value="",
+            "goal_topic", default_value="/goal_pose",
+            description="2D navigation goal for the WBMM planner."),
+        DeclareLaunchArgument(
+            "world_frame", default_value="odom",
             description="Optional OCS2 world frame override."),
         DeclareLaunchArgument(
             "map_file",
@@ -169,6 +172,7 @@ def generate_launch_description():
             PythonLaunchDescriptionSource(PathJoinSubstitution([
                 bringup, "launch", "ocs2.launch.py",
             ])),
+            condition=IfCondition(LaunchConfiguration("start_ocs2")),
             launch_arguments={
                 "use_sim_time": LaunchConfiguration("use_sim_time"),
                 "use_rviz": LaunchConfiguration("use_rviz"),
@@ -185,19 +189,25 @@ def generate_launch_description():
         ),
         TimerAction(period=15.0, actions=[IncludeLaunchDescription(
             PythonLaunchDescriptionSource(PathJoinSubstitution([
-                bringup, "launch", "remani.launch.py",
+                bringup, "launch", "wbmm_planning.launch.py",
             ])),
             condition=IfCondition(LaunchConfiguration("start_remani")),
             launch_arguments={
                 "use_sim_time": LaunchConfiguration("use_sim_time"),
-                "start_bridge": LaunchConfiguration("start_bridge"),
-                "config_file": LaunchConfiguration("remani_config"),
                 "urdf_file": LaunchConfiguration("urdf_file"),
-                "static_esdf_file": LaunchConfiguration("static_esdf_file"),
+                "bridge_world_frame": LaunchConfiguration("world_frame"),
+                "max_linear_velocity": "0.1",
+                "max_yaw_rate": "0.4",
+                "max_joint_velocity": "0.15",
+                "max_base_speed": "0.1",
+                "max_base_yaw_rate": "0.4",
+                "esdf_file": LaunchConfiguration("static_esdf_file"),
+                # Localized mode plans in map and tracks in odom through the
+                # odometry relay, so the planner consumes the map-frame odometry.
+                "world_frame": "map",
+                "start_bridge": LaunchConfiguration("start_bridge"),
                 "odom_topic": LaunchConfiguration("map_odom_topic"),
                 "joint_state_topic": LaunchConfiguration("joint_state_topic"),
-                "planner_frame": "map",
-                "target_frame": "odom",
-                "use_tf_transform": "true",
+                "goal_topic": LaunchConfiguration("goal_topic"),
             }.items())]),
     ])

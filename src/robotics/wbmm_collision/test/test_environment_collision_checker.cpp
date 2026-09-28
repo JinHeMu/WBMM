@@ -241,11 +241,28 @@ TEST_F(EnvironmentCollisionCheckerTest, RejectsOutOfBoundsCenters)
   EXPECT_EQ(result.status, wbmm::collision::CollisionStatus::kOutOfBounds);
 }
 
-TEST_F(EnvironmentCollisionCheckerTest, RejectsUnknownSpace)
+// Default policy: an unobserved stencil is trusted, matching the deployed
+// map1 metadata (unknown_is_occupied = false) and the REMANI behaviour being
+// replaced. The clearance itself is unchanged, so this is kFree.
+TEST_F(EnvironmentCollisionCheckerTest, TrustsUnobservedSpaceByDefault)
 {
   environment_ = makeLinearGrid(false);
   wbmm::collision::EnvironmentCollisionChecker checker(
     robot_model_, environment_, model_);
+  const auto result = checker.check(
+    makeState(), wbmm::collision::CheckScope::kBase);
+  EXPECT_EQ(result.status, wbmm::collision::CollisionStatus::kFree);
+  EXPECT_TRUE(result.isFree());
+}
+
+// Opt-in conservative policy: the same query is rejected.
+TEST_F(EnvironmentCollisionCheckerTest, RejectsUnknownSpaceWhenOptedIn)
+{
+  environment_ = makeLinearGrid(false);
+  wbmm::collision::CollisionCheckOptions options;
+  options.treat_unknown_as_occupied = true;
+  wbmm::collision::EnvironmentCollisionChecker checker(
+    robot_model_, environment_, model_, options);
   const auto result = checker.check(
     makeState(), wbmm::collision::CheckScope::kBase);
   EXPECT_EQ(result.status, wbmm::collision::CollisionStatus::kUnknownSpace);

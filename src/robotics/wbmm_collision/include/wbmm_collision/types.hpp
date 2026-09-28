@@ -25,6 +25,16 @@ struct CollisionCheckOptions
 {
   // Supplied by the caller; zero is a geometric boundary, not a validated safety margin.
   double safety_margin{0.0};
+
+  // When true, a query whose interpolation stencil touches unobserved space is
+  // reported as kUnknownSpace (not free) instead of being trusted.
+  //
+  // Default false, matching both the deployed map1 (whose own metadata says
+  // unknown_is_occupied = false and whose unobserved voxels all hold the ESDF
+  // clamp maximum) and the REMANI behaviour this planner replaces. Turning it
+  // on is strictly more conservative but rejects roughly 89% of map1, so it is
+  // only usable with a densely observed map.
+  bool treat_unknown_as_occupied{false};
 };
 
 enum class CollisionStatus

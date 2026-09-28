@@ -210,6 +210,14 @@ def generate_launch_description():
             'publish_rate': 20.0,
             'assembly_timeout': 0.04,
             'zero_velocity_threshold': 1.0e-4,
+            # REMANI plans only (x, y, q1..q6); yaw is reconstructed from the
+            # path tangent and the back-end polynomial starts with zero
+            # velocity, so the derived yaw rate is proportional to 1/t and
+            # reaches ~4.4 rad/s near t=0. The OCS2 base is limited to
+            # 0.5 m/s and 1.0 rad/s (task file jointVelocityLimits). Saturate
+            # the reference to what the controller can actually track.
+            'max_reference_linear_velocity': 0.5,
+            'max_reference_angular_velocity': 1.0,
             'hold_at_end': 2.0,
             'planner_to_ocs2_x': ParameterValue(
                 planner_to_ocs2_x, value_type=float),
