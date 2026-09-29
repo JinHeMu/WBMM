@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -22,6 +23,17 @@ namespace
 using Clock = std::chrono::steady_clock;
 
 constexpr int kDim = 8;
+// Same positive C2 time map as REMANI (with a caller-selected lower bound).
+double realTime(double t) {
+  return t > 0 ? 0.5 * t * t + t + 1 : 1 / (0.5 * t * t - t + 1);
+}
+double virtualTime(double t) {
+  return t > 1 ? std::sqrt(2 * t - 1) - 1 : 1 - std::sqrt(2 / t - 1);
+}
+double timeDerivative(double t) {
+  const double d = 0.5 * t * t - t + 1;
+  return t > 0 ? t + 1 : (1 - t) / (d * d);
+}
 
 // C1 penalty on a scalar excess. Returns the cost and d(cost)/d(value).
 double penalty(double excess, double & derivative)
@@ -61,6 +73,11 @@ WholeBodyOptimizer::WholeBodyOptimizer(
 bool WholeBodyOptimizer::prepare(const OptimizerInput & input)
 {
   message_.clear();
+  prepared_ = false;
+  decision_dimension_ = 0;
+  evaluations_ = 0;
+  best_cost_ = std::numeric_limits<double>::infinity();
+  best_x_.resize(0);
   input_ = input;
 
   if (environment_ == nullptr) {
@@ -82,8 +99,8 @@ bool WholeBodyOptimizer::prepare(const OptimizerInput & input)
     return false;
   }
   joint_count_ = static_cast<int>(input_.joint_names.size());
-  if (joint_count_ <= 0) {
-    message_ = "joint_names must not be empty.";
+  if (joint_count_ != kDim - 2) {
+    message_ = "This optimizer requires exactly six named arm joints.";
     return false;
   }
   if (input_.durations.size() <= 0 ||
@@ -109,36 +126,89 @@ bool WholeBodyOptimizer::prepare(const OptimizerInput & input)
     return false;
   }
 
+  if (input_.header.frame_id != environment_->info().frame_id) {
+    message_ = "Optimizer input frame does not match ESDF.";
+    return false;
+  }
+  for (int j = 0; j < joint_count_; ++j)
+    if (input_.joint_names[j] != collision_model_.joints[j].name) {
+      message_ = "Optimizer joint names/order do not match collision model.";
+      return false;
+    }
+  for (double v : {config_.min_piece_duration, config_.max_total_duration,
+                   config_.max_solve_time, config_.max_base_speed,
+                   config_.max_joint_speed, config_.max_joint_acceleration,
+                   config_.max_yaw_rate, config_.max_base_acceleration})
+    if (!std::isfinite(v) || v <= 0) {
+      message_ = "Optimizer limits and budgets must be positive and finite.";
+      return false;
+    }
+  for (double v : {config_.time_weight, config_.obstacle_weight,
+                   config_.ground_weight, config_.self_collision_weight,
+                   config_.feasibility_weight, config_.obstacle_margin,
+                   config_.ground_margin, config_.self_collision_margin})
+    if (!std::isfinite(v) || v < 0) {
+      message_ = "Invalid optimizer weight/margin.";
+      return false;
+    }
+  if (config_.max_iterations < 1 || config_.memory_size < 1 ||
+      !std::isfinite(config_.initial_yaw) ||
+      !std::isfinite(config_.convergence_delta) ||
+      config_.convergence_delta <= 0 || input_.durations.size() > 1000 ||
+      config_.samples_per_piece > 10000 ||
+      (input_.durations.array() <= config_.min_piece_duration).any() ||
+      input_.durations.sum() > config_.max_total_duration) {
+    message_ = "Invalid optimizer iteration/time/sample budget.";
+    return false;
+  }
+  if ((config_.joint_min.size() != 0 || config_.joint_max.size() != 0) &&
+      (config_.joint_min.size() != joint_count_ ||
+       config_.joint_max.size() != joint_count_ ||
+       !config_.joint_min.allFinite() || !config_.joint_max.allFinite() ||
+       (config_.joint_min.array() > config_.joint_max.array()).any())) {
+    message_ = "Invalid optimizer joint limits.";
+    return false;
+  }
   piece_count_ = static_cast<int>(input_.durations.size());
   initial_durations_ = input_.durations;
-  decision_dimension_ = static_cast<std::size_t>(kDim * (piece_count_ - 1));
+  decision_dimension_ =
+      static_cast<std::size_t>(kDim * (piece_count_ - 1) +
+                               (config_.optimize_durations ? piece_count_ : 0));
   minco_.reset(input_.head_state, input_.tail_state, piece_count_);
+  prepared_ = true;
   return true;
 }
 
 Eigen::VectorXd WholeBodyOptimizer::initialGuess() const
 {
-  const auto inner_count = static_cast<Eigen::Index>(decision_dimension_);
-  Eigen::VectorXd x(inner_count);
-  x = Eigen::Map<const Eigen::VectorXd>(input_.inner_points.data(), inner_count);
+  const Eigen::Index inner_count = kDim * (piece_count_ - 1);
+  Eigen::VectorXd x(decision_dimension_);
+  x.head(inner_count) = Eigen::Map<const Eigen::VectorXd>(
+      input_.inner_points.data(), inner_count);
+  if (config_.optimize_durations)
+    for (int i = 0; i < piece_count_; ++i)
+      x(inner_count + i) =
+          virtualTime(initial_durations_(i) - config_.min_piece_duration);
   return x;
 }
 
 bool WholeBodyOptimizer::rebuild(const Eigen::VectorXd & x)
 {
-  if (static_cast<std::size_t>(x.size()) != decision_dimension_ ||
-    !x.allFinite())
-  {
+  if (!prepared_ || static_cast<std::size_t>(x.size()) != decision_dimension_ ||
+      !x.allFinite()) {
     message_ = "Decision vector has the wrong size or is not finite.";
     return false;
   }
 
-  const auto inner_count = static_cast<Eigen::Index>(decision_dimension_);
+  const Eigen::Index inner_count = kDim * (piece_count_ - 1);
   Eigen::MatrixXd inner(kDim, piece_count_ - 1);
-  Eigen::Map<Eigen::VectorXd>(inner.data(), inner_count) = x;
-
-  // Durations are fixed; see the scope note in the header.
-  const Eigen::VectorXd & durations = initial_durations_;
+  Eigen::Map<Eigen::VectorXd>(inner.data(), inner_count) = x.head(inner_count);
+  Eigen::VectorXd durations = initial_durations_;
+  if (config_.optimize_durations)
+    for (int i = 0; i < piece_count_; ++i)
+      durations(i) = config_.min_piece_duration + realTime(x(inner_count + i));
+  if (!durations.allFinite() || durations.sum() > config_.max_total_duration)
+    return false;
 
   minco_.reset(input_.head_state, input_.tail_state, piece_count_);
   minco_.generate(inner, durations);
@@ -157,12 +227,13 @@ double WholeBodyOptimizer::cost(
     return std::numeric_limits<double>::max() / 1e3;
   }
 
-  // initGradCost seeds the coefficient gradient with the smoothness term. The
-  // duration output is not a decision variable, so it is discarded here.
-  Eigen::VectorXd gradient_durations = Eigen::VectorXd::Zero(8 * piece_count_);
+  // Seed smoothness derivatives; add quadrature derivatives before the adjoint.
+  Eigen::VectorXd gradient_durations = Eigen::VectorXd::Zero(piece_count_);
   double total = 0.0;
   minco_.initGradCost(gradient_durations, total);
-  accumulateCosts(total);
+  accumulateCosts(total, gradient_durations);
+  total += config_.time_weight * minco_.get_T1().sum();
+  gradient_durations.array() += config_.time_weight;
 
   // Snapshot before the adjoint solve, which mutates gdC in place.
   gdC_snapshot_ = minco_.get_gdC();
@@ -173,17 +244,27 @@ double WholeBodyOptimizer::cost(
   minco_.getGrad2TP(
     gradient_durations, gradient_inner, gradient_head, gradient_tail);
 
-  gradient = Eigen::Map<const Eigen::VectorXd>(
-    gradient_inner.data(), static_cast<Eigen::Index>(decision_dimension_));
+  const Eigen::Index inner_count = kDim * (piece_count_ - 1);
+  gradient.head(inner_count) =
+      Eigen::Map<const Eigen::VectorXd>(gradient_inner.data(), inner_count);
+  if (config_.optimize_durations)
+    for (int i = 0; i < piece_count_; ++i)
+      gradient(inner_count + i) =
+          gradient_durations(i) * timeDerivative(x(inner_count + i));
 
   if (!gradient.allFinite() || !std::isfinite(total)) {
+    gradient.setZero();
     return std::numeric_limits<double>::max() / 1e3;
+  }
+  if (total < best_cost_) {
+    best_cost_ = total;
+    best_x_ = x;
   }
   return total;
 }
 
-void WholeBodyOptimizer::accumulateCosts(double & cost)
-{
+void WholeBodyOptimizer::accumulateCosts(double &cost,
+                                         Eigen::VectorXd &gradient_durations) {
   // initGradCost() has already seeded this with the smoothness gradient.
   Eigen::MatrixXd & gradient_coefficients = minco_.get_gdC();
 
@@ -191,12 +272,6 @@ void WholeBodyOptimizer::accumulateCosts(double & cost)
   const auto & b = minco_.get_b();
   const auto & durations = minco_.get_T1();
   const std::string & frame = input_.header.frame_id;
-
-  // Held across every sample of the trajectory, like the builder's heading.
-  double held_yaw = config_.initial_yaw;
-  const bool hold_enabled = config_.heading_hold_speed >= 0.0;
-  const double hold_speed_squared =
-    config_.heading_hold_speed * config_.heading_hold_speed;
 
   Eigen::Matrix<double, kDim, 1> beta0;
   Eigen::Matrix<double, kDim, 1> beta1;
@@ -209,9 +284,9 @@ void WholeBodyOptimizer::accumulateCosts(double & cost)
     const double duration = durations(piece);
     const double step = duration / static_cast<double>(samples);
 
-
-    for (int sample = 0; sample <= samples; ++sample) {
-      const double s = static_cast<double>(sample) / static_cast<double>(samples);
+    for (int sample = 0; sample < samples; ++sample) {
+      const double s =
+          (static_cast<double>(sample) + 0.5) / static_cast<double>(samples);
       // MINCO stores REAL-TIME polynomial coefficients: Piece::getPos evaluates
       // sum_k c_k * t^k with the real time t. The basis must therefore be
       // evaluated at tau = s * T, and beta_k = d^k(beta_0)/dtau are the real
@@ -234,9 +309,8 @@ void WholeBodyOptimizer::accumulateCosts(double & cost)
       const Eigen::VectorXd acceleration = coefficients.transpose() * beta2;
       const Eigen::VectorXd jerk = coefficients.transpose() * beta3;
 
-      // Simpson weight: the integral is over [0, T] with K intervals.
-      const double weight =
-        (sample == 0 || sample == samples) ? 0.5 : 1.0;
+      // Midpoint quadrature avoids undefined headings at fixed rest boundaries.
+      const double weight = 1.0;
       double sample_cost = 0.0;
 
       Eigen::VectorXd grad_position = Eigen::VectorXd::Zero(kDim);
@@ -244,18 +318,11 @@ void WholeBodyOptimizer::accumulateCosts(double & cost)
       Eigen::VectorXd grad_acceleration = Eigen::VectorXd::Zero(kDim);
 
       // ---- Collision spheres: obstacle, ground, self-collision -------------
-      const double sample_speed_squared =
-        velocity(0) * velocity(0) + velocity(1) * velocity(1);
       const auto kinematics = wbmm::collision::evaluateWholeBodyKinematics(
-        collision_model_, position.head<2>(), velocity.head<2>(), input_.gear,
-        position.tail(joint_count_),
-        hold_enabled ? held_yaw : std::numeric_limits<double>::quiet_NaN());
-      if (hold_enabled && kinematics.success &&
-        sample_speed_squared >= hold_speed_squared)
-      {
-        // Only a sample fast enough to define a direction may update the hold.
-        held_yaw = kinematics.yaw;
-      }
+          collision_model_, position.head<2>(), velocity.head<2>(), input_.gear,
+          position.tail(joint_count_), config_.initial_yaw);
+      if (!kinematics.success)
+        throw std::runtime_error(kinematics.message);
 
       if (kinematics.success) {
         // Chains a gradient expressed at a sphere position back onto the
@@ -287,6 +354,7 @@ void WholeBodyOptimizer::accumulateCosts(double & cost)
           // clamped query is continuous and stays conservative because the
           // ESDF is clamped at its boundary too.
           auto query = environment_->query(frame, sphere.position);
+          Eigen::Vector3d outside = Eigen::Vector3d::Zero();
           if (query.status == wbmm::environment::QueryStatus::kOutOfBounds) {
             const auto & info = environment_->info();
             const Eigen::Vector3d lower = info.origin;
@@ -297,7 +365,21 @@ void WholeBodyOptimizer::accumulateCosts(double & cost)
               clamped(axis) = std::clamp(clamped(axis), lower(axis), upper(axis));
             }
             query = environment_->query(frame, clamped);
+            outside = sphere.position - clamped;
+            for (int axis = 0; axis < 3; ++axis)
+              if (outside(axis) != 0)
+                query.gradient(axis) = 0;
+            if (outside.norm() > 0) {
+              query.distance -= outside.norm();
+              query.gradient -= outside.normalized();
+            }
           }
+          if (query.status != wbmm::environment::QueryStatus::kSuccess ||
+              !query.gradient_valid ||
+              (config_.treat_unknown_as_occupied && !query.fully_observed))
+            throw std::runtime_error(
+                "Optimizer ESDF query is unavailable or unknown: " +
+                query.message);
           if (query.status == wbmm::environment::QueryStatus::kSuccess &&
             query.gradient_valid)
           {
@@ -402,6 +484,35 @@ void WholeBodyOptimizer::accumulateCosts(double & cost)
         }
       }
 
+      // Differential-drive yaw rate = cross(v,a)/|v|^2. The final emitted
+      // reference is checked again by the builder and the planner.
+      const Eigen::Vector2d v = velocity.head<2>(), a = acceleration.head<2>();
+      const double speed2 = v.squaredNorm();
+      if (speed2 > 1e-12) {
+        const double cross = v.x() * a.y() - v.y() * a.x();
+        const double omega = cross / speed2;
+        double derivative = 0;
+        const double term =
+            penalty(omega * omega - config_.max_yaw_rate * config_.max_yaw_rate,
+                    derivative);
+        sample_cost += config_.feasibility_weight * term;
+        const double factor =
+            config_.feasibility_weight * derivative * 2 * omega;
+        grad_velocity.head<2>() +=
+            factor * (Eigen::Vector2d(a.y(), -a.x()) / speed2 -
+                      2 * cross * v / (speed2 * speed2));
+        grad_acceleration.head<2>() +=
+            factor * Eigen::Vector2d(-v.y(), v.x()) / speed2;
+      }
+      double acc_derivative = 0;
+      const double acc_term =
+          penalty(a.squaredNorm() - config_.max_base_acceleration *
+                                        config_.max_base_acceleration,
+                  acc_derivative);
+      sample_cost += config_.feasibility_weight * acc_term;
+      grad_acceleration.head<2>() +=
+          2 * config_.feasibility_weight * acc_derivative * a;
+
       // ---- Joint position, velocity and acceleration envelopes ------------
       for (int j = 0; j < joint_count_; ++j) {
         const int index = 2 + j;
@@ -440,22 +551,28 @@ void WholeBodyOptimizer::accumulateCosts(double & cost)
       }
 
       // The quadrature weight belongs to the cost, not only to the gradient.
-      // Adding the raw per-sample cost here made the objective an unweighted sum
-      // while the gradient integrated with Simpson weights, so the two
+      // Adding the raw per-sample cost here made the objective an unweighted
+      // sum while the gradient integrated with quadrature weights, so the two
       // disagreed by exactly the ratio of the two weightings. The
       // finite-difference test caught it.
       cost += weight * step * sample_cost;
+      // Explicit d/dT: changing quadrature width and evaluation time s*T.
+      // The coefficient dependence is handled separately by MINCO's adjoint.
+      gradient_durations(piece) +=
+          weight *
+          (sample_cost / samples +
+           step * s *
+               (grad_position.dot(velocity) + grad_velocity.dot(acceleration) +
+                grad_acceleration.dot(jerk)));
 
       // ---- Accumulate into the coefficient and duration gradients ---------
-      // The sampled quantities are c^T beta_k scaled by 1/T^k, so the
-      // coefficient gradient carries the same scaling.
+      // Real-time coefficients: d(sample)/d(coefficients) = beta_k(t).
       gradient_coefficients.block(piece * kDim, 0, kDim, kDim) +=
         weight * step * beta0 * grad_position.transpose();
       gradient_coefficients.block(piece * kDim, 0, kDim, kDim) +=
         weight * step * beta1 * grad_velocity.transpose();
       gradient_coefficients.block(piece * kDim, 0, kDim, kDim) +=
         weight * step * beta2 * grad_acceleration.transpose();
-
     }
   }
 }
@@ -463,7 +580,7 @@ void WholeBodyOptimizer::accumulateCosts(double & cost)
 OptimizerResult WholeBodyOptimizer::optimize()
 {
   OptimizerResult result;
-  if (decision_dimension_ == 0U) {
+  if (!prepared_) {
     result.message = message_.empty() ? "prepare() was not called." : message_;
     return result;
   }
@@ -481,15 +598,39 @@ OptimizerResult WholeBodyOptimizer::optimize()
   parameters.max_iterations = config_.max_iterations;
 
   double final_cost = result.initial_cost;
-  const int status = lbfgs::lbfgs_optimize(
-    x, final_cost,
-    [](void * instance, const Eigen::VectorXd & trial, Eigen::VectorXd & out)
-    {
-      return static_cast<WholeBodyOptimizer *>(instance)->cost(trial, out);
-    },
-    nullptr, nullptr, this, parameters);
+  struct Progress {
+    WholeBodyOptimizer *self;
+    Clock::time_point start;
+    double budget;
+  } progress{this, started, config_.max_solve_time};
+  const int status =
+      decision_dimension_ == 0
+          ? 0
+          : lbfgs::lbfgs_optimize(
+                x, final_cost,
+                [](void *instance, const Eigen::VectorXd &trial,
+                   Eigen::VectorXd &out) {
+                  return static_cast<Progress *>(instance)->self->cost(trial,
+                                                                       out);
+                },
+                nullptr,
+                [](void *instance, const Eigen::VectorXd &,
+                   const Eigen::VectorXd &, double, double, int, int) {
+                  auto *p = static_cast<Progress *>(instance);
+                  return std::chrono::duration<double>(Clock::now() - p->start)
+                                     .count() > p->budget
+                             ? 1
+                             : 0;
+                },
+                &progress, parameters);
 
-  result.final_cost = final_cost;
+  result.solver_status = status;
+  if (best_x_.size() != x.size() || !std::isfinite(best_cost_)) {
+    result.message = "No finite optimizer iterate.";
+    return result;
+  }
+  x = best_x_;
+  result.final_cost = best_cost_;
   result.solve_time =
     std::chrono::duration<double>(Clock::now() - started).count();
   result.evaluations = evaluations_;
@@ -524,10 +665,14 @@ OptimizerResult WholeBodyOptimizer::optimize()
     return result;
   }
 
+  result.inner_points =
+      Eigen::Map<const Eigen::Matrix<double, kDim, Eigen::Dynamic>>(
+          x.data(), kDim, piece_count_ - 1);
+  result.durations = minco_.get_T1();
   result.trajectory = built.trajectory;
   result.success = true;
-  result.message = reason.empty() ? "ok" : "Optimized; note: " + reason;
-  (void)status;
+  result.message = (reason.empty() ? "ok" : "Optimized; note: " + reason) +
+                   " (L-BFGS status " + std::to_string(status) + ")";
   return result;
 }
 
@@ -546,8 +691,12 @@ bool WholeBodyOptimizer::safetySweep(
     reason = "The trajectory has no duration.";
     return false;
   }
+  if (!std::isfinite(duration) || duration > config_.max_total_duration) {
+    reason = "Trajectory exceeds optimizer duration budget.";
+    return false;
+  }
   const int samples = std::max(2, static_cast<int>(std::ceil(duration / sample_dt)));
-  double previous_yaw = 0.0;
+  double previous_yaw = config_.initial_yaw;
   bool first = true;
 
   for (int i = 0; i <= samples; ++i) {
@@ -560,8 +709,8 @@ bool WholeBodyOptimizer::safetySweep(
     }
 
     const auto kinematics = wbmm::collision::evaluateWholeBodyKinematics(
-      collision_model_, position.head<2>(), velocity.head<2>(), input_.gear,
-      position.tail(joint_count_));
+        collision_model_, position.head<2>(), velocity.head<2>(), input_.gear,
+        position.tail(joint_count_), previous_yaw);
     if (!kinematics.success) {
       reason = "Kinematics failed during the safety sweep: " + kinematics.message;
       return false;
@@ -571,7 +720,8 @@ bool WholeBodyOptimizer::safetySweep(
     {
       auto query = environment_->query(input_.header.frame_id, sphere.position);
       if (query.status != wbmm::environment::QueryStatus::kSuccess ||
-          !std::isfinite(query.distance)) {
+          !std::isfinite(query.distance) ||
+          (config_.treat_unknown_as_occupied && !query.fully_observed)) {
         reason = "Cannot validate sphere '" + sphere.name + "': " + query.message;
         return;
       }
@@ -613,9 +763,7 @@ bool WholeBodyOptimizer::safetySweep(
 
     // Yaw rate is the derivative of the emitted heading, consistent with the
     // trajectory builder.
-    const double yaw = std::atan2(
-      static_cast<double>(input_.gear) * velocity(1),
-      static_cast<double>(input_.gear) * velocity(0));
+    const double yaw = kinematics.yaw;
     if (!first && speed > 1e-6) {
       const double dt = duration / static_cast<double>(samples);
       double delta = yaw - previous_yaw;

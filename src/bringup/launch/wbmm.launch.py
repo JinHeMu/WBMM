@@ -128,6 +128,7 @@ def _make_actions(context):
                 "model": _value(context, "mujoco_model"),
                 "initial_pose": _value(context, "initial_pose"),
                 "init_keyframe": _value(context, "init_keyframe"),
+                "arm_bias_compensation": _value(context, "sim_arm_bias_compensation"),
                 "start_camera": _value(context, "start_camera"),
                 "publish_odom_tf": _value(context, "publish_odom_tf"),
             }.items(),
@@ -183,6 +184,7 @@ def _make_actions(context):
             "odom_topic": _value(context, "odom_topic"),
             "joint_state_topic": _value(context, "joint_state_topic"),
             "goal_topic": _value(context, "goal_topic"),
+            "enable_optimization": _value(context, "planner_enable_optimization"),
             "cruise_speed": _value(context, "planner_cruise_speed"),
             "max_linear_velocity": _value(context, "planner_max_linear_velocity"),
             "max_yaw_rate": _value(context, "planner_max_yaw_rate"),
@@ -264,6 +266,7 @@ def generate_launch_description():
             "initial_pose", default_value="low",
             choices=["low", "home", "task_contact"]),
         DeclareLaunchArgument("init_keyframe", default_value=""),
+        DeclareLaunchArgument("sim_arm_bias_compensation", default_value="false"),
         DeclareLaunchArgument("can_port", default_value="can0"),
         DeclareLaunchArgument("robot_ip", default_value="10.5.5.100"),
         DeclareLaunchArgument("local_ip", default_value="10.5.5.127"),
@@ -306,6 +309,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "goal_topic", default_value="/goal_pose",
             description="2D navigation goal consumed by the WBMM planner."),
+        DeclareLaunchArgument("planner_enable_optimization", default_value="true"),
         DeclareLaunchArgument("planner_cruise_speed", default_value="0.35"),
         DeclareLaunchArgument(
             "planner_max_linear_velocity", default_value="0.5",

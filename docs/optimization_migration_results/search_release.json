@@ -1,0 +1,254 @@
+[
+  {
+    "goal": [
+      0.8,
+      0
+    ],
+    "success": true,
+    "total": 0.0388494,
+    "base": 0.0311741,
+    "arm": 0.00237411,
+    "rrt": 0,
+    "build": 5.2844e-05,
+    "base_checks": 3746,
+    "whole_checks": 134,
+    "base_check_s": 0.0301676,
+    "whole_check_s": 0.00753115,
+    "optimization_s": 0,
+    "optimization_applied": false,
+    "duration": 3.675,
+    "message": "ok",
+    "run": 1
+  },
+  {
+    "goal": [
+      1.5,
+      0
+    ],
+    "success": false,
+    "total": 3.0612e-05,
+    "base": 2.7543e-05,
+    "arm": 0,
+    "rrt": 0,
+    "build": 0,
+    "base_checks": 2,
+    "whole_checks": 0,
+    "base_check_s": 2.6479e-05,
+    "whole_check_s": 0,
+    "optimization_s": 0,
+    "optimization_applied": false,
+    "duration": 0,
+    "message": "Base search failed: Goal was rejected by the base collision checker",
+    "run": 1
+  },
+  {
+    "goal": [
+      1,
+      0.5
+    ],
+    "success": false,
+    "total": 2.1978e-05,
+    "base": 2.0352e-05,
+    "arm": 0,
+    "rrt": 0,
+    "build": 0,
+    "base_checks": 2,
+    "whole_checks": 0,
+    "base_check_s": 2.0057e-05,
+    "whole_check_s": 0,
+    "optimization_s": 0,
+    "optimization_applied": false,
+    "duration": 0,
+    "message": "Base search failed: Goal was rejected by the base collision checker",
+    "run": 1
+  },
+  {
+    "goal": [
+      2,
+      -0.6
+    ],
+    "success": false,
+    "total": 3.1925e-05,
+    "base": 3.0363e-05,
+    "arm": 0,
+    "rrt": 0,
+    "build": 0,
+    "base_checks": 2,
+    "whole_checks": 0,
+    "base_check_s": 3.0157e-05,
+    "whole_check_s": 0,
+    "optimization_s": 0,
+    "optimization_applied": false,
+    "duration": 0,
+    "message": "Base search failed: Goal was rejected by the base collision checker",
+    "run": 1
+  },
+  {
+    "goal": [
+      0.8,
+      0
+    ],
+    "success": true,
+    "total": 0.039511,
+    "base": 0.0318578,
+    "arm": 0.00228581,
+    "rrt": 0,
+    "build": 5.2817e-05,
+    "base_checks": 3746,
+    "whole_checks": 134,
+    "base_check_s": 0.0308135,
+    "whole_check_s": 0.00750015,
+    "optimization_s": 0,
+    "optimization_applied": false,
+    "duration": 3.675,
+    "message": "ok",
+    "run": 2
+  },
+  {
+    "goal": [
+      1.5,
+      0
+    ],
+    "success": false,
+    "total": 3.1091e-05,
+    "base": 2.7416e-05,
+    "arm": 0,
+    "rrt": 0,
+    "build": 0,
+    "base_checks": 2,
+    "whole_checks": 0,
+    "base_check_s": 2.5886e-05,
+    "whole_check_s": 0,
+    "optimization_s": 0,
+    "optimization_applied": false,
+    "duration": 0,
+    "message": "Base search failed: Goal was rejected by the base collision checker",
+    "run": 2
+  },
+  {
+    "goal": [
+      1,
+      0.5
+    ],
+    "success": false,
+    "total": 2.206e-05,
+    "base": 2.0408e-05,
+    "arm": 0,
+    "rrt": 0,
+    "build": 0,
+    "base_checks": 2,
+    "whole_checks": 0,
+    "base_check_s": 2.0084e-05,
+    "whole_check_s": 0,
+    "optimization_s": 0,
+    "optimization_applied": false,
+    "duration": 0,
+    "message": "Base search failed: Goal was rejected by the base collision checker",
+    "run": 2
+  },
+  {
+    "goal": [
+      2,
+      -0.6
+    ],
+    "success": false,
+    "total": 2.1399e-05,
+    "base": 2.0003e-05,
+    "arm": 0,
+    "rrt": 0,
+    "build": 0,
+    "base_checks": 2,
+    "whole_checks": 0,
+    "base_check_s": 1.9793e-05,
+    "whole_check_s": 0,
+    "optimization_s": 0,
+    "optimization_applied": false,
+    "duration": 0,
+    "message": "Base search failed: Goal was rejected by the base collision checker",
+    "run": 2
+  },
+  {
+    "goal": [
+      0.8,
+      0
+    ],
+    "success": true,
+    "total": 0.0399319,
+    "base": 0.0321032,
+    "arm": 0.00233182,
+    "rrt": 0,
+    "build": 5.5906e-05,
+    "base_checks": 3746,
+    "whole_checks": 134,
+    "base_check_s": 0.0310782,
+    "whole_check_s": 0.00767294,
+    "optimization_s": 0,
+    "optimization_applied": false,
+    "duration": 3.675,
+    "message": "ok",
+    "run": 3
+  },
+  {
+    "goal": [
+      1.5,
+      0
+    ],
+    "success": false,
+    "total": 3.1113e-05,
+    "base": 2.7801e-05,
+    "arm": 0,
+    "rrt": 0,
+    "build": 0,
+    "base_checks": 2,
+    "whole_checks": 0,
+    "base_check_s": 2.6678e-05,
+    "whole_check_s": 0,
+    "optimization_s": 0,
+    "optimization_applied": false,
+    "duration": 0,
+    "message": "Base search failed: Goal was rejected by the base collision checker",
+    "run": 3
+  },
+  {
+    "goal": [
+      1,
+      0.5
+    ],
+    "success": false,
+    "total": 2.2363e-05,
+    "base": 2.0717e-05,
+    "arm": 0,
+    "rrt": 0,
+    "build": 0,
+    "base_checks": 2,
+    "whole_checks": 0,
+    "base_check_s": 2.0459e-05,
+    "whole_check_s": 0,
+    "optimization_s": 0,
+    "optimization_applied": false,
+    "duration": 0,
+    "message": "Base search failed: Goal was rejected by the base collision checker",
+    "run": 3
+  },
+  {
+    "goal": [
+      2,
+      -0.6
+    ],
+    "success": false,
+    "total": 2.1855e-05,
+    "base": 2.0427e-05,
+    "arm": 0,
+    "rrt": 0,
+    "build": 0,
+    "base_checks": 2,
+    "whole_checks": 0,
+    "base_check_s": 2.0186e-05,
+    "whole_check_s": 0,
+    "optimization_s": 0,
+    "optimization_applied": false,
+    "duration": 0,
+    "message": "Base search failed: Goal was rejected by the base collision checker",
+    "run": 3
+  }
+]

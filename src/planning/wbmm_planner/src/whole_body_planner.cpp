@@ -59,10 +59,10 @@ WholeBodyPlanner::WholeBodyPlanner(PlannerConfig config) : config_(std::move(con
 }
 
 PlanResult WholeBodyPlanner::plan(
-  const PlanRequest & request,
-  const wbmm::search::BaseCollisionChecker & base_checker,
-  const wbmm::search::WholeBodyCollisionChecker & whole_body_checker) const
-{
+    const PlanRequest &request,
+    const wbmm::search::BaseCollisionChecker &base_checker,
+    const wbmm::search::WholeBodyCollisionChecker &whole_body_checker,
+    const TrajectoryOptimizer &optimizer) const {
   PlanResult result;
 
   const auto fail = [&result, this](std::string message)
@@ -131,6 +131,90 @@ PlanResult WholeBodyPlanner::plan(
     return fail("Rest-to-rest planner requires a stationary start state.");
   }
 
+  const auto validateTrajectory =
+      [&](const wbmm::core::WholeBodyTrajectory &trajectory) -> std::string {
+    // Validate the actual sampled reference AND the linear interpolation used
+    // by the bridge. Seed checks cannot certify a polynomial that cuts corners.
+    // These are bounded discrete checks, not a continuous collision
+    // certificate.
+    const auto &points = trajectory.points;
+    if (points.empty())
+      return std::string("Empty candidate trajectory.");
+    std::size_t checks = 0U;
+    try {
+      for (std::size_t i = 0; i < points.size(); ++i) {
+        const auto &a = points[i == 0U ? 0U : i - 1U].state;
+        const auto &b = points[i].state;
+        double subdivisions = std::max(
+            1.0,
+            std::ceil(std::hypot(b.base.x - a.base.x, b.base.y - a.base.y) /
+                      config_.validation_translation_step));
+        subdivisions =
+            std::max(subdivisions, std::ceil(std::abs(b.base.yaw - a.base.yaw) /
+                                             config_.validation_angle_step));
+        for (std::size_t j = 0; j < 6U; ++j) {
+          subdivisions =
+              std::max(subdivisions, std::ceil(std::abs(b.joints.positions[j] -
+                                                        a.joints.positions[j]) /
+                                               config_.validation_angle_step));
+        }
+        if (!std::isfinite(subdivisions) || subdivisions > 100000.0 - checks) {
+          return std::string("Final trajectory validation budget exceeded.");
+        }
+        const auto count = static_cast<std::size_t>(subdivisions);
+        for (std::size_t k = 1; k <= count; ++k) {
+          const double alpha = static_cast<double>(k) / count;
+          auto state = b;
+          state.base.x = a.base.x + alpha * (b.base.x - a.base.x);
+          state.base.y = a.base.y + alpha * (b.base.y - a.base.y);
+          state.base.yaw = a.base.yaw + alpha * (b.base.yaw - a.base.yaw);
+          for (std::size_t j = 0; j < 6U; ++j) {
+            state.joints.positions[j] =
+                a.joints.positions[j] +
+                alpha * (b.joints.positions[j] - a.joints.positions[j]);
+            if (state.joints.positions[j] <
+                    request.limits.joint_min[j] - 1e-9 ||
+                state.joints.positions[j] >
+                    request.limits.joint_max[j] + 1e-9) {
+              return std::string(
+                  "Final trajectory exceeds joint position limits.");
+            }
+          }
+          ++checks;
+          if (!whole_body_checker(state.header, state)) {
+            return std::string(
+                "Final trajectory collision validation failed at sample " +
+                std::to_string(i));
+          }
+        }
+      }
+    } catch (const std::exception &error) {
+      return std::string("Final trajectory collision checker failed: " +
+                         std::string(error.what()));
+    } catch (...) {
+      return std::string("Final trajectory collision checker failed with an "
+                         "unknown exception.");
+    }
+    // Shaping may change the terminal tangent, so search success alone does not
+    // imply that the published pose meets the original goal.
+    const auto &end = points.back().state.base;
+    if (std::hypot(end.x - request.goal.x, end.y - request.goal.y) >
+            config_.base_search.position_tolerance + 1e-9 ||
+        std::abs(std::remainder(end.yaw - request.goal.yaw, 2.0 * M_PI)) >
+            config_.base_search.yaw_tolerance + 1e-9) {
+      return std::string("Shaped trajectory does not meet the requested "
+                         "terminal pose tolerance.");
+    }
+    if (request.goal_joints) {
+      for (std::size_t j = 0; j < 6; ++j)
+        if (std::abs(points.back().state.joints.positions[j] -
+                     request.goal_joints->positions[j]) > 1e-6)
+          return std::string(
+              "Final trajectory does not meet requested terminal joints.");
+    }
+    return {};
+  };
+
   // ---- 1. Base search -----------------------------------------------------
   const auto base_started = Clock::now();
   wbmm::search::KinoAstar astar(config_.base_search);
@@ -171,7 +255,7 @@ PlanResult WholeBodyPlanner::plan(
 
   // Keep the existing smooth MINCO route. Exact time-scaled primitives are a
   // conservative fallback for rotations, gear changes or failed smoothing.
-  const auto shape = [&]() -> PlanResult {
+  const auto shape = [&](bool allow_optimization) -> PlanResult {
     if (result.search.base_path.size() < 2U)
       return fail("Stationary goal requires a hold.");
     for (const auto &primitive : seed.primitives) {
@@ -283,6 +367,60 @@ PlanResult WholeBodyPlanner::plan(
       durations(i) = std::max({by_base, by_arm, config_.min_segment_duration});
     }
 
+    if (allow_optimization && config_.enable_optimization && optimizer) {
+      result.optimization_attempted = true;
+      wbmm::traj_opt::OptimizerInput input;
+      input.header = request.header;
+      input.head_state = head;
+      input.tail_state = tail;
+      input.inner_points = inner;
+      input.durations = durations;
+      input.gear = gear;
+      input.joint_names = request.start_joints.names;
+      input.environment_revision = request.environment_revision;
+      input.collision_model_revision = request.collision_model_revision;
+      auto options = config_.optimizer;
+      options.initial_yaw = request.start.yaw;
+      options.max_base_speed = std::min(config_.builder.max_linear_velocity,
+                                        request.limits.max_base_speed);
+      options.max_yaw_rate = std::min(config_.builder.max_yaw_rate,
+                                      request.limits.max_base_yaw_rate);
+      options.max_joint_speed =
+          std::min({config_.max_joint_speed, config_.builder.max_joint_velocity,
+                    *std::min_element(request.limits.max_joint_speed.begin(),
+                                      request.limits.max_joint_speed.end())});
+      options.max_total_duration = config_.max_trajectory_duration;
+      options.joint_min = Eigen::Map<const Eigen::VectorXd>(
+          request.limits.joint_min.data(), joint_count);
+      options.joint_max = Eigen::Map<const Eigen::VectorXd>(
+          request.limits.joint_max.data(), joint_count);
+      const auto started = Clock::now();
+      try {
+        auto candidate = optimizer(input, options);
+        result.optimization_message = candidate.message;
+        result.optimization_evaluations = candidate.evaluations;
+        result.initial_cost = candidate.initial_cost;
+        result.final_cost = candidate.final_cost;
+        if (candidate.success && candidate.inner_points.rows() == kDim &&
+            candidate.inner_points.cols() == piece_count - 1 &&
+            candidate.durations.size() == piece_count &&
+            candidate.inner_points.allFinite() &&
+            candidate.durations.allFinite() &&
+            (candidate.durations.array() > 0).all() &&
+            std::isfinite(candidate.final_cost) &&
+            candidate.final_cost <=
+                candidate.initial_cost +
+                    1e-8 * std::max(1.0, std::abs(candidate.initial_cost))) {
+          inner = candidate.inner_points;
+          durations = candidate.durations;
+          result.optimization_applied = true;
+        }
+      } catch (const std::exception &error) {
+        result.optimization_message = error.what();
+      }
+      result.optimization_time = secondsSince(started);
+    }
+
     wbmm::traj_opt::MinSnapOpt<kDim> minco;
     // ---- 5. Publishable trajectory -----------------------------------------
     auto builder_config = config_.builder;
@@ -360,11 +498,29 @@ PlanResult WholeBodyPlanner::plan(
     }
 
     result.trajectory = std::move(built.trajectory);
-    result.trajectory_backend = "minco";
+    result.trajectory_backend =
+        result.optimization_applied ? "minco_optimized" : "minco";
     result.success = true;
     return result;
   };
-  auto shaped = shape();
+  auto shaped = shape(true);
+  bool candidate_validated = false;
+  if (result.optimization_applied) {
+    if (shaped.success) {
+      const auto rejection = validateTrajectory(shaped.trajectory);
+      if (!rejection.empty()) {
+        shaped.success = false;
+        shaped.message = rejection;
+      } else
+        candidate_validated = true;
+    }
+    if (!shaped.success) {
+      result.optimization_applied = false;
+      result.optimization_message =
+          "Candidate rejected; using unoptimized seed: " + shaped.message;
+      shaped = shape(false);
+    }
+  }
   if (!shaped.success) {
     if (!config_.enable_primitive_fallback)
       return shaped;
@@ -374,6 +530,7 @@ PlanResult WholeBodyPlanner::plan(
     result.trajectory.environment_revision = request.environment_revision;
     result.trajectory.collision_model_revision = request.collision_model_revision;
     result.trajectory_backend = "time_scaled_primitives";
+    result.optimization_applied = false;
     result.gear = pathGear(result.search.base_path);
     result.max_linear_velocity = result.max_yaw_rate = result.max_joint_velocity =
         result.max_heading_step = 0;
@@ -463,66 +620,10 @@ PlanResult WholeBodyPlanner::plan(
   } else {
     result = std::move(shaped);
   }
-  // Validate the actual sampled reference AND the linear interpolation used by
-  // the bridge. Seed checks cannot certify a polynomial that cuts corners.
-  // These are bounded discrete checks, not a continuous collision certificate.
-  const auto &points = result.trajectory.points;
-  std::size_t checks = 0U;
-  try {
-    for (std::size_t i = 0; i < points.size(); ++i) {
-      const auto & a = points[i == 0U ? 0U : i - 1U].state;
-      const auto & b = points[i].state;
-      double subdivisions = std::max(1.0, std::ceil(std::hypot(
-        b.base.x - a.base.x, b.base.y - a.base.y) / config_.validation_translation_step));
-      subdivisions = std::max(subdivisions, std::ceil(
-        std::abs(b.base.yaw - a.base.yaw) / config_.validation_angle_step));
-      for (std::size_t j = 0; j < 6U; ++j) {
-        subdivisions = std::max(subdivisions, std::ceil(std::abs(
-          b.joints.positions[j] - a.joints.positions[j]) / config_.validation_angle_step));
-      }
-      if (!std::isfinite(subdivisions) || subdivisions > 100000.0 - checks) {
-        return fail("Final trajectory validation budget exceeded.");
-      }
-      const auto count = static_cast<std::size_t>(subdivisions);
-      for (std::size_t k = 1; k <= count; ++k) {
-        const double alpha = static_cast<double>(k) / count;
-        auto state = b;
-        state.base.x = a.base.x + alpha * (b.base.x - a.base.x);
-        state.base.y = a.base.y + alpha * (b.base.y - a.base.y);
-        state.base.yaw = a.base.yaw + alpha * (b.base.yaw - a.base.yaw);
-        for (std::size_t j = 0; j < 6U; ++j) {
-          state.joints.positions[j] = a.joints.positions[j] + alpha *
-            (b.joints.positions[j] - a.joints.positions[j]);
-          if (state.joints.positions[j] < request.limits.joint_min[j] - 1e-9 ||
-              state.joints.positions[j] > request.limits.joint_max[j] + 1e-9) {
-            return fail("Final trajectory exceeds joint position limits.");
-          }
-        }
-        ++checks;
-        if (!whole_body_checker(state.header, state)) {
-          return fail("Final trajectory collision validation failed at sample " + std::to_string(i));
-        }
-      }
-    }
-  } catch (const std::exception & error) {
-    return fail("Final trajectory collision checker failed: " + std::string(error.what()));
-  } catch (...) {
-    return fail("Final trajectory collision checker failed with an unknown exception.");
-  }
-  // Shaping may change the terminal tangent, so search success alone does not
-  // imply that the published pose meets the original goal.
-  const auto & end = points.back().state.base;
-  if (std::hypot(end.x - request.goal.x, end.y - request.goal.y) >
-        config_.base_search.position_tolerance + 1e-9 ||
-      std::abs(std::remainder(end.yaw - request.goal.yaw, 2.0 * M_PI)) >
-        config_.base_search.yaw_tolerance + 1e-9) {
-    return fail("Shaped trajectory does not meet the requested terminal pose tolerance.");
-  }
-  if (request.goal_joints) {
-    for (std::size_t j = 0; j < 6; ++j)
-      if (std::abs(points.back().state.joints.positions[j] - request.goal_joints->positions[j]) >
-          1e-6)
-        return fail("Final trajectory does not meet requested terminal joints.");
+  if (!candidate_validated) {
+    const auto rejection = validateTrajectory(result.trajectory);
+    if (!rejection.empty())
+      return fail(rejection);
   }
   result.success = true;
   result.message = "ok";

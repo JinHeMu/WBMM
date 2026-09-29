@@ -1,0 +1,26 @@
+{
+  "passed": true,
+  "entrypoint": "wbmm_tracking.launch.py",
+  "stages": [
+    {
+      "stage": "navigation",
+      "position_error": 0.0006941121994088707,
+      "yaw_error": 4.7999072252947326e-06
+    },
+    {
+      "stage": "rotation",
+      "position_error": 0.00045767619898625945,
+      "yaw_error": 0.0024236388899101513
+    },
+    {
+      "stage": "EE tracking",
+      "active_phase": 2,
+      "position_error": 0.012370844971363457
+    },
+    {
+      "stage": "return to navigation",
+      "position_error": 0.003015544640799662,
+      "yaw_error": 0.000699349235601554
+    }
+  ]
+}

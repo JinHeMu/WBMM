@@ -1,11 +1,13 @@
 #pragma once
 
+#include <functional>
 #include <wbmm_core/robot_model.hpp>
 #include <wbmm_core/trajectory.hpp>
 #include <wbmm_core/types.hpp>
 #include <wbmm_search/arm_seed_search.hpp>
 #include <wbmm_search/kino_astar.hpp>
 #include <wbmm_search/whole_body_rrt.hpp>
+#include <wbmm_traj_opt/whole_body_optimizer.hpp>
 #include <wbmm_traj_opt/whole_body_trajectory_builder.hpp>
 
 #include <cstdint>
@@ -15,8 +17,14 @@
 namespace wbmm::planning
 {
 
+using TrajectoryOptimizer = std::function<wbmm::traj_opt::OptimizerResult(
+    const wbmm::traj_opt::OptimizerInput &,
+    const wbmm::traj_opt::OptimizerConfig &)>;
+
 struct PlannerConfig
 {
+  bool enable_optimization{false};
+  wbmm::traj_opt::OptimizerConfig optimizer{};
   wbmm::search::KinoAstarConfig base_search{};
   wbmm::search::ArmSeedConfig arm_seed{};  // legacy profile, retained for callers
   wbmm::search::WholeBodyRrtConfig sample_rrt{};
@@ -85,6 +93,13 @@ struct PlanResult
   bool whole_body_rrt_attempted{false};
   double whole_body_rrt_time{0.0};
 
+  bool optimization_attempted{false};
+  bool optimization_applied{false};
+  std::string optimization_message;
+  double optimization_time{0.0};
+  double initial_cost{0.0}, final_cost{0.0};
+  int optimization_evaluations{0};
+
   // Diagnostics, seconds.
   double base_search_time{0.0};
   double arm_seed_time{0.0};
@@ -113,10 +128,11 @@ class WholeBodyPlanner
 public:
   explicit WholeBodyPlanner(PlannerConfig config = {});
 
-  [[nodiscard]] PlanResult plan(
-    const PlanRequest & request,
-    const wbmm::search::BaseCollisionChecker & base_checker,
-    const wbmm::search::WholeBodyCollisionChecker & whole_body_checker) const;
+  [[nodiscard]] PlanResult
+  plan(const PlanRequest &request,
+       const wbmm::search::BaseCollisionChecker &base_checker,
+       const wbmm::search::WholeBodyCollisionChecker &whole_body_checker,
+       const TrajectoryOptimizer &optimizer = {}) const;
 
   [[nodiscard]] const PlannerConfig & config() const noexcept {return config_;}
   [[nodiscard]] const std::string & lastError() const noexcept {return last_error_;}

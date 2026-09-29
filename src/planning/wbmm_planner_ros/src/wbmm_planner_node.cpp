@@ -86,6 +86,13 @@ private:
     declare_parameter<double>("tangent_chord_length", 0.15);
     declare_parameter<int>("minco_waypoint_stride", 3);
 
+    declare_parameter<bool>("enable_optimization", true);
+    declare_parameter<bool>("optimizer.optimize_durations", true);
+    declare_parameter<double>("optimizer.max_solve_time", 1.0);
+    declare_parameter<int>("optimizer.max_iterations", 100);
+    declare_parameter<int>("optimizer.samples_per_piece", 12);
+    declare_parameter<double>("optimizer.time_weight", 5.0);
+    declare_parameter<double>("optimizer.obstacle_margin", 0.10);
     declare_parameter<double>("base_search_resolution", 0.15);
     declare_parameter<double>("base_search_position_tolerance", 0.20);
     declare_parameter<double>("base_search_yaw_tolerance", 0.30);
@@ -175,6 +182,7 @@ private:
       throw std::runtime_error("Cannot extract collision spheres: " + spheres.message);
     }
 
+    collisionModel_ = spheres;
     wbmm::collision::CollisionModel model;
     model.spheres = spheres.base.spheres;
     for (const auto & group : spheres.arm) {
@@ -392,6 +400,22 @@ private:
     config.builder.max_joint_velocity = get_parameter("max_joint_velocity").as_double();
     config.builder.max_heading_step = get_parameter("max_heading_step").as_double();
 
+    config.enable_optimization = get_parameter("enable_optimization").as_bool();
+    config.optimizer.optimize_durations =
+        get_parameter("optimizer.optimize_durations").as_bool();
+    config.optimizer.max_solve_time =
+        get_parameter("optimizer.max_solve_time").as_double();
+    config.optimizer.max_iterations =
+        get_parameter("optimizer.max_iterations").as_int();
+    const auto samples = get_parameter("optimizer.samples_per_piece").as_int();
+    config.optimizer.samples_per_piece =
+        samples > 0 ? static_cast<std::size_t>(samples) : 0;
+    config.optimizer.time_weight =
+        get_parameter("optimizer.time_weight").as_double();
+    config.optimizer.obstacle_margin =
+        get_parameter("optimizer.obstacle_margin").as_double();
+    config.optimizer.treat_unknown_as_occupied =
+        get_parameter("treat_unknown_as_occupied").as_bool();
     config.base_search.position_resolution =
       get_parameter("base_search_resolution").as_double();
     config.base_search.position_tolerance =
@@ -484,6 +508,15 @@ private:
       if (future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
         return;
       auto result = future_.get();
+      RCLCPP_INFO(get_logger(),
+                  "PLAN_METRICS base=%.6f arm=%.6f whole_rrt=%.6f build=%.6f "
+                  "optimization=%.6f applied=%d evaluations=%d "
+                  "cost_before=%.8g cost_after=%.8g; %s",
+                  result.base_search_time, result.arm_seed_time,
+                  result.whole_body_rrt_time, result.build_time,
+                  result.optimization_time, result.optimization_applied,
+                  result.optimization_evaluations, result.initial_cost,
+                  result.final_cost, result.optimization_message.c_str());
       if (planningGeneration_ != generation_)
         return;
       if (!result.success) {
@@ -592,10 +625,22 @@ private:
     planningGeneration_ = generation_;
     const auto config = buildConfig();
     setStatus("PLANNING");
-    future_ = std::async(std::launch::async, [request, config, baseChecker, wholeBodyChecker]() {
+    const auto optimize = [environment = environment_, model = collisionModel_](
+                              const wbmm::traj_opt::OptimizerInput &input,
+                              const wbmm::traj_opt::OptimizerConfig &options) {
+      wbmm::traj_opt::WholeBodyOptimizer optimizer(options, environment, model);
+      if (!optimizer.prepare(input)) {
+        wbmm::traj_opt::OptimizerResult failure;
+        failure.message = optimizer.message();
+        return failure;
+      }
+      return optimizer.optimize();
+    };
+    future_ = std::async(std::launch::async, [request, config, baseChecker,
+                                              wholeBodyChecker, optimize]() {
       try {
-        return wbmm::planning::WholeBodyPlanner(config).plan(request, baseChecker,
-                                                             wholeBodyChecker);
+        return wbmm::planning::WholeBodyPlanner(config).plan(
+            request, baseChecker, wholeBodyChecker, optimize);
       } catch (const std::exception &e) {
         wbmm::planning::PlanResult result;
         result.message = e.what();
@@ -691,6 +736,7 @@ private:
 
   std::shared_ptr<const wbmm::environment::EsdfGrid> environment_;
   wbmm::core::RobotModelPtr robotModel_;
+  wbmm::collision::UrdfCollisionModel collisionModel_;
   std::shared_ptr<wbmm::collision::EnvironmentCollisionChecker> checker_;
 
   rclcpp::Publisher<wbmm_planning_msgs::msg::WholeBodyTrajectory>::SharedPtr

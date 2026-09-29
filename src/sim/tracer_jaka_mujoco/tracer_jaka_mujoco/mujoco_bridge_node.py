@@ -40,6 +40,7 @@ from .lidar_sensor import LidarSensor
 from .camera_sensor import CameraSensor
 from .imu_sensor import ImuSensor
 from .fts_sensor import MujocoFtsBroadcaster
+from .arm_servo import ArmBiasCompensator
 
 
 ARM_JOINTS = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
@@ -98,6 +99,7 @@ class MujocoBridge(Node):
         self.declare_parameter("cmd_vel_timeout", 0.5)
         self.declare_parameter("use_viewer", True)
         self.declare_parameter("arm_actuator_suffix", "_servo")
+        self.declare_parameter("arm_bias_compensation", False)
         self.declare_parameter("init_keyframe", "home")
         self.declare_parameter("collision_monitor.enable", True)
         self.declare_parameter(
@@ -241,6 +243,12 @@ class MujocoBridge(Node):
 
         self.a_arm = [nid(mujoco.mjtObj.mjOBJ_ACTUATOR, f"{j}{arm_suffix}")
                       for j in ARM_JOINTS]
+
+        self.arm_bias_compensator = None
+        if bool(gp("arm_bias_compensation")):
+            self.arm_bias_compensator = ArmBiasCompensator(
+                self.model, self.a_arm, [self.dadr[j] for j in ARM_JOINTS])
+            self.get_logger().info("Arm position servos: gravity/Coriolis feedforward enabled")
 
         # ---------------- 状态 / 锁 ----------------
         self.lock = threading.Lock()          # 保护 cmd / arm 目标
@@ -488,6 +496,8 @@ class MujocoBridge(Node):
         with self.lock:
             self.arm_target = self._interp_arm()
             arm = self.arm_target.copy()
+        if self.arm_bias_compensator is not None:
+            arm = self.arm_bias_compensator.controls(self.data, arm)
         for k, aid in enumerate(self.a_arm):
             if aid >= 0:
                 self.data.ctrl[aid] = arm[k]

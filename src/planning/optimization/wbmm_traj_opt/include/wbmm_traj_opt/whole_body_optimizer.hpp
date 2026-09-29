@@ -17,6 +17,14 @@ namespace wbmm::traj_opt
 
 struct OptimizerConfig
 {
+  bool optimize_durations{true};
+  double time_weight{5.0};
+  double min_piece_duration{0.05};
+  double max_total_duration{60.0};
+  double max_solve_time{1.0};
+  double max_yaw_rate{1.0};
+  double max_base_acceleration{1.0};
+  bool treat_unknown_as_occupied{false};
   // ---- Cost weights --------------------------------------------------------
   double obstacle_weight{50000.0};
   double ground_weight{5000.0};
@@ -32,16 +40,14 @@ struct OptimizerConfig
   double max_base_speed{0.5};
   double max_joint_speed{1.57};
   double max_joint_acceleration{3.14};
-  // The envelope terms are soft penalties, so the optimizer may settle a little
-  // outside the limit. The safety sweep treats that as acceptable up to this
-  // relative tolerance; collisions are always fatal.
+  // Relative threshold for envelope diagnostics only. Envelope excess does not
+  // reject a candidate here; the caller must time-scale and validate the final
+  // reference. ESDF collision at a sweep sample rejects the candidate.
   double envelope_tolerance{0.05};
 
-  // Experimental: holding heading changes the objective/gradient coupling.
-  // A chord is not a general fix: it violates differential-drive translation
-  // unless geometry and its full derivative chain are changed consistently.
-  // Negative keeps the existing velocity-direction reconstruction.
-  double heading_hold_speed{-1.0};
+  // Compatibility parameter: heading at zero speed uses initial_yaw. Cost
+  // quadrature uses interior midpoints, avoiding atan2 at fixed rest endpoints.
+  double heading_hold_speed{1.0e-6};
 
   // Heading used before the first sample fast enough to define one.
   double initial_yaw{0.0};
@@ -83,6 +89,9 @@ struct OptimizerResult
 {
   bool success{false};
   std::string message;
+  Eigen::MatrixXd inner_points;
+  Eigen::VectorXd durations;
+  int solver_status{0};
 
   wbmm::core::WholeBodyTrajectory trajectory;
 
@@ -103,27 +112,12 @@ struct OptimizerResult
 
 // MINCO-based whole-body trajectory optimizer.
 //
-// Decision vector: the interior waypoints, flattened column-major
-// (traj_dim x (pieces - 1) values). Durations are taken from the input and held
-// fixed.
-//
-// Known limitation: the objective is not differentiable at the trajectory
-// endpoints. Their velocity is exactly zero by the boundary conditions, so the
-// reconstructed heading degenerates to atan2(0, 0) and a vanishing perturbation
-// picks an arbitrary direction, which moves the arm spheres and jumps the
-// collision cost. The finite-difference test therefore measures the gradient at
-// a step above that scale. Fixing it means giving the heading the same
-// held-at-rest behaviour the trajectory builder already uses.
-//
-// Scope note: REMANI also optimizes the durations. That is deliberately NOT
-// done here yet. The explicit duration derivative and MINCO's KKT adjoint
-// propagation interact in a way this implementation has not reproduced
-// correctly, and an unverified timing gradient is worse than none. The caller
-// already enforces the controller envelope by time-scaling the finished
-// reference, so timing is covered; only the geometric refinement is delegated
-// to this optimizer. The transverse gradient remains unverified; its current loose test is a
-// regression diagnostic, not a correctness certificate. This optimizer is not
-// connected to WholeBodyPlanner and requires external acceptance checks.
+// Decision vector: column-major interior waypoints followed by virtual times.
+// Positive real durations use REMANI's C2 virtual-time map plus a minimum
+// duration. Gradients include real-time quadrature and the MINCO adjoint.
+// Cost quadrature excludes fixed endpoints; publication is separately checked
+// at endpoints and along the sampled/interpolated controller reference.
+// Success is a candidate, not a continuous-time safety certificate.
 //
 // The objective is the sum of the snap cost, obstacle clearance against the
 // ESDF, ground clearance, self-collision between sphere groups, and base/joint
@@ -178,7 +172,7 @@ private:
   [[nodiscard]] bool rebuild(const Eigen::VectorXd & x);
   // Accumulates every non-smoothness term directly into the MINCO's own
   // coefficient gradient, because that is what getGrad2TP() reads back.
-  void accumulateCosts(double & cost);
+  void accumulateCosts(double &cost, Eigen::VectorXd &gradient_durations);
   [[nodiscard]] bool safetySweep(
     double sample_dt, std::string & reason, double & min_clearance,
     double & max_base_speed, double & max_yaw_rate,
@@ -201,6 +195,9 @@ private:
   int joint_count_{0};
   Eigen::VectorXd initial_durations_;
   std::string message_;
+  bool prepared_{false};
+  double best_cost_{0.0};
+  Eigen::VectorXd best_x_;
 };
 
 }  // namespace wbmm::traj_opt

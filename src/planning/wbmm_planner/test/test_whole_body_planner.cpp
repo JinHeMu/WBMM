@@ -385,3 +385,66 @@ TEST(WholeBodyPlanner, FallsBackWhenArmCannotUseTheAstarCorridor) {
 }
 
 }  // namespace
+
+TEST(PlannerOptimization, PassesCoreContractAndRetimesOptimizedCandidate) {
+  auto config = makeConfig();
+  config.enable_optimization = true;
+  int calls = 0;
+  auto optimize = [&](const wbmm::traj_opt::OptimizerInput &in,
+                      const wbmm::traj_opt::OptimizerConfig &cfg) {
+    ++calls;
+    EXPECT_EQ(in.header.frame_id, "map");
+    EXPECT_EQ(in.joint_names, makeJoints().names);
+    EXPECT_EQ(in.environment_revision, 7U);
+    EXPECT_EQ(in.collision_model_revision, 9U);
+    EXPECT_DOUBLE_EQ(cfg.max_base_speed, .5);
+    wbmm::traj_opt::OptimizerResult out;
+    out.success = true;
+    out.inner_points = in.inner_points;
+    out.durations = in.durations * 1.1;
+    out.initial_cost = 100;
+    out.final_cost = 90;
+    out.evaluations = 2;
+    return out;
+  };
+  auto result = wbmm::planning::WholeBodyPlanner(config).plan(
+      makeRequest(), freeBase(), freeWholeBody(), optimize);
+  ASSERT_TRUE(result.success) << result.message;
+  EXPECT_EQ(calls, 1);
+  EXPECT_TRUE(result.optimization_applied);
+  EXPECT_EQ(result.trajectory_backend, "minco_optimized");
+  EXPECT_LE(result.max_linear_velocity,
+            config.builder.max_linear_velocity + 1e-6);
+}
+TEST(PlannerOptimization, InvalidOrThrowingOptimizerKeepsValidatedBaseline) {
+  auto config = makeConfig();
+  config.enable_optimization = true;
+  for (bool throws : {false, true}) {
+    auto optimize = [&](const wbmm::traj_opt::OptimizerInput &,
+                        const wbmm::traj_opt::OptimizerConfig &)
+        -> wbmm::traj_opt::OptimizerResult {
+      if (throws)
+        throw std::runtime_error("test backend unavailable");
+      wbmm::traj_opt::OptimizerResult out;
+      out.success = true;
+      return out;
+    };
+    auto result = wbmm::planning::WholeBodyPlanner(config).plan(
+        makeRequest(), freeBase(), freeWholeBody(), optimize);
+    ASSERT_TRUE(result.success) << result.message;
+    EXPECT_TRUE(result.optimization_attempted);
+    EXPECT_FALSE(result.optimization_applied);
+    EXPECT_EQ(result.trajectory_backend, "minco");
+  }
+}
+TEST(PlannerOptimization, DisabledSwitchNeverInvokesOptimizer) {
+  auto result = wbmm::planning::WholeBodyPlanner(makeConfig())
+                    .plan(makeRequest(), freeBase(), freeWholeBody(),
+                          [](const auto &,
+                             const auto &) -> wbmm::traj_opt::OptimizerResult {
+                            ADD_FAILURE() << "disabled optimizer invoked";
+                            return {};
+                          });
+  ASSERT_TRUE(result.success);
+  EXPECT_FALSE(result.optimization_attempted);
+}

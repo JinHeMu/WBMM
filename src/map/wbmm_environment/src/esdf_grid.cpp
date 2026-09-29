@@ -167,6 +167,13 @@ DistanceQuery EsdfGrid::query(
       (values[1][1][1] - values[0][1][1]);
   result.gradient(0) *= inverse_voxel;
 
+  for (int axis = 0; axis < 3; ++axis) {
+    const double raw =
+        (position(axis) - lower_corner_center(axis)) / info.voxel_size;
+    if (raw < 0.0 || raw > 1.0 || index(axis) == info.shape(axis) - 1)
+      result.gradient(axis) = 0.0;
+  }
+
   if (!observed) {
     // Provenance only. The ESDF payload is defined in every voxel, and on the
     // deployed map every unobserved voxel holds the clamp maximum, so the

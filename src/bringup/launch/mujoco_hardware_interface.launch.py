@@ -69,6 +69,7 @@ def _make_nodes(context):
         "model_path": model,
         "use_sim_time": False,
         "use_viewer": viewer,
+        "arm_bias_compensation": _as_bool(_value(context, "arm_bias_compensation")),
         "init_keyframe": init_keyframe,
         "odom_topic": _value(context, "wheel_odom_topic"),
         "publish_odom_tf": publish_odom_tf,
@@ -170,5 +171,6 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "depth_camera_info_topic",
             default_value="/camera/d455/depth/camera_info"),
+        DeclareLaunchArgument("arm_bias_compensation", default_value="false"),
         OpaqueFunction(function=_make_nodes),
     ])

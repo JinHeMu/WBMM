@@ -1,0 +1,106 @@
+[
+  {
+    "package": "wbmm_environment",
+    "suite": "test_environment_skeleton.gtest.xml",
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "disabled": 0
+  },
+  {
+    "package": "wbmm_collision",
+    "suite": "test_collision_skeleton.gtest.xml",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "disabled": 0
+  },
+  {
+    "package": "wbmm_collision",
+    "suite": "test_environment_collision_checker.gtest.xml",
+    "tests": 11,
+    "failures": 0,
+    "errors": 0,
+    "disabled": 0
+  },
+  {
+    "package": "wbmm_collision",
+    "suite": "test_search_collision_integration.gtest.xml",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "disabled": 0
+  },
+  {
+    "package": "wbmm_collision",
+    "suite": "test_urdf_collision_model.gtest.xml",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "disabled": 0
+  },
+  {
+    "package": "wbmm_collision",
+    "suite": "test_whole_body_kinematics.gtest.xml",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "disabled": 0
+  },
+  {
+    "package": "wbmm_search",
+    "suite": "test_arm_seed_search.gtest.xml",
+    "tests": 10,
+    "failures": 0,
+    "errors": 0,
+    "disabled": 0
+  },
+  {
+    "package": "wbmm_search",
+    "suite": "test_kino_astar.gtest.xml",
+    "tests": 34,
+    "failures": 0,
+    "errors": 0,
+    "disabled": 0
+  },
+  {
+    "package": "wbmm_search",
+    "suite": "test_whole_body_rrt.gtest.xml",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "disabled": 0
+  },
+  {
+    "package": "wbmm_traj_opt",
+    "suite": "test_minco.gtest.xml",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "disabled": 0
+  },
+  {
+    "package": "wbmm_traj_opt",
+    "suite": "test_whole_body_optimizer.gtest.xml",
+    "tests": 11,
+    "failures": 0,
+    "errors": 0,
+    "disabled": 0
+  },
+  {
+    "package": "wbmm_traj_opt",
+    "suite": "test_whole_body_trajectory_builder.gtest.xml",
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "disabled": 0
+  },
+  {
+    "package": "wbmm_planner",
+    "suite": "test_whole_body_planner.gtest.xml",
+    "tests": 20,
+    "failures": 0,
+    "errors": 0,
+    "disabled": 0
+  }
+]

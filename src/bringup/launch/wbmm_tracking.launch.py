@@ -77,6 +77,7 @@ def _make_actions(context):
     # independent defaults.
     wbmm_args = {
         "hardware_backend": "mujoco",
+        "sim_arm_bias_compensation": _value(context, "sim_arm_bias_compensation"),
         "config_profile": "sim",
         "scene": _value(context, "scene"),
         "viewer": _value(context, "viewer"),
@@ -97,6 +98,7 @@ def _make_actions(context):
         "world_frame": world_frame,
         "remani_planner_frame": world_frame,
         "goal_topic": _value(context, "goal_topic"),
+        "planner_enable_optimization": _value(context, "planner_enable_optimization"),
         "planner_cruise_speed": _value(context, "planner_cruise_speed"),
         "planner_max_linear_velocity": _value(
             context, "planner_max_linear_velocity"),
@@ -235,6 +237,9 @@ def generate_launch_description():
                 "MuJoCo scene. Default is robot+floor only; the ESDF supplies "
                 "the virtual obstacles.")),
         DeclareLaunchArgument("viewer", default_value="true"),
+        DeclareLaunchArgument(
+            "sim_arm_bias_compensation", default_value="true",
+            description="Compensate simulated position-servo gravity/Coriolis load."),
         DeclareLaunchArgument("use_rviz", default_value="true"),
         DeclareLaunchArgument(
             "use_trajectory_visualization", default_value="true",
@@ -284,6 +289,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "lib_folder", default_value="/tmp/wbmm_ocs2_esdf_tracking"),
 
+        DeclareLaunchArgument("planner_enable_optimization", default_value="true"),
         DeclareLaunchArgument("planner_cruise_speed", default_value="0.35"),
         DeclareLaunchArgument(
             "planner_max_linear_velocity", default_value="0.5",

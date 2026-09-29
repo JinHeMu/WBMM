@@ -141,3 +141,17 @@ TEST(EnvironmentEsdf, MissingFileIsIoError)
   EXPECT_EQ(loaded.status, wbmm::environment::LoadStatus::kIoError);
   EXPECT_EQ(loaded.grid, nullptr);
 }
+
+TEST(EnvironmentEsdf, BoundaryGradientMatchesClampedDistance) {
+  auto loaded = wbmm::environment::NpzEsdfLoader::load(WBMM_ENV_TEST_NPZ);
+  ASSERT_NE(loaded.grid, nullptr);
+  for (double x : {.1, 2.9}) {
+    const auto query = loaded.grid->query("odom", Eigen::Vector3d(x, 1.5, 1.5));
+    const auto plus =
+        loaded.grid->query("odom", Eigen::Vector3d(x + 1e-5, 1.5, 1.5));
+    const auto minus =
+        loaded.grid->query("odom", Eigen::Vector3d(x - 1e-5, 1.5, 1.5));
+    EXPECT_NEAR(query.gradient.x(), (plus.distance - minus.distance) / 2e-5,
+                1e-8);
+  }
+}

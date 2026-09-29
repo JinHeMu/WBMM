@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
 project(wbmm_traj_opt)
 
+# Planning/ESDF/FK are latency-sensitive; preserve an explicit caller build type.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)

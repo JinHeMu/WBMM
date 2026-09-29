@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
 project(wbmm_collision)
 
+# Planning/ESDF/FK are latency-sensitive; preserve an explicit caller build type.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 find_package(ament_cmake REQUIRED)
 find_package(wbmm_core REQUIRED)
 find_package(wbmm_environment REQUIRED)

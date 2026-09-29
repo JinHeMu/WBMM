@@ -1,0 +1,54 @@
+[
+  {
+    "enabled": false,
+    "command": [
+      "ros2",
+      "launch",
+      "tracer_jaka_bringup",
+      "wbmm_tracking.launch.py",
+      "esdf_file:=maps/map1/site_remani.npz",
+      "viewer:=false",
+      "use_rviz:=false",
+      "planner_enable_optimization:=false"
+    ],
+    "success": true,
+    "request_to_trajectory_s": 0.4193989949999377,
+    "duration_s": 3.6750000000000034,
+    "samples": 75,
+    "base_path_length_m": 0.7999999999999969,
+    "max_base_speed": 0.4761904761904828,
+    "max_yaw_rate": 3.219193619158002e-13,
+    "max_joint_speed": 0.0,
+    "base_acceleration_rms": 0.2987532267131606,
+    "arm_acceleration_rms": 0.0,
+    "status": "SUCCEEDED",
+    "goal_error_m": 0.00038558097662083244,
+    "planner_metrics": "base=0.051510 arm=0.002919 whole_rrt=0.000000 build=0.000098 optimization=0.000000 applied=0 evaluations=0 cost_before=0 cost_after=0; "
+  },
+  {
+    "enabled": true,
+    "command": [
+      "ros2",
+      "launch",
+      "tracer_jaka_bringup",
+      "wbmm_tracking.launch.py",
+      "esdf_file:=maps/map1/site_remani.npz",
+      "viewer:=false",
+      "use_rviz:=false",
+      "planner_enable_optimization:=true"
+    ],
+    "success": true,
+    "request_to_trajectory_s": 0.3938190389999363,
+    "duration_s": 4.120234016389746,
+    "samples": 84,
+    "base_path_length_m": 0.7999999999999964,
+    "max_base_speed": 0.4245482220614757,
+    "max_yaw_rate": 3.891487924680009e-12,
+    "max_joint_speed": 0.0,
+    "base_acceleration_rms": 0.2376913276213731,
+    "arm_acceleration_rms": 0.0,
+    "status": "SUCCEEDED",
+    "goal_error_m": 0.0004086366940851037,
+    "planner_metrics": "base=0.046596 arm=0.002577 whole_rrt=0.000000 build=0.002386 optimization=0.002345 applied=1 evaluations=12 cost_before=218.57643 cost_after=25.602203; ok"
+  }
+]
