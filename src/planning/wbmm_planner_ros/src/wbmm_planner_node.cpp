@@ -4,19 +4,19 @@
 //  Thin ROS wrapper around the ROS-free wbmm::planning::WholeBodyPlanner.
 //
 //      /goal_pose + odom + /joint_states
-//              -> wbmm_planning_msgs/WholeBodyTrajectory
+//              -> wbmm_planner_ros/WholeBodyTrajectory
 //
 //  Everything algorithmic lives in wbmm_planner; this file only owns
 //  parameters, the ESDF and URDF collision model, and the ROS interfaces.
 //  It replaces the REMANI remani_planner_node (FSM + manager + visualisation).
 // =============================================================================
 
-#include <wbmm_collision/environment_collision_checker.hpp>
-#include <wbmm_collision/urdf_collision_model.hpp>
+#include <wbmm_collision/esdf_checker.hpp>
+#include <wbmm_robot_model/wbmm_robot_model.hpp>
 #include <wbmm_environment/esdf_loader.hpp>
 #include <wbmm_pinocchio/pinocchio_robot_model.hpp>
 #include <wbmm_planner/whole_body_planner.hpp>
-#include <wbmm_planning_msgs/msg/whole_body_trajectory.hpp>
+#include <wbmm_planner_ros/msg/whole_body_trajectory.hpp>
 
 #include <chrono>
 #include <future>
@@ -28,7 +28,7 @@
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/header.hpp>
 #include <std_msgs/msg/string.hpp>
-#include <wbmm_planning_msgs/msg/whole_body_goal.hpp>
+#include <wbmm_planner_ros/msg/whole_body_goal.hpp>
 
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -172,35 +172,47 @@ private:
       loaded.grid->info().voxel_size, worldFrame_.c_str());
 
     // ---- Robot model and collision spheres --------------------------------
+    // 统一来源：urdfdom 读取 URDF 描述，配置显式声明受控关节顺序与
+    // 底盘碰撞 link，共享碰撞球模型由同一个描述构建。所有消费者（运动学、
+    // 碰撞检查、优化器）都使用这一个对象。
+    auto robot_description = wbmm::robot_model::loadRobotDescription(urdfFile_);
+    auto config =
+      wbmm::robot_model::RobotModelConfig::defaultsFor(robot_description);
+    config.state_base_frame = robot_description.root_link;
+    config.controlled_joints = jointNames_;
+    config.base_collision_link = baseCollisionLink_;
+    auto built =
+      wbmm::robot_model::buildRobotModelDescription(robot_description, config);
+    if (!built.success) {
+      throw std::runtime_error(
+        "Cannot build the robot model description: " + built.message);
+    }
+    collisionModel_ =
+      std::make_shared<const wbmm::robot_model::RobotModelDescription>(
+        std::move(built.model));
+
+    const auto kinematic_model =
+      wbmm::pinocchio::KinematicModel::create(collisionModel_);
     robotModel_ = std::make_shared<wbmm::pinocchio::PinocchioRobotModel>(
-      urdfFile_, get_parameter("max_base_speed").as_double(),
+      kinematic_model, get_parameter("max_base_speed").as_double(),
       get_parameter("max_base_yaw_rate").as_double());
-
-    const auto spheres = wbmm::collision::loadUrdfCollisionModel(
-      urdfFile_, jointNames_, baseCollisionLink_);
-    if (!spheres.success) {
-      throw std::runtime_error("Cannot extract collision spheres: " + spheres.message);
-    }
-
-    collisionModel_ = spheres;
-    wbmm::collision::CollisionModel model;
-    model.spheres = spheres.base.spheres;
-    for (const auto & group : spheres.arm) {
-      model.spheres.insert(
-        model.spheres.end(), group.spheres.begin(), group.spheres.end());
-    }
 
     wbmm::collision::CollisionCheckOptions options;
     options.safety_margin = get_parameter("collision_safety_margin").as_double();
     options.treat_unknown_as_occupied =
       get_parameter("treat_unknown_as_occupied").as_bool();
 
-    checker_ = std::make_shared<wbmm::collision::EnvironmentCollisionChecker>(
-      robotModel_, environment_, std::move(model), options);
+    // 碰撞检查复用同一个 KinematicModel：一次查询只更新一次 Context 并批量
+    // 取回全部球心，不再逐 link 重算整树 FK。
+    checker_ = std::make_shared<wbmm::collision::EsdfChecker>(
+      kinematic_model, environment_, collisionModel_->collision_spheres, options);
 
     RCLCPP_INFO(
-      get_logger(), "Collision model: %zu base + %zu arm spheres, margin %.3f m.",
-      spheres.baseSphereCount(), spheres.armSphereCount(), options.safety_margin);
+      get_logger(), "Robot model %s: %zu base + %zu arm spheres, margin %.3f m.",
+      collisionModel_->contentIdHex().c_str(),
+      collisionModel_->collision_spheres.baseSphereCount(),
+      collisionModel_->collision_spheres.armSphereCount(),
+      options.safety_margin);
 
     // The configured base model must agree with the URDF, otherwise the
     // planner would shape a trajectory for the wrong kinematics.
@@ -218,7 +230,7 @@ private:
     const auto trajectoryQos = rclcpp::QoS(1).reliable();
 
     trajectoryPublisher_ =
-      create_publisher<wbmm_planning_msgs::msg::WholeBodyTrajectory>(
+      create_publisher<wbmm_planner_ros::msg::WholeBodyTrajectory>(
         get_parameter("trajectory_topic").as_string(), trajectoryQos);
 
     goalSub_ = create_subscription<geometry_msgs::msg::PoseStamped>(
@@ -253,9 +265,9 @@ private:
           executing_.reset();
           setStatus("CANCELLED");
         });
-    wholeGoalSub_ = create_subscription<wbmm_planning_msgs::msg::WholeBodyGoal>(
+    wholeGoalSub_ = create_subscription<wbmm_planner_ros::msg::WholeBodyGoal>(
         get_parameter("whole_body_goal_topic").as_string(), trajectoryQos,
-        [this](wbmm_planning_msgs::msg::WholeBodyGoal::SharedPtr msg) {
+        [this](wbmm_planner_ros::msg::WholeBodyGoal::SharedPtr msg) {
           std::optional<wbmm::core::JointState> joints;
           if (!msg->joint_names.empty() || !msg->joint_positions.empty()) {
             if (msg->joint_names.size() != jointNames_.size() ||
@@ -628,7 +640,7 @@ private:
     const auto optimize = [environment = environment_, model = collisionModel_](
                               const wbmm::traj_opt::OptimizerInput &input,
                               const wbmm::traj_opt::OptimizerConfig &options) {
-      wbmm::traj_opt::WholeBodyOptimizer optimizer(options, environment, model);
+      wbmm::traj_opt::WholeBodyOptimizer optimizer(options, environment, *model);
       if (!optimizer.prepare(input)) {
         wbmm::traj_opt::OptimizerResult failure;
         failure.message = optimizer.message();
@@ -663,10 +675,10 @@ private:
     setStatus(reason);
   }
 
-  static wbmm_planning_msgs::msg::WholeBodyTrajectory toMessage(
+  static wbmm_planner_ros::msg::WholeBodyTrajectory toMessage(
     const wbmm::core::WholeBodyTrajectory & trajectory)
   {
-    wbmm_planning_msgs::msg::WholeBodyTrajectory message;
+    wbmm_planner_ros::msg::WholeBodyTrajectory message;
     message.header.frame_id =
       trajectory.points.empty() ? std::string{} : trajectory.points.front().state.header.frame_id;
     message.trajectory_id = trajectory.trajectory_id;
@@ -719,7 +731,7 @@ private:
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr finishPublisher_;
   rclcpp::Publisher<std_msgs::msg::Header>::SharedPtr cancelPublisher_;
   rclcpp::Subscription<std_msgs::msg::Header>::SharedPtr cancelSub_;
-  rclcpp::Subscription<wbmm_planning_msgs::msg::WholeBodyGoal>::SharedPtr wholeGoalSub_;
+  rclcpp::Subscription<wbmm_planner_ros::msg::WholeBodyGoal>::SharedPtr wholeGoalSub_;
   rclcpp::TimerBase::SharedPtr planningTimer_;
   std::optional<wbmm::planning::PlanRequest> pending_, executing_;
   wbmm::planning::PlanRequest inflight_;
@@ -736,10 +748,10 @@ private:
 
   std::shared_ptr<const wbmm::environment::EsdfGrid> environment_;
   wbmm::core::RobotModelPtr robotModel_;
-  wbmm::collision::UrdfCollisionModel collisionModel_;
-  std::shared_ptr<wbmm::collision::EnvironmentCollisionChecker> checker_;
+  wbmm::robot_model::RobotModelDescriptionPtr collisionModel_;
+  std::shared_ptr<wbmm::collision::EsdfChecker> checker_;
 
-  rclcpp::Publisher<wbmm_planning_msgs::msg::WholeBodyTrajectory>::SharedPtr
+  rclcpp::Publisher<wbmm_planner_ros::msg::WholeBodyTrajectory>::SharedPtr
     trajectoryPublisher_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr goalSub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odomSub_;

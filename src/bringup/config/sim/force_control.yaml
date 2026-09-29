@@ -23,13 +23,9 @@ whole_body_force_control:
       selected_axes: [true, true, true, false, false, false]
       stiffness: [150.0, 150.0, 150.0, 0.0, 0.0, 0.0]
 
-    whole_body:
-      # Keep the legacy baseline available, but the preferred output is the
-      # 7D EE-pose target below.
-      base_share: 0.40
-      max_base_velocity: 0.50
-      max_ee_linear_velocity: 0.05
-      max_ee_angular_velocity: 0.20
+    end_effector:
+      max_linear_velocity: 0.05
+      max_angular_velocity: 0.20
 
     safety:
       observation_timeout: 0.25

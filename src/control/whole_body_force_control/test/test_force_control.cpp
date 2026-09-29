@@ -1,8 +1,8 @@
 #include "whole_body_force_control/controllers.hpp"
 #include "whole_body_force_control/force_processor.hpp"
 #include "wbmm_pinocchio/pinocchio_robot_model.hpp"
+#include "wbmm_robot_model/wbmm_robot_model.hpp"
 #include "wbmm_ros_interfaces/wbmm_conversions.hpp"
-#include "wbmm_pinocchio/whole_body_kinematics.hpp"
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <gtest/gtest.h>
@@ -40,16 +40,17 @@ std::string tracerJakaUrdfPath()
 
 std::shared_ptr<wbmm::pinocchio::PinocchioRobotModel> sharedRobotModel()
 {
-  static const auto model =
-    std::make_shared<wbmm::pinocchio::PinocchioRobotModel>(
-    tracerJakaUrdfPath());
+  static const auto model = []() {
+      const auto description =
+        wbmm::robot_model::loadRobotDescription(tracerJakaUrdfPath());
+      auto config = wbmm::robot_model::RobotModelConfig::defaultsFor(description);
+      config.state_base_frame = description.root_link;
+      return std::make_shared<wbmm::pinocchio::PinocchioRobotModel>(
+        wbmm::pinocchio::KinematicModel::create(
+          std::make_shared<const wbmm::robot_model::RobotDescription>(description),
+          config));
+    }();
   return model;
-}
-
-std::unique_ptr<wbmm::pinocchio::WholeBodyKinematics> makeKinematics()
-{
-  return std::make_unique<wbmm::pinocchio::WholeBodyKinematics>(
-    sharedRobotModel(), "tool0");
 }
 
 Eigen::VectorXd seedState()
@@ -397,193 +398,6 @@ TEST(PinocchioRobotModel, JacobianMatchesExactFiniteDifference)
     EXPECT_LT((expected.head<3>() - linear_velocity).norm(), 1.0e-7);
     EXPECT_LT((expected.tail<3>() - angular_velocity).norm(), 1.0e-7);
   }
-}
-
-TEST(WholeBodyKinematics, SharesMotionWithoutBaseSideslip)
-{
-  const auto kinematics = makeKinematics();
-  const Eigen::VectorXd seed = seedState();
-  const Eigen::Vector3d direction(
-    std::cos(seed[2]), std::sin(seed[2]), 0.0);
-  const Eigen::VectorXd corrected = kinematics->correctedState(
-    seed, direction, 0.040, 0.40, 0.030, 0.20);
-  const Eigen::Vector2d heading(std::cos(seed[2]), std::sin(seed[2]));
-  const Eigen::Vector2d base_delta = corrected.head<2>() - seed.head<2>();
-  EXPECT_NEAR(base_delta.dot(heading), 0.016, 1.0e-9);
-  EXPECT_NEAR(
-    base_delta.x() * heading.y() - base_delta.y() * heading.x(),
-    0.0, 1.0e-12);
-  const Eigen::Vector3d displacement =
-    kinematics->framePosition(corrected) - kinematics->framePosition(seed);
-  EXPECT_NEAR(displacement.dot(direction), 0.040, 7.5e-4);
-  EXPECT_LT(
-    (displacement - direction * displacement.dot(direction)).norm(), 7.5e-4);
-}
-
-TEST(WholeBodyKinematics, RealizesSixAxisToolFrameCorrection)
-{
-  const auto kinematics = makeKinematics();
-  const Eigen::VectorXd seed = seedState();
-  Eigen::Matrix<double, 6, 1> correction;
-  correction << 0.004, -0.003, 0.005, 0.008, -0.006, 0.004;
-  const Eigen::Vector3d initial_position = kinematics->framePosition(seed);
-  const Eigen::Matrix3d initial_rotation = kinematics->frameRotation(seed);
-  const Eigen::VectorXd corrected = kinematics->correctedState6D(
-    seed, correction, 0.0, 0.03, 0.20);
-  const Eigen::Vector3d expected_position =
-    initial_position + initial_rotation * correction.head<3>();
-  const double angle = correction.tail<3>().norm();
-  const Eigen::Matrix3d expected_rotation = initial_rotation *
-    Eigen::AngleAxisd(angle, correction.tail<3>() / angle).toRotationMatrix();
-
-  EXPECT_LT(
-    (kinematics->framePosition(corrected) - expected_position).norm(),
-    1.0e-3);
-  EXPECT_LT(
-    (kinematics->frameRotation(corrected) - expected_rotation).norm(),
-    2.0e-3);
-  EXPECT_TRUE(corrected.head<3>().isApprox(seed.head<3>(), 1.0e-12));
-}
-
-TEST(WholeBodyKinematics, RealizesWorldFrameRotationCorrection)
-{
-  const auto kinematics = makeKinematics();
-  const Eigen::VectorXd seed = seedState();
-  const Eigen::Matrix3d initial_rotation = kinematics->frameRotation(seed);
-  Eigen::Matrix<double, 6, 1> correction = Eigen::Matrix<double, 6, 1>::Zero();
-  correction[5] = 0.020;
-  const Eigen::VectorXd corrected = kinematics->correctedStateWorld6D(
-    seed, correction, 0.0);
-  const Eigen::Matrix3d expected_rotation =
-    Eigen::AngleAxisd(0.020, Eigen::Vector3d::UnitZ()).toRotationMatrix() *
-    initial_rotation;
-  EXPECT_LT(
-    (kinematics->frameRotation(corrected) - expected_rotation).norm(),
-    2.0e-3);
-}
-
-TEST(WholeBodyKinematics, SixAxisCorrectionSharesBaseAndReachesPose)
-{
-  const auto kinematics = makeKinematics();
-  const Eigen::VectorXd seed = seedState();
-  Eigen::Matrix<double, 6, 1> correction;
-  correction << 0.010, -0.004, 0.003, 0.0, 0.0, 0.0;
-  const Eigen::Vector3d initial_position = kinematics->framePosition(seed);
-  const Eigen::Matrix3d initial_rotation = kinematics->frameRotation(seed);
-
-  const Eigen::VectorXd corrected = kinematics->correctedState6D(
-    seed, correction, 0.5, 0.03, 0.20);
-  const Eigen::Vector2d heading(std::cos(seed[2]), std::sin(seed[2]));
-  const Eigen::Vector2d base_delta = corrected.head<2>() - seed.head<2>();
-  const Eigen::Vector3d desired_world_translation =
-    initial_rotation * correction.head<3>();
-  EXPECT_NEAR(
-    base_delta.dot(heading),
-    0.5 * desired_world_translation.head<2>().dot(heading), 1.0e-9);
-  EXPECT_NEAR(
-    base_delta.x() * heading.y() - base_delta.y() * heading.x(),
-    0.0, 1.0e-12);
-
-  const Eigen::Vector3d expected_position =
-    initial_position + desired_world_translation;
-  EXPECT_LT(
-    (kinematics->framePosition(corrected) - expected_position).norm(), 1.0e-3);
-}
-
-TEST(WholeBodyKinematics, WorldFrameSensorZAdmittancePreservesSignAndReturnsToNominal)
-{
-  using namespace whole_body_force_control;
-  const wbmm::pinocchio::WholeBodyKinematics kinematics(
-    sharedRobotModel(), "jk_se_vi_200_link");
-  const Eigen::VectorXd seed = seedState();
-  const Eigen::Vector3d initial_position = kinematics.framePosition(seed);
-  const Eigen::Matrix3d sensor_rotation = kinematics.frameRotation(seed);
-  AxisMask6d axes{};
-  axes[0] = axes[1] = axes[2] = true;
-  const Vector6d mass = Vector6d::Constant(3.0);
-  const Vector6d damping = Vector6d::Constant(45.0);
-  const Vector6d stiffness = Vector6d::Constant(400.0);
-  const Vector6d max_velocity = Vector6d::Constant(0.010);
-  CartesianComplianceController controller(
-    axes, mass, damping, stiffness, max_velocity);
-
-  for (const double force : {2.0, -2.0}) {
-    controller.reset();
-    const Eigen::Vector3d sensor_force(0.0, 0.0, force);
-    const Eigen::Vector3d world_force = sensor_rotation * sensor_force;
-    Vector6d wrench = Vector6d::Zero();
-    wrench.head<3>() = world_force;
-    Vector6d correction = Vector6d::Zero();
-    for (int i = 0; i < 150; ++i) {
-      correction = controller.update(wrench, 0.020);
-      EXPECT_LE(correction.head<3>().cwiseAbs().maxCoeff(), 0.020);
-      EXPECT_LE(controller.velocity().head<3>().cwiseAbs().maxCoeff(), 0.010);
-    }
-    EXPECT_TRUE(correction.head<3>().isApprox(world_force / 400.0, 1.0e-6));
-    EXPECT_TRUE(correction.tail<3>().isZero(1.0e-12));
-
-    const Eigen::VectorXd reference = kinematics.correctedStateWorld6D(
-      seed, correction, 0.0);
-    const Eigen::Vector3d displacement =
-      kinematics.framePosition(reference) - initial_position;
-    EXPECT_LT((displacement - correction.head<3>()).norm(), 1.0e-4);
-    EXPECT_GT(world_force.dot(displacement), 0.0);
-    EXPECT_TRUE(reference.head<3>().isApprox(seed.head<3>(), 1.0e-12));
-    EXPECT_LE((reference.tail(6) - seed.tail(6)).cwiseAbs().maxCoeff(), 0.050);
-
-    for (int i = 0; i < 150; ++i) {
-      correction = controller.update(Vector6d::Zero(), 0.020);
-    }
-    EXPECT_LT(correction.norm(), 1.0e-6);
-  }
-}
-
-
-TEST(WholeBodyKinematics, NominalFrameWorldTranslationIsKinematicsExact)
-{
-  const auto kinematics = makeKinematics();
-  const Eigen::VectorXd seed = seedState();
-  const Eigen::Matrix3d nominal_rotation = kinematics->frameRotation(seed);
-
-  Eigen::Matrix<double, 6, 1> local_correction =
-    Eigen::Matrix<double, 6, 1>::Zero();
-  local_correction[2] = -0.009;
-  Eigen::Matrix<double, 6, 1> world_correction =
-    Eigen::Matrix<double, 6, 1>::Zero();
-  world_correction.head<3>() = nominal_rotation * local_correction.head<3>();
-  world_correction.tail<3>() = nominal_rotation * local_correction.tail<3>();
-
-  const Eigen::Vector3d nominal_position = kinematics->framePosition(seed);
-  const Eigen::VectorXd reference = kinematics->correctedStateWorld6D(
-    seed, world_correction, 0.4);
-  const Eigen::Vector3d achieved_world =
-    kinematics->framePosition(reference) - nominal_position;
-  EXPECT_LT(
-    (achieved_world - world_correction.head<3>()).norm(), 1.0e-5);
-  const Eigen::Vector3d achieved_local =
-    nominal_rotation.transpose() * achieved_world;
-  EXPECT_LT(
-    (achieved_local - local_correction.head<3>()).norm(), 1.0e-5);
-}
-
-TEST(WholeBodyKinematics, ZeroCorrectionPreservesNominalState)
-{
-  const auto kinematics = makeKinematics();
-  const Eigen::VectorXd seed = seedState();
-  const Eigen::VectorXd corrected = kinematics->correctedState(
-    seed, Eigen::Vector3d::UnitX(), 0.0, 0.4, 0.03, 0.2);
-  EXPECT_TRUE(corrected.isApprox(seed, 1.0e-12));
-}
-
-TEST(WholeBodyKinematics, RejectsWrongStateDimension)
-{
-  const auto kinematics = makeKinematics();
-  Eigen::VectorXd wrong(8);
-  wrong.setZero();
-  EXPECT_THROW(
-    kinematics->correctedState(
-      wrong, Eigen::Vector3d::UnitX(), 0.01, 0.4, 0.03, 0.2),
-    std::invalid_argument);
 }
 
 TEST(ForceProcessor, AutoTareAndProcessedOutput)

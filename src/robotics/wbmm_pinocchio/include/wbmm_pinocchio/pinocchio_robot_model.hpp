@@ -1,8 +1,10 @@
 #pragma once
 
-#include <wbmm_core/wbmm_core.hpp>
+#include <wbmm_pinocchio/frame_kinematics.hpp>
+#include <wbmm_pinocchio/kinematic_model.hpp>
+#include <wbmm_pinocchio/kinematics_data.hpp>
 
-#include <pinocchio/multibody/model.hpp>
+#include <wbmm_core/wbmm_core.hpp>
 
 #include <Eigen/Core>
 
@@ -14,32 +16,27 @@ namespace wbmm::pinocchio
 {
 
 // ============================================================================
-// PinocchioRobotModel —— wbmm::core::RobotModel 的第一版具体实现。
+// PinocchioRobotModel —— wbmm::core::RobotModel 的具体实现。
 //
-//   职责边界：
-//   - 只实现 core 合同要求的 FK、frame Jacobian、关节命名/限位和校验；
-//   - 不包含力控、轨迹、ROS 或安全逻辑；
-//   - 是当前仓库中唯一直接理解 URDF / Pinocchio 的运动学适配器。
+//   第一版就落在这里的合同：底盘 + 受控关节的维度、关节命名/顺序、限位、
+//   FK 和 frame Jacobian。它不是"另一个 URDF 解析器"：模型来自统一的
+//   KinematicModel（共享 Model + 每实例 KinematicsData），关节顺序和底盘参考
+//   frame 来自 RobotModelConfig。
 //
-//   坐标系约定(与旧 WholeBodyKinematics 手工叠加方式完全一致)：
-//   - URDF 模型根为机械臂基座(固定 base)，Pinocchio FK/Jacobian 在基座系；
-//   - state 的 [x, y, yaw] 是基座在世界系中的位姿；
-//   - FK 返回结果按 state.header.frame_id 表达：
-//         p_world = Rz(yaw) * p_model + [x, y, 0]
-//         R_world = Rz(yaw) * R_model
-//   - Jacobian 满足 V = J(x) * u，u = [v, omega, qdot...]：
-//       列 0 (v)     : 差速底盘沿自身航向的线速度；
-//       列 1 (omega) : 绕世界 Z 的底盘角速度；
-//       列 2..       : 关节速度，经 Rz(yaw) 旋转到世界系。
+//   坐标系约定：
+//   - state 的 [x, y, yaw] 描述 state_base_frame（语义给出，通常
+//     base_footprint），模型 root 到它的固定变换由 KinematicModel 处理；
+//   - FK 返回结果按 state.header.frame_id 表达；
+//   - Jacobian 满足 V = J(x) * u，u = [v, omega, qdot...]，行序 [v; omega]，
+//     参考点为 frame 原点。
 // ============================================================================
 class PinocchioRobotModel final : public wbmm::core::RobotModel
 {
 public:
-  // max_base_speed / max_base_yaw_rate <= 0 表示"尚未配置"，
-  // limits() 会原样返回，具体限速由上层 profile 决定。
+  // max_base_speed / max_base_yaw_rate <= 0 表示"尚未配置"，limits() 会原样
+  // 返回，具体限速由上层 profile 决定。
   explicit PinocchioRobotModel(
-    const std::string & urdf_file,
-    double max_base_speed = 0.0,
+    KinematicModelPtr model, double max_base_speed = 0.0,
     double max_base_yaw_rate = 0.0);
 
   [[nodiscard]] std::size_t stateDimension() const override;
@@ -49,6 +46,8 @@ public:
   [[nodiscard]] const wbmm::core::RobotLimits & limits() const override;
 
   [[nodiscard]] bool hasFrame(const std::string & frame_name) const;
+
+  [[nodiscard]] KinematicModelPtr kinematicModel() const noexcept {return model_;}
 
   bool forwardKinematics(
     const wbmm::core::WholeBodyState & state,
@@ -69,20 +68,11 @@ public:
     std::string * message = nullptr) const override;
 
 private:
-  // 按关节名称(而不是数组顺序)把 state 映射到 Pinocchio 配置向量 q。
-  bool stateToConfiguration(
-    const wbmm::core::WholeBodyState & state,
-    Eigen::VectorXd & configuration,
-    std::string * message) const;
-
-  bool sameJointSet(
-    const std::vector<std::string> & names,
-    std::string * message) const;
-
-  ::pinocchio::Model model_;
-  std::vector<std::string> joint_names_;
-  std::vector<Eigen::Index> joint_position_indices_;
-  std::vector<Eigen::Index> joint_velocity_indices_;
+  KinematicModelPtr model_;
+  FrameKinematics frames_;
+  // core 合同把 FK/Jacobian 声明为 const；运行时可变的 Data 属于这个实例，
+  // 不与其他实例共享。
+  mutable KinematicsData kinematics_data_;
   wbmm::core::RobotLimits limits_;
 };
 

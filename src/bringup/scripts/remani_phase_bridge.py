@@ -21,7 +21,7 @@ from ocs2_msgs.msg import MpcTargetTrajectories
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Header
-from wbmm_planning_msgs.msg import WholeBodyGoal
+from wbmm_planner_ros.msg import WholeBodyGoal
 
 from wbmm_ocs2_ros.srv import SetTaskPhase
 

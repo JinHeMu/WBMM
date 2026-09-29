@@ -1,6 +1,6 @@
 #pragma once
 
-#include <wbmm_planning_msgs/msg/whole_body_trajectory.hpp>
+#include <wbmm_planner_ros/msg/whole_body_trajectory.hpp>
 
 #include <cstdint>
 #include <string>
@@ -27,7 +27,7 @@ struct WholeBodySample
   std::uint8_t phase{0};
 };
 
-// Validates and samples a wbmm_planning_msgs/WholeBodyTrajectory.
+// Validates and samples a wbmm_planner_ros/WholeBodyTrajectory.
 //
 // This class owns no ROS node and no clock: the caller decides which instant to
 // query. It replaces the polynomial decoding and the tangent-based yaw
@@ -41,14 +41,14 @@ public:
   // Copies the payload. Call validate() first if the message came from a
   // network boundary; this constructor assumes the contract holds.
   explicit TrajectorySampler(
-    const wbmm_planning_msgs::msg::WholeBodyTrajectory & trajectory);
+    const wbmm_planner_ros::msg::WholeBodyTrajectory & trajectory);
 
   // Structural contract check. On failure returns false and writes a reason.
   // Checks: non-empty header frame, at least one sample, finite and strictly
   // increasing sample times, per-sample array lengths, flattened joint array
   // length and a consistent joint order.
   [[nodiscard]] static bool validate(
-    const wbmm_planning_msgs::msg::WholeBodyTrajectory & trajectory,
+    const wbmm_planner_ros::msg::WholeBodyTrajectory & trajectory,
     std::string * message);
 
   [[nodiscard]] bool empty() const noexcept {return time_.empty();}

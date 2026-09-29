@@ -26,7 +26,7 @@ from ocs2_msgs.msg import MpcObservation, MpcTargetTrajectories
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
-from wbmm_planning_msgs.msg import WholeBodyTrajectory
+from wbmm_planner_ros.msg import WholeBodyTrajectory
 
 JOINT_NAMES = [f"joint_{i}" for i in range(1, 7)]
 OBSERVATION_TOPIC = "mobile_manipulator_mpc_observation"

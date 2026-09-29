@@ -24,7 +24,7 @@ from sensor_msgs.msg import JointState
 from std_srvs.srv import SetBool
 from std_msgs.msg import Header, String
 from tf2_ros import StaticTransformBroadcaster
-from wbmm_planning_msgs.msg import WholeBodyTrajectory, WholeBodyGoal
+from wbmm_planner_ros.msg import WholeBodyTrajectory, WholeBodyGoal
 
 
 def main():

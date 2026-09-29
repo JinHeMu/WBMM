@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>wbmm_robot_model</name>
+  <version>0.1.0</version>
+  <description>
+    Unified, read-only robot description for WBMM: one urdfdom parser for
+    links/joints/visuals/collisions, one model configuration for
+    controlled/locked joints and frames, and one shared collision sphere model.
+    ROS-free; consumed by wbmm_pinocchio, wbmm_collision and wbmm_visualization.
+  </description>
+  <maintainer email="user@todo.todo">WBMM</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>eigen</depend>
+  <depend>wbmm_core</depend>
+
+  <!-- Plain C++ libraries, not ROS packages: keeps this package ROS-free. -->
+  <depend>urdfdom</depend>
+  <depend>yaml-cpp</depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

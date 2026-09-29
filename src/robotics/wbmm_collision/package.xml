@@ -2,15 +2,20 @@
 <package format="3">
   <name>wbmm_collision</name>
   <version>0.1.0</version>
-  <description>Robot collision geometry and ESDF environment checking for WBMM.</description>
+  <description>
+    Environment collision checking and trajectory-variable sphere kinematics for
+    WBMM. Geometry comes from the shared wbmm_robot_model CollisionSphereModel;
+    this package only evaluates it.
+  </description>
   <maintainer email="user@todo.todo">WBMM</maintainer>
   <license>BSD-3-Clause</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>wbmm_core</depend>
   <depend>wbmm_environment</depend>
-  <!-- System library, not a ROS package: keeps the URDF loader ROS-free. -->
-  <depend>tinyxml2</depend>
+  <depend>wbmm_robot_model</depend>
+  <!-- Sphere FK is shared from wbmm_pinocchio; the checker updates one
+       KinematicsData per query instead of per-link full-tree FK. -->
+  <depend>wbmm_pinocchio</depend>
   <test_depend>ament_cmake_gtest</test_depend>
-  <test_depend>wbmm_search</test_depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>

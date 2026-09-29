@@ -4,11 +4,11 @@
 #include <wbmm_core/robot_model.hpp>
 #include <wbmm_core/trajectory.hpp>
 #include <wbmm_core/types.hpp>
-#include <wbmm_search/arm_seed_search.hpp>
-#include <wbmm_search/kino_astar.hpp>
-#include <wbmm_search/whole_body_rrt.hpp>
-#include <wbmm_traj_opt/whole_body_optimizer.hpp>
-#include <wbmm_traj_opt/whole_body_trajectory_builder.hpp>
+#include <wbmm_planner/search/arm_seed_search.hpp>
+#include <wbmm_planner/search/kino_astar.hpp>
+#include <wbmm_planner/search/whole_body_rrt.hpp>
+#include <wbmm_planner/optimization/whole_body_optimizer.hpp>
+#include <wbmm_planner/optimization/whole_body_trajectory_builder.hpp>
 
 #include <cstdint>
 #include <string>

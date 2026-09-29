@@ -55,7 +55,6 @@
   <exec_depend>whole_body_force_control</exec_depend>
   <exec_depend>wbmm_visualization</exec_depend>
   <exec_depend>wbmm_planner_ros</exec_depend>
-  <exec_depend>wbmm_planning_msgs</exec_depend>
   <exec_depend>wbmm_reference_bridge</exec_depend>
   <exec_depend>grid_map</exec_depend>
   <exec_depend>xacro</exec_depend>

@@ -1,6 +1,6 @@
 # whole_body_force_control
 
-通用移动机械臂力控包，负责力传感器预处理、TCP 系导纳修正和任务空间/全身 reference 生成。默认输出 7D 末端位姿给 OCS2，由 OCS2 决定底盘与机械臂分工；旧 9D base_share + IK 路线保留为实验基线。
+通用移动机械臂力控包，负责力传感器预处理和 TCP 系导纳修正，输出 7D 末端位姿给 OCS2，由 OCS2 决定底盘与机械臂的运动。
 
 机器人模型、全身运动学与 ROS 消息转换由：
 
@@ -37,10 +37,8 @@ JakaHardwareInterface state interfaces
   -> whole_body_force_control_node
   -> CartesianComplianceController
      （名义 TCP 系，6 轴独立导纳）
-  -> whole-body IK 可达性 anti-windup
-  -> state_frame 参考
-  -> 底盘/关节 reference 速度平滑
-  -> MPC target
+  -> 末端目标速度限制
+  -> OCS2 末端位姿目标
 ```
 
 导纳方程：
@@ -182,31 +180,18 @@ D = 2 * zeta * sqrt(M * K)
 - `max_velocity`：六轴修正速度上限。
 
 不设置 `admittance.max_offset`。  
-修正量不再有固定最大位移，只有：
+修正量不设固定最大位移；目标变化速度受 `end_effector` 参数限制。
+机械臂限位、可达性与碰撞约束由 OCS2/MPC 处理。
 
-- 机械臂关节硬限位；
-- IK 可达性 anti-windup；
-- MPC/上层碰撞约束。
-
-### whole_body
+### end_effector
 
 ```yaml
-whole_body:
-  # Legacy baseline only. The preferred ee_pose output path does not use
-  # base_share; OCS2 decides how base and arm share the motion.
-  base_share: 0.4
-  max_base_velocity: 0.5
-  max_joint_velocity: 0.5
-  max_ee_linear_velocity: 0.05
-  max_ee_angular_velocity: 0.20
+end_effector:
+  max_linear_velocity: 0.05
+  max_angular_velocity: 0.20
 ```
 
-- `base_share`：仅 legacy `whole_body_state` 模式使用；ee_pose 模式不使用。
-- `max_base_velocity` / `max_joint_velocity`：legacy 9D reference 的速度上限。
-- `max_ee_linear_velocity` / `max_ee_angular_velocity`：ee_pose 模式任务空间目标的速度上限。
-
-`whole_body.max_base_delta` 和 `whole_body.max_joint_delta` 不用于 ee_pose 模式。  
-ee_pose 模式下底盘/机械臂分工由 OCS2 决定；legacy 模式仍保留原有 IK 可达性限制。
+这两个参数限制末端目标的平移和旋转变化速度。底盘与机械臂的分工由 OCS2 决定。
 
 ### safety
 
@@ -222,13 +207,10 @@ safety:
 
 ```yaml
 output:
-  # ee_pose: publish a 7D EndEffectorPose target to the OCS2 EE reference.
-  # whole_body_state: legacy 9D base_share + IK baseline.
-  mode: ee_pose
-  reference_horizon: 1.0
-  reference_dt: 0.1
   input_dimension: 8
 ```
+
+输出始终是发给 OCS2 的 7D 末端位姿目标。
 
 ## 故障保持
 
@@ -242,7 +224,7 @@ output:
 - `FAULT_WRENCH_INVALID`
 - `FAULT_TARGET_OWNER`
 
-故障时节点只读取一次当前观测，然后持续发布同一个固定 hold reference，不再逐帧追随实测位置。故障需要重启部署恢复。
+故障时节点只读取一次当前观测，然后持续发布同一个固定 hold reference，不再逐帧追随实测位置。故障可通过 `/whole_body_force_control/reset` 服务复位，随后等待新观测与力传感器数据。
 
 ## 仿真
 
@@ -334,11 +316,7 @@ ros2 launch tracer_jaka_bringup whole_body_force_control_profiles.launch.py \
 
 ## 碰撞说明
 
-力控节点只保证：
-
-- 关节硬限位；
-- IK 可达性 anti-windup；
-- reference 速度平滑。
+力控节点负责处理力信号、限制末端目标变化速度，并在故障时保持目标。
 
 力控节点当前没有独立碰撞检测接口。  
 “满足碰撞约束”必须由 OCS2/MPC 的 collision model 或额外碰撞检测模块保证。

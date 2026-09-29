@@ -1,6 +1,6 @@
 #include "wbmm_planner/whole_body_planner.hpp"
 
-#include <wbmm_traj_opt/minco.hpp>
+#include <wbmm_planner/optimization/minco.hpp>
 
 #include <algorithm>
 #include <chrono>

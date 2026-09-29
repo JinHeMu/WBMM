@@ -6,7 +6,7 @@ no REMANI involvement:
 
     MuJoCo empty scene (odom aliased to map by an identity map->odom TF)
       -> map1 static ESDF, shared by the planner and OCS2
-      -> wbmm_planner_node: 2D goal -> wbmm_planning_msgs/WholeBodyTrajectory
+      -> wbmm_planner_node: 2D goal -> wbmm_planner_ros/WholeBodyTrajectory
       -> wbmm_reference_bridge: that trajectory -> ocs2 MpcTargetTrajectories
       -> wbmm_visualization: planner/MPC whole-robot ghosts in the same RViz
       -> WbmmTargetNode interactive 3D marker for the EE pose

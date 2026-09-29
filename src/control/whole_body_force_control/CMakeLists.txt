@@ -16,6 +16,7 @@ find_package(std_srvs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(wbmm_core REQUIRED)
 find_package(wbmm_pinocchio REQUIRED)
+find_package(wbmm_robot_model REQUIRED)
 find_package(wbmm_ros_interfaces REQUIRED)
 
 # 力控算法核心：力处理 + 力控控制器，不包含机器人模型/运动学/ROS 转换。
@@ -72,6 +73,7 @@ if(BUILD_TESTING)
   target_link_libraries(test_force_control
     ${PROJECT_NAME}_core
     wbmm_pinocchio::wbmm_pinocchio
+    wbmm_robot_model::wbmm_robot_model
     wbmm_ros_interfaces::wbmm_ros_interfaces)
   ament_target_dependencies(test_force_control ament_index_cpp)
   # 测试只依赖 package share 里的 URDF；fallback 仅用于未安装描述的源码工作区。

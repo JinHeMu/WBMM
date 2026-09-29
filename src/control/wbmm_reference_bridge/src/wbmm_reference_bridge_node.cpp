@@ -4,7 +4,7 @@
 //  Turns a planned nominal whole-body trajectory into the rolling OCS2
 //  reference window the MPC consumes.
 //
-//      wbmm_planning_msgs/WholeBodyTrajectory
+//      wbmm_planner_ros/WholeBodyTrajectory
 //              -> ocs2_msgs/MpcTargetTrajectories
 //
 //  Replaces remani_to_ocs2_reference_bridge.cpp. That bridge had to decode
@@ -44,7 +44,7 @@
 #include <ocs2_msgs/msg/mpc_target_trajectories.hpp>
 #include <ocs2_ros_interfaces/common/RosMsgConversions.h>
 
-#include <wbmm_planning_msgs/msg/whole_body_trajectory.hpp>
+#include <wbmm_planner_ros/msg/whole_body_trajectory.hpp>
 
 namespace
 {
@@ -157,9 +157,9 @@ private:
       create_publisher<ocs2_msgs::msg::MpcTargetTrajectories>(targetTopic_, targetQos);
 
     trajectorySub_ =
-      create_subscription<wbmm_planning_msgs::msg::WholeBodyTrajectory>(
+      create_subscription<wbmm_planner_ros::msg::WholeBodyTrajectory>(
         trajectoryTopic_, targetQos,
-        [this](const wbmm_planning_msgs::msg::WholeBodyTrajectory::SharedPtr msg)
+        [this](const wbmm_planner_ros::msg::WholeBodyTrajectory::SharedPtr msg)
         {trajectoryCallback(msg);});
 
     // Best effort: the MRT publishes this at its control rate and a dropped
@@ -219,7 +219,7 @@ private:
   void installMeasuredHold() {
     if (!referenceEnabled_ || observationState_.size() != jointNames_.size() + 3U)
       return;
-    wbmm_planning_msgs::msg::WholeBodyTrajectory hold;
+    wbmm_planner_ros::msg::WholeBodyTrajectory hold;
     hold.header.frame_id = worldFrame_;
     hold.trajectory_id = "cancel_hold";
     hold.joint_names = jointNames_;
@@ -253,7 +253,7 @@ private:
   }
 
   void trajectoryCallback(
-    const wbmm_planning_msgs::msg::WholeBodyTrajectory::SharedPtr msg)
+    const wbmm_planner_ros::msg::WholeBodyTrajectory::SharedPtr msg)
   {
     std::string reason;
     if (!wbmm::reference_bridge::TrajectorySampler::validate(*msg, &reason))
@@ -442,7 +442,7 @@ private:
   double sampleDt_{0.04};
 
   rclcpp::Publisher<ocs2_msgs::msg::MpcTargetTrajectories>::SharedPtr targetPublisher_;
-  rclcpp::Subscription<wbmm_planning_msgs::msg::WholeBodyTrajectory>::SharedPtr trajectorySub_;
+  rclcpp::Subscription<wbmm_planner_ros::msg::WholeBodyTrajectory>::SharedPtr trajectorySub_;
   rclcpp::Subscription<ocs2_msgs::msg::MpcObservation>::SharedPtr observationSub_;
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr referenceOwnerService_handle_;
   rclcpp::TimerBase::SharedPtr publishTimer_;

@@ -36,7 +36,6 @@ _PROFILES = {
                 [150.0, 150.0, 150.0, 0.0, 0.0, 0.0],
             "admittance.max_velocity":
                 [0.035, 0.035, 0.035, 0.15, 0.15, 0.15],
-            "whole_body.base_share": 0.40,
         },
     },
     # Example 2: three-axis translational force following, K = 0.
@@ -54,7 +53,6 @@ _PROFILES = {
                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             "admittance.max_velocity":
                 [0.25, 0.25, 0.10, 0.15, 0.15, 0.15],
-            "whole_body.base_share": 0.80,
         },
     },
     # K = 0 force-following limit: F = M*a + D*v.  D is tuned so the steady
@@ -72,7 +70,6 @@ _PROFILES = {
                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             "admittance.max_velocity":
                 [0.25, 0.035, 0.035, 0.15, 0.15, 0.15],
-            "whole_body.base_share": 0.98,
         },
     },
     # Six-axis sequence: the axis_wrench_sequence.py script cycles through
@@ -91,7 +88,6 @@ _PROFILES = {
                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             "admittance.max_velocity":
                 [0.10, 0.10, 0.10, 0.15, 0.15, 0.15],
-            "whole_body.base_share": 0.80,
         },
     },
     "20s": {
@@ -108,7 +104,6 @@ _PROFILES = {
                 [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             "admittance.max_velocity":
                 [0.25, 0.035, 0.035, 0.15, 0.15, 0.15],
-            "whole_body.base_share": 0.98,
         },
     },
 }
@@ -222,7 +217,7 @@ def generate_launch_description():
             "profile",
             default_value="sensor_z",
             choices=list(_PROFILES),
-            description="Sensor Z compliance, or legacy infinite/20s following.",
+            description="Sensor Z compliance and force-following profiles.",
         ),
         OpaqueFunction(function=_launch_nodes),
     ])

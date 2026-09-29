@@ -191,26 +191,15 @@ void WholeBodyForceControlNode::loadParameters()
         "force_sensor.force_timeout must be positive");
   }
 
-  parameters_.base_share = declare_parameter<double>(
-      "whole_body.base_share", 0.4);
-  parameters_.max_base_velocity = declare_parameter<double>(
-      "whole_body.max_base_velocity", 0.5);
-  parameters_.max_joint_velocity = declare_parameter<double>(
-      "whole_body.max_joint_velocity", 1.0);
   parameters_.max_ee_linear_velocity = declare_parameter<double>(
-      "whole_body.max_ee_linear_velocity", 0.05);
+      "end_effector.max_linear_velocity", 0.05);
   parameters_.max_ee_angular_velocity = declare_parameter<double>(
-      "whole_body.max_ee_angular_velocity", 0.20);
-  if (!std::isfinite(parameters_.base_share) ||
-      !std::isfinite(parameters_.max_base_velocity) ||
-      !std::isfinite(parameters_.max_joint_velocity) ||
-      !std::isfinite(parameters_.max_ee_linear_velocity) ||
+      "end_effector.max_angular_velocity", 0.20);
+  if (!std::isfinite(parameters_.max_ee_linear_velocity) ||
       !std::isfinite(parameters_.max_ee_angular_velocity)) {
     throw std::runtime_error("whole_body parameters must be finite");
   }
-  if (parameters_.max_base_velocity <= 0.0 ||
-      parameters_.max_joint_velocity <= 0.0 ||
-      parameters_.max_ee_linear_velocity <= 0.0 ||
+  if (parameters_.max_ee_linear_velocity <= 0.0 ||
       parameters_.max_ee_angular_velocity <= 0.0) {
     throw std::runtime_error(
         "whole_body velocity limits must be positive");
@@ -238,29 +227,10 @@ void WholeBodyForceControlNode::loadParameters()
 
   parameters_.reference_output_enabled = declare_parameter<bool>(
       "admittance.output", false);
-  const auto output_mode = declare_parameter<std::string>(
-      "output.mode", "ee_pose");
-  if (output_mode == "ee_pose") {
-    parameters_.output_mode = ReferenceOutputMode::kEndEffectorPose;
-  } else if (output_mode == "whole_body_state") {
-    parameters_.output_mode = ReferenceOutputMode::kWholeBodyState;
-  } else {
-    throw std::runtime_error(
-        "output.mode must be 'ee_pose' or 'whole_body_state'");
-  }
-  parameters_.reference_horizon = declare_parameter<double>(
-      "output.reference_horizon", 1.0);
-  parameters_.reference_dt = declare_parameter<double>(
-      "output.reference_dt", 0.1);
   parameters_.input_dimension = declare_parameter<int>(
       "output.input_dimension", 8);
-  if (!std::isfinite(parameters_.reference_horizon) ||
-      parameters_.reference_horizon <= 0.0 ||
-      !std::isfinite(parameters_.reference_dt) ||
-      parameters_.reference_dt <= 0.0 ||
-      parameters_.input_dimension <= 0) {
-    throw std::runtime_error(
-        "output.reference_horizon/reference_dt/input_dimension are invalid");
+  if (parameters_.input_dimension <= 0) {
+    throw std::runtime_error("output.input_dimension must be positive");
   }
 
   parameters_.correction_topic = declare_parameter<std::string>(
@@ -273,8 +243,6 @@ void WholeBodyForceControlNode::loadParameters()
   parameters_.force_sensor_state_topic = declare_parameter<std::string>(
       "topics.force_sensor_states",
       "/whole_body_force_control/force_sensor_states");
-  parameters_.target_topic = declare_parameter<std::string>(
-      "topics.target", parameters_.robot_name + "_whole_body_target");
   parameters_.ee_target_topic = declare_parameter<std::string>(
       "topics.ee_target", parameters_.robot_name + "_ee_target");
 }

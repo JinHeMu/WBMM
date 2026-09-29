@@ -5,7 +5,7 @@ This is the WBMM-native replacement for ``remani.launch.py``. It starts only
 algorithms and consumes the hardware interface contract:
 
     /goal_pose + odom + /joint_states
-            -> wbmm_planning_msgs/WholeBodyTrajectory      (wbmm_planner_ros)
+            -> wbmm_planner_ros/WholeBodyTrajectory      (wbmm_planner_ros)
             -> ocs2_msgs/MpcTargetTrajectories             (wbmm_reference_bridge)
 
 Neither node owns hardware, TF or the map: the deployment launch supplies the

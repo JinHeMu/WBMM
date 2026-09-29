@@ -4,8 +4,8 @@
   <name>wbmm_planner</name>
   <version>0.1.0</version>
   <description>
-    ROS-free whole-body planner: base search, arm seeding and MINCO trajectory
-    shaping composed into one publishable wbmm_core::WholeBodyTrajectory.
+    ROS-free whole-body planner with base search, arm seeding, MINCO trajectory
+    optimization and orchestration.
     Replaces the REMANI plan_manage orchestration.
   </description>
   <maintainer email="user@todo.todo">WBMM</maintainer>
@@ -15,8 +15,10 @@
 
   <depend>eigen</depend>
   <depend>wbmm_core</depend>
-  <depend>wbmm_search</depend>
-  <depend>wbmm_traj_opt</depend>
+  <depend>wbmm_environment</depend>
+  <depend>wbmm_collision</depend>
+  <depend>wbmm_robot_model</depend>
+  <exec_depend>python3-matplotlib</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>wbmm_pinocchio</test_depend>

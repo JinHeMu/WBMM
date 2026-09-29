@@ -17,7 +17,7 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray,String
 from geometry_msgs.msg import PoseStamped
 from ocs2_msgs.msg import MpcTargetTrajectories
-from wbmm_planning_msgs.msg import WholeBodyTrajectory
+from wbmm_planner_ros.msg import WholeBodyTrajectory
 from tf2_ros import Buffer,TransformListener
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', default='/tmp/wbmm_arm_goal_hold')

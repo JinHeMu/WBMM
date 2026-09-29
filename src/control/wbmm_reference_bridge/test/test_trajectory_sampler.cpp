@@ -8,7 +8,7 @@
 namespace
 {
 
-using wbmm_planning_msgs::msg::WholeBodyTrajectory;
+using wbmm_planner_ros::msg::WholeBodyTrajectory;
 
 // Two samples, two joints. Deliberately small so the expected interpolated
 // values can be written out by hand.

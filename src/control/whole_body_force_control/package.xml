@@ -11,6 +11,7 @@
   <depend>geometry_msgs</depend>
   <depend>ocs2_msgs</depend>
   <depend>wbmm_pinocchio</depend>
+  <depend>wbmm_robot_model</depend>
   <depend>wbmm_ros_interfaces</depend>
   <depend>rclcpp</depend>
   <exec_depend>rclpy</exec_depend>

@@ -16,7 +16,7 @@ from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 from rclpy.qos import DurabilityPolicy, QoSProfile, qos_profile_sensor_data
 from std_msgs.msg import String
-from wbmm_planning_msgs.msg import WholeBodyTrajectory
+from wbmm_planner_ros.msg import WholeBodyTrajectory
 
 
 def run_case(args, enabled):

@@ -1,27 +1,35 @@
 #include <chrono>
 #include <iostream>
-#include <wbmm_collision/environment_collision_checker.hpp>
-#include <wbmm_collision/urdf_collision_model.hpp>
+#include <wbmm_collision/esdf_checker.hpp>
+#include <wbmm_robot_model/wbmm_robot_model.hpp>
 #include <wbmm_environment/esdf_loader.hpp>
 #include <wbmm_pinocchio/pinocchio_robot_model.hpp>
 #include <wbmm_planner/whole_body_planner.hpp>
 int main(int argc, char **argv) {
   const bool enabled = argc > 1 && std::string(argv[1]) == "--optimize";
   const std::string urdf = WBMM_BENCHMARK_URDF;
-  auto robot =
-      std::make_shared<wbmm::pinocchio::PinocchioRobotModel>(urdf, .5, 1.0);
+  auto robot_description = wbmm::robot_model::loadRobotDescription(urdf);
+  auto config =
+      wbmm::robot_model::RobotModelConfig::defaultsFor(robot_description);
+  config.state_base_frame = robot_description.root_link;
+  config.base_collision_link = "base_link";
+  auto built =
+      wbmm::robot_model::buildRobotModelDescription(robot_description, config);
+  if (!built.success) {
+    std::cerr << built.message << std::endl;
+    return 1;
+  }
+  auto model = std::make_shared<const wbmm::robot_model::RobotModelDescription>(
+      std::move(built.model));
+  const auto kinematic_model =
+      wbmm::pinocchio::KinematicModel::create(model);
+  auto robot = std::make_shared<wbmm::pinocchio::PinocchioRobotModel>(
+      kinematic_model, .5, 1.0);
   auto env = wbmm::environment::NpzEsdfLoader::load(WBMM_BENCHMARK_ESDF).grid;
-  auto spheres = wbmm::collision::loadUrdfCollisionModel(
-      urdf, robot->jointNames(), "base_link");
-  wbmm::collision::CollisionModel model;
-  model.spheres = spheres.base.spheres;
-  for (auto &g : spheres.arm)
-    model.spheres.insert(model.spheres.end(), g.spheres.begin(),
-                         g.spheres.end());
   wbmm::collision::CollisionCheckOptions options;
   options.treat_unknown_as_occupied = false;
-  wbmm::collision::EnvironmentCollisionChecker checker(robot, env, model,
-                                                       options);
+  wbmm::collision::EsdfChecker checker(
+      kinematic_model, env, model->collision_spheres, options);
   for (auto goal :
        {std::pair<double, double>{.8, 0}, {1.5, 0}, {1, .5}, {2, -.6}}) {
     wbmm::planning::PlanRequest r;
@@ -61,7 +69,7 @@ int main(int argc, char **argv) {
     c.enable_optimization = enabled;
     auto optimize = [&](const wbmm::traj_opt::OptimizerInput &input,
                         const wbmm::traj_opt::OptimizerConfig &config) {
-      wbmm::traj_opt::WholeBodyOptimizer optimizer(config, env, spheres);
+      wbmm::traj_opt::WholeBodyOptimizer optimizer(config, env, *model);
       if (!optimizer.prepare(input)) {
         wbmm::traj_opt::OptimizerResult failure;
         failure.message = optimizer.message();

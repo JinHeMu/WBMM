@@ -1,0 +1,31 @@
+# ============================================================================
+# WBMM 统一机器人模型配置（canonical）。
+#
+# URDF 只描述 link/joint 拓扑，表达不了下面这些规则。以前它们分散在
+# planner / visualization / OCS2 各自的参数里；现在统一成这一个结构，
+# 由 wbmm_robot_model::RobotModelConfigLoader 读取。
+#
+# 注意：planner 与 visualization 目前仍从既有 ROS 参数构造同一个
+# RobotModelConfig 结构体（保持 launch 兼容），但字段含义以本文件为准。
+# 后续把 `robot_model_config_file` 参数接到本文件即可实现单一事实来源。
+# ============================================================================
+
+# 9D 状态里 [x, y, yaw] 描述的那个 link。
+state_base_frame: base_footprint
+
+# 受控 1-DoF 关节，顺序即状态里 q 的顺序。
+controlled_joints: [joint_1, joint_2, joint_3, joint_4, joint_5, joint_6]
+
+# 未受控可动关节必须显式锁定；本机器人没有。
+locked_joints: {}
+
+# 末端 frame。
+end_effectors:
+  tool: tool0
+  camera: d435i_link
+
+# 底盘碰撞组所在的 link（旧 planner 的 base_collision_link）。
+base_collision_link: base_link
+
+# 碰撞分组标签：组名 -> link 列表。球始终绑定原始 link，这里只是集合视图。
+collision_groups: {}

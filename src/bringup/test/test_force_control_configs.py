@@ -123,7 +123,6 @@ def test_sim_profiles_use_admittance_limits(
     assert effective['admittance.stiffness'][0] == stiffness_x
     assert effective['admittance.damping'][0] == damping_x
     assert effective['admittance.max_velocity'][0] == 0.25
-    assert effective['whole_body.base_share'] == 0.98
     assert 'admittance.max_offset' not in effective
     assert 'whole_body.max_base_delta' not in effective
     assert 'whole_body.max_joint_delta' not in effective
@@ -142,18 +141,16 @@ def test_sim_profiles_use_admittance_limits(
     assert sensor['topics.processed_wrench'] == effective['topics.wrench']
 
 
-@pytest.mark.parametrize('profile, stiffness, damping, base_share', [
+@pytest.mark.parametrize('profile, stiffness, damping', [
     ('three_axis_admittance',
      [150.0, 150.0, 150.0, 0.0, 0.0, 0.0],
-     [45.0, 45.0, 45.0, 4.5, 4.5, 4.5],
-     0.40),
+     [45.0, 45.0, 45.0, 4.5, 4.5, 4.5]),
     ('three_axis_follow',
      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-     [50.0, 50.0, 50.0, 4.5, 4.5, 4.5],
-     0.80),
+     [50.0, 50.0, 50.0, 4.5, 4.5, 4.5]),
 ])
 def test_three_axis_example_profiles(
-        profile, stiffness, damping, base_share, monkeypatch):
+        profile, stiffness, damping, monkeypatch):
     module = load_launch('sim')
     original_share = module.get_package_share_directory
     monkeypatch.setattr(module, 'get_package_share_directory', lambda name:
@@ -177,7 +174,6 @@ def test_three_axis_example_profiles(
         True, True, True, False, False, False]
     assert effective['admittance.stiffness'] == stiffness
     assert effective['admittance.damping'] == damping
-    assert effective['whole_body.base_share'] == base_share
 
 
 def test_sensor_z_sim_uses_world_frame_translation_admittance(monkeypatch):
@@ -212,12 +208,11 @@ def test_sensor_z_sim_uses_world_frame_translation_admittance(monkeypatch):
     assert force['admittance.selected_axes'] == [
         True, True, True, False, False, False]
     assert force['admittance.stiffness'][2] == 150.0
-    assert force['whole_body.base_share'] == 0.40
+    assert force['end_effector.max_linear_velocity'] == 0.05
+    assert force['end_effector.max_angular_velocity'] == 0.20
     assert 'admittance.max_offset' not in force
     assert 'whole_body.max_base_delta' not in force
     assert 'whole_body.max_joint_delta' not in force
-    assert force['whole_body.max_base_velocity'] == 0.50
-    assert force['whole_body.max_joint_velocity'] == 0.50
     sensor = flatten(load_force_params(
         [COMMON_CONFIG / 'force_control.yaml',
          SIM_CONFIG / 'force_control.yaml'],
@@ -243,13 +238,12 @@ def test_real_config_preserves_closed_gates_and_admittance_limits():
     assert config['admittance.mass'] == [3.0, 3.0, 3.0, 0.3, 0.3, 0.3]
     assert config['admittance.damping'] == [45.0, 45.0, 45.0, 4.5, 4.5, 4.5]
     assert config['admittance.stiffness'] == [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    assert config['whole_body.base_share'] == 0.6
+    assert config['end_effector.max_linear_velocity'] == 0.2
+    assert config['end_effector.max_angular_velocity'] == 0.5
     assert 'whole_body.max_base_delta' not in config
     assert 'whole_body.max_joint_delta' not in config
     assert 'admittance.max_offset' not in config
     assert 'force_sensor.max_wrench_rate' not in config
-    assert config['whole_body.max_base_velocity'] == 0.20
-    assert config['whole_body.max_joint_velocity'] == 0.50
     sensor = flatten(load_force_params([
         COMMON_CONFIG / 'force_control.yaml',
         REAL_CONFIG / 'force_control.yaml',

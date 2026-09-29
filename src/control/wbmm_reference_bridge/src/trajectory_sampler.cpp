@@ -27,7 +27,7 @@ std::string describe(const char * field, std::size_t expected, std::size_t actua
 }  // namespace
 
 bool TrajectorySampler::validate(
-  const wbmm_planning_msgs::msg::WholeBodyTrajectory & trajectory,
+  const wbmm_planner_ros::msg::WholeBodyTrajectory & trajectory,
   std::string * message)
 {
   const auto fail = [message](const std::string & reason)
@@ -134,7 +134,7 @@ bool TrajectorySampler::validate(
 }
 
 TrajectorySampler::TrajectorySampler(
-  const wbmm_planning_msgs::msg::WholeBodyTrajectory & trajectory)
+  const wbmm_planner_ros::msg::WholeBodyTrajectory & trajectory)
 : frame_id_(trajectory.header.frame_id),
   trajectory_id_(trajectory.trajectory_id),
   environment_revision_(trajectory.environment_revision),

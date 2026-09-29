@@ -4,7 +4,7 @@
   <name>wbmm_reference_bridge</name>
   <version>0.1.0</version>
   <description>
-    Converts a planned nominal whole-body trajectory (wbmm_planning_msgs) into
+    Converts a planned nominal whole-body trajectory (wbmm_planner_ros) into
     the rolling OCS2 reference window consumed by the WBMM MPC.
   </description>
   <maintainer email="user@todo.todo">WBMM</maintainer>
@@ -21,7 +21,7 @@
   <depend>ocs2_core</depend>
   <depend>ocs2_msgs</depend>
   <depend>ocs2_ros_interfaces</depend>
-  <depend>wbmm_planning_msgs</depend>
+  <depend>wbmm_planner_ros</depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
 
