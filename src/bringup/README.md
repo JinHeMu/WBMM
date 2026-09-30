@@ -724,6 +724,14 @@ MuJoCo 仿真硬件入口。
 | `wheel_odom_topic` | `/wheel/odometry` | EKF 轮式里程计输入 |
 | `imu_topic` | `/imu/data` | EKF IMU 输入 |
 | `scan_topic` | `/scan` | SLAM 雷达输入 |
+| `use_rviz` | `true` | 启动 `slam.rviz` 显示地图、激光和 TF |
+| `rviz_config` | `rviz/slam.rviz` | RViz 配置文件路径 |
+
+默认会同时启动 RViz；无图形界面环境可关闭：
+
+```bash
+ros2 launch tracer_jaka_bringup localization.launch.py use_rviz:=false
+```
 
 TF 所有权：
 
@@ -1888,3 +1896,23 @@ ros2 run tf2_tools view_frames
 ---
 
 > 本文档为 bringup 包使用说明，参数最终以源码和实际加载的 YAML 为准。
+
+
+### Cartographer 实机地面地图与显示（2026-09-30）
+
+Cartographer 的 `tracking_frame` 保持 `imu_link`；内部 frame 为 `cartographer_map`。
+C++ `cartographer_ground_map` 仅发布静态 `map → cartographer_map`（当前高度 0.377 m），
+Cartographer 发布 `cartographer_map → odom`，EKF 发布 `odom → base_footprint`。
+对外 `/map` 为地面黑白栅格，x/y 与原生子地图相同；OCS2 仍使用 `odom`，
+保存地图规划使用 `map`。3D ESDF 需要核对地面原点，不能只更换 frame 标签。
+
+`slam.rviz` 使用不透明黑白地图、单色激光，默认关闭 ESDF 叠加。首次更新后重新构建
+`lakibeam1 wbmm_localization tracer_jaka_bringup` 并重新 source `install/setup.bash`。
+已有 `.pbstream` 保留，后续保存使用新文件名。
+
+建图用 `localization_backend:=cartographer_mapping save_state_file:=新文件的绝对路径`，
+采集完成后按一次 Ctrl+C，等待优化、自动保存并正常退出。
+定位用 `localization_backend:=cartographer_localization state_file:=该文件的绝对路径`。
+`save_state_file` 指定输出；`state_file` 指定读取的已有地图，无需手动调用保存服务。
+如果已有 EKF 在运行，再加 `start_ekf:=false`；不要同时运行两套建图或定位。
+完整三步命令见 [wbmm_localization 使用说明](../map/wbmm_localization/README.md)。

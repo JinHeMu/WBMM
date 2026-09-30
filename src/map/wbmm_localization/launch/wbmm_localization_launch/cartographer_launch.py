@@ -8,30 +8,48 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from .launch_support import guard_localization
 
 
 def value(context, name):
     return context.perform_substitution(LaunchConfiguration(name)).strip()
 
 
-def make_nodes(context, mode):
-    share = Path(get_package_share_directory('wbmm_localization'))
-    config = Path(value(context, 'cartographer_config') or
-                  share / 'config' / f'cartographer_{mode}.lua').resolve()
+def validate_inputs(mode, config, state, save, resolution=0.05, readiness=None):
+    """Check inputs before a composing launch starts any of its processes."""
+    config = Path(config).resolve()
     if not config.is_file():
         raise RuntimeError(f'Cartographer Lua config does not exist: {config}')
-    state = value(context, 'state_file')
+    if mode == 'mapping' and state:
+        raise RuntimeError('Fresh mapping does not load state_file. '
+                           'Use cartographer_localization to load an existing map.')
     if mode == 'localization' and (
             not state or not Path(state).is_file() or
             Path(state).suffix != '.pbstream'):
         raise RuntimeError('Cartographer localization requires an existing state_file (.pbstream).')
-    save = value(context, 'save_state_file')
     if save and (Path(save).suffix != '.pbstream' or
                  not Path(save).resolve().parent.is_dir()):
         raise RuntimeError('save_state_file requires a .pbstream suffix and an existing parent directory.')
-    resolution = float(value(context, 'resolution'))
+    if mode == 'mapping' and save and Path(save).exists():
+        raise RuntimeError('save_state_file already exists. Choose a new filename to preserve existing maps.')
+    resolution = float(resolution)
     if not math.isfinite(resolution) or resolution <= 0.0:
         raise RuntimeError('resolution must be finite and positive.')
+    if readiness is not None and not Path(readiness).is_file():
+        raise RuntimeError(f'readiness_config does not exist: {readiness}')
+    return config, resolution
+
+
+def make_nodes(context, mode):
+    share = Path(get_package_share_directory('wbmm_localization'))
+    state = value(context, 'state_file')
+    save = value(context, 'save_state_file')
+    readiness = (value(context, 'readiness_config') if mode == 'localization' and
+                 value(context, 'start_readiness').lower() == 'true' else None)
+    config, resolution = validate_inputs(
+        mode, value(context, 'cartographer_config') or
+        share / 'config' / f'cartographer_{mode}.lua', state, save,
+        value(context, 'resolution'), readiness)
     use_sim_time = value(context, 'use_sim_time').lower() == 'true'
     args = ['-configuration_directory', str(config.parent),
             '-configuration_basename', config.name,
@@ -53,11 +71,12 @@ def make_nodes(context, mode):
              arguments=['-resolution', str(resolution),
                         '-include_frozen_submaps=true',
                         f'-include_unfrozen_submaps={str(mode == "mapping").lower()}'],
+             parameters=[{'use_sim_time': use_sim_time}],
+             remappings=[('map', '/cartographer/map')]),
+        Node(package='wbmm_localization', executable='cartographer_ground_map',
+             name='cartographer_ground_map', output='screen',
              parameters=[{'use_sim_time': use_sim_time}])]
-    if mode == 'localization' and value(context, 'start_readiness').lower() == 'true':
-        readiness = value(context, 'readiness_config')
-        if not Path(readiness).is_file():
-            raise RuntimeError(f'readiness_config does not exist: {readiness}')
+    if readiness is not None:
         nodes.append(Node(
             package='wbmm_localization', executable='localization_readiness',
             name='localization_readiness', output='screen',
@@ -83,5 +102,7 @@ def description(mode):
         DeclareLaunchArgument('start_readiness', default_value='true'),
         DeclareLaunchArgument('readiness_config', default_value=str(
             share / 'config' / 'readiness.yaml')),
-        OpaqueFunction(function=lambda context: make_nodes(context, mode)),
+        OpaqueFunction(function=lambda context: guard_localization(
+            make_nodes(context, mode), value(context, 'use_sim_time').lower() == 'true',
+            False, True, value(context, 'odom_topic'))),
     ])

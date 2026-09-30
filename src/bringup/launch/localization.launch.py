@@ -13,7 +13,8 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from wbmm_localization_launch.launch_support import BACKENDS, resolve_backend
+from wbmm_localization_launch.launch_support import BACKENDS, guard_localization, resolve_backend
+from wbmm_localization_launch.cartographer_launch import validate_inputs
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -31,6 +32,8 @@ def _make_nodes(context):
     backend = resolve_backend(_value(context, "localization_backend"),
                               _as_bool(_value(context, "start_slam")))
     start_slam = backend == "slam_toolbox"
+    use_rviz = _as_bool(_value(context, "use_rviz"))
+    rviz_config = _value(context, "rviz_config")
     ekf_base_config = _value(context, "ekf_base_config")
     slam_base_config = _value(context, "slam_base_config")
     ekf_config = _value(context, "ekf_config")
@@ -46,6 +49,8 @@ def _make_nodes(context):
         raise RuntimeError(f"EKF config does not exist: {ekf_config!r}")
     if start_slam and slam_config and not os.path.isfile(slam_config):
         raise RuntimeError(f"SLAM config does not exist: {slam_config!r}")
+    if use_rviz and not os.path.isfile(rviz_config):
+        raise RuntimeError(f"RViz config does not exist: {rviz_config!r}")
 
     ekf_layers = [ekf_base_config]
     if ekf_config:
@@ -58,6 +63,17 @@ def _make_nodes(context):
     wheel_odom_topic = _value(context, "wheel_odom_topic")
     imu_topic = _value(context, "imu_topic")
     scan_topic = _value(context, "scan_topic")
+
+    # Includes validate lazily, after sibling processes may already have started.
+    # Check Cartographer inputs here as well so an invalid map path starts no EKF.
+    if backend in ("cartographer_mapping", "cartographer_localization"):
+        share = get_package_share_directory("wbmm_localization")
+        mode = backend.removeprefix("cartographer_")
+        validate_inputs(
+            mode, _value(context, "cartographer_config") or
+            os.path.join(share, "config", backend + ".lua"),
+            _value(context, "state_file"), _value(context, "save_state_file"),
+            readiness=_value(context, "readiness_config") if mode == "localization" else None)
 
     # Keep the EKF independent of the producing backend while enforcing the
     # canonical WBMM hardware interface spellings.
@@ -112,7 +128,25 @@ def _make_nodes(context):
         actions.append(IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(share, "launch", entry)),
             launch_arguments=arguments.items()))
+    actions.append(Node(
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        output="screen",
+        condition=IfCondition(str(use_rviz).lower()),
+        arguments=["-d", rviz_config],
+        parameters=[{"use_sim_time": use_sim_time}],
+    ))
     return actions
+
+
+def _guarded_nodes(context):
+    backend = resolve_backend(_value(context, "localization_backend"),
+                              _as_bool(_value(context, "start_slam")))
+    return guard_localization(
+        _make_nodes(context), _as_bool(_value(context, "use_sim_time")),
+        _as_bool(_value(context, "start_ekf")), backend != "none",
+        _value(context, "odom_topic"))
 
 
 def generate_launch_description():
@@ -134,6 +168,15 @@ def generate_launch_description():
         DeclareLaunchArgument("initial_yaw", default_value="0.0"),
         DeclareLaunchArgument("use_sim_time", default_value="false"),
         DeclareLaunchArgument(
+            "use_rviz", default_value="true",
+            description="Start RViz with the WBMM SLAM visualization."),
+        DeclareLaunchArgument(
+            "rviz_config",
+            default_value=os.path.join(
+                get_package_share_directory("tracer_jaka_bringup"),
+                "rviz", "slam.rviz"),
+            description="RViz configuration used for localization and mapping."),
+        DeclareLaunchArgument(
             "ekf_base_config",
             default_value=os.path.join(
                 get_package_share_directory("tracer_jaka_bringup"),
@@ -148,5 +191,5 @@ def generate_launch_description():
         DeclareLaunchArgument("wheel_odom_topic", default_value="/wheel/odometry"),
         DeclareLaunchArgument("imu_topic", default_value="/imu/data"),
         DeclareLaunchArgument("scan_topic", default_value="/scan"),
-        OpaqueFunction(function=_make_nodes),
+        OpaqueFunction(function=_guarded_nodes),
     ])

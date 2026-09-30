@@ -52,10 +52,13 @@ def includes(actions, context):
     ('none', None),
     ('slam_toolbox', None),
 ])
-def test_only_selected_global_backend_is_active(backend, entry, monkeypatch):
+def test_only_selected_global_backend_is_active(backend, entry, monkeypatch, tmp_path):
     module = load('localization.launch.py', monkeypatch)
     monkeypatch.setattr(module, 'Node', lambda **kwargs: kwargs)
-    context = context_for(module, localization_backend=backend, start_slam='true')
+    state = tmp_path / 'fixture.pbstream'
+    state.touch()
+    context = context_for(module, localization_backend=backend, start_slam='true',
+                          state_file=str(state) if backend == 'cartographer_localization' else '')
     actions = module._make_nodes(context)
     assert actions[0]['condition'].evaluate(context)
     assert actions[1]['condition'].evaluate(context) == (backend == 'slam_toolbox')
@@ -63,6 +66,32 @@ def test_only_selected_global_backend_is_active(backend, entry, monkeypatch):
     assert list(selected) == ([entry] if entry else [])
     if entry:
         assert selected[entry]['odom_topic'] == '/odometry/filtered'
+
+
+@pytest.mark.parametrize('failure', ['existing_output', 'missing_state', 'missing_config'])
+def test_bad_cartographer_input_starts_no_preflight_or_ekf(failure, monkeypatch, tmp_path):
+    module = load('localization.launch.py', monkeypatch)
+    started = []
+    monkeypatch.setattr(module, 'Node', lambda **kwargs: started.append(kwargs))
+    monkeypatch.setattr(module, 'guard_localization', lambda *args: started.append(args))
+    arguments = dict(localization_backend='cartographer_mapping')
+    if failure == 'existing_output':
+        saved = tmp_path / 'keep.pbstream'
+        saved.write_bytes(b'keep existing map')
+        arguments['save_state_file'] = str(saved)
+        message = 'already exists'
+    elif failure == 'missing_state':
+        arguments.update(localization_backend='cartographer_localization',
+                         state_file=str(tmp_path / 'missing.pbstream'))
+        message = 'existing state_file'
+    else:
+        arguments['cartographer_config'] = str(tmp_path / 'missing.lua')
+        message = 'Lua config'
+    with pytest.raises(RuntimeError, match=message):
+        module._guarded_nodes(context_for(module, **arguments))
+    assert not started
+    if failure == 'existing_output':
+        assert saved.read_bytes() == b'keep existing map'
 
 
 @pytest.mark.parametrize('backend', ['amcl', 'cartographer_localization'])

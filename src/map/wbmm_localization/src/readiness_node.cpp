@@ -234,9 +234,13 @@ struct LocalizationReadiness::Impl {
       }
       if (processed_stamp && stamp == *processed_stamp)
         return;
+      // Query BufferCore directly without the timeout overload. Humble checks
+      // for a dedicated TF thread even when that overload's timeout is zero;
+      // this node receives TF in its executor and retries on the next tick.
+      const auto scan_time = tf2::TimePoint(std::chrono::nanoseconds(
+          rclcpp::Time(scan->header.stamp).nanoseconds()));
       const auto transform = buffer->lookupTransform(
-          map_frame, scan->header.frame_id,
-          rclcpp::Time(scan->header.stamp, node.get_clock()->get_clock_type()));
+          map_frame, scan->header.frame_id, scan_time);
       const auto &t = transform.transform.translation;
       const auto points = scanEndpoints(
           scan->ranges, scan->angle_min, scan->angle_increment, scan->range_min,

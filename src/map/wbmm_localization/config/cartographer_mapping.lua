@@ -4,7 +4,9 @@ include "trajectory_builder.lua"
 options = {
   map_builder = MAP_BUILDER,
   trajectory_builder = TRAJECTORY_BUILDER,
-  map_frame = "map",
+  -- Cartographer's 2D origin is at the IMU. A ground-map bridge projects its
+  -- occupancy grid and anchors the public map frame at base_footprint height.
+  map_frame = "cartographer_map",
   tracking_frame = "imu_link",
   published_frame = "odom",
   odom_frame = "odom",

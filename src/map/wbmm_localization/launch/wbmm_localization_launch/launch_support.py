@@ -1,7 +1,8 @@
 """Backend policy and a launch gate that releases actions only on success."""
 
-from launch.actions import LogInfo, RegisterEventHandler
+from launch.actions import EmitEvent, LogInfo, RegisterEventHandler
 from launch.event_handlers import OnProcessExit
+from launch.events import Shutdown
 from launch_ros.actions import Node
 
 
@@ -34,3 +35,23 @@ def gate_until_ready(actions, use_sim_time, backend, timeout, status_topic):
         target_action=waiter,
         on_exit=lambda event, context: release_on_success(actions, event)))
     return [handler, waiter]
+
+
+def preflight_exit(actions, event):
+    if event.returncode == 0:
+        return actions
+    return [LogInfo(msg='Localization startup cancelled due to conflicting publishers. '
+                         'See localization_preflight above.'),
+            EmitEvent(event=Shutdown(reason='Conflicting localization publishers'))]
+
+
+def guard_localization(actions, use_sim_time, start_ekf, global_backend, odom_topic):
+    checker = Node(
+        package='wbmm_localization', executable='localization_preflight',
+        name='localization_preflight', output='screen',
+        parameters=[{'use_sim_time': use_sim_time, 'start_ekf': start_ekf,
+                     'global_backend': global_backend, 'odom_topic': odom_topic}])
+    handler = RegisterEventHandler(OnProcessExit(
+        target_action=checker,
+        on_exit=lambda event, context: preflight_exit(actions, event)))
+    return [handler, checker]

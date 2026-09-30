@@ -17,7 +17,10 @@
 #include <cstring>
 #include <iostream>
 #include <math.h>
-#include "../include/data_type.h"
+#include "scan_assembler.hpp"
+#include <array>
+#include <cerrno>
+#include <stdexcept>
 #include "../include/remote.h"
 
 #define DEG2RAD(x) ((x)*M_PI / 180.f)
@@ -36,9 +39,12 @@ public:
 		{
 			scan_config();
 		}
-		create_socket();
-		scan_publish();
+        assembler = std::make_unique<lakibeam::ScanAssembler>(
+            std::stod(scanfreq), [this](const lakibeam::Scan &scan) { publish_scan(scan); });
+        if (create_socket() != 0) throw std::runtime_error("Cannot bind LiDAR UDP socket");
+        timer = create_wall_timer(std::chrono::milliseconds(1), [this] { receive_packets(); });
 	}
+    ~lakibeam1_scan() override { if (sockfd >= 0) close(sockfd); }
 protected:
 	void get_parameters()
 	{
@@ -105,7 +111,7 @@ protected:
 		RCLCPP_INFO(get_logger(),"create_socket");
 		// rclcpp::sleep_for(std::chrono::milliseconds(2000));
 		// get_telemetry_data(sensorip);
-        sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+        sockfd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0);
         if(sockfd == -1)
         {
             RCLCPP_INFO(get_logger(),"Failed to create socket");
@@ -120,148 +126,71 @@ protected:
         if(bind(sockfd, (struct sockaddr*)&ser_addr, sizeof(ser_addr)) < 0)
         {
             RCLCPP_INFO(get_logger(),"Socket bind error!");
+            close(sockfd);
+            sockfd = -1;
             return -1;
         }
         return 0;
     };
-	void scan_publish()
-	{
-		double inf = std::numeric_limits<double>::infinity();
-		RCLCPP_INFO(get_logger(),"scan_publish");
-		// rclcpp::sleep_for(std::chrono::milliseconds(2000));
-		// get_telemetry_data(sensorip);
-		while (rclcpp::ok())
-		{
-			if(scan_vec_ready == 0)
-			{
-				while(1)
-				{
-					if(j == 12)
-					{
-						unsigned int len = sizeof(clent_addr);
-						recvfrom(sockfd, &MSOP_Data, sizeof(MSOP_Data), 0, (struct sockaddr*)&clent_addr, &len);
-						if(MSOP_Data.BlockID[0].Azimuth == 0)
-						{
-							scan_end = scan_begin;
-							scan_begin = rclcpp::Clock().now();
-						}			
-						if((MSOP_Data.BlockID[1].Azimuth - MSOP_Data.BlockID[0].Azimuth) > 0)
-						{
-							resolution = (MSOP_Data.BlockID[1].Azimuth - MSOP_Data.BlockID[0].Azimuth) / 16;
-						}
-						j = 0;
-					}
+    void receive_packets()
+    {
+        std::array<uint8_t, 1207> bytes{}; // extra byte detects oversized UDP datagrams
+        for (int packet = 0; packet < 64; ++packet)
+        {
+            socklen_t length = sizeof(clent_addr);
+            const auto count = recvfrom(sockfd, bytes.data(), bytes.size(), 0,
+                reinterpret_cast<sockaddr *>(&clent_addr), &length);
+            if (count < 0)
+            {
+                if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+                    RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 5000,
+                                         "LiDAR receive failed: %s", std::strerror(errno));
+                break;
+            }
+            if (!assembler->packet(bytes.data(), static_cast<size_t>(count), now().nanoseconds()))
+                RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
+                                    "Rejected malformed, duplicate or out-of-order LiDAR datagram");
+        }
+    }
 
-					for(;j < 12; j++)
-					{
-						for(i = 0; i < 16; i++)
-						{
-							bm_response_scan_t response_ptr;
-							response_ptr.angle = (MSOP_Data.BlockID[j].Azimuth + (resolution * i));
-							if(MSOP_Data.BlockID[j].DataFlag == 0xEEFF)
-							{
-								if(response_ptr.angle == 0)
-								{
-									if(!scan_vec.empty() && (scan_vec_ready == 0))
-									{
-										scan_vec_ready = 1;
-										if(scan_vec.size() < 1200)
-										{
-											j = 12;
-										}
-										break;
-									}
-								}
-								response_ptr.dist = MSOP_Data.BlockID[j].Result[i].Dist_1;
-								response_ptr.rssi = MSOP_Data.BlockID[j].Result[i].RSSI_1;
-								scan_vec.push_back(response_ptr);
-							}
-						}
-						if(scan_vec_ready == 1)
-						{
-							break;
-						}
-					}
-					if(scan_vec_ready == 1)
-					{
-						break;
-					}
-				}
-			}
-            
-
-			if(scan_vec_ready == 1)
-			{
-				sensor_msgs::msg::LaserScan scan;
-				uint16_t num_readings;
-				float duration = (scan_begin - scan_end).seconds();
-
-				num_readings = scan_vec.size();
-				scan.header.stamp = scan_begin;
-				scan.header.frame_id = frame_id;
-				scan.angle_min = DEG2RAD(-180 + angle_offset);
-				scan.angle_max = DEG2RAD(180 + angle_offset);
-				scan.angle_increment = 2.0 * M_PI / num_readings;
-				scan.scan_time = duration;
-				scan.time_increment = duration/(float)num_readings;
-				scan.range_min = 0.08;
-				scan.range_max = 100.0;
-				scan.ranges.resize(num_readings);
-				scan.intensities.resize(num_readings);
-
-				for(int i = 0;i < num_readings; i++)
-				{
-					if (!inverted)
-					{
-						scan.ranges[i] = (float)scan_vec[i].dist / 1000;
-						scan.intensities[i] = scan_vec[i].rssi;
-						if(scan.ranges[i] == 0)
-						{
-							scan.ranges[i] = inf;
-							scan.intensities[i] = 0;
-						}
-					}
-					else
-					{
-						scan.ranges[num_readings - i - 1] = (float)scan_vec[i].dist / 1000;
-						scan.intensities[num_readings - i - 1] = scan_vec[i].rssi;
-						if(scan.ranges[num_readings - i - 1] == 0)
-						{
-							scan.ranges[num_readings - i - 1] = inf;
-							scan.intensities[num_readings - i - 1] = 0;
-						}
-					}
-				}
-
-				scan_pub->publish(scan);
-				RCLCPP_INFO_THROTTLE(
-					get_logger(), *get_clock(), 5000,
-					"Publishing %s, data points: %d",
-					output_topic.c_str(), num_readings);
-				scan_vec.clear();
-				scan_vec_ready = 0;
-			}
-		}
-		close(sockfd);
-	}
+    void publish_scan(const lakibeam::Scan &frame)
+    {
+        sensor_msgs::msg::LaserScan scan;
+        const size_t count = frame.ranges.size();
+        const double increment = 2. * M_PI / count;
+        scan.header.stamp = rclcpp::Time(frame.start_ns, get_clock()->get_clock_type());
+        scan.header.frame_id = frame_id;
+        // Keep acquisition order for increasing point times. Inverted scans
+        // use decreasing angles instead of reversing time-ordered samples.
+        scan.angle_min = inverted ? DEG2RAD(180 + angle_offset) - increment :
+                                    DEG2RAD(-180 + angle_offset);
+        scan.angle_increment = inverted ? -increment : increment;
+        scan.angle_max = scan.angle_min + scan.angle_increment * (count - 1);
+        scan.scan_time = frame.duration;
+        scan.time_increment = frame.duration / count;
+        scan.range_min = 0.08;
+        scan.range_max = 100.0;
+        scan.ranges = frame.ranges;
+        scan.intensities = frame.intensities;
+        scan_pub->publish(scan);
+        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 5000,
+                            "Publishing %s, data points: %zu", output_topic.c_str(), count);
+    }
 
 private:
     string hostip, sensorip, port, frame_id, output_topic,scanfreq,filter,laser_enable,scan_range_start,scan_range_stop;
-    int resolution=25, scan_vec_ready=0, angle_offset;
+    int angle_offset;
     bool inverted, configure_sensor;
     rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr scan_pub;
-    rclcpp::Time scan_begin, scan_end;
-    struct sockaddr_in ser_addr, clent_addr; 
-	int i = 0, j = 12, points_cnt;
-	int sockfd;
-	unsigned int last_timestamp_;
-    std::vector <bm_response_scan_t> scan_vec;
+    struct sockaddr_in ser_addr, clent_addr;
+    int sockfd = -1;
+    std::unique_ptr<lakibeam::ScanAssembler> assembler;
+    rclcpp::TimerBase::SharedPtr timer;
 };
 
 int main(int argc, char **argv)
 {
 	rclcpp::init(argc, argv);
-	rclcpp::Rate rate(30); 
 	auto node = make_shared<lakibeam1_scan>();
 	rclcpp::spin(node);
 	rclcpp::shutdown();	

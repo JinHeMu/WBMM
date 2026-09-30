@@ -23,11 +23,12 @@
   <depend>nav_msgs</depend>
   <depend>std_msgs</depend>
   <depend>tf2_ros</depend>
+  <depend>tf2_msgs</depend>
   <depend>tf2</depend>
   <depend>nlohmann_json</depend>
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>python3-pytest</test_depend>
-  <test_depend>geometry_msgs</test_depend>
+  <depend>geometry_msgs</depend>
 
   <export><build_type>ament_cmake</build_type></export>
 </package>

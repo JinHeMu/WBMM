@@ -69,3 +69,33 @@ ros2 launch lakibeam1 lakibeam1_scan_view.launch.py
 RViz 中 运行 LaserScan 节点时的实时点云数据如下图所示：
 
 ![image](https://github.com/RichbeamTechnology/Lakibeam_ROS2_Driver/blob/main/assets/ros2.png)
+
+
+## 扫描时间与离线回归
+
+扫描发布和 UDP 解析均使用 C++。有效 MSOP UDP payload 为 1206 字节，
+12 个 100 字节块加 6 字节尾部；字节序按厂商示例低字节在前。
+方位角单位 0.01°，相邻块角差 200/400 对应 0.125°/0.25°，末包
+0xFFFF 标志和方位角是填充块。参见厂商手册 RBDOC-UM-1001 第 7 节：
+[协议手册](https://ae-pic-a1.aliexpress-media.com/kf/S21052410e29c40d8b5f73e211f265982d.pdf)。
+
+`scan_assembler.cpp` 跳过启动时不完整的一圈，仅将高角度到低角度的大回绕视为新圈；
+小角度回退、重复和乱序包不会产生新圈。丢包位置保留 infinity，不压缩角度。
+倒装时使用负 angle_increment，保留采样顺序和递增 time_increment。
+header.stamp 对应当前圈第一束，scan_time 为当前圈到下一圈的起点间隔。
+
+内部微秒时间戳通过 uint32 模运算检查重复、乱序并映射到 ROS 时间；首包接收时
+减去估算采样跨度作为初始锚点。scanfreq 用作初始扫描频率提示，随后用圈边界
+测量实际周期；不主动配置设备时也不要求提示值完全吻合。
+该映射不是硬件时钟同步，固定传输延迟和时间戳在固件中的具体采样位置仍需实机核对。
+断流超过一秒后的设备时钟重启会重新锚定；主机时钟回退时丢弃旧时间扫描，
+直到时间追上已发布扫描，避免重新引入不递增时间。
+
+```bash
+colcon build --packages-select lakibeam1 --symlink-install
+source install/setup.bash
+colcon test --packages-select lakibeam1 --ctest-args -R 'scan_assembler_tests|scan_udp_ros' --output-on-failure
+```
+
+C++ 合成包测试覆盖末包填充、跨圈、丢包、重复、乱序、畸形包、时间戳回绕，
+另一个 C++ 测试通过本机 UDP 启动实际驱动验证 LaserScan 和无数据时 SIGINT 退出。
