@@ -33,7 +33,7 @@ def generate_launch_description():
             package_name="tracer_jaka_moveit_config",
         )
         .planning_pipelines(
-            default_planning_pipeline="chomp", pipelines=["ompl", "chomp"])
+            default_planning_pipeline="ompl", pipelines=["ompl", "chomp"])
         .to_moveit_configs()
     )
 
