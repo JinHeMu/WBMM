@@ -102,7 +102,7 @@ def main():
         for pkg, exe, params in [
             ('wbmm_planner_ros', 'wbmm_planner_ros_node',
              ['urdf_file:='+urdf, 'esdf_file:='+esdf, 'world_frame:=map']),
-            ('wbmm_reference_bridge', 'wbmm_reference_bridge_node', ['world_frame:=odom'])]:
+            ('wbmm_trajectory_to_mpc', 'wbmm_trajectory_to_mpc_node', ['world_frame:=odom'])]:
             log = open(pkg+'.log', 'w'); logs.append(log)
             binary = Path(get_package_prefix(pkg))/'lib'/pkg/exe
             command = [str(binary), '--ros-args']

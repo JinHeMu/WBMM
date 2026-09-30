@@ -3,7 +3,7 @@
   <name>wbmm_collision</name>
   <version>0.1.0</version>
   <description>
-    Environment collision checking and trajectory-variable sphere kinematics for
+    Environment and self-collision checking and trajectory-variable sphere kinematics for
     WBMM. Geometry comes from the shared wbmm_robot_model CollisionSphereModel;
     this package only evaluates it.
   </description>

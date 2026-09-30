@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>wbmm_reference_bridge</name>
+  <name>wbmm_trajectory_to_mpc</name>
   <version>0.1.0</version>
   <description>
     Converts a planned nominal whole-body trajectory (wbmm_planner_ros) into

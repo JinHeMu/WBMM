@@ -6,7 +6,7 @@ algorithms and consumes the hardware interface contract:
 
     /goal_pose + odom + /joint_states
             -> wbmm_planner_ros/WholeBodyTrajectory      (wbmm_planner_ros)
-            -> ocs2_msgs/MpcTargetTrajectories             (wbmm_reference_bridge)
+            -> ocs2_msgs/MpcTargetTrajectories             (wbmm_trajectory_to_mpc)
 
 Neither node owns hardware, TF or the map: the deployment launch supplies the
 state sources and the ESDF path, exactly like the other algorithm launches.
@@ -97,7 +97,7 @@ def _make_nodes(context):
         "sample_dt": float(_value(context, "bridge_sample_dt")),
     }
 
-    return [
+    actions = [
         Node(
             package="wbmm_planner_ros",
             executable="wbmm_planner_ros_node",
@@ -107,13 +107,20 @@ def _make_nodes(context):
         ),
         Node(
             condition=IfCondition(LaunchConfiguration("start_bridge")),
-            package="wbmm_reference_bridge",
-            executable="wbmm_reference_bridge_node",
-            name="wbmm_reference_bridge",
+            package="wbmm_trajectory_to_mpc",
+            executable="wbmm_trajectory_to_mpc_node",
+            name="wbmm_trajectory_to_mpc",
             output="screen",
             parameters=[bridge_parameters],
         ),
     ]
+    if _as_bool(_value(context, "wait_for_localization")):
+        from wbmm_localization_launch.launch_support import gate_until_ready
+        return gate_until_ready(actions, use_sim_time,
+            _value(context, "localization_backend"),
+            float(_value(context, "localization_timeout")),
+            _value(context, "localization_status_topic"))
+    return actions
 
 
 def generate_launch_description():
@@ -129,6 +136,10 @@ def generate_launch_description():
         DeclareLaunchArgument("bridge_world_frame", default_value="odom",
             description="Must match the OCS2 controller world_frame; TF transforms the planning frame."),
         DeclareLaunchArgument("start_bridge", default_value="true"),
+        DeclareLaunchArgument("wait_for_localization", default_value="false"),
+        DeclareLaunchArgument("localization_backend", default_value=""),
+        DeclareLaunchArgument("localization_timeout", default_value="30.0"),
+        DeclareLaunchArgument("localization_status_topic", default_value="/localization/status"),
         DeclareLaunchArgument("base_collision_link", default_value="base_link"),
         DeclareLaunchArgument(
             "joint_names",

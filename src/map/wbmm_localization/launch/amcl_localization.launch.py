@@ -18,7 +18,7 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
-    pkg_share = get_package_share_directory('tracer_jaka_localization')
+    pkg_share = get_package_share_directory('wbmm_localization')
     default_map = os.path.join(pkg_share, 'maps', 'factory_map.yaml')
 
     map_file = LaunchConfiguration('map_file')
@@ -38,6 +38,19 @@ def generate_launch_description():
     esdf_offset_z = LaunchConfiguration('esdf_offset_z')
 
     amcl_config = os.path.join(pkg_share, 'config', 'amcl_real.yaml')
+
+    readiness = Node(
+        package='wbmm_localization', executable='localization_readiness',
+        name='localization_readiness', output='screen',
+        condition=IfCondition(LaunchConfiguration('start_readiness')),
+        parameters=[LaunchConfiguration('readiness_config'), {
+            'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
+            'backend': 'amcl', 'scan_topic': scan_topic,
+            'odom_topic': LaunchConfiguration('odom_topic'),
+            'map_frame': map_frame, 'odom_frame': odom_frame,
+            'base_frame': base_frame,
+        }],
+    )
 
     map_server = Node(
         package='nav2_map_server',
@@ -123,6 +136,10 @@ def generate_launch_description():
         DeclareLaunchArgument('initial_x', default_value='0.0'),
         DeclareLaunchArgument('initial_y', default_value='0.0'),
         DeclareLaunchArgument('initial_yaw', default_value='0.0'),
+        DeclareLaunchArgument('odom_topic', default_value='/odometry/filtered'),
+        DeclareLaunchArgument('start_readiness', default_value='true'),
+        DeclareLaunchArgument('readiness_config', default_value=os.path.join(
+            pkg_share, 'config', 'readiness.yaml')),
         DeclareLaunchArgument(
             'start_esdf_visualization',
             default_value='false',
@@ -138,5 +155,6 @@ def generate_launch_description():
         map_server,
         lifecycle,
         amcl,
+        readiness,
         esdf_visualization,
     ])

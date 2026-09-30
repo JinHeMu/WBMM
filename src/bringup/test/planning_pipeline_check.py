@@ -5,7 +5,7 @@ Validates the two new nodes together, with no REMANI involvement:
 
     /goal_pose + odom + /joint_states
         -> wbmm_planner_node    -> /wbmm/whole_body_trajectory
-        -> wbmm_reference_bridge -> <robot_name>_whole_body_target
+        -> wbmm_trajectory_to_mpc -> <robot_name>_whole_body_target
 
 Start both first, for example:
 
@@ -135,7 +135,7 @@ def main():
         failures.append("wbmm_planner_node published no WholeBodyTrajectory")
     if harness.target is None:
         failures.append(
-            "wbmm_reference_bridge published no MpcTargetTrajectories")
+            "wbmm_trajectory_to_mpc published no MpcTargetTrajectories")
     else:
         target = harness.target
         times = list(target.time_trajectory)

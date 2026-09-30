@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace wbmm::reference_bridge
+namespace wbmm::trajectory_to_mpc
 {
 
 // One interpolated instant of a nominal whole-body trajectory.
@@ -114,4 +114,4 @@ private:
   std::vector<std::uint8_t> phase_;
 };
 
-}  // namespace wbmm::reference_bridge
+}  // namespace wbmm::trajectory_to_mpc

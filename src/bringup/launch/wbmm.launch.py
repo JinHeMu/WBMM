@@ -17,6 +17,7 @@ from launch.actions import (
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
+from wbmm_localization_launch.launch_support import BACKENDS, SAVED_MAP_BACKENDS, resolve_backend
 
 
 def _as_bool(value):
@@ -105,6 +106,12 @@ def _make_actions(context):
     else:
         arm_controller_name = "arm_controller"
 
+    localization_backend = resolve_backend(_value(context, "localization_backend"),
+        _as_bool(_value(context, "start_slam")))
+    start_localization = _as_bool(_value(context, "start_localization"))
+    wait_setting = _value(context, "wait_for_localization")
+    wait_for_localization = (start_localization and localization_backend in SAVED_MAP_BACKENDS
+                            if wait_setting == "auto" else _as_bool(wait_setting))
     actions = []
 
     if backend == "real":
@@ -134,17 +141,35 @@ def _make_actions(context):
             }.items(),
         ))
 
-    if _as_bool(_value(context, "start_localization")):
+    if start_localization:
         actions.append(IncludeLaunchDescription(
             _source(bringup, "localization.launch.py"),
             launch_arguments={
                 "start_ekf": "true",
                 "start_slam": _value(context, "start_slam"),
+                "localization_backend": localization_backend,
+                "map_file": _value(context, "map_file"),
+                "state_file": _value(context, "state_file"),
+                "save_state_file": _value(context, "save_state_file"),
+                "cartographer_config": _value(context, "cartographer_config"),
+                "readiness_config": _value(context, "readiness_config"),
+                "odom_topic": _value(context, "localization_odom_topic"),
+                "initial_x": _value(context, "initial_x"),
+                "initial_y": _value(context, "initial_y"),
+                "initial_yaw": _value(context, "initial_yaw"),
                 "use_sim_time": use_sim_time,
                 "ekf_config": ekf_config,
                 "slam_config": slam_config,
             }.items(),
         ))
+
+    if start_localization and localization_backend in SAVED_MAP_BACKENDS:
+        from launch_ros.actions import Node
+        actions.append(Node(package="tracer_jaka_bringup", executable="odom_to_map_relay.py",
+            name="odom_to_map_relay", output="screen",
+            parameters=[{"use_sim_time": _as_bool(use_sim_time), "odom_topic": _value(context, "localization_odom_topic"),
+                         "output_topic": "/odometry/filtered_map", "map_frame": "map",
+                         "odom_frame": "odom", "child_frame": "base_footprint"}]))
 
     if start_ocs2:
         ocs2_launch_arguments = {
@@ -179,9 +204,15 @@ def _make_actions(context):
             "use_sim_time": use_sim_time,
             "urdf_file": _value(context, "urdf_file"),
             "esdf_file": planner_esdf_file,
-            "world_frame": _value(context, "remani_planner_frame"),
+            "world_frame": ("map" if start_localization and
+                localization_backend in SAVED_MAP_BACKENDS else _value(context, "remani_planner_frame")),
             "bridge_world_frame": _value(context, "world_frame") or "odom",
-            "odom_topic": _value(context, "odom_topic"),
+            "odom_topic": ("/odometry/filtered_map" if start_localization and
+                localization_backend in SAVED_MAP_BACKENDS else _value(context, "odom_topic")),
+            "wait_for_localization": str(wait_for_localization).lower(),
+            "localization_backend": localization_backend if localization_backend in SAVED_MAP_BACKENDS else "",
+            "localization_timeout": _value(context, "localization_timeout"),
+            "localization_status_topic": _value(context, "localization_status_topic"),
             "joint_state_topic": _value(context, "joint_state_topic"),
             "goal_topic": _value(context, "goal_topic"),
             "enable_optimization": _value(context, "planner_enable_optimization"),
@@ -272,6 +303,20 @@ def generate_launch_description():
         DeclareLaunchArgument("local_ip", default_value="10.5.5.127"),
         DeclareLaunchArgument("start_localization", default_value="false"),
         DeclareLaunchArgument("start_slam", default_value="true"),
+        DeclareLaunchArgument("localization_backend", default_value="auto", choices=list(BACKENDS)),
+        DeclareLaunchArgument("map_file", default_value="/home/a/WBMM/maps/map1/site_2d.yaml"),
+        DeclareLaunchArgument("state_file", default_value=""),
+        DeclareLaunchArgument("save_state_file", default_value=""),
+        DeclareLaunchArgument("cartographer_config", default_value=""),
+        DeclareLaunchArgument("readiness_config", default_value=PathJoinSubstitution([
+            FindPackageShare("wbmm_localization"), "config", "readiness.yaml"])),
+        DeclareLaunchArgument("initial_x", default_value="0.0"),
+        DeclareLaunchArgument("initial_y", default_value="0.0"),
+        DeclareLaunchArgument("initial_yaw", default_value="0.0"),
+        DeclareLaunchArgument("wait_for_localization", default_value="auto", choices=["auto", "true", "false"]),
+        DeclareLaunchArgument("localization_timeout", default_value="30.0"),
+        DeclareLaunchArgument("localization_odom_topic", default_value="/odometry/filtered"),
+        DeclareLaunchArgument("localization_status_topic", default_value="/localization/status"),
         DeclareLaunchArgument("start_ocs2", default_value="false"),
         DeclareLaunchArgument("start_remani", default_value="false"),
         DeclareLaunchArgument("start_force_control", default_value="false"),

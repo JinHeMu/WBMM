@@ -936,15 +936,16 @@ config/sim/task.info
 
 ### 7.11 `remani_mpc_localized.launch.py`
 
-组合入口：EKF + AMCL 保存地图定位 + OCS2 + REMANI，不启动硬件。
+组合入口：EKF + 保存地图定位（AMCL / Cartographer）+ OCS2 + WBMM 规划，不启动硬件。
 
 启动内容：
 
-- `localization.launch.py`：EKF，`start_slam=false`
-- `tracer_jaka_localization/amcl_localization.launch.py`：`map_server` + `amcl`
+- `localization.launch.py`：EKF + 选定的定位后端，`start_slam=false`
 - `odom_to_map_relay.py`
 - `ocs2.launch.py`
-- 延迟 15 s：`remani.launch.py`
+- 定位就绪后：`wbmm_planning.launch.py`，启动规划器和轨迹桥；等待超时不启动
+
+Cartographer 的建图、纯定位和就绪状态用法见 [wbmm_localization README](../map/wbmm_localization/README.md)。
 
 主要参数：
 
@@ -969,7 +970,7 @@ config/sim/task.info
 | `imu_topic` | `/imu/data` | EKF 输入 |
 | `scan_topic` | `/scan` | AMCL / SLAM 输入 |
 | `static_esdf_file` | `""` | `start_remani:=true` 时必需，且 `frame_id=map` |
-| `map_file` | `tracer_jaka_localization/maps/factory_map.yaml` | AMCL 地图 |
+| `map_file` | `wbmm_localization/maps/factory_map.yaml` | AMCL 地图 |
 | `initial_x` | `0.0` | AMCL 初始位姿 |
 | `initial_y` | `0.0` | AMCL 初始位姿 |
 | `initial_yaw` | `0.0` | AMCL 初始位姿 |
@@ -1881,7 +1882,7 @@ ros2 run tf2_tools view_frames
 - `src/control/whole_body_force_control/README.md`：力控算法包
 - `src/control/wbmm_ocs2_ros/README.md`：OCS2 ROS 适配层
 - `src/sim/tracer_jaka_mujoco/README.md`：MuJoCo 桥和传感器
-- `src/map/tracer_jaka_localization/README.md`：AMCL / 保存地图定位
+- `src/map/wbmm_localization/README.md`：AMCL / 保存地图定位
 - `deploy/README.md`：实机部署脚本
 
 ---

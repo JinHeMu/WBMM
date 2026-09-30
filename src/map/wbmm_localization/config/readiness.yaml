@@ -1,0 +1,24 @@
+localization_readiness:
+  ros__parameters:
+    scan_topic: /scan
+    map_topic: /map
+    odom_topic: /odometry/filtered
+    imu_topic: /imu/data
+    require_imu: true  # Only used for Cartographer localization.
+    map_frame: map
+    odom_frame: odom
+    base_frame: base_footprint
+    sensor_timeout: 1.0
+    future_tolerance: 0.3
+    stable_duration: 3.0
+    min_samples: 5
+    max_correction_translation: 0.15
+    max_correction_yaw: 0.10
+    match_distance: 0.15
+    min_match_ratio: 0.65
+    min_known_ratio: 0.70
+    min_endpoints: 30
+    max_endpoints: 180
+    max_scan_range: 30.0
+    occupied_threshold: 65
+    startup_timeout: 30.0

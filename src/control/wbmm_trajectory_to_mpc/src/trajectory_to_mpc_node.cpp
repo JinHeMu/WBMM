@@ -1,5 +1,5 @@
 // =============================================================================
-//  wbmm_reference_bridge_node.cpp
+//  trajectory_to_mpc_node.cpp
 //
 //  Turns a planned nominal whole-body trajectory into the rolling OCS2
 //  reference window the MPC consumes.
@@ -19,7 +19,7 @@
 //  the planning frame to the explicit controller world frame using current TF.
 // =============================================================================
 
-#include "wbmm_reference_bridge/trajectory_sampler.hpp"
+#include "wbmm_trajectory_to_mpc/trajectory_sampler.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -65,10 +65,10 @@ std::string resolveTopic(
 
 }  // namespace
 
-class WbmmReferenceBridge : public rclcpp::Node
+class TrajectoryToMpcNode : public rclcpp::Node
 {
 public:
-  WbmmReferenceBridge() : Node("wbmm_reference_bridge")
+  TrajectoryToMpcNode() : Node("wbmm_trajectory_to_mpc")
   {
     declareParameters();
     readParameters();
@@ -178,8 +178,8 @@ private:
         setReferenceEnabled(request->data);
         response->success = true;
         response->message = request->data
-                              ? "wbmm_reference_bridge acquired MPC reference ownership"
-                              : "wbmm_reference_bridge released MPC reference ownership";
+                              ? "wbmm_trajectory_to_mpc acquired MPC reference ownership"
+                              : "wbmm_trajectory_to_mpc released MPC reference ownership";
         RCLCPP_INFO(get_logger(), "%s", response->message.c_str());
       });
 
@@ -236,7 +236,7 @@ private:
         hold.joint_velocities.push_back(0);
       }
     }
-    sampler_ = wbmm::reference_bridge::TrajectorySampler(hold);
+    sampler_ = wbmm::trajectory_to_mpc::TrajectorySampler(hold);
     trajectoryStartStamp_ = now();
     haveTrajectory_ = true;
     holdPending_ = false;
@@ -256,7 +256,7 @@ private:
     const wbmm_planner_ros::msg::WholeBodyTrajectory::SharedPtr msg)
   {
     std::string reason;
-    if (!wbmm::reference_bridge::TrajectorySampler::validate(*msg, &reason))
+    if (!wbmm::trajectory_to_mpc::TrajectorySampler::validate(*msg, &reason))
     {
       RCLCPP_ERROR_THROTTLE(
         get_logger(), *get_clock(), 2000,
@@ -304,7 +304,7 @@ private:
       return;
     }
     holdPending_ = false;
-    sampler_ = wbmm::reference_bridge::TrajectorySampler(*msg);
+    sampler_ = wbmm::trajectory_to_mpc::TrajectorySampler(*msg);
     trajectoryStartStamp_ = startStamp;
     haveTrajectory_ = true;
     ++generation_;
@@ -452,7 +452,7 @@ private:
   std::vector<std::string> jointNames_;
   double observationTimeout_{0.5};
   std::mutex mutex_;
-  wbmm::reference_bridge::TrajectorySampler sampler_;
+  wbmm::trajectory_to_mpc::TrajectorySampler sampler_;
   rclcpp::Time trajectoryStartStamp_{0, 0, RCL_ROS_TIME};
   double observationTime_{0.0};
   rclcpp::Time observationRosStamp_{0, 0, RCL_ROS_TIME};
@@ -467,12 +467,12 @@ int main(int argc, char ** argv)
   rclcpp::init(argc, argv);
   try
   {
-    rclcpp::spin(std::make_shared<WbmmReferenceBridge>());
+    rclcpp::spin(std::make_shared<TrajectoryToMpcNode>());
   }
   catch (const std::exception & error)
   {
     RCLCPP_FATAL(
-      rclcpp::get_logger("wbmm_reference_bridge"),
+      rclcpp::get_logger("wbmm_trajectory_to_mpc"),
       "Reference bridge failed: %s", error.what());
     rclcpp::shutdown();
     return 1;

@@ -15,6 +15,7 @@
 //   Jacobian 约定：d(position)/d(z)，3 x TrajectoryVariables::size(n)。
 //   OCS2/通用正运动学使用 wbmm_pinocchio 的 SphereKinematics，两者消费同一份
 //   球模型，并在测试中交叉校验。
+//   球对筛选、净间距与自碰撞判定由 self_collision_checker.hpp 消费这些结果。
 // ============================================================================
 
 #include <wbmm_robot_model/collision_sphere_model.hpp>

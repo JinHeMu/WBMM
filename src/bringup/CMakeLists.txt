@@ -32,6 +32,12 @@ if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   find_package(ament_lint_auto REQUIRED)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_test(NAME localization_backends
+    COMMAND "${CMAKE_COMMAND}" -E env "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1"
+      "ROS_LOG_DIR=${CMAKE_CURRENT_BINARY_DIR}/localization_backend_logs"
+      "${Python3_EXECUTABLE}" -m pytest -q
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/test_localization_backends.py")
+  set_tests_properties(localization_backends PROPERTIES TIMEOUT 30)
   ament_add_pytest_test(
     localized_real_safety_gate
     test/test_localized_real_safety_gate.py

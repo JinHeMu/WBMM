@@ -18,6 +18,7 @@ find_package(wbmm_pinocchio REQUIRED)
 
 add_library(${PROJECT_NAME}
   src/esdf_checker.cpp
+  src/self_collision_checker.cpp
   src/trajectory_spheres.cpp)
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -44,12 +45,18 @@ if(BUILD_TESTING)
   ament_add_gtest(test_trajectory_spheres
     test/test_trajectory_spheres.cpp)
   target_link_libraries(test_trajectory_spheres ${PROJECT_NAME})
+
+  ament_add_gtest(test_self_collision_checker
+    test/test_self_collision_checker.cpp)
+  target_link_libraries(test_self_collision_checker ${PROJECT_NAME})
   # Lock the real robot's sphere split when the description package is present.
   get_filename_component(WBMM_TEST_URDF
     "${CMAKE_CURRENT_SOURCE_DIR}/../tracer_jaka_description/urdf/tracer_jaka_zu5.urdf"
     ABSOLUTE)
   if(EXISTS "${WBMM_TEST_URDF}")
     target_compile_definitions(test_trajectory_spheres PRIVATE
+      WBMM_TEST_URDF="${WBMM_TEST_URDF}")
+    target_compile_definitions(test_self_collision_checker PRIVATE
       WBMM_TEST_URDF="${WBMM_TEST_URDF}")
   endif()
 

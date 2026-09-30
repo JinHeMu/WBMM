@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""REMANI + OCS2 with saved-map AMCL localization.
+"""WBMM planning + OCS2 with selectable saved-map localization.
 
 This launch starts algorithms only. Hardware or MuJoCo feedback must come from
 a separate hardware backend.
@@ -13,7 +13,6 @@ from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
     OpaqueFunction,
-    TimerAction,
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -28,7 +27,14 @@ def _as_bool(value):
 
 def _enforce_safety_gate(context):
     map_file = context.perform_substitution(LaunchConfiguration("map_file"))
-    if not os.path.isfile(map_file):
+    backend = context.perform_substitution(LaunchConfiguration("localization_backend", default="amcl"))
+    if backend not in ("amcl", "cartographer_localization"):
+        raise RuntimeError("Localized pipeline requires amcl or cartographer_localization")
+    if backend == "cartographer_localization":
+        state = context.perform_substitution(LaunchConfiguration("state_file", default=""))
+        if not state.endswith(".pbstream") or not os.path.isfile(state):
+            raise RuntimeError("Cartographer localization requires an existing state_file (.pbstream)")
+    if backend == "amcl" and not os.path.isfile(map_file):
         raise RuntimeError(f"Localization map does not exist: {map_file}")
 
     start_remani = _as_bool(context.perform_substitution(
@@ -65,7 +71,7 @@ def _enforce_safety_gate(context):
 def generate_launch_description():
     bringup = FindPackageShare("tracer_jaka_bringup")
     description = FindPackageShare("tracer_jaka_description")
-    localization = FindPackageShare("tracer_jaka_localization")
+    localization = FindPackageShare("wbmm_localization")
 
     return LaunchDescription([
         DeclareLaunchArgument("use_sim_time", default_value="false"),
@@ -124,6 +130,14 @@ def generate_launch_description():
             "map_file",
             default_value="/home/a/WBMM/maps/map1/site_2d.yaml",
             description="2D map matching the map1 ESDF."),
+        DeclareLaunchArgument("localization_backend", default_value="amcl",
+            choices=["amcl", "cartographer_localization"]),
+        DeclareLaunchArgument("state_file", default_value=""),
+        DeclareLaunchArgument("cartographer_config", default_value=""),
+        DeclareLaunchArgument("readiness_config", default_value=PathJoinSubstitution([
+            localization, "config", "readiness.yaml"])),
+        DeclareLaunchArgument("wait_for_localization", default_value="true"),
+        DeclareLaunchArgument("localization_timeout", default_value="30.0"),
         DeclareLaunchArgument("initial_x", default_value="0.0"),
         DeclareLaunchArgument("initial_y", default_value="0.0"),
         DeclareLaunchArgument("initial_yaw", default_value="0.0"),
@@ -133,26 +147,21 @@ def generate_launch_description():
                 bringup, "launch", "localization.launch.py",
             ])),
             launch_arguments={
-                "start_ekf": "true",
-                "start_slam": "false",
-                "use_sim_time": LaunchConfiguration("use_sim_time"),
-                "ekf_config": LaunchConfiguration("ekf_config"),
-                "wheel_odom_topic": LaunchConfiguration("wheel_odom_topic"),
-                "imu_topic": LaunchConfiguration("imu_topic"),
-                "scan_topic": LaunchConfiguration("scan_topic"),
-            }.items(),
-        ),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(PathJoinSubstitution([
-                localization, "launch", "amcl_localization.launch.py",
-            ])),
-            launch_arguments={
+                "start_ekf": "true", "start_slam": "false",
+                "localization_backend": LaunchConfiguration("localization_backend"),
                 "map_file": LaunchConfiguration("map_file"),
+                "state_file": LaunchConfiguration("state_file"),
+                "cartographer_config": LaunchConfiguration("cartographer_config"),
+                "readiness_config": LaunchConfiguration("readiness_config"),
                 "initial_x": LaunchConfiguration("initial_x"),
                 "initial_y": LaunchConfiguration("initial_y"),
                 "initial_yaw": LaunchConfiguration("initial_yaw"),
-                "scan_topic": LaunchConfiguration("scan_topic"),
                 "use_sim_time": LaunchConfiguration("use_sim_time"),
+                "ekf_config": LaunchConfiguration("ekf_config"),
+                "odom_topic": LaunchConfiguration("odom_topic"),
+                "wheel_odom_topic": LaunchConfiguration("wheel_odom_topic"),
+                "imu_topic": LaunchConfiguration("imu_topic"),
+                "scan_topic": LaunchConfiguration("scan_topic"),
             }.items(),
         ),
         Node(
@@ -161,6 +170,7 @@ def generate_launch_description():
             name="odom_to_map_relay",
             output="screen",
             parameters=[{
+                "use_sim_time": LaunchConfiguration("use_sim_time"),
                 "odom_topic": LaunchConfiguration("odom_topic"),
                 "output_topic": LaunchConfiguration("map_odom_topic"),
                 "map_frame": "map",
@@ -187,7 +197,7 @@ def generate_launch_description():
                 "world_frame": LaunchConfiguration("world_frame"),
             }.items(),
         ),
-        TimerAction(period=15.0, actions=[IncludeLaunchDescription(
+        IncludeLaunchDescription(
             PythonLaunchDescriptionSource(PathJoinSubstitution([
                 bringup, "launch", "wbmm_planning.launch.py",
             ])),
@@ -206,8 +216,11 @@ def generate_launch_description():
                 # odometry relay, so the planner consumes the map-frame odometry.
                 "world_frame": "map",
                 "start_bridge": LaunchConfiguration("start_bridge"),
+                "wait_for_localization": LaunchConfiguration("wait_for_localization"),
+                "localization_backend": LaunchConfiguration("localization_backend"),
+                "localization_timeout": LaunchConfiguration("localization_timeout"),
                 "odom_topic": LaunchConfiguration("map_odom_topic"),
                 "joint_state_topic": LaunchConfiguration("joint_state_topic"),
                 "goal_topic": LaunchConfiguration("goal_topic"),
-            }.items())]),
+            }.items()),
     ])

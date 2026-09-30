@@ -4,6 +4,7 @@
 #include "wbmm_planner/optimization/whole_body_trajectory_builder.hpp"
 
 #include <wbmm_collision/trajectory_spheres.hpp>
+#include <wbmm_collision/self_collision_checker.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -418,52 +419,26 @@ void WholeBodyOptimizer::accumulateCosts(double &cost,
           handleSphere(sphere);
         }
 
-        // Self-collision between sphere groups. Same-group pairs are excluded
-        // (they are rigidly linked) and arm pairs closer than two joints apart
-        // are excluded because the links are adjacent.
-        const auto pairPenalty = [&](
-                                   const wbmm::collision::SphereSample & a,
-                                   const wbmm::collision::SphereSample & b)
+        // Pair selection, clearance and its Jacobian belong to wbmm_collision.
+        const auto self_collision = wbmm::collision::checkSelfCollision(
+          kinematics, config_.self_collision_margin);
+        if (self_collision.status != wbmm::collision::CollisionStatus::kFree &&
+          self_collision.status != wbmm::collision::CollisionStatus::kCollision)
         {
-          const Eigen::Vector3d delta = a.position - b.position;
-          const double distance = delta.norm();
-          if (distance < 1e-9) {
-            return;
-          }
-          const double shortfall =
-            a.radius + b.radius + config_.self_collision_margin - distance;
+          throw std::runtime_error(self_collision.message);
+        }
+        for (const auto & pair : self_collision.pairs) {
           double derivative = 0.0;
-          const double term = clearancePenalty(shortfall, derivative);
+          const double term = clearancePenalty(-pair.clearance, derivative);
           if (term <= 0.0) {
-            return;
+            continue;
           }
           sample_cost += config_.self_collision_weight * term;
-          const Eigen::Vector3d direction = delta / distance;
-          // shortfall = ra + rb + margin - |a - b|, so
-          //   d(shortfall)/d(a) = -direction   and   d(shortfall)/d(b) = +direction
-          // and d(cost)/d(.) = weight * derivative * d(shortfall)/d(.).
-          chain(
-            a, -config_.self_collision_weight * derivative * direction,
-            grad_position, grad_velocity);
-          chain(
-            b, config_.self_collision_weight * derivative * direction,
-            grad_position, grad_velocity);
-        };
-
-        for (std::size_t i = 0; i < kinematics.arm.size(); ++i) {
-          for (const auto & base_sphere : kinematics.base) {
-            pairPenalty(kinematics.arm[i], base_sphere);
-          }
-          const std::size_t group_i = kinematics.arm_group[i];
-          for (std::size_t j = i + 1U; j < kinematics.arm.size(); ++j) {
-            const std::size_t group_j = kinematics.arm_group[j];
-            const std::size_t difference =
-              group_i > group_j ? group_i - group_j : group_j - group_i;
-            if (difference < 2U) {
-              continue;  // adjacent links
-            }
-            pairPenalty(kinematics.arm[i], kinematics.arm[j]);
-          }
+          const Eigen::VectorXd gradient =
+            (-config_.self_collision_weight * derivative) * pair.gradient;
+          grad_position.head<2>() += gradient.head<2>();
+          grad_position.tail(joint_count_) += gradient.tail(joint_count_);
+          grad_velocity.head<2>() += gradient.segment<2>(2);
         }
       }
 

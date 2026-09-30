@@ -317,26 +317,29 @@ def test_planner_receives_static_map_and_explicit_controller_frame(entry):
     for action in description.entities:
         if isinstance(action, DeclareLaunchArgument):
             action.execute(context)
+    includes = []
     for action in description.entities:
-        if not isinstance(action, TimerAction):
+        if isinstance(action, IncludeLaunchDescription):
+            includes.append(action)
+        elif isinstance(action, TimerAction):
+            includes.extend(child for child in action.actions
+                            if isinstance(child, IncludeLaunchDescription))
+    for child in includes:
+        child.launch_description_source.get_launch_description(context)
+        source = child.launch_description_source.location
+        if not source.endswith('wbmm_planning.launch.py'):
             continue
-        for child in action.actions:
-            if not isinstance(child, IncludeLaunchDescription):
-                continue
-            child.launch_description_source.get_launch_description(context)
-            source = child.launch_description_source.location
-            if not source.endswith('wbmm_planning.launch.py'):
-                continue
-            values = {key: perform_substitutions(context, normalize_to_list_of_substitutions(value))
-                      for key, value in child.launch_arguments}
-            assert values['esdf_file'] == '/tmp/planner-map.npz'
-            assert values['bridge_world_frame'] == 'odom'
-            assert float(values['max_linear_velocity']) == 0.1
-            assert float(values['max_yaw_rate']) == 0.4
-            if 'localized' in entry:
-                assert values['world_frame'] == 'map'
-                assert values['start_bridge'] == 'false'
-            return
+        values = {key: perform_substitutions(context, normalize_to_list_of_substitutions(value))
+                  for key, value in child.launch_arguments}
+        assert values['esdf_file'] == '/tmp/planner-map.npz'
+        assert values['bridge_world_frame'] == 'odom'
+        assert float(values['max_linear_velocity']) == 0.1
+        assert float(values['max_yaw_rate']) == 0.4
+        if 'localized' in entry:
+            assert values['world_frame'] == 'map'
+            assert values['start_bridge'] == 'false'
+            assert values['wait_for_localization'] == 'true'
+        return
     pytest.fail('planner include missing')
 
 

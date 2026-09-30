@@ -1,4 +1,4 @@
-#include "wbmm_reference_bridge/trajectory_sampler.hpp"
+#include "wbmm_trajectory_to_mpc/trajectory_sampler.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -6,7 +6,7 @@
 #include <utility>
 #include <set>
 
-namespace wbmm::reference_bridge
+namespace wbmm::trajectory_to_mpc
 {
 namespace
 {
@@ -222,4 +222,4 @@ WholeBodySample TrajectorySampler::sample(double time_from_start) const
   return result;
 }
 
-}  // namespace wbmm::reference_bridge
+}  // namespace wbmm::trajectory_to_mpc

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(wbmm_reference_bridge)
+project(wbmm_trajectory_to_mpc)
 
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
@@ -32,7 +32,7 @@ target_compile_features(${PROJECT_NAME}_sampler PUBLIC cxx_std_17)
 target_compile_options(${PROJECT_NAME}_sampler PRIVATE -Wall -Wextra -Wpedantic)
 ament_target_dependencies(${PROJECT_NAME}_sampler wbmm_planner_ros)
 
-add_executable(${PROJECT_NAME}_node src/wbmm_reference_bridge_node.cpp)
+add_executable(${PROJECT_NAME}_node src/trajectory_to_mpc_node.cpp)
 target_compile_options(${PROJECT_NAME}_node PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_sampler)
 ament_target_dependencies(${PROJECT_NAME}_node

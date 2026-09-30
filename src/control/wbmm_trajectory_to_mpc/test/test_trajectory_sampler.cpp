@@ -1,4 +1,4 @@
-#include "wbmm_reference_bridge/trajectory_sampler.hpp"
+#include "wbmm_trajectory_to_mpc/trajectory_sampler.hpp"
 
 #include <gtest/gtest.h>
 
@@ -39,7 +39,7 @@ WholeBodyTrajectory makeValid()
 std::string validateReason(const WholeBodyTrajectory & trajectory)
 {
   std::string reason;
-  EXPECT_FALSE(wbmm::reference_bridge::TrajectorySampler::validate(trajectory, &reason));
+  EXPECT_FALSE(wbmm::trajectory_to_mpc::TrajectorySampler::validate(trajectory, &reason));
   return reason;
 }
 
@@ -47,7 +47,7 @@ TEST(TrajectorySamplerValidation, AcceptsValidTrajectory)
 {
   std::string reason;
   EXPECT_TRUE(
-    wbmm::reference_bridge::TrajectorySampler::validate(makeValid(), &reason))
+    wbmm::trajectory_to_mpc::TrajectorySampler::validate(makeValid(), &reason))
     << reason;
 }
 
@@ -118,7 +118,7 @@ TEST(TrajectorySamplerValidation, RejectsNonFiniteSamples)
 
 TEST(TrajectorySamplerSampling, ReadsMetadataAndNodesExactly)
 {
-  const wbmm::reference_bridge::TrajectorySampler sampler(makeValid());
+  const wbmm::trajectory_to_mpc::TrajectorySampler sampler(makeValid());
 
   EXPECT_FALSE(sampler.empty());
   EXPECT_DOUBLE_EQ(sampler.duration(), 1.0);
@@ -152,7 +152,7 @@ TEST(TrajectorySamplerSampling, ReadsMetadataAndNodesExactly)
 
 TEST(TrajectorySamplerSampling, InterpolatesMidpointLinearly)
 {
-  const wbmm::reference_bridge::TrajectorySampler sampler(makeValid());
+  const wbmm::trajectory_to_mpc::TrajectorySampler sampler(makeValid());
   const auto mid = sampler.sample(0.5);
 
   EXPECT_DOUBLE_EQ(mid.time_from_start, 0.5);
@@ -172,7 +172,7 @@ TEST(TrajectorySamplerSampling, InterpolatesMidpointLinearly)
 
 TEST(TrajectorySamplerSampling, ClampsOutsideTheTrajectory)
 {
-  const wbmm::reference_bridge::TrajectorySampler sampler(makeValid());
+  const wbmm::trajectory_to_mpc::TrajectorySampler sampler(makeValid());
 
   const auto before = sampler.sample(-5.0);
   EXPECT_DOUBLE_EQ(before.time_from_start, 0.0);
@@ -190,7 +190,7 @@ TEST(TrajectorySamplerSampling, ClampsOutsideTheTrajectory)
 
 TEST(TrajectorySamplerSampling, DefaultSamplerIsEmptyAndSafe)
 {
-  const wbmm::reference_bridge::TrajectorySampler sampler;
+  const wbmm::trajectory_to_mpc::TrajectorySampler sampler;
   EXPECT_TRUE(sampler.empty());
   EXPECT_DOUBLE_EQ(sampler.duration(), 0.0);
 
