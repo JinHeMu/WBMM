@@ -213,6 +213,16 @@ void WholeBodyForceControlNode::loadParameters()
       "safety.enforce_single_target_owner", true);
   parameters_.loop_rate = declare_parameter<double>(
       "safety.loop_rate", 50.0);
+  parameters_.max_tracking_error_m = declare_parameter<double>(
+      "safety.max_tracking_error_m", 0.0);
+  parameters_.max_tracking_error_rad = declare_parameter<double>(
+      "safety.max_tracking_error_rad", 0.0);
+  if (!std::isfinite(parameters_.max_tracking_error_m) ||
+      !std::isfinite(parameters_.max_tracking_error_rad) ||
+      parameters_.max_tracking_error_m < 0.0 ||
+      parameters_.max_tracking_error_rad < 0.0) {
+    throw std::runtime_error("tracking error limits must be finite and non-negative");
+  }
   if (!std::isfinite(parameters_.observation_timeout) ||
       parameters_.observation_timeout <= 0.0) {
     throw std::runtime_error("safety.observation_timeout must be positive");

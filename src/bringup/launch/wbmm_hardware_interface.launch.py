@@ -85,7 +85,8 @@ def generate_launch_description():
                 "control_backend:=real ",
                 "robot_ip:=", jaka_robot_ip, " ",
                 "local_ip:=", jaka_local_ip, " ",
-                "hardware_write:=", hardware_write,
+                "hardware_write:=", hardware_write, " ",
+                "torque_sensor_mode:=", LaunchConfiguration("torque_sensor_mode"),
             ]),
             value_type=str,
         )
@@ -225,6 +226,7 @@ def generate_launch_description():
             description=(
                 "Only real-motion gate: true allows JAKA writes, false keeps "
                 "JAKA telemetry-only.")),
+        DeclareLaunchArgument("torque_sensor_mode", default_value="-1"),
         DeclareLaunchArgument("jaka_robot_ip", default_value="10.5.5.100"),
         DeclareLaunchArgument("jaka_local_ip", default_value="10.5.5.127"),
         DeclareLaunchArgument("can_port", default_value="can0"),

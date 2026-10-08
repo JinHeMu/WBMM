@@ -4,6 +4,7 @@
   <xacro:arg name="robot_ip" default="10.5.5.100"/>
   <xacro:arg name="local_ip" default="10.5.5.127"/>
   <xacro:arg name="hardware_write" default="false"/>
+  <xacro:arg name="torque_sensor_mode" default="-1"/>
 
   <xacro:include filename="tracer_jaka_zu5.urdf"/>
   <xacro:include filename="tracer_jaka_zu5.ros2_control.xacro"/>
@@ -11,5 +12,6 @@
       backend="$(arg control_backend)"
       robot_ip="$(arg robot_ip)"
       local_ip="$(arg local_ip)"
-      hardware_write="$(arg hardware_write)"/>
+      hardware_write="$(arg hardware_write)"
+      torque_sensor_mode="$(arg torque_sensor_mode)"/>
 </robot>

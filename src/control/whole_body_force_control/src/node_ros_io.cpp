@@ -56,6 +56,34 @@ void WholeBodyForceControlNode::createRosInterfaces()
         response->success = true;
         response->message = "Force control reset; waiting for fresh data.";
       });
+  enable_service_ = create_service<std_srvs::srv::SetBool>(
+      "/whole_body_force_control/enable",
+      [this](const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+             std::shared_ptr<std_srvs::srv::SetBool::Response> response) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const auto now = std::chrono::steady_clock::now();
+        if (request->data && (fault_latched_ || pending_fault_ ||
+            !observation_received_ || !wrench_received_ || !force_sensor_active_ ||
+            std::chrono::duration<double>(now - last_observation_).count() >
+                parameters_.observation_timeout ||
+            std::chrono::duration<double>(now - last_wrench_).count() >
+                parameters_.force_timeout)) {
+          response->success = false;
+          response->message = "Enable requires fresh state/wrench, ACTIVE sensor and cleared faults.";
+          return;
+        }
+        parameters_.admittance_enabled = request->data;
+        nominal_captured_ = false;
+        hold_ee_target_valid_ = false;
+        last_ee_correction_.setZero();
+        ee_correction_valid_ = false;
+        capture_requested_at_ = now;
+        cartesian_controller_->reset();
+        publishHoldReference();
+        publishState(request->data ? "SETTLING" : "DISABLED");
+        response->success = true;
+        response->message = request->data ? "Enabled; capturing a fresh nominal pose." : "Disabled and holding.";
+      });
 }
 
 void WholeBodyForceControlNode::observationCallback(

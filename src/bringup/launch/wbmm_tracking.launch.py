@@ -98,6 +98,7 @@ def _make_actions(context):
         "world_frame": world_frame,
         "remani_planner_frame": world_frame,
         "goal_topic": _value(context, "goal_topic"),
+        "planner_config": _value(context, "planner_config"),
         "planner_enable_optimization": _value(context, "planner_enable_optimization"),
         "planner_cruise_speed": _value(context, "planner_cruise_speed"),
         "planner_max_linear_velocity": _value(
@@ -237,6 +238,7 @@ def generate_launch_description():
                 "MuJoCo scene. Default is robot+floor only; the ESDF supplies "
                 "the virtual obstacles.")),
         DeclareLaunchArgument("viewer", default_value="true"),
+        DeclareLaunchArgument("planner_config", default_value=""),
         DeclareLaunchArgument(
             "sim_arm_bias_compensation", default_value="true",
             description="Compensate simulated position-servo gravity/Coriolis load."),

@@ -77,6 +77,7 @@ def generate_launch_description():
         DeclareLaunchArgument("use_sim_time", default_value="false"),
         DeclareLaunchArgument("use_rviz", default_value="true"),
         DeclareLaunchArgument("hardware_write", default_value="false"),
+        DeclareLaunchArgument("planner_config", default_value=""),
         DeclareLaunchArgument("start_ocs2", default_value="true"),
         DeclareLaunchArgument("start_remani", default_value="true"),
         DeclareLaunchArgument("start_bridge", default_value="true"),
@@ -162,6 +163,7 @@ def generate_launch_description():
                 "wheel_odom_topic": LaunchConfiguration("wheel_odom_topic"),
                 "imu_topic": LaunchConfiguration("imu_topic"),
                 "scan_topic": LaunchConfiguration("scan_topic"),
+                "use_rviz": "false",  # OCS2 owns the single RViz window.
             }.items(),
         ),
         Node(
@@ -206,6 +208,7 @@ def generate_launch_description():
                 "use_sim_time": LaunchConfiguration("use_sim_time"),
                 "urdf_file": LaunchConfiguration("urdf_file"),
                 "bridge_world_frame": LaunchConfiguration("world_frame"),
+                "planner_config": LaunchConfiguration("planner_config"),
                 "max_linear_velocity": "0.1",
                 "max_yaw_rate": "0.4",
                 "max_joint_velocity": "0.15",

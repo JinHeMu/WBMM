@@ -1,0 +1,36 @@
+# Deployment settings. deploy/env network values override these hardware keys.
+# Algorithm tuning belongs in the corresponding config files.
+hardware:
+  jaka_robot_ip: 10.5.5.100
+  jaka_local_ip: 10.5.5.127
+  can_port: can0
+  serial_port: /dev/ttyUSB0
+  start_imu: true
+  start_lidar: true
+mapping:
+  localization_backend: cartographer_mapping
+  ekf_config: '{bringup}/config/real/ekf.yaml'
+  save_state_file: ''
+localization:
+  localization_backend: cartographer_localization
+  state_file: ''
+  ekf_config: '{bringup}/config/real/ekf.yaml'
+  initial_x: 0.0
+  initial_y: 0.0
+  initial_yaw: 0.0
+navigation:
+  localization_backend: cartographer_localization
+  state_file: ''
+  esdf_file: ''  # Must already align with the saved localization map.
+  ekf_config: '{bringup}/config/real/ekf.yaml'
+  planner_config: '{bringup}/config/real/planner.yaml'
+  world_frame: odom
+  wait_for_localization: true
+  initial_x: 0.0
+  initial_y: 0.0
+  initial_yaw: 0.0
+moveit: {}
+end_effector:
+  initial_task_phase: 2
+  use_target: true
+  publish_odom_tf: true

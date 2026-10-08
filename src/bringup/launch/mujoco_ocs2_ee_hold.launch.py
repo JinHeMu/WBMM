@@ -86,6 +86,7 @@ def generate_launch_description():
         "start_lidar": "false",
         "start_camera": "false",
         "start_fts": "false",
+        "arm_bias_compensation": "true",
         "wheel_odom_topic": "/wheel/odometry",
     })
 

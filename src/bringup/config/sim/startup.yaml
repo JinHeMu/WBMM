@@ -1,0 +1,25 @@
+hardware:
+  scene: nvblox_remani_demo
+  arm_bias_compensation: true
+  start_imu: true
+  start_lidar: true
+mapping:
+  localization_backend: cartographer_mapping
+  ekf_config: '{bringup}/config/sim/ekf.yaml'
+  save_state_file: ''
+localization:
+  localization_backend: cartographer_localization
+  state_file: ''  # Use a map built in this MuJoCo scene.
+  ekf_config: '{bringup}/config/sim/ekf.yaml'
+  initial_x: 0.0
+  initial_y: 0.0
+  initial_yaw: 0.0
+navigation:
+  # Existing virtual-obstacle demo; identity map->odom is simulation-only.
+  scene: esdf_validation
+  esdf_file: '{workspace}/maps/map1/site_remani.npz'
+  planner_config: '{bringup}/config/sim/planner.yaml'
+moveit: {}
+end_effector:
+  initial_task_phase: 2
+  use_target: true

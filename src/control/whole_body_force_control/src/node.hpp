@@ -12,6 +12,7 @@
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_srvs/srv/trigger.hpp>
+#include <std_srvs/srv/set_bool.hpp>
 
 #include <Eigen/Core>
 
@@ -67,6 +68,8 @@ private:
     double capture_settle_time{1.0};
     double max_ee_linear_velocity{0.05};
     double max_ee_angular_velocity{0.20};
+    double max_tracking_error_m{0.0};
+    double max_tracking_error_rad{0.0};
     int input_dimension{8};
   };
 
@@ -129,6 +132,7 @@ private:
   bool force_sensor_active_{false};
   std::string force_sensor_state_{"WAITING_FOR_WRENCH"};
   std::chrono::steady_clock::time_point last_update_;
+  rclcpp::Time last_control_time_{0, 0, RCL_ROS_TIME};
   std::chrono::steady_clock::time_point last_wrench_;
   std::chrono::steady_clock::time_point last_observation_;
   std::chrono::steady_clock::time_point capture_requested_at_;
@@ -160,6 +164,7 @@ private:
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr
       force_sensor_state_subscription_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_service_;
+  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr enable_service_;
   rclcpp::TimerBase::SharedPtr timer_;
 };
 

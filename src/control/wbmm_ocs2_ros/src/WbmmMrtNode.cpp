@@ -7,6 +7,7 @@
 // =============================================================================
 
 #include <algorithm>
+#include "ArmPositionCommand.h"
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -28,6 +29,9 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
+#include <std_msgs/msg/string.hpp>
+#include <std_srvs/srv/trigger.hpp>
+#include "ForceExecutionGate.h"
 
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -141,6 +145,10 @@ private:
     declare_parameter<std::string>("joint_state_topic", "/joint_states");
     declare_parameter<bool>("use_stamped_cmd", true);
     declare_parameter<bool>("command_output_enabled", false);
+    declare_parameter<bool>("force_gate.require_active", false);
+    declare_parameter<std::string>("force_gate.state_topic", "/whole_body_force_control/states");
+    declare_parameter<double>("force_gate.timeout", 0.25);
+    declare_parameter<double>("force_gate.robot_state_timeout", 0.25);
     declare_parameter<std::vector<std::string>>("arm_joint_names",
                                                 {"joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"});
 
@@ -192,6 +200,9 @@ private:
     useStampedCmd_ = get_parameter("use_stamped_cmd").as_bool();
     commandOutputEnabled_ = get_parameter("command_output_enabled").as_bool();
     useWholeBodyTarget_ = get_parameter("use_whole_body_target").as_bool();
+    forceGateEnabled_ = get_parameter("force_gate.require_active").as_bool();
+    forceGateTimeout_ = get_parameter("force_gate.timeout").as_double();
+    robotStateTimeout_ = get_parameter("force_gate.robot_state_timeout").as_double();
 
     armMaxDeltaPerStep_ = get_parameter("arm_max_delta_per_step").as_double();
     armUseVelocityIntegrator_ = get_parameter("arm_use_velocity_integrator").as_bool();
@@ -207,6 +218,10 @@ private:
 
   void validateParameters() const
   {
+    if (!std::isfinite(forceGateTimeout_) || forceGateTimeout_ <= 0.0 ||
+        !std::isfinite(robotStateTimeout_) || robotStateTimeout_ <= 0.0) {
+      throw std::runtime_error("force gate timeouts must be positive");
+    }
     if (taskFile_.empty() || libFolder_.empty() || urdfFile_.empty())
     {
       throw std::runtime_error("taskFile / libFolder / urdfFile parameters must all be set.");
@@ -352,6 +367,29 @@ private:
         [this](const sensor_msgs::msg::JointState::SharedPtr msg)
         { jointCallback(msg); });
 
+    if (forceGateEnabled_) {
+      forceStatePub_ = create_publisher<std_msgs::msg::String>(
+          robotName_ + "_force_execution_state", rclcpp::QoS(1).reliable().transient_local());
+      forceStateSub_ = create_subscription<std_msgs::msg::String>(
+          get_parameter("force_gate.state_topic").as_string(),
+          rclcpp::QoS(1).reliable().transient_local(),
+          [this](const std_msgs::msg::String::SharedPtr msg) {
+            std::lock_guard<std::mutex> lock(forceGateMutex_);
+            forceGate_.update(msg->data, wbmm::ForceExecutionGate::Clock::now());
+          });
+      forceResetService_ = create_service<std_srvs::srv::Trigger>(
+          robotName_ + "/force_control/reset_interlock",
+          [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+                 std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+            std::lock_guard<std::mutex> lock(forceGateMutex_);
+            response->success = forceGate_.reset(
+                wbmm::ForceExecutionGate::Clock::now(), forceGateTimeout_);
+            response->message = response->success
+                ? "Execution interlock reset; waiting for a fresh MPC policy."
+                : "Reset requires a fresh ACTIVE force-controller heartbeat.";
+          });
+    }
+
     if (modeSwitchEnabled_)
     {
       phaseStateSub_ =
@@ -452,7 +490,8 @@ private:
 
     rclcpp::Rate rate(mrtRate_);
     const auto startTime = now();
-    lastReport_ = startTime;
+    lastReport_ = SteadyClock::now();
+    lastReportSimTime_ = startTime;
     int expiredCount = 0;
 
     while (rclcpp::ok())
@@ -517,8 +556,67 @@ private:
     return false;
   }
 
+  bool forceExecutionAllowed(const ocs2::SystemObservation &observation)
+  {
+    if (!forceGateEnabled_) { return true; }
+    const auto wallNow = wbmm::ForceExecutionGate::Clock::now();
+    bool feedbackFresh;
+    {
+      std::lock_guard<std::mutex> lock(stateMutex_);
+      feedbackFresh = gotOdom_.load() && gotJoints_.load() &&
+          std::chrono::duration<double>(wallNow - lastOdom_).count() <= robotStateTimeout_ &&
+          std::chrono::duration<double>(wallNow - lastJoints_).count() <= robotStateTimeout_;
+    }
+    bool allowed;
+    bool faulted;
+    {
+      std::lock_guard<std::mutex> lock(forceGateMutex_);
+      if (!feedbackFresh) { forceGate_.fault(); }
+      allowed = forceGate_.allow(wallNow, forceGateTimeout_);
+      faulted = forceGate_.faulted();
+    }
+    if (!allowed) {
+      forceWasAllowed_ = false;
+      if (forceHoldArm_.empty()) {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        forceHoldArm_ = armQ_;
+      }
+      publishZeroBaseCommand();
+      publishArmPositions(forceHoldArm_);
+      publishForceExecutionState(faulted ? "FAULT_INTERLOCK" : "WAITING_FOR_ACTIVE");
+      return false;
+    }
+    if (!forceWasAllowed_) {
+      // A heartbeat reopening the gate must not release a policy generated
+      // before the fresh nominal force reference was captured.
+      minimumForcePolicyTime_ = observation.time;
+      forceWasAllowed_ = true;
+      integratedArmCommand_.clear();
+      lastArmCommandTime_ = observation.time;
+    }
+    const auto &policy = mrt_->getPolicy();
+    if (policy.timeTrajectory_.empty() ||
+        policy.timeTrajectory_.front() < minimumForcePolicyTime_) {
+      publishZeroBaseCommand();
+      if (!forceHoldArm_.empty()) { publishArmPositions(forceHoldArm_); }
+      publishForceExecutionState("WAITING_FOR_FRESH_POLICY");
+      return false;
+    }
+    forceHoldArm_.clear();
+    publishForceExecutionState("ACTIVE");
+    return true;
+  }
+
+  void publishForceExecutionState(const std::string &state)
+  {
+    std_msgs::msg::String message;
+    message.data = state;
+    forceStatePub_->publish(message);
+  }
+
   void executePolicy(const ocs2::SystemObservation &observation, int &expiredCount)
   {
+    if (!forceExecutionAllowed(observation)) { return; }
     double planEnd = std::numeric_limits<double>::quiet_NaN();
     if (!readPlanEnd(observation.time, planEnd))
     {
@@ -553,7 +651,7 @@ private:
     }
 
     std::vector<double> armCommand;
-    if (!computeSafeArmCommand(observation.time, observation.state, armCommand))
+    if (!computeSafeArmCommand(observation.time, observation.state, policyInput, armCommand))
     {
       RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
                             "[SAFETY] Predicted arm command is unsafe. Stopping base and holding arm.");
@@ -670,19 +768,22 @@ private:
       // Timing diagnostics must never interrupt control.
     }
 
-    const double reportDt = (now() - lastReport_).seconds();
+    const auto reportWall = std::chrono::steady_clock::now();
+    const double reportDt = std::chrono::duration<double>(reportWall - lastReport_).count();
     if (reportDt < 2.0 || loopCount_ == 0)
     {
       return;
     }
     RCLCPP_INFO(get_logger(),
                 "[timing] ctrl_loop=%.1f Hz (target %.1f) | work avg=%.2f ms max=%.2f ms | "
-                "MPC_policy_seen=%.1f Hz | plan_age avg=%.1f ms max=%.1f ms",
+                "MPC_policy_seen=%.1f Hz | plan_age avg=%.1f ms max=%.1f ms | sim/wall=%.3f",
                 static_cast<double>(loopCount_) / reportDt, mrtRate_, loopWorkSumMs_ / static_cast<double>(loopCount_),
                 loopWorkMaxMs_, static_cast<double>(policyUpdateCount_) / reportDt,
-                planAgeSumMs_ / static_cast<double>(loopCount_), planAgeMaxMs_);
+                planAgeSumMs_ / static_cast<double>(loopCount_), planAgeMaxMs_,
+                (now() - lastReportSimTime_).seconds() / reportDt);
 
-    lastReport_ = now();
+    lastReport_ = reportWall;
+    lastReportSimTime_ = now();
     loopCount_ = 0;
     policyUpdateCount_ = 0;
     loopWorkSumMs_ = 0.0;
@@ -748,6 +849,7 @@ private:
     baseX_ = msg->pose.pose.position.x;
     baseY_ = msg->pose.pose.position.y;
     baseYaw_ = yaw;
+    lastOdom_ = std::chrono::steady_clock::now();
     gotOdom_.store(true);
   }
 
@@ -777,6 +879,7 @@ private:
     }
     std::lock_guard<std::mutex> lock(stateMutex_);
     armQ_ = std::move(nextArmQ);
+    lastJoints_ = std::chrono::steady_clock::now();
     gotJoints_.store(true);
   }
 
@@ -824,18 +927,12 @@ private:
            state.allFinite() && input.allFinite();
   }
 
-  bool computeSafeArmCommand(double time, const ocs2::vector_t &currentState, std::vector<double> &command)
+  bool computeSafeArmCommand(double time, const ocs2::vector_t &currentState,
+                             const ocs2::vector_t &currentInput, std::vector<double> &command)
   {
     command.clear();
     try
     {
-      ocs2::vector_t predictedState;
-      ocs2::vector_t predictedInput;
-      if (!evaluateFuturePolicy(time, currentState, predictedState, predictedInput))
-      {
-        return false;
-      }
-
       std::vector<double> measured;
       {
         std::lock_guard<std::mutex> lock(stateMutex_);
@@ -848,9 +945,18 @@ private:
 
       if (armUseVelocityIntegrator_)
       {
-        return integrateArmCommand(time, measured, predictedInput, command);
+        // The velocity input belongs to the same current-time policy as the
+        // base command. Future feedback evaluated against current measured
+        // state must not be integrated as if it were today's velocity.
+        return integrateArmCommand(time, measured, currentInput, command);
       }
-      return makePositionArmCommand(measured, predictedState, command);
+      ocs2::vector_t predictedState;
+      ocs2::vector_t predictedInput;
+      if (!evaluateFuturePolicy(time, currentState, predictedState, predictedInput))
+      {
+        return false;
+      }
+      return makePositionArmCommand(time, measured, predictedState, command);
     }
     catch (const std::exception &error)
     {
@@ -928,37 +1034,25 @@ private:
     return true;
   }
 
-  bool makePositionArmCommand(const std::vector<double> &measured, const ocs2::vector_t &predictedState,
+  bool makePositionArmCommand(double time, const std::vector<double> &measured, const ocs2::vector_t &predictedState,
                               std::vector<double> &command)
   {
-    command.resize(armDim_);
+    std::vector<double> target(armDim_);
     for (size_t i = 0; i < armDim_; ++i)
     {
-      const double target = predictedState(static_cast<Eigen::Index>(3 + i));
-      if (!std::isfinite(target) || !std::isfinite(measured[i]))
-      {
-        RCLCPP_ERROR(get_logger(), "[SAFETY] Arm joint %zu contains NaN/Inf: command=%.6f measured=%.6f", i + 1, target,
-                     measured[i]);
-        command.clear();
-        return false;
-      }
-
-      const double delta = target - measured[i];
-      if (std::abs(delta) > armMaxDeltaPerStep_)
-      {
-        // Rate-limit instead of rejecting the whole command. Rejecting made
-        // the MRT safety gate hold the arm and could leave the MPC plan
-        // expired whenever the new EE target required a large joint step.
-        RCLCPP_WARN_THROTTLE(
-            get_logger(), *get_clock(), 1000,
-            "[SAFETY] Arm joint %zu target is rate-limited: "
-            "target=%.3f measured=%.3f delta=%.3f limit=%.3f",
-            i + 1, target, measured[i], delta, armMaxDeltaPerStep_);
-      }
-      command[i] = std::clamp(
-          target, measured[i] - armMaxDeltaPerStep_,
-          measured[i] + armMaxDeltaPerStep_);
+      target[i] = predictedState(static_cast<Eigen::Index>(3 + i));
     }
+    if (integratedArmCommand_.size() != armDim_) {
+      integratedArmCommand_ = measured;
+      lastArmCommandTime_ = time;
+    }
+    const double dt = std::clamp(time - lastArmCommandTime_, 0.0, kMaxCommandDt);
+    lastArmCommandTime_ = time;
+    if (!wbmm::boundedArmPositionCommand(measured, target, integratedArmCommand_,
+                                        dt, armMaxCommandVelocity_, armMaxDeltaPerStep_, command)) {
+      return false;
+    }
+    integratedArmCommand_ = command;
     return true;
   }
 
@@ -1064,6 +1158,9 @@ private:
 
   void stopAndHold()
   {
+    // Restart the position/rate state from feedback when a valid policy
+    // returns, rather than replaying a pre-stop command or an old integral.
+    integratedArmCommand_.clear();
     publishZeroBaseCommand();
     publishHoldArmCommand();
   }
@@ -1088,6 +1185,19 @@ private:
   bool useStampedCmd_{true};
   bool commandOutputEnabled_{false};
   bool useWholeBodyTarget_{true};
+  bool forceGateEnabled_{false};
+  double forceGateTimeout_{0.25};
+  double robotStateTimeout_{0.25};
+  std::mutex forceGateMutex_;
+  wbmm::ForceExecutionGate forceGate_;
+  bool forceWasAllowed_{false};
+  double minimumForcePolicyTime_{0.0};
+  std::vector<double> forceHoldArm_;
+  std::chrono::steady_clock::time_point lastOdom_{};
+  std::chrono::steady_clock::time_point lastJoints_{};
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr forceStateSub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr forceStatePub_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr forceResetService_;
 
   double armMaxDeltaPerStep_{0.50};
   bool armUseVelocityIntegrator_{false};
@@ -1104,7 +1214,8 @@ private:
   long vizCounter_{0};
   bool policyWindowReported_{false};
 
-  rclcpp::Time lastReport_;
+  std::chrono::steady_clock::time_point lastReport_;
+  rclcpp::Time lastReportSimTime_;
   size_t loopCount_{0};
   size_t policyUpdateCount_{0};
   double loopWorkSumMs_{0.0};

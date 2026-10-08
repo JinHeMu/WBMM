@@ -13,6 +13,7 @@ state sources and the ESDF path, exactly like the other algorithm launches.
 """
 
 import os
+import yaml
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -97,6 +98,24 @@ def _make_nodes(context):
         "sample_dt": float(_value(context, "bridge_sample_dt")),
     }
 
+    config_file = _value(context, "planner_config")
+    if config_file:
+        with open(config_file, encoding="utf-8") as stream:
+            config = yaml.safe_load(stream)
+        tuning = config["wbmm_planner_node"]["ros__parameters"]
+        allowed = {
+            "sample_rrt_max_time", "whole_body_rrt_max_time", "rrt_max_nodes",
+            "rrt_random_seed", "enable_whole_body_rrt", "enable_primitive_fallback",
+            "enable_optimization", "cruise_speed", "max_linear_velocity",
+            "max_yaw_rate", "max_joint_velocity", "max_base_speed",
+            "max_base_yaw_rate", "collision_safety_margin",
+            "treat_unknown_as_occupied", "minco_waypoint_stride",
+            "tangent_chord_length", "max_trajectory_duration",
+        }
+        if not isinstance(tuning, dict) or set(tuning) - allowed:
+            raise RuntimeError("planner_config must contain only planner tuning parameters")
+        planner_parameters.update(tuning)
+
     actions = [
         Node(
             package="wbmm_planner_ros",
@@ -126,6 +145,8 @@ def _make_nodes(context):
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("use_sim_time", default_value="false"),
+        DeclareLaunchArgument("planner_config", default_value="",
+            description="Tuning YAML; overrides legacy numerical launch arguments."),
         DeclareLaunchArgument("urdf_file", default_value=""),
         DeclareLaunchArgument("esdf_file", default_value=""),
         DeclareLaunchArgument(

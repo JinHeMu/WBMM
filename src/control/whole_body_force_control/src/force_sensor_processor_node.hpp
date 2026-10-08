@@ -39,6 +39,13 @@ private:
     bool tf_fallback_to_latest{false};
     double raw_timeout{0.25};
     double monitor_rate{50.0};
+    double filter_cutoff_hz{0.0};
+    bool tare_after_compensation{false};
+    bool tare_on_start{true};
+    bool require_stamped_wrench{false};
+    bool use_calibrated_transform{false};
+    Eigen::Matrix3d tcp_rotation_sensor{Eigen::Matrix3d::Identity()};
+    Eigen::Vector3d sensor_origin_in_tcp{Eigen::Vector3d::Zero()};
 
     std::size_t tare_samples{50};
     Vector6d filter_alpha{Vector6d::Constant(0.25)};
@@ -72,6 +79,11 @@ private:
   bool fault_latched_{false};
   std::string last_state_;
   std::chrono::steady_clock::time_point last_raw_;
+  std::chrono::steady_clock::time_point last_processed_;
+  bool processed_received_{false};
+  bool tf_ready_{false};
+  std::chrono::steady_clock::time_point reset_at_;
+  int64_t last_stamp_ns_{0};
 
   rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr
       processed_wrench_publisher_;

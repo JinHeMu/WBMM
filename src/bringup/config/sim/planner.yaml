@@ -1,0 +1,11 @@
+wbmm_planner_node:
+  ros__parameters:
+    enable_optimization: true
+    cruise_speed: 0.35
+    max_linear_velocity: 0.5
+    max_yaw_rate: 1.0
+    max_joint_velocity: 2.0
+    max_base_speed: 0.5
+    max_base_yaw_rate: 1.0
+    collision_safety_margin: 0.0
+    treat_unknown_as_occupied: false

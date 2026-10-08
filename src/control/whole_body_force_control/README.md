@@ -9,6 +9,9 @@
 
 提供。
 
+力控与 OCS2 的联合入口为 `tracer_jaka_bringup/force_mpc.launch.py`，
+完整启动、YAML 参数、标定及恢复说明见 [联合控制说明](../../../docs/force_mpc_integration.md)。
+
 ## 节点结构
 
 - `force_sensor_processor_node`：订阅 HardwareInterface 经 `fts_broadcaster`
@@ -18,6 +21,10 @@
 - `src/force_processor.cpp`：无 ROS 依赖的力处理算法核心。
 - `src/controllers.cpp`：无 ROS 依赖的单轴/六轴导纳算法核心。
 - `src/node*.cpp`：导纳节点的 ROS 适配、参数、控制周期和输出。
+- `keyboard_wrench_node`：C++ 三轴按键力源，W/S、A/D、R/F 控制 tool0 的正负 XYZ 力。
+  `force_mpc.launch.py backend:=sim fake_wrench:=true keyboard_wrench:=true` 打开按键窗口，
+  点击窗口并等待 ACTIVE 后按住施力，松开归零；空格清零、Esc 退出。
+  通过 `virtual_wrench_node` 做逆 wrench 变换后进入原始力处理链路，保持唯一原始力发布者。
 
 ## 控制链路
 
@@ -27,18 +34,20 @@ JakaHardwareInterface state interfaces
   -> /fts_broadcaster/wrench (raw, sensor_frame)
   -> force_sensor_processor_node
   -> finite / raw hard force norm / raw per-axis hard limit
-  -> auto tare
+  -> 可选重力/偏置补偿与残余 tare
   -> wrench_scale in sensor_frame
   -> TF: tcp_frame <- sensor_frame
      （完整 wrench 变换，包含力臂力矩）
-  -> 一阶低通滤波，tcp_frame
+  -> 未滤波 TCP 硬限制 -> 一阶低通滤波，tcp_frame
   -> finite / per-axis hard limit
   -> /whole_body_force_control/processed_wrench
   -> whole_body_force_control_node
+  -> 当前 TCP 分量旋转到启用时固定的名义 TCP 轴（同一力作用原点）
   -> CartesianComplianceController
      （名义 TCP 系，6 轴独立导纳）
   -> 末端目标速度限制
   -> OCS2 末端位姿目标
+  -> MRT ACTIVE 心跳/状态新鲜度联锁（联合入口启用）
 ```
 
 导纳方程：
@@ -56,7 +65,7 @@ M * x_ddot + D * x_dot + K * x = F_measured
 - `force_sensor.tcp_frame`：导纳控制使用的工具 TCP frame，例如 `tool0`。
 - `state_frame`：OCS2/MPC 状态 frame，例如 `odom`。
 
-力先从 sensor frame 完整变换到 TCP frame，再在 TCP 系做导纳。  
+力先从 sensor frame 完整变换到当前 TCP frame，再旋转到启用时固定的 TCP 轴做导纳。
 修正量最后转换到 `state_frame`，供 MPC 使用。
 
 ## 六个柔顺轴
@@ -126,14 +135,14 @@ force_sensor:
 - `tf_fallback_to_latest`：stamp 查询失败时是否回退 latest TF。
 - `raw_timeout`：原始 HardwareInterface wrench 的超时阈值。
 - `tare_samples`：启动后自动 tare 采样帧数。
-- `filter_alpha`：一阶低通系数，范围 0~1。
+- `filter_alpha`：一阶低通系数，范围 0~1；`filter_cutoff_hz > 0` 时改用按采样间隔计算的系数。
 - `wrench_scale`：sensor frame 下的六轴缩放。
 - `hard_force_norm_limit`：原始 `Fx/Fy/Fz` 范数硬限幅；0 表示关闭该检查。
 - `hard_wrench_limit`：六轴分量硬限幅。
 - `force_timeout`：力数据超时。
 - `force_deadband_n`：滤波后各轴力分量死区，绝对值小于该值置 0。
 - `torque_deadband_nm`：滤波后各轴力矩分量死区，绝对值小于该值置 0。
-- `load_compensation.enable`：是否启用末端重力负载补偿。启用后跳过 tare，直接减去辨识模型。
+- `load_compensation.enable`：是否启用末端重力负载补偿。先减去辨识模型，若 `tare_after_compensation=true` 再采残余偏置。
 - `load_compensation.gravity_m_s2`：重力加速度。
 - `load_compensation.mass_kg`：末端负载质量。
 - `load_compensation.gravity_direction_base`：机器人 base frame 下 signed gravity 方向单位向量。
@@ -141,7 +150,8 @@ force_sensor:
 - `load_compensation.force_bias_sensor_n`：sensor frame 下三轴力偏置。
 - `load_compensation.torque_bias_sensor_nm`：sensor frame 下三轴力矩偏置。
 
-未启用 `load_compensation` 时，仍使用原来的 tare 流程；启用后不再执行 tare，而是按辨识模型补偿：
+未启用 `load_compensation` 时由 `tare_on_start` 控制启动去皮；启用后按辨识模型补偿，
+`tare_after_compensation` 控制是否额外去除补偿后的残余偏置：
 
 ```text
 f_s   = R_sb * h_b + b_f

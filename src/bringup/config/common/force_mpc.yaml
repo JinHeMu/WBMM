@@ -1,0 +1,70 @@
+# Integrated force following. Units: m, rad, N, Nm, seconds.
+# Dynamics mirror the tested jaka_keyboard profile; K=0 enables dragging.
+# These override the common and backend force_control.yaml layers only for
+# force_mpc.launch.py. Existing launches retain their tuning.
+force_sensor_processor:
+  ros__parameters:
+    force_sensor:
+      # 0.2 at 125 Hz corresponds to about 4.44 Hz; time-based filtering
+      # preserves this response when the sensor/controller rates differ.
+      filter_cutoff_hz: 4.44
+      force_deadband_n: 1.0
+      torque_deadband_nm: 0.5
+      hard_force_norm_limit: 15.0
+      hard_wrench_limit: [15.0, 15.0, 15.0, 3.0, 3.0, 3.0]
+      raw_timeout: 0.25
+      tare_samples: 50
+      tare_on_start: true
+      # Sample residual bias AFTER gravity compensation at a free-space pose.
+      tare_after_compensation: true
+
+whole_body_force_control:
+  ros__parameters:
+    admittance:
+      # Order: x, y, z, rx, ry, rz. Axes are fixed at enable-time TCP pose.
+      selected_axes: [true, true, true, false, false, false]
+      mass: [10.0, 10.0, 10.0, 2.0, 2.0, 2.0]
+      damping: [200.0, 200.0, 200.0, 15.0, 15.0, 15.0]
+      stiffness: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      max_velocity: [0.3, 0.3, 0.3, 0.4, 0.4, 0.4]
+    force_sensor:
+      force_timeout: 0.25
+    end_effector:
+      # Vector-norm limits, rather than one limit independently on each axis.
+      max_linear_velocity: 0.2
+      max_angular_velocity: 0.4
+    safety:
+      loop_rate: 125.0
+      capture_settle_time: 0.5
+      observation_timeout: 0.25
+      enforce_single_target_owner: true
+      # Stop accumulation if OCS2 cannot keep up (constraints or blocked pose).
+      # 0 disables a tracking check; this is not a workspace/collision limit.
+      max_tracking_error_m: 0.10
+      max_tracking_error_rad: 0.35
+
+wbmm_mrt_node:
+  ros__parameters:
+    force_gate:
+      timeout: 0.25
+      robot_state_timeout: 0.25
+    # Bound actual commands as well as the admittance reference speed.
+    arm_use_velocity_integrator: true
+    arm_max_command_velocity: 0.3
+    base_max_linear_velocity: 0.2
+    base_max_angular_velocity: 0.4
+
+virtual_force_publisher:
+  ros__parameters:
+    rate: 125.0
+    command_topic: /whole_body_force_control/virtual_wrench_command
+    command_timeout: 0.15
+
+keyboard_force_publisher:
+  ros__parameters:
+    command_topic: /whole_body_force_control/virtual_wrench_command
+    frame_id: tool0
+    rate: 50.0
+    # Order: +X, -X, +Y, -Y, +Z, -Z. Hold to apply, release to zero.
+    keys: [w, s, a, d, r, f]
+    force_n: [10.0, 10.0, 10.0]

@@ -5,7 +5,7 @@
     Geometry never changes with the backend; only exported hardware interfaces do.
   -->
   <xacro:macro name="tracer_jaka_ros2_control"
-               params="backend robot_ip local_ip hardware_write">
+               params="backend robot_ip local_ip hardware_write torque_sensor_mode:=-1">
     <ros2_control name="tracer_jaka_zu5_${backend}" type="system">
       <hardware>
         <xacro:if value="${backend == 'mujoco'}">
@@ -16,6 +16,7 @@
           <param name="robot_ip">${robot_ip}</param>
           <param name="local_ip">${local_ip}</param>
           <param name="hardware_write">${hardware_write}</param>
+          <param name="torque_sensor_mode">${torque_sensor_mode}</param>
         </xacro:if>
         <xacro:if value="${backend == 'mock'}">
           <plugin>mock_components/GenericSystem</plugin>

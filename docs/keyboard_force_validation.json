@@ -1,0 +1,60 @@
+{
+  "passed": true,
+  "processed_wrench_by_key": {
+    "w": [
+      4.999999731125788,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "s": [
+      -4.9999995795664045,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "a": [
+      0.0,
+      4.999999579842964,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "d": [
+      0.0,
+      -4.999999663396682,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "r": [
+      0.0,
+      0.0,
+      4.999999664048694,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "f": [
+      0.0,
+      0.0,
+      -4.9999997312961835,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "release_zero": true,
+  "opposite_keys_cancel": true,
+  "multiple_axes": true,
+  "focus_loss_zero": true,
+  "space_zero": true,
+  "exit_zero_without_sensor_timeout": true,
+  "abrupt_keyboard_loss_zero": true
+}

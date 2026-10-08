@@ -172,4 +172,12 @@ install(PROGRAMS
 
 ament_export_dependencies(rosidl_default_runtime)
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_force_execution_gate test/test_force_execution_gate.cpp)
+  target_include_directories(test_force_execution_gate PRIVATE include)
+  ament_add_gtest(test_arm_position_command test/test_arm_position_command.cpp)
+  target_include_directories(test_arm_position_command PRIVATE include)
+endif()
+
 ament_package()

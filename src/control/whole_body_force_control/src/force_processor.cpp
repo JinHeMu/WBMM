@@ -16,6 +16,15 @@ ForceProcessor::ForceProcessor(const ForceProcessorConfig & config)
 
 void ForceProcessor::setConfig(const ForceProcessorConfig & config)
 {
+  if (!config.filter_alpha.allFinite() || !config.scale.allFinite() ||
+    !config.hard_wrench_limit.allFinite() ||
+    !std::isfinite(config.hard_force_norm_limit) ||
+    !std::isfinite(config.force_deadband_n) ||
+    !std::isfinite(config.torque_deadband_nm) ||
+    !std::isfinite(config.filter_cutoff_hz) || config.filter_cutoff_hz < 0.0)
+  {
+    throw std::invalid_argument("force processor configuration must be finite");
+  }
   config_ = config;
   config_.tare_samples = std::max<std::size_t>(1, config_.tare_samples);
   config_.hard_force_norm_limit =
@@ -54,8 +63,8 @@ void ForceProcessor::setConfig(const ForceProcessorConfig & config)
       throw std::invalid_argument(
         "load_compensation CoM and bias must be finite");
     }
-    // Gravity compensation replaces the tare step.  Clear any tare state so a
-    // previous startTare() call cannot silently subtract a second offset.
+    // A changed gravity model invalidates the previous residual tare/filter.
+    // The caller may explicitly start a new tare after installing this model.
     tare_active_ = false;
     tare_sum_.setZero();
     tare_offset_.setZero();
@@ -68,7 +77,7 @@ void ForceProcessor::setConfig(const ForceProcessorConfig & config)
 
 void ForceProcessor::startTare()
 {
-  if (config_.load_compensation.enable) {
+  if (config_.load_compensation.enable && !config_.tare_after_compensation) {
     tare_active_ = false;
     tare_sum_.setZero();
     tare_offset_.setZero();
@@ -125,7 +134,7 @@ ForceProcessorResult ForceProcessor::process(
   const std::string & target_frame,
   const Eigen::Matrix3d & target_rotation_source,
   const Eigen::Vector3d & target_to_source,
-  const Eigen::Matrix3d & source_rotation_base)
+  const Eigen::Matrix3d & source_rotation_base, double dt)
 {
   ForceProcessorResult result;
   result.wrench.header = raw_source.header;
@@ -135,7 +144,8 @@ ForceProcessorResult ForceProcessor::process(
   result.wrench.header.frame_id = target_frame;
 
   const Vector6d raw = toVector(raw_source);
-  if (!raw.allFinite() || !source_rotation_base.allFinite()) {
+  if (!raw.allFinite() || !source_rotation_base.allFinite() ||
+    (config_.filter_cutoff_hz > 0.0 && (!std::isfinite(dt) || dt <= 0.0))) {
     return result;
   }
 
@@ -186,8 +196,21 @@ ForceProcessorResult ForceProcessor::process(
     }
   }
 
-  if (!compensation_enabled && tare_active_) {
-    tare_sum_ += raw;
+  // Residual tare must not absorb an excessive external load. Check the
+  // compensated, unfiltered sample before collecting any tare samples.
+  if (config_.hard_limit_enabled && compensation_enabled) {
+    const Vector6d compensated_for_limit = compensated_raw.cwiseProduct(config_.scale);
+    if ((config_.hard_force_norm_limit > 0.0 &&
+         compensated_for_limit.head<3>().norm() > config_.hard_force_norm_limit) ||
+        (compensated_for_limit.cwiseAbs().array() >
+         config_.hard_wrench_limit.array()).any()) {
+      result.hard_limit_exceeded = true;
+      return result;
+    }
+  }
+
+  if (tare_active_) {
+    tare_sum_ += compensated_raw;
     ++tare_count_;
     if (tare_count_ < config_.tare_samples) {
       result.taring = true;
@@ -204,7 +227,7 @@ ForceProcessorResult ForceProcessor::process(
   result.tare_samples_collected = tare_count_;
 
   Vector6d source = compensated_raw;
-  if (!compensation_enabled) {
+  if (!compensation_enabled || config_.tare_after_compensation) {
     source -= tare_offset_;
   }
   for (Eigen::Index i = 0; i < 6; ++i) {
@@ -233,13 +256,24 @@ ForceProcessorResult ForceProcessor::process(
     return result;
   }
 
+  // Test the unfiltered TCP wrench too: a moment-arm torque spike must not
+  // disappear in the low-pass filter or deadband.
+  if (config_.hard_limit_enabled &&
+    (processed.cwiseAbs().array() > config_.hard_wrench_limit.array()).any())
+  {
+    result.hard_limit_exceeded = true;
+    return result;
+  }
+
   if (!filter_initialized_) {
     filtered_wrench_ = processed;
     filter_initialized_ = true;
     last_output_ = processed;
   } else {
     for (Eigen::Index i = 0; i < 6; ++i) {
-      const double alpha = config_.filter_alpha[i];
+      const double alpha = config_.filter_cutoff_hz > 0.0
+        ? -std::expm1(-2.0 * std::acos(-1.0) * config_.filter_cutoff_hz * dt)
+        : config_.filter_alpha[i];
       filtered_wrench_[i] =
         alpha * processed[i] + (1.0 - alpha) * filtered_wrench_[i];
     }

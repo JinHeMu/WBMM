@@ -65,7 +65,7 @@ read -r -a PACKAGES <<< "${WBMM_BUILD_PACKAGES}"
 COLCON_ARGS=(
   build
   --symlink-install
-  --packages-select "${PACKAGES[@]}"
+  --packages-up-to "${PACKAGES[@]}"
   --cmake-args "-DCMAKE_BUILD_TYPE=${WBMM_BUILD_TYPE}"
   --event-handlers console_direct+
 )

@@ -42,6 +42,7 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
 
   const auto start_time = std::chrono::steady_clock::now();
   last_update_ = start_time;
+  last_control_time_ = now();
   last_wrench_ = start_time;
   last_observation_ = start_time;
   capture_requested_at_ = start_time;
@@ -132,7 +133,7 @@ void WholeBodyForceControlNode::captureNominalState(
   nominal_captured_ = true;
   RCLCPP_INFO(
       get_logger(),
-      "Captured nominal state; admittance wrench is expressed in %s",
+      "Captured nominal TCP axes in %s",
       parameters_.state_frame.c_str());
 }
 
@@ -166,36 +167,14 @@ void WholeBodyForceControlNode::updateEndEffectorReference(
   correction = cartesian_controller_->update(measured_wrench, dt);
   filtered_wrench = cartesian_controller_->measuredWrench();
 
-  if (!ee_correction_valid_) {
-    last_ee_correction_ = correction;
-    ee_correction_valid_ = true;
-  }
-
-  // Rate-limit the task-space correction in the nominal TCP frame.  This
-  // prevents a discontinuous target when admittance is enabled or when a
-  // force step occurs, without reintroducing base/arm allocation.
-  const double limited_dt = std::clamp(dt, 0.0, 0.05);
-  const double linear_step =
-      parameters_.max_ee_linear_velocity * limited_dt;
-  const double angular_step =
-      parameters_.max_ee_angular_velocity * limited_dt;
-
-  Vector6d limited = correction;
-  for (Eigen::Index i = 0; i < 3; ++i) {
-    limited[i] = last_ee_correction_[i] +
-        std::clamp(
-            correction[i] - last_ee_correction_[i],
-            -linear_step, linear_step);
-  }
-  for (Eigen::Index i = 3; i < 6; ++i) {
-    limited[i] = last_ee_correction_[i] +
-        std::clamp(
-            correction[i] - last_ee_correction_[i],
-            -angular_step, angular_step);
-  }
-
-  correction = limited;
+  // The published wrench follows the moving TCP axes. The integrated
+  // correction uses fixed nominal TCP axes, so it must not rotate on its own.
+  correction = rateLimitCorrection(
+      correction, last_ee_correction_, dt,
+      parameters_.max_ee_linear_velocity, parameters_.max_ee_angular_velocity);
+  cartesian_controller_->clampOffset(correction);
   last_ee_correction_ = correction;
+  ee_correction_valid_ = true;
 
   wbmm::core::Pose nominal_pose;
   nominal_pose.header.frame_id = parameters_.state_frame;
@@ -233,9 +212,17 @@ void WholeBodyForceControlNode::updateEndEffectorReference(
 void WholeBodyForceControlNode::update()
 {
   const auto wall_now = std::chrono::steady_clock::now();
-  const double dt = std::chrono::duration<double>(wall_now - last_update_).count();
+  const double wall_dt = std::chrono::duration<double>(wall_now - last_update_).count();
   last_update_ = wall_now;
+  const auto control_now = now();
+  const bool sim_clock = get_parameter("use_sim_time").as_bool();
+  const double control_dt = (control_now - last_control_time_).seconds();
+  last_control_time_ = control_now;
+  const double dt = sim_clock ? std::clamp(control_dt, 0.0, 0.05) : wall_dt;
   std::lock_guard<std::mutex> lock(mutex_);
+  if (sim_clock && control_dt < 0.0 && nominal_captured_) {
+    latchFault("CLOCK_RESET");
+  }
 
   if (pending_fault_)
   {
@@ -243,6 +230,12 @@ void WholeBodyForceControlNode::update()
     pending_fault_ = false;
     pending_fault_reason_.clear();
     latchFault(reason);
+  }
+
+  if (fault_latched_) {
+    publishState("FAULT_" + fault_reason_);
+    publishHoldReference();
+    return;
   }
 
   if (!observation_received_)
@@ -267,7 +260,7 @@ void WholeBodyForceControlNode::update()
   if (parameters_.admittance_enabled && !wrench_received_)
   {
     publishState(
-        force_sensor_state_received_ ? force_sensor_state_ :
+        force_sensor_state_received_ ? "WAITING_FOR_WRENCH" :
         "WAITING_FOR_FORCE_SENSOR_STATE");
     publishHoldReference();
     return;
@@ -313,8 +306,19 @@ void WholeBodyForceControlNode::update()
     return;
   }
 
+  // Keep wall-clock heartbeat/watchdogs alive while the simulator is paused.
+  // Admittance motion advances only with the same /clock used by MPC/MRT.
+  if (sim_clock && dt == 0.0 && nominal_captured_) {
+    publishState("ACTIVE");
+    return;
+  }
+
   const Eigen::VectorXd measured_state = observationStateLocked();
-  const Vector6d measured_wrench = measuredWrenchVector();
+  const auto measured_pose = tcpPose(measured_state);
+  const Eigen::Matrix3d measured_rotation = Eigen::Quaterniond(
+      measured_pose.orientation.w, measured_pose.orientation.x,
+      measured_pose.orientation.y, measured_pose.orientation.z)
+      .normalized().toRotationMatrix();
 
   if (!nominal_captured_)
   {
@@ -327,6 +331,44 @@ void WholeBodyForceControlNode::update()
       return;
     }
     captureNominalState(measured_state);
+  }
+
+  // Re-express forces and moments at the *same current TCP origin* in the
+  // fixed nominal axes. No moment-arm shift to the startup TCP is appropriate.
+  const Vector6d measured_wrench = transformWrench(
+      measuredWrenchVector(), nominal_tcp_rotation_.transpose() * measured_rotation,
+      Eigen::Vector3d::Zero());
+
+  if (ee_correction_valid_) {
+    const Eigen::Vector3d expected_position =
+        nominal_tcp_ + nominal_tcp_rotation_ * last_ee_correction_.head<3>();
+    const Eigen::Vector3d measured_position(
+        measured_pose.position.x, measured_pose.position.y, measured_pose.position.z);
+    wbmm::core::Pose nominal_pose = measured_pose;
+    const Eigen::Quaterniond nominal_q(nominal_tcp_rotation_);
+    nominal_pose.orientation.w = nominal_q.w();
+    nominal_pose.orientation.x = nominal_q.x();
+    nominal_pose.orientation.y = nominal_q.y();
+    nominal_pose.orientation.z = nominal_q.z();
+    const auto last_target = makeEndEffectorPoseTarget(
+        nominal_pose, last_ee_correction_, parameters_.state_frame, observation_time_);
+    const Eigen::Matrix3d target_rotation = Eigen::Quaterniond(
+        last_target.orientation.w, last_target.orientation.x,
+        last_target.orientation.y, last_target.orientation.z).toRotationMatrix();
+    const double angular_error = Eigen::AngleAxisd(
+        target_rotation.transpose() * measured_rotation).angle();
+    const double linear_error = (expected_position - measured_position).norm();
+    if ((parameters_.max_tracking_error_m > 0.0 &&
+         linear_error > parameters_.max_tracking_error_m) ||
+        (parameters_.max_tracking_error_rad > 0.0 &&
+         angular_error > parameters_.max_tracking_error_rad)) {
+      RCLCPP_ERROR(get_logger(),
+                   "TCP tracking error: %.4f m (limit %.4f), %.4f rad (limit %.4f)",
+                   linear_error, parameters_.max_tracking_error_m,
+                   angular_error, parameters_.max_tracking_error_rad);
+      latchFault("TRACKING_ERROR");
+      return;
+    }
   }
 
   Vector6d correction = Vector6d::Zero();

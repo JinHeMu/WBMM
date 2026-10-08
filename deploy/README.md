@@ -27,7 +27,7 @@ Edit `deploy/env/real.env` before first use:
 
 ## build.sh
 
-Builds the bringup-related package set:
+Builds the bringup package and its workspace dependencies (`--packages-up-to`):
 
 ```bash
 ./deploy/build.sh
@@ -65,13 +65,18 @@ Dry run:
 DRY_RUN=1 ./deploy/start.sh
 ```
 
-This script does **not** start the full WBMM stack. Start hardware/algorithm
-launches separately, for example:
+After initialization, start a complete function with one launch, for example:
 
 ```bash
-ros2 launch tracer_jaka_bringup wbmm_hardware_interface.launch.py
-ros2 launch tracer_jaka_bringup ocs2.launch.py ...
+source deploy/env/real.env
+source /opt/ros/${ROS_DISTRO}/setup.bash
+source install/setup.bash
+ros2 launch tracer_jaka_bringup arm_moveit.launch.py backend:=real
 ```
+
+Real motion requires `hardware_write:=true`. See the
+[bringup quickstart](../src/bringup/README.md) for mapping, localization,
+navigation and end-effector tracking. Do not also launch a separate backend.
 
 ## poweroff.sh
 

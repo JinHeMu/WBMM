@@ -66,6 +66,149 @@ def load_launch(profile):
     return module
 
 
+def force_mpc_actions(monkeypatch, **overrides):
+    path = BRINGUP / 'launch' / 'force_mpc.launch.py'
+    spec = importlib.util.spec_from_file_location('force_mpc', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module, 'get_package_share_directory', lambda name:
+                        str(BRINGUP) if name == 'tracer_jaka_bringup'
+                        else str(BRINGUP.parent / 'robotics' / 'tracer_jaka_description'))
+    monkeypatch.setattr(module, 'Node', lambda **kwargs: kwargs)
+    monkeypatch.setattr(module, 'OnProcessExit', lambda **kwargs: kwargs)
+    monkeypatch.setattr(module, 'RegisterEventHandler', lambda handler: handler)
+    monkeypatch.setattr(module, 'IncludeLaunchDescription', lambda source, **kwargs: {
+        'backend_include': str(source.location), **kwargs})
+    context = LaunchContext()
+    for entity in module.generate_launch_description().entities:
+        if isinstance(entity, DeclareLaunchArgument):
+            entity.execute(context)
+    context.launch_configurations.update({'use_rviz': 'false', **overrides})
+    return module._make_nodes(context)
+
+
+def effective_node_parameters(node):
+    effective = {}
+    for layer in node['parameters']:
+        if isinstance(layer, str):
+            effective.update(flatten(load_yaml(Path(layer))
+                                     .get(node['name'], {}).get('ros__parameters', {})))
+        else:
+            effective.update(flatten(layer))
+    return effective
+
+
+def test_integrated_sim_connects_force_to_execution_mpc(monkeypatch):
+    actions = force_mpc_actions(monkeypatch, backend='sim', fake_wrench='true')
+    nodes = {a['name']: a for a in actions if isinstance(a, dict) and 'name' in a}
+    sensor = effective_node_parameters(nodes['force_sensor_processor'])
+    force = effective_node_parameters(nodes['whole_body_force_control'])
+    mrt = effective_node_parameters(nodes['wbmm_mrt_node'])
+    mpc = effective_node_parameters(nodes['wbmm_mpc_node'])
+    assert sensor['topics.processed_wrench'] == force['topics.wrench']
+    assert mpc['ee_target_topic'] == force['topics.ee_target']
+    assert sensor['topics.raw_wrench'] == '/whole_body_force_control/fake_wrench'
+    assert 'virtual_force_publisher' in nodes
+    assert mpc['initial_task_phase'] == mrt['initial_task_phase'] == 2
+    assert force['state_frame'] == mrt['world_frame'] == mpc['world_frame'] == 'odom'
+    assert sensor['force_sensor.tcp_frame'] == force['force_sensor.tcp_frame'] == mrt['ee_frame']
+    assert mrt['force_gate.require_active'] is True
+    assert mrt['force_gate.state_topic'] == force['topics.states']
+    assert mrt['command_output_enabled'] is force['admittance.output'] is True
+    assert force['admittance.enable'] is True
+    assert mrt['arm_use_velocity_integrator'] is False
+    assert force['admittance.stiffness'] == [0.0] * 6
+    profile = load_yaml(COMMON_CONFIG / 'force_mpc.yaml')
+    dynamics = profile['whole_body_force_control']['ros__parameters']['admittance']
+    assert force['admittance.mass'] == dynamics['mass']
+    assert force['admittance.damping'] == dynamics['damping']
+    assert sensor['force_sensor.load_compensation.enable'] is False
+    backend = next(a for a in actions if isinstance(a, dict) and 'backend_include' in a)
+    assert dict(backend['launch_arguments'])['start_fts'] == 'false'
+
+
+@pytest.mark.parametrize('hardware_write, output', [('false', False), ('true', True)])
+def test_integrated_real_calibration_and_execution_gates(monkeypatch, hardware_write, output):
+    actions = force_mpc_actions(monkeypatch, backend='real', hardware_write=hardware_write)
+    nodes = {a['name']: a for a in actions if isinstance(a, dict) and 'name' in a}
+    sensor = effective_node_parameters(nodes['force_sensor_processor'])
+    force = effective_node_parameters(nodes['whole_body_force_control'])
+    mrt = effective_node_parameters(nodes['wbmm_mrt_node'])
+    assert force['admittance.enable'] is False
+    assert force['admittance.output'] is mrt['command_output_enabled'] is output
+    assert sensor['force_sensor.require_stamped_wrench'] is True
+    assert sensor['force_sensor.use_calibrated_transform'] is True
+    assert sensor['force_sensor.load_compensation.enable'] is True
+    assert sensor['force_sensor.load_compensation.mass_kg'] == pytest.approx(0.6720235983168857)
+    assert sensor['force_sensor.load_compensation.base_frame'] == 'jaka_base_link'
+    assert sensor['force_sensor.tare_after_compensation'] is True
+    assert 'virtual_force_publisher' not in nodes
+    backend = next(a for a in actions if isinstance(a, dict) and 'backend_include' in a)
+    args = dict(backend['launch_arguments'])
+    assert args['hardware_write'] == args['start_arm_controller'] == hardware_write
+    assert args['torque_sensor_mode'] == '1'
+    assert args['start_arm_pose'] == 'false'
+
+
+@pytest.mark.parametrize('tare, enabled', [('false', False), ('true', True)])
+def test_integrated_tare_override(monkeypatch, tare, enabled):
+    actions = force_mpc_actions(monkeypatch, backend='real', start_backend='false', tare=tare)
+    sensor_node = next(a for a in actions if isinstance(a, dict) and
+                       a.get('name') == 'force_sensor_processor')
+    sensor = effective_node_parameters(sensor_node)
+    assert sensor['force_sensor.tare_after_compensation'] is enabled
+    assert sensor['force_sensor.tare_on_start'] is enabled
+
+
+def test_integrated_launch_rejects_cross_backend_force_sources(monkeypatch):
+    with pytest.raises(RuntimeError, match='only with backend:=sim'):
+        force_mpc_actions(monkeypatch, backend='real', fake_wrench='true')
+    with pytest.raises(RuntimeError, match='must not be applied to simulation'):
+        force_mpc_actions(monkeypatch, backend='sim',
+                          calibration_file=str(REAL_CONFIG / 'force_mpc_calibration.yaml'))
+
+
+def test_integrated_virtual_source_tracks_topic_override(monkeypatch):
+    actions = force_mpc_actions(monkeypatch, backend='sim', fake_wrench='true',
+                                raw_wrench_topic='/test/manual_wrench')
+    nodes = {a['name']: a for a in actions if isinstance(a, dict) and 'name' in a}
+    sensor = effective_node_parameters(nodes['force_sensor_processor'])
+    virtual = effective_node_parameters(nodes['virtual_force_publisher'])
+    assert virtual['topic'] == sensor['topics.raw_wrench'] == '/test/manual_wrench'
+    assert virtual['frame_id'] == sensor['force_sensor.sensor_frame']
+
+
+def test_keyboard_commands_feed_one_virtual_sensor_in_tcp_axes(monkeypatch):
+    actions = force_mpc_actions(monkeypatch, backend='sim', fake_wrench='true', keyboard_wrench='true')
+    nodes = {a['name']: a for a in actions if isinstance(a, dict) and 'name' in a}
+    virtual = effective_node_parameters(nodes['virtual_force_publisher'])
+    keyboard = effective_node_parameters(nodes['keyboard_force_publisher'])
+    assert keyboard['command_topic'] == virtual['command_topic']
+    assert keyboard['frame_id'] == virtual['command_frame'] == 'tool0'
+    assert keyboard['keys'] == ['w', 's', 'a', 'd', 'r', 'f']
+    profile = load_yaml(COMMON_CONFIG / 'force_mpc.yaml')
+    assert keyboard['force_n'] == profile['keyboard_force_publisher']['ros__parameters']['force_n']
+    assert sum(a.get('executable') == 'virtual_wrench_node'
+               for a in actions if isinstance(a, dict)) == 1
+    assert virtual['command_timeout'] > 2.0 / keyboard['rate']
+
+
+def test_force_entry_forwards_sim_servo_configuration(monkeypatch):
+    actions = force_mpc_actions(monkeypatch, backend='sim', fake_wrench='true',
+                                arm_servo_config='/tmp/custom_arm.yaml',
+                                arm_bias_compensation='false')
+    backend = next(a for a in actions if isinstance(a, dict) and 'backend_include' in a)
+    arguments = dict(backend['launch_arguments'])
+    assert arguments['arm_servo_config'] == '/tmp/custom_arm.yaml'
+    assert arguments['arm_bias_compensation'] == 'false'
+
+
+@pytest.mark.parametrize('backend, fake', [('real', 'true'), ('sim', 'false')])
+def test_keyboard_launch_requires_sim_virtual_sensor(monkeypatch, backend, fake):
+    with pytest.raises(RuntimeError, match='keyboard_wrench requires'):
+        force_mpc_actions(monkeypatch, backend=backend, fake_wrench=fake, keyboard_wrench='true')
+
+
 def test_force_control_config_layers_are_centralized():
     assert (COMMON_CONFIG / 'force_control.yaml').is_file()
     assert (REAL_CONFIG / 'force_control.yaml').is_file()

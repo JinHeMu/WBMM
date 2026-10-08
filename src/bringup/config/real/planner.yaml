@@ -1,0 +1,12 @@
+# Numerical tuning only. Frames, topics and files are supplied by the launch.
+wbmm_planner_node:
+  ros__parameters:
+    enable_optimization: true
+    cruise_speed: 0.1
+    max_linear_velocity: 0.1
+    max_yaw_rate: 0.4
+    max_joint_velocity: 0.15
+    max_base_speed: 0.1
+    max_base_yaw_rate: 0.4
+    collision_safety_margin: 0.0
+    treat_unknown_as_occupied: false

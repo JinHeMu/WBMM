@@ -1,0 +1,346 @@
+{
+  "scope": "ROS2 MuJoCo headless force/MPC; physical servo tuning; no real hardware validation",
+  "servo_parameters": {
+    "mujoco_bridge": {
+      "ros__parameters": {
+        "arm_bias_compensation": true,
+        "arm_servo": {
+          "integrator": "implicitfast",
+          "kp": [
+            6000.0,
+            10000.0,
+            8000.0,
+            1200.0,
+            800.0,
+            100.0
+          ],
+          "kv": [
+            250.0,
+            400.0,
+            300.0,
+            40.0,
+            25.0,
+            4.0
+          ]
+        },
+        "viewer_rate": 30.0
+      }
+    }
+  },
+  "previous_force_profile": {
+    "profile": {
+      "force_sensor_processor": {
+        "ros__parameters": {
+          "force_sensor": {
+            "filter_cutoff_hz": 4.44,
+            "force_deadband_n": 1.0,
+            "hard_force_norm_limit": 15.0,
+            "hard_wrench_limit": [
+              15.0,
+              15.0,
+              15.0,
+              3.0,
+              3.0,
+              3.0
+            ],
+            "raw_timeout": 0.25,
+            "tare_after_compensation": true,
+            "tare_on_start": true,
+            "tare_samples": 50,
+            "torque_deadband_nm": 0.5
+          }
+        }
+      },
+      "keyboard_force_publisher": {
+        "ros__parameters": {
+          "command_topic": "/whole_body_force_control/virtual_wrench_command",
+          "force_n": [
+            10.0,
+            10.0,
+            10.0
+          ],
+          "frame_id": "tool0",
+          "keys": [
+            "w",
+            "s",
+            "a",
+            "d",
+            "r",
+            "f"
+          ],
+          "rate": 50.0
+        }
+      },
+      "virtual_force_publisher": {
+        "ros__parameters": {
+          "command_timeout": 0.15,
+          "command_topic": "/whole_body_force_control/virtual_wrench_command",
+          "rate": 125.0
+        }
+      },
+      "wbmm_mrt_node": {
+        "ros__parameters": {
+          "arm_max_command_velocity": 0.15,
+          "arm_use_velocity_integrator": true,
+          "base_max_angular_velocity": 0.4,
+          "base_max_linear_velocity": 0.1,
+          "force_gate": {
+            "robot_state_timeout": 0.25,
+            "timeout": 0.25
+          }
+        }
+      },
+      "whole_body_force_control": {
+        "ros__parameters": {
+          "admittance": {
+            "damping": [
+              300.0,
+              300.0,
+              300.0,
+              15.0,
+              15.0,
+              15.0
+            ],
+            "mass": [
+              20.0,
+              20.0,
+              20.0,
+              2.0,
+              2.0,
+              2.0
+            ],
+            "max_velocity": [
+              0.05,
+              0.05,
+              0.05,
+              0.17,
+              0.17,
+              0.17
+            ],
+            "selected_axes": [
+              true,
+              true,
+              true,
+              false,
+              false,
+              false
+            ],
+            "stiffness": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "end_effector": {
+            "max_angular_velocity": 0.17,
+            "max_linear_velocity": 0.05
+          },
+          "force_sensor": {
+            "force_timeout": 0.25
+          },
+          "safety": {
+            "capture_settle_time": 0.5,
+            "enforce_single_target_owner": true,
+            "loop_rate": 125.0,
+            "max_tracking_error_m": 0.1,
+            "max_tracking_error_rad": 0.35,
+            "observation_timeout": 0.25
+          }
+        }
+      }
+    },
+    "result": {
+      "passed": true,
+      "backend": "MuJoCo",
+      "positive_tcp_dx_m": 0.167937,
+      "base_travel_m": 0.173948,
+      "arm_joint_change_norm_rad": 0.0312647,
+      "release_drift_m": 0.00701616,
+      "negative_tcp_dx_m": -0.159721,
+      "disconnect_fault": "FAULT_WRENCH_TIMEOUT",
+      "stopped_base_command_max": 0,
+      "hold_command_variation_rad": 0,
+      "recovery_displacement_m": 0.00470347,
+      "unexpected_collision": false
+    }
+  },
+  "current_force_profile": {
+    "profile": {
+      "force_sensor_processor": {
+        "ros__parameters": {
+          "force_sensor": {
+            "filter_cutoff_hz": 4.44,
+            "force_deadband_n": 1.0,
+            "torque_deadband_nm": 0.5,
+            "hard_force_norm_limit": 15.0,
+            "hard_wrench_limit": [
+              15.0,
+              15.0,
+              15.0,
+              3.0,
+              3.0,
+              3.0
+            ],
+            "raw_timeout": 0.25,
+            "tare_samples": 50,
+            "tare_on_start": true,
+            "tare_after_compensation": true
+          }
+        }
+      },
+      "whole_body_force_control": {
+        "ros__parameters": {
+          "admittance": {
+            "selected_axes": [
+              true,
+              true,
+              true,
+              false,
+              false,
+              false
+            ],
+            "mass": [
+              10.0,
+              10.0,
+              10.0,
+              2.0,
+              2.0,
+              2.0
+            ],
+            "damping": [
+              200.0,
+              200.0,
+              200.0,
+              15.0,
+              15.0,
+              15.0
+            ],
+            "stiffness": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "max_velocity": [
+              0.3,
+              0.3,
+              0.3,
+              0.4,
+              0.4,
+              0.4
+            ]
+          },
+          "force_sensor": {
+            "force_timeout": 0.25
+          },
+          "end_effector": {
+            "max_linear_velocity": 0.2,
+            "max_angular_velocity": 0.4
+          },
+          "safety": {
+            "loop_rate": 125.0,
+            "capture_settle_time": 0.5,
+            "observation_timeout": 0.25,
+            "enforce_single_target_owner": true,
+            "max_tracking_error_m": 0.1,
+            "max_tracking_error_rad": 0.35
+          }
+        }
+      },
+      "wbmm_mrt_node": {
+        "ros__parameters": {
+          "force_gate": {
+            "timeout": 0.25,
+            "robot_state_timeout": 0.25
+          },
+          "arm_use_velocity_integrator": true,
+          "arm_max_command_velocity": 0.3,
+          "base_max_linear_velocity": 0.2,
+          "base_max_angular_velocity": 0.4
+        }
+      },
+      "virtual_force_publisher": {
+        "ros__parameters": {
+          "rate": 125.0,
+          "command_topic": "/whole_body_force_control/virtual_wrench_command",
+          "command_timeout": 0.15
+        }
+      },
+      "keyboard_force_publisher": {
+        "ros__parameters": {
+          "command_topic": "/whole_body_force_control/virtual_wrench_command",
+          "frame_id": "tool0",
+          "rate": 50.0,
+          "keys": [
+            "w",
+            "s",
+            "a",
+            "d",
+            "r",
+            "f"
+          ],
+          "force_n": [
+            10.0,
+            10.0,
+            10.0
+          ]
+        }
+      }
+    },
+    "passed": false,
+    "failure": "zero-stiffness release did not settle below 0.01 m; further reverse/watchdog/recovery checks not executed in this run",
+    "push_tcp_dx_m": 0.248658,
+    "base_travel_m": 0.249085,
+    "arm_joint_travel_norm_rad": 0.0292453,
+    "release_drift_m": 0.0106488
+  },
+  "zero_force_reference_trace": {
+    "duration_wall_seconds": 20,
+    "samples": 1998,
+    "zero_force_samples": 1998,
+    "measured_peak_to_peak_rad": [
+      0.024994409723394617,
+      0.008894834084366199,
+      0.008163823859629105,
+      0.006709007177973625,
+      0.00690461330641301,
+      0.000712206657933423
+    ],
+    "command_peak_to_peak_rad": [
+      0.028745683471007144,
+      0.012949504075078444,
+      0.012768463740294833,
+      0.010594813398602243,
+      0.01038325683338348,
+      0.0015307166711842068
+    ]
+  },
+  "fixed_command_hold_after_disabling_admittance": {
+    "duration_after_settling_wall_seconds": 4,
+    "samples": 400,
+    "measured_peak_to_peak_rad": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "command_peak_to_peak_rad": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "maximum_tracking_error_rad": 3.735900477863652e-13
+  },
+  "status": "superseded: high-gain/velocity-integrator profile withdrawn after viewer-on closed-loop regression",
+  "current_validation": "docs/force_mpc_oscillation_validation.json"
+}

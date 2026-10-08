@@ -1,0 +1,13 @@
+# Physical position servos: retain the original XML gains after closed-loop
+# regression of the previous high-gain profile. Do not tune on step tests alone.
+# Joint order: joint_1 .. joint_6. Startup-only settings, not hardware gains.
+# Torque limits, joint limits, collisions and F/T sensing remain in the XML.
+mujoco_bridge:
+  ros__parameters:
+    arm_bias_compensation: true
+    arm_servo:
+      integrator: implicitfast
+      kp: [1000.0, 2500.0, 2000.0, 300.0, 300.0, 50.0]
+      kv: [200.0, 250.0, 250.0, 15.0, 15.0, 1.0]
+    # Viewer sync uses wall time and no longer runs at every physics step.
+    viewer_rate: 30.0

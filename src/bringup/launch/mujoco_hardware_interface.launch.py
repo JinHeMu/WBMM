@@ -69,7 +69,6 @@ def _make_nodes(context):
         "model_path": model,
         "use_sim_time": False,
         "use_viewer": viewer,
-        "arm_bias_compensation": _as_bool(_value(context, "arm_bias_compensation")),
         "init_keyframe": init_keyframe,
         "odom_topic": _value(context, "wheel_odom_topic"),
         "publish_odom_tf": publish_odom_tf,
@@ -87,6 +86,9 @@ def _make_nodes(context):
         "camera.depth_info_topic": _value(
             context, "depth_camera_info_topic"),
     }
+    bias = _value(context, "arm_bias_compensation")
+    if bias != "auto":
+        bridge_parameters["arm_bias_compensation"] = _as_bool(bias)
 
     nodes = [
         Node(
@@ -94,7 +96,7 @@ def _make_nodes(context):
             executable="mujoco_bridge",
             name="mujoco_bridge",
             output="screen",
-            parameters=[sensors_yaml, bridge_parameters],
+            parameters=[sensors_yaml, _value(context, "arm_servo_config"), bridge_parameters],
         ),
     ]
 
@@ -171,6 +173,11 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "depth_camera_info_topic",
             default_value="/camera/d455/depth/camera_info"),
-        DeclareLaunchArgument("arm_bias_compensation", default_value="false"),
+        DeclareLaunchArgument(
+            "arm_servo_config", default_value=os.path.join(
+                get_package_share_directory("tracer_jaka_mujoco"), "config", "arm_servo.yaml"),
+            description="Startup YAML for physical arm position servos"),
+        DeclareLaunchArgument("arm_bias_compensation", default_value="auto",
+                              choices=["auto", "true", "false"]),
         OpaqueFunction(function=_make_nodes),
     ])

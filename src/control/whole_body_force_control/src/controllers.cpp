@@ -7,6 +7,29 @@
 namespace whole_body_force_control
 {
 
+Vector6d rateLimitCorrection(
+  const Vector6d & desired, const Vector6d & previous,
+  double dt, double max_linear_velocity, double max_angular_velocity)
+{
+  if (!desired.allFinite() || !previous.allFinite() || !std::isfinite(dt) ||
+    dt < 0.0 || !std::isfinite(max_linear_velocity) ||
+    !std::isfinite(max_angular_velocity) || max_linear_velocity <= 0.0 ||
+    max_angular_velocity <= 0.0)
+  {
+    throw std::invalid_argument("invalid Cartesian rate limit input");
+  }
+  Vector6d delta = desired - previous;
+  const double linear_step = max_linear_velocity * std::min(dt, 0.05);
+  const double angular_step = max_angular_velocity * std::min(dt, 0.05);
+  if (delta.head<3>().norm() > linear_step) {
+    delta.head<3>() *= linear_step / delta.head<3>().norm();
+  }
+  if (delta.tail<3>().norm() > angular_step) {
+    delta.tail<3>() *= angular_step / delta.tail<3>().norm();
+  }
+  return previous + delta;
+}
+
 Vector6d transformWrench(
   const Vector6d & source_wrench,
   const Eigen::Matrix3d & target_rotation_source,
@@ -40,6 +63,9 @@ AdmittanceController::AdmittanceController(
 
 double AdmittanceController::update(double measured_force, double dt)
 {
+  if (!std::isfinite(measured_force) || !std::isfinite(dt) || dt < 0.0) {
+    throw std::invalid_argument("admittance force and dt must be finite");
+  }
   measured_force_ = measured_force;
   dt = std::clamp(dt, 0.0, 0.05);
 

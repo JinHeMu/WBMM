@@ -1,0 +1,45 @@
+# Source: /home/a/replace_disk_robot/logs/force_direction_audit/candidate_tool0_repaired_bounded4.json
+# SHA256: 8c482adbd582bcdfa0af08a306dcd6e43bd08c1af9f6d0628ebaf441cd84cc32
+# Repaired tool0 calibration selected for integration; no robot writes here.
+# Sensor axes are the raw EDG axes labelled jk_se_vi_200_link by fts_broadcaster.
+# Gravity is in jaka_base_link, not base_footprint. Extrinsics use the calibrated
+# sensor origin/axes, not the CAD sensor mesh origin; avoid a second TF transform.
+force_sensor_processor:
+  ros__parameters:
+    force_sensor:
+      use_calibrated_transform: true
+      sensor_to_tcp_rotation:
+      - -0.7071067811865471
+      - 0.7071067811865474
+      - -6.711218596046747e-17
+      - -0.6644259853128232
+      - -0.6644259853128232
+      - -0.3421640251139344
+      - -0.24194650243614702
+      - -0.24194650243614685
+      - 0.9396402396225004
+      tcp_to_sensor_m:
+      - 0.0
+      - 0.05
+      - -0.4
+      load_compensation:
+        enable: true
+        base_frame: jaka_base_link
+        mass_kg: 0.6720235983168857
+        gravity_m_s2: 9.80665
+        gravity_direction_base:
+        - 0.010397489680866524
+        - -0.0689772269488352
+        - -0.9975640502598242
+        center_of_mass_sensor_m:
+        - 8.687773691952532e-05
+        - -0.003714627227301273
+        - 0.0667849847576023
+        force_bias_sensor_n:
+        - -7.443991314546081
+        - -7.015503408768838
+        - -1.9811366627602127
+        torque_bias_sensor_nm:
+        - 0.6919755927671335
+        - -0.7358580436630641
+        - 0.08326345101383147

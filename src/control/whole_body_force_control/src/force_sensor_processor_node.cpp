@@ -169,6 +169,35 @@ void ForceSensorProcessorNode::loadParameters() {
     throw std::runtime_error("force_sensor.filter_alpha must be in [0, 1]");
   }
   parameters_.filter_alpha = Vector6d::Constant(filter_alpha);
+  parameters_.filter_cutoff_hz = declare_parameter<double>(
+      "force_sensor.filter_cutoff_hz", 0.0);
+  parameters_.tare_after_compensation = declare_parameter<bool>(
+      "force_sensor.tare_after_compensation", false);
+  parameters_.tare_on_start = declare_parameter<bool>(
+      "force_sensor.tare_on_start", true);
+  parameters_.require_stamped_wrench = declare_parameter<bool>(
+      "force_sensor.require_stamped_wrench", false);
+  if (!std::isfinite(parameters_.filter_cutoff_hz) ||
+      parameters_.filter_cutoff_hz < 0.0) {
+    throw std::runtime_error("force_sensor.filter_cutoff_hz must be non-negative");
+  }
+  parameters_.use_calibrated_transform = declare_parameter<bool>(
+      "force_sensor.use_calibrated_transform", false);
+  const auto rotation = declare_parameter<std::vector<double>>(
+      "force_sensor.sensor_to_tcp_rotation", {1., 0., 0., 0., 1., 0., 0., 0., 1.});
+  if (rotation.size() != 9) {
+    throw std::runtime_error("sensor_to_tcp_rotation requires 9 row-major values");
+  }
+  for (int i = 0; i < 9; ++i) {
+    parameters_.tcp_rotation_sensor(i / 3, i % 3) = rotation[i];
+  }
+  const auto &R = parameters_.tcp_rotation_sensor;
+  if (!R.allFinite() || std::abs(R.determinant() - 1.0) > 1e-6 ||
+      !(R.transpose() * R).isApprox(Eigen::Matrix3d::Identity(), 1e-6)) {
+    throw std::runtime_error("sensor_to_tcp_rotation must be a proper rotation");
+  }
+  parameters_.sensor_origin_in_tcp = vector3Parameter(
+      *this, "force_sensor.tcp_to_sensor_m", Eigen::Vector3d::Zero());
   parameters_.wrench_scale =
       vector6Parameter(*this, "force_sensor.wrench_scale", Vector6d::Ones());
   parameters_.hard_wrench_limit = vector6Parameter(
@@ -218,6 +247,8 @@ void ForceSensorProcessorNode::configureProcessor() {
   ForceProcessorConfig config;
   config.tare_samples = parameters_.tare_samples;
   config.filter_alpha = parameters_.filter_alpha;
+  config.filter_cutoff_hz = parameters_.filter_cutoff_hz;
+  config.tare_after_compensation = parameters_.tare_after_compensation;
   config.scale = parameters_.wrench_scale;
   config.hard_limit_enabled = true;
   config.hard_wrench_limit = parameters_.hard_wrench_limit;
@@ -258,6 +289,17 @@ void ForceSensorProcessorNode::rawWrenchCallback(
     return;
   }
 
+  if (parameters_.require_stamped_wrench) {
+    const rclcpp::Time stamp(message->header.stamp, get_clock()->get_clock_type());
+    const double age = (now() - stamp).seconds();
+    if (stamp.nanoseconds() <= last_stamp_ns_ || age < -0.05 ||
+        age > parameters_.raw_timeout) {
+      latchFault("WRENCH_STAMP");
+      return;
+    }
+    last_stamp_ns_ = stamp.nanoseconds();
+  }
+
   raw_received_ = true;
   last_raw_ = std::chrono::steady_clock::now();
 
@@ -273,25 +315,35 @@ void ForceSensorProcessorNode::rawWrenchCallback(
   }
 
   try {
-    const auto tcp_sensor = lookupTransformWithFallback(
-        parameters_.tcp_frame, parameters_.sensor_frame, message->header.stamp,
-        "sensor-to-tcp");
-    const Eigen::Matrix3d tcp_rotation_sensor =
-        rotationFromTransform(tcp_sensor);
-    const Eigen::Vector3d sensor_origin_in_tcp =
-        translationFromTransform(tcp_sensor);
+    Eigen::Matrix3d tcp_rotation_sensor = parameters_.tcp_rotation_sensor;
+    Eigen::Vector3d sensor_origin_in_tcp = parameters_.sensor_origin_in_tcp;
+    if (!parameters_.use_calibrated_transform) {
+      const auto tcp_sensor = lookupTransformWithFallback(
+          parameters_.tcp_frame, parameters_.sensor_frame, message->header.stamp,
+          "sensor-to-tcp");
+      tcp_rotation_sensor = rotationFromTransform(tcp_sensor);
+      sensor_origin_in_tcp = translationFromTransform(tcp_sensor);
+    }
 
     Eigen::Matrix3d sensor_rotation_base = Eigen::Matrix3d::Identity();
     if (parameters_.load_compensation.enable) {
-      const auto sensor_base = lookupTransformWithFallback(
-          parameters_.sensor_frame, parameters_.load_base_frame,
-          message->header.stamp, "base-to-sensor");
-      sensor_rotation_base = rotationFromTransform(sensor_base);
+      const auto tcp_base = lookupTransformWithFallback(
+          parameters_.tcp_frame, parameters_.load_base_frame,
+          message->header.stamp, "base-to-tcp");
+      sensor_rotation_base =
+          tcp_rotation_sensor.transpose() * rotationFromTransform(tcp_base);
     }
 
+    const auto wall_now = std::chrono::steady_clock::now();
+    const double dt = processed_received_
+        ? std::chrono::duration<double>(wall_now - last_processed_).count()
+        : 1.0 / parameters_.monitor_rate;
+    last_processed_ = wall_now;
+    processed_received_ = true;
+    tf_ready_ = true;
     const auto result = processor_.process(
         *raw, parameters_.tcp_frame, tcp_rotation_sensor,
-        sensor_origin_in_tcp, sensor_rotation_base);
+        sensor_origin_in_tcp, sensor_rotation_base, dt);
     if (result.taring) {
       publishState("TARING");
       return;
@@ -314,6 +366,13 @@ void ForceSensorProcessorNode::rawWrenchCallback(
     processed_wrench_publisher_->publish(output);
     publishState("ACTIVE");
   } catch (const tf2::TransformException &exception) {
+    // TF listeners and the backend start concurrently. Allow an initial
+    // buffer-fill period, but never tolerate loss of a previously valid TF.
+    if (!tf_ready_ && std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - reset_at_).count() < 3.0) {
+      publishState("WAITING_FOR_TF");
+      return;
+    }
     RCLCPP_ERROR(get_logger(), "Wrench TF lookup failed: %s", exception.what());
     latchFault("WRENCH_TF");
   } catch (const std::exception &exception) {
@@ -338,8 +397,13 @@ void ForceSensorProcessorNode::monitorRawInput() {
 void ForceSensorProcessorNode::resetProcessor() {
   fault_latched_ = false;
   raw_received_ = false;
+  processed_received_ = false;
+  tf_ready_ = false;
+  reset_at_ = std::chrono::steady_clock::now();
+  last_stamp_ns_ = 0;
   processor_.reset();
-  if (!parameters_.load_compensation.enable) {
+  if ((!parameters_.load_compensation.enable && parameters_.tare_on_start) ||
+      (parameters_.load_compensation.enable && parameters_.tare_after_compensation)) {
     processor_.startTare();
     publishState("TARING");
   } else {

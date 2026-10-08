@@ -201,6 +201,7 @@ def _make_actions(context):
         _value(context, "start_remani")
     ):
         planning_arguments = {
+            "planner_config": _value(context, "planner_config"),
             "use_sim_time": use_sim_time,
             "urdf_file": _value(context, "urdf_file"),
             "esdf_file": planner_esdf_file,
@@ -272,6 +273,7 @@ def generate_launch_description():
             "hardware_backend", default_value="none",
             choices=["none", "real", "mujoco"],
             description="Hardware backend started by this entry point."),
+        DeclareLaunchArgument("planner_config", default_value=""),
         DeclareLaunchArgument(
             "use_sim_time", default_value="auto",
             choices=["auto", "true", "false"]),

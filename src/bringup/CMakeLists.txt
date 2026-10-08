@@ -6,6 +6,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+ament_python_install_package(wbmm_bringup_launch)
 
 # Launch files are backend-agnostic and live directly in launch/.
 install(DIRECTORY launch/
@@ -32,6 +34,12 @@ if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   find_package(ament_lint_auto REQUIRED)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_test(NAME functional_launch
+    COMMAND "${CMAKE_COMMAND}" -E env "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1"
+      "ROS_LOG_DIR=${CMAKE_CURRENT_BINARY_DIR}/functional_launch_logs"
+      "${Python3_EXECUTABLE}" -m pytest -q
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/test_functional_launch.py")
+  set_tests_properties(functional_launch PROPERTIES TIMEOUT 30)
   add_test(NAME localization_backends
     COMMAND "${CMAKE_COMMAND}" -E env "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1"
       "ROS_LOG_DIR=${CMAKE_CURRENT_BINARY_DIR}/localization_backend_logs"

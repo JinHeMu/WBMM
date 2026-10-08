@@ -14,6 +14,8 @@
   <depend>wbmm_robot_model</depend>
   <depend>wbmm_ros_interfaces</depend>
   <depend>rclcpp</depend>
+  <depend>rcl_interfaces</depend>
+  <depend>libx11-dev</depend>
   <exec_depend>rclpy</exec_depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>

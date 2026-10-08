@@ -3,6 +3,45 @@ import mujoco
 import numpy as np
 
 
+def configure_position_servos(model, actuator_ids, dof_ids, kp, kv, integrator):
+    """Configure the physical servos; keep XML transmission and torque limits.
+
+    Zero kp on every axis selects the original XML gains. Gain overrides are
+    startup-only because the compensator caches kp. High actuator damping
+    requires an implicit velocity integrator rather than Euler.
+    """
+    # Validate the transmission before changing any actuator parameters.
+    ArmBiasCompensator(model, actuator_ids, dof_ids)
+    kp = np.asarray(kp, dtype=float)
+    kv = np.asarray(kv, dtype=float)
+    expected = (len(actuator_ids),)
+    if kp.shape != expected or kv.shape != expected:
+        raise ValueError('Arm kp/kv must contain one value per joint')
+    if not np.all(np.isfinite(kp)) or not np.all(np.isfinite(kv)):
+        raise ValueError('Arm kp/kv must be finite')
+    if np.any(kp < 0) or np.any(kv < 0):
+        raise ValueError('Arm kp/kv must not be negative')
+    integrators = {'model': None,
+                   'implicitfast': mujoco.mjtIntegrator.mjINT_IMPLICITFAST,
+                   'implicit': mujoco.mjtIntegrator.mjINT_IMPLICIT}
+    if integrator not in integrators:
+        raise ValueError('Arm integrator must be model, implicitfast or implicit')
+    override = np.any(kp != 0)
+    if override and np.any(kp <= 0):
+        raise ValueError('Arm kp must be positive on every axis, or all zero for XML gains')
+    selected = integrators[integrator]
+    effective = model.opt.integrator if selected is None else selected
+    if override and effective not in (mujoco.mjtIntegrator.mjINT_IMPLICITFAST,
+                                      mujoco.mjtIntegrator.mjINT_IMPLICIT):
+        raise ValueError('Arm gain overrides require implicitfast or implicit integration')
+    if selected is not None:
+        model.opt.integrator = selected
+    if override:
+        model.actuator_gainprm[actuator_ids, 0] = kp
+        model.actuator_biasprm[actuator_ids, 1] = -kp
+        model.actuator_biasprm[actuator_ids, 2] = -kv
+
+
 class ArmBiasCompensator:
     """Add gravity/Coriolis feedforward through the existing bounded actuators.
 

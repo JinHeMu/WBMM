@@ -15,6 +15,7 @@
 #include "jaka_hardware_interface/jaka_hardware_interface.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -71,6 +72,11 @@ namespace jaka_hardware_interface
     hw_velocity_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
     hw_position_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 
+    auto it_sensor_mode = info_.hardware_parameters.find("torque_sensor_mode");
+    if (it_sensor_mode != info_.hardware_parameters.end()) {
+      torque_sensor_mode_ = std::stoi(it_sensor_mode->second);
+    }
+
     // Raw force/torque values are exposed through state interfaces.
     // All force processing is handled by a separate force process.
     hw_fts_states_.resize(6, 0.0);
@@ -91,6 +97,13 @@ namespace jaka_hardware_interface
     if (robot_.login_in(robot_ip_.c_str()) != ERR_SUCC)
     {
       RCLCPP_ERROR(rclcpp::get_logger("JakaHardwareInterface"), "Login failed!");
+      return CallbackReturn::ERROR;
+    }
+
+    if (torque_sensor_mode_ >= 0 &&
+        robot_.set_torque_sensor_mode(torque_sensor_mode_) != ERR_SUCC) {
+      RCLCPP_ERROR(rclcpp::get_logger("JakaHardwareInterface"),
+                  "Failed to configure requested raw torque sensor mode");
       return CallbackReturn::ERROR;
     }
 
@@ -233,10 +246,13 @@ namespace jaka_hardware_interface
     errno_t ret = robot_.edg_get_stat(&edg_state_);
     if (ret != ERR_SUCC)
     {
-      // Keep the last measured values.  A separate force process owns FTS
-      // validity/stale detection; this hardware interface no longer performs
-      // any force processing.
-      return hardware_interface::return_type::OK;
+      // Publishing the previous sample with a fresh broadcaster stamp defeats
+      // every downstream timeout. Invalidate it and stop ros2_control instead.
+      std::fill(hw_fts_states_.begin(), hw_fts_states_.end(),
+                std::numeric_limits<double>::quiet_NaN());
+      std::fill(hw_position_states_.begin(), hw_position_states_.end(),
+                std::numeric_limits<double>::quiet_NaN());
+      return hardware_interface::return_type::ERROR;
     }
 
     // A. 更新关节状态

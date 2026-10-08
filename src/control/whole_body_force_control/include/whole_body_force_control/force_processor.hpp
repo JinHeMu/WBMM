@@ -46,6 +46,9 @@ struct ForceProcessorConfig
 {
   std::size_t tare_samples{50};
   Vector6d filter_alpha{Vector6d::Ones()};
+  // >0 uses a time-based low-pass instead of a sample-rate-dependent alpha.
+  double filter_cutoff_hz{0.0};
+  bool tare_after_compensation{false};
   Vector6d scale{Vector6d::Ones()};
   bool hard_limit_enabled{true};
   Vector6d hard_wrench_limit{Vector6d::Constant(1000.0)};
@@ -89,7 +92,7 @@ public:
     const Eigen::Matrix3d & target_rotation_source,
     const Eigen::Vector3d & target_to_source,
     const Eigen::Matrix3d & source_rotation_base =
-      Eigen::Matrix3d::Identity());
+      Eigen::Matrix3d::Identity(), double dt = 0.0);
 
   [[nodiscard]] bool taring() const {return tare_active_;}
   [[nodiscard]] std::size_t tareSamplesCollected() const {return tare_count_;}

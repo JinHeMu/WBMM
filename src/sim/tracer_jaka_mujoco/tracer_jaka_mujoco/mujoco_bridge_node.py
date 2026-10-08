@@ -40,7 +40,7 @@ from .lidar_sensor import LidarSensor
 from .camera_sensor import CameraSensor
 from .imu_sensor import ImuSensor
 from .fts_sensor import MujocoFtsBroadcaster
-from .arm_servo import ArmBiasCompensator
+from .arm_servo import ArmBiasCompensator, configure_position_servos
 
 
 ARM_JOINTS = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
@@ -98,8 +98,12 @@ class MujocoBridge(Node):
         # stops publishing or dies.
         self.declare_parameter("cmd_vel_timeout", 0.5)
         self.declare_parameter("use_viewer", True)
+        self.declare_parameter("viewer_rate", 30.0)
         self.declare_parameter("arm_actuator_suffix", "_servo")
         self.declare_parameter("arm_bias_compensation", False)
+        self.declare_parameter("arm_servo.kp", [0.0] * 6)
+        self.declare_parameter("arm_servo.kv", [0.0] * 6)
+        self.declare_parameter("arm_servo.integrator", "model")
         self.declare_parameter("init_keyframe", "home")
         self.declare_parameter("collision_monitor.enable", True)
         self.declare_parameter(
@@ -202,6 +206,9 @@ class MujocoBridge(Node):
         self.cmd_vel_max_angular = abs(float(gp("cmd_vel_max_angular")))
         self.cmd_vel_timeout = abs(float(gp("cmd_vel_timeout")))
         self.use_viewer = bool(gp("use_viewer"))
+        self.viewer_rate = float(gp("viewer_rate"))
+        if not math.isfinite(self.viewer_rate) or self.viewer_rate <= 0:
+            raise ValueError("viewer_rate must be finite and positive")
         arm_suffix = gp("arm_actuator_suffix")
         init_key = gp("init_keyframe")
         self.collision_monitor_enabled = bool(gp("collision_monitor.enable"))
@@ -243,6 +250,16 @@ class MujocoBridge(Node):
 
         self.a_arm = [nid(mujoco.mjtObj.mjOBJ_ACTUATOR, f"{j}{arm_suffix}")
                       for j in ARM_JOINTS]
+
+        configure_position_servos(
+            self.model, self.a_arm, [self.dadr[j] for j in ARM_JOINTS],
+            gp("arm_servo.kp"), gp("arm_servo.kv"), gp("arm_servo.integrator"))
+        mujoco.mj_forward(self.model, self.data)
+        self.get_logger().info(
+            "Arm physical position servos: kp=" +
+            str(self.model.actuator_gainprm[self.a_arm, 0].tolist()) +
+            " kv=" + str((-self.model.actuator_biasprm[self.a_arm, 2]).tolist()) +
+            " integrator=" + str(self.model.opt.integrator))
 
         self.arm_bias_compensator = None
         if bool(gp("arm_bias_compensation")):
@@ -696,6 +713,7 @@ def _run_loop(node, with_viewer):
     def body(viewer=None):
         step = 0
         next_wall = time.perf_counter()
+        next_viewer_wall = next_wall
         while rclpy.ok() and (viewer is None or viewer.is_running()):
             node.step()
 
@@ -704,8 +722,10 @@ def _run_loop(node, with_viewer):
             if step % pub_decim == 0:
                 node.publish_state()
             # 相机渲染已移至相机自身的工作线程（独立 EGL 上下文），主循环不再渲染
-            if viewer is not None:
+            viewer_wall = time.perf_counter()
+            if viewer is not None and viewer_wall >= next_viewer_wall:
                 viewer.sync()
+                next_viewer_wall = viewer_wall + 1.0 / node.viewer_rate
 
             step += 1
             next_wall += node.dt

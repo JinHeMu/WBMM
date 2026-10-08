@@ -1,5 +1,14 @@
 # WBMM Configuration Layout
 
+Daily-use functional entries load `real/startup.yaml` or `sim/startup.yaml`.
+These files select hardware, scenes, map paths and algorithm config paths;
+`{bringup}` expands to the installed package share, and `{workspace}` to
+`WBMM_WS` or the source workspace found from a symlink installation.
+`real/planner.yaml` and `sim/planner.yaml` contain numerical WBMM planner tuning.
+When provided, planner YAML tuning takes precedence over legacy numerical
+launch arguments; deployment frames, topics and resource paths remain launch-owned.
+See the [quickstart](../README.md) for the functional entry commands.
+
 Configuration is split into three layers:
 
 ```text

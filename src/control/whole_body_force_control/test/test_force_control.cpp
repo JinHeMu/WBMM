@@ -640,3 +640,124 @@ TEST(ForceProcessor, DeadbandZerosSmallForceAndTorque)
   EXPECT_DOUBLE_EQ(result.wrench.torque.y, 0.0);
   EXPECT_DOUBLE_EQ(result.wrench.force.y, 2.0);
 }
+
+TEST(ForceProcessor, ResidualTareAfterGravityDoesNotRemovePoseDependentGravityTwice)
+{
+  using namespace whole_body_force_control;
+  ForceProcessorConfig config;
+  config.load_compensation.enable = true;
+  config.load_compensation.mass_kg = 1.0;
+  config.load_compensation.gravity_m_s2 = 10.0;
+  config.tare_after_compensation = true;
+  config.tare_samples = 3;
+  config.force_deadband_n = config.torque_deadband_nm = 0.0;
+  ForceProcessor processor(config);
+  processor.startTare();
+  wbmm::core::Wrench raw;
+  raw.force.x = 0.5;  // residual sensor bias
+  raw.force.z = -10.0;
+  const auto identity = Eigen::Matrix3d::Identity();
+  const auto zero = Eigen::Vector3d::Zero();
+  EXPECT_TRUE(processor.process(raw, "tool0", identity, zero).taring);
+  EXPECT_TRUE(processor.process(raw, "tool0", identity, zero).taring);
+  auto result = processor.process(raw, "tool0", identity, zero);
+  ASSERT_TRUE(result.ok);
+  EXPECT_NEAR(result.wrench.force.x, 0.0, 1e-12);
+  const Eigen::Matrix3d sensor_from_base = Eigen::AngleAxisd(
+      std::acos(-1.0) / 2.0, Eigen::Vector3d::UnitY()).toRotationMatrix();
+  const Eigen::Vector3d gravity = sensor_from_base * Eigen::Vector3d(0, 0, -10);
+  raw.force.x = gravity.x() + 0.5;
+  raw.force.y = gravity.y(); raw.force.z = gravity.z();
+  result = processor.process(raw, "tool0", identity, zero, sensor_from_base);
+  ASSERT_TRUE(result.ok);
+  EXPECT_NEAR(result.wrench.force.x, 0.0, 1e-12);
+  EXPECT_NEAR(result.wrench.force.z, 0.0, 1e-12);
+}
+
+TEST(ForceProcessor, CutoffFilterHasTheSameResponseAcrossSensorRates)
+{
+  using namespace whole_body_force_control;
+  ForceProcessorConfig config;
+  config.filter_cutoff_hz = 2.0;
+  config.force_deadband_n = 0.0;
+  auto simulate = [&config](int rate) {
+    ForceProcessor processor(config);
+    wbmm::core::Wrench raw;
+    const auto R = Eigen::Matrix3d::Identity();
+    const auto p = Eigen::Vector3d::Zero();
+    processor.process(raw, "tool0", R, p, R, 1.0 / rate);
+    raw.force.x = 5.0;
+    ForceProcessorResult result;
+    for (int i = 0; i < rate / 5; ++i) {
+      result = processor.process(raw, "tool0", R, p, R, 1.0 / rate);
+    }
+    EXPECT_TRUE(result.ok);
+    return result.wrench.force.x;
+  };
+  EXPECT_NEAR(simulate(50), simulate(125), 1e-12);
+}
+
+TEST(ForceProcessor, ResidualTareCannotAbsorbExcessiveExternalForce)
+{
+  using namespace whole_body_force_control;
+  ForceProcessorConfig config;
+  config.load_compensation.enable = true;
+  config.load_compensation.mass_kg = 1.0;
+  config.load_compensation.gravity_m_s2 = 10.0;
+  config.tare_after_compensation = true;
+  config.hard_force_norm_limit = 15.0;
+  ForceProcessor processor(config);
+  processor.startTare();
+  wbmm::core::Wrench raw;
+  raw.force.x = 16.0;
+  raw.force.z = -10.0;
+  const auto result = processor.process(raw, "tool0",
+      Eigen::Matrix3d::Identity(), Eigen::Vector3d::Zero());
+  EXPECT_FALSE(result.ok);
+  EXPECT_FALSE(result.taring);
+  EXPECT_TRUE(result.hard_limit_exceeded);
+  EXPECT_EQ(result.tare_samples_collected, 0u);
+}
+
+TEST(ForceProcessor, UnfilteredMomentArmSpikeCannotBeHiddenByFiltering)
+{
+  using namespace whole_body_force_control;
+  ForceProcessorConfig config;
+  config.filter_alpha = Vector6d::Constant(0.01);
+  config.hard_wrench_limit << 20., 20., 20., 1., 1., 1.;
+  ForceProcessor processor(config);
+  wbmm::core::Wrench raw;
+  const auto R = Eigen::Matrix3d::Identity();
+  const Eigen::Vector3d p(0, 0, 0.4);
+  ASSERT_TRUE(processor.process(raw, "tool0", R, p).ok);
+  raw.force.x = 5.0;  // 2 Nm at TCP, raw torque remains 0
+  const auto result = processor.process(raw, "tool0", R, p);
+  EXPECT_FALSE(result.ok);
+  EXPECT_TRUE(result.hard_limit_exceeded);
+}
+
+TEST(CartesianReference, InitialAndDiagonalStepsRespectVectorNormLimits)
+{
+  using namespace whole_body_force_control;
+  const Vector6d desired = Vector6d::Ones();
+  const auto limited = rateLimitCorrection(desired, Vector6d::Zero(), 0.02, 0.05, 0.2);
+  EXPECT_NEAR(limited.head<3>().norm(), 0.001, 1e-12);
+  EXPECT_NEAR(limited.tail<3>().norm(), 0.004, 1e-12);
+  EXPECT_THROW(rateLimitCorrection(desired, Vector6d::Zero(),
+      std::numeric_limits<double>::quiet_NaN(), 0.05, 0.2), std::invalid_argument);
+}
+
+TEST(CartesianReference, RotatingToolDoesNotRotateAConstantWorldForceDirection)
+{
+  using namespace whole_body_force_control;
+  const Eigen::Matrix3d world_from_nominal = Eigen::AngleAxisd(
+      0.7, Eigen::Vector3d::UnitZ()).toRotationMatrix();
+  const Eigen::Matrix3d world_from_current = Eigen::AngleAxisd(
+      -0.9, Eigen::Vector3d::UnitZ()).toRotationMatrix();
+  const Eigen::Vector3d world_force(5, 0, 0);
+  Vector6d wrench = Vector6d::Zero();
+  wrench.head<3>() = world_from_current.transpose() * world_force;
+  const auto nominal_wrench = transformWrench(wrench,
+      world_from_nominal.transpose() * world_from_current, Eigen::Vector3d::Zero());
+  EXPECT_TRUE((world_from_nominal * nominal_wrench.head<3>()).isApprox(world_force));
+}

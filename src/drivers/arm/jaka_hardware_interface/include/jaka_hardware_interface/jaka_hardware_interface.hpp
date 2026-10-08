@@ -65,6 +65,7 @@ private:
   // IP Config
   std::string robot_ip_;
   std::string local_ip_; // PC IP for EDG UDP
+  int torque_sensor_mode_ = -1; // -1 preserves controller setting; force bringup requests mode 1
   bool hardware_write_ = false; // true: enable servo and write commands; false: read-only EDG telemetry
 
   // Data storage

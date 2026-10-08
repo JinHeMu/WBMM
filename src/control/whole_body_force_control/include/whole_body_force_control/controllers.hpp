@@ -34,6 +34,12 @@ Vector6d transformWrench(
   const Eigen::Matrix3d & target_rotation_source,
   const Eigen::Vector3d & target_to_source);
 
+// Norm limits apply to translation and rotation separately, including the
+// very first update. Both corrections use the same fixed nominal TCP axes.
+Vector6d rateLimitCorrection(
+  const Vector6d & desired, const Vector6d & previous,
+  double dt, double max_linear_velocity, double max_angular_velocity);
+
 // Single-axis second-order admittance:
 //
 //   M * x_ddot + D * x_dot + K * x = F_measured

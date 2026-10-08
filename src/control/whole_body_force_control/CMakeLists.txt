@@ -11,6 +11,7 @@ find_package(Eigen3 REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(ocs2_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rcl_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -51,11 +52,21 @@ target_link_libraries(force_sensor_processor_node
 ament_target_dependencies(force_sensor_processor_node
   geometry_msgs rclcpp std_msgs std_srvs tf2_ros)
 
+add_executable(virtual_wrench_node src/virtual_wrench_node.cpp)
+target_link_libraries(virtual_wrench_node Eigen3::Eigen)
+ament_target_dependencies(virtual_wrench_node geometry_msgs rclcpp rcl_interfaces tf2_ros)
+
+find_package(X11 REQUIRED)
+add_executable(keyboard_wrench_node src/keyboard_wrench_node.cpp)
+target_include_directories(keyboard_wrench_node PRIVATE ${X11_INCLUDE_DIR})
+target_link_libraries(keyboard_wrench_node ${X11_LIBRARIES})
+ament_target_dependencies(keyboard_wrench_node geometry_msgs rclcpp)
+
 install(TARGETS ${PROJECT_NAME}_core
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib)
-install(TARGETS whole_body_force_control_node force_sensor_processor_node
+install(TARGETS whole_body_force_control_node force_sensor_processor_node virtual_wrench_node keyboard_wrench_node
   RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
 # Deployment profiles are centralized in tracer_jaka_bringup/config/.
@@ -76,6 +87,15 @@ if(BUILD_TESTING)
     wbmm_robot_model::wbmm_robot_model
     wbmm_ros_interfaces::wbmm_ros_interfaces)
   ament_target_dependencies(test_force_control ament_index_cpp)
+  # Manual test against an already running isolated MuJoCo force_mpc launch.
+  # Never register this as an automatic hardware-facing CTest.
+  add_executable(force_mpc_integration_probe test/force_mpc_integration_probe.cpp)
+  target_link_libraries(force_mpc_integration_probe
+    wbmm_pinocchio::wbmm_pinocchio wbmm_ros_interfaces::wbmm_ros_interfaces
+    wbmm_robot_model::wbmm_robot_model)
+  ament_target_dependencies(force_mpc_integration_probe
+    ament_index_cpp rclcpp geometry_msgs ocs2_msgs std_msgs std_srvs)
+  install(TARGETS force_mpc_integration_probe RUNTIME DESTINATION lib/${PROJECT_NAME})
   # 测试只依赖 package share 里的 URDF；fallback 仅用于未安装描述的源码工作区。
   target_compile_definitions(test_force_control PRIVATE
     WHOLE_BODY_FORCE_CONTROL_TEST_URDF_FALLBACK="${CMAKE_CURRENT_SOURCE_DIR}/../../robotics/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf")
