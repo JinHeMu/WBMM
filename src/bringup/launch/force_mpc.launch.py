@@ -6,6 +6,7 @@ C++ virtual sensor; real execution defaults to telemetry-only and disabled
 admittance. All dynamics and calibration values remain in YAML files.
 """
 
+import math
 import os
 
 from ament_index_python.packages import get_package_share_directory
@@ -159,11 +160,27 @@ def _make_nodes(context):
                     "publish_odom_tf": "true", "start_fts": str(not fake_wrench).lower(),
                     "start_camera": "false", "start_lidar": "false", "start_imu": "false"}
         else:
+            # Match the effective MRT profile. Allow two ticks of sample
+            # alignment in the tracking guard, and 2x commanded speed in the
+            # measured-speed guard. These are independent execution trips,
+            # not a replacement for the robot's own collision protection.
+            mrt_parameters = {}
+            for path in [*ocs2_layers, *mrt_force_layers]:
+                with open(path, encoding="utf-8") as stream:
+                    values = yaml.safe_load(stream) or {}
+                _merge(mrt_parameters, values.get("wbmm_mrt_node", {}).get("ros__parameters", {}))
+            speed_limit = float(mrt_parameters.get("arm_max_command_velocity", 0.5))
+            lead_limit = float(mrt_parameters.get("arm_max_delta_per_step", 0.5))
+            loop_rate = float(mrt_parameters.get("mrt_loop_rate", 100.0))
+            if any(not math.isfinite(v) or v <= 0 for v in [speed_limit, lead_limit, loop_rate]):
+                raise RuntimeError("Force MPC execution limits must be finite and positive")
             filename = "wbmm_hardware_interface.launch.py"
             args = {"hardware_write": str(hardware_write).lower(),
                     "start_arm_controller": str(hardware_write).lower(),
                     "start_arm_pose": "false", "start_jaka_fts": "true",
                     "torque_sensor_mode": "1", "publish_odom_tf": "true",
+                    "safety_max_joint_velocity": str(2.0 * speed_limit),
+                    "safety_max_tracking_error": str(lead_limit + 2.0 * speed_limit / loop_rate),
                     "start_lidar": "false", "start_imu": "false",
                     "jaka_robot_ip": _value(context, "jaka_robot_ip"),
                     "jaka_local_ip": _value(context, "jaka_local_ip"),

@@ -71,6 +71,8 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
   find_package(ament_cmake_gmock REQUIRED)
+  ament_add_gmock(test_servo_command_stream test/test_servo_command_stream.cpp)
+  target_include_directories(test_servo_command_stream PRIVATE include)
   find_package(ros2_control_test_assets REQUIRED)
 
 endif()

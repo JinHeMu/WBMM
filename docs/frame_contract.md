@@ -271,7 +271,7 @@ $$
 
 | 环节 | 当前行为 |
 |---|---|
-| 传感器输入 | [JAKA 驱动](../src/drivers/arm/jaka_hardware_interface/src/jaka_hardware_interface.cpp)透传 EDG 的原始 F/T 数值。实机 broadcaster 声明 jk_se_vi_200_link，当前 sensor_frame 默认也为该 frame；仿真从 tcp_fts_site 读数并按配置填写 header。header 本身不证明原点、轴向、单位和符号已经与实机一致。 |
+| 传感器输入 | [JAKA 驱动](../src/robotics/jaka_hardware_interface/src/jaka_hardware_interface.cpp)透传 EDG 的原始 F/T 数值。实机 broadcaster 声明 jk_se_vi_200_link，当前 sensor_frame 默认也为该 frame；仿真从 tcp_fts_site 读数并按配置填写 header。header 本身不证明原点、轴向、单位和符号已经与实机一致。 |
 | 当前处理器 | [力传感器处理节点](../src/control/whole_body_force_control/src/force_sensor_processor_node.cpp)要求输入 frame 等于 sensor_frame，并按消息时间查询 sensor_frame 到 tcp_frame 的 TF。ForceProcessor 先检查输入有限性。未启用负载补偿时，在自动 tare 前检查缩放后的原始值硬限；启用负载补偿时先在 sensor_frame 减去偏置与模型负载 wrench、跳过自动 tare，随后应用六轴 wrench_scale 并检查补偿后硬限。两种路径都将完整 wrench 变换到 tcp_frame，再在该系滤波、死区并检查输出硬限；死区只作用于输出，保留低通滤波内部状态。 |
 | 当前输出与导纳 | 处理器内部结果和发布的 wrench 均标注 tcp_frame；当前默认 tcp_frame 为 tool0。导纳在名义 TCP/tool0 轴下计算局部修正，再按名义末端姿态转到 state_frame，与名义末端位姿组合；ROS I/O 另发布 correction 修正量数组和 states 控制状态。当前默认 state_frame 为 odom。修正量没有固定 max_offset，现有路径依赖关节硬限位、IK 可达性 anti-windup 和 MPC 碰撞约束。 |
 | 当前能力边界 | 代码只有六轴缩放向量 wrench_scale，没有通用六维标定矩阵。接触判据、阈值、偏置获取策略及其与自动 tare 的关系不能据此视为已统一实现。 |

@@ -1,0 +1,310 @@
+{
+  "hardware_write_performed": false,
+  "rows": 60,
+  "sample_span_s": 7.137379975,
+  "max_joint_span_rad": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "tcp_position_in_jaka_base_m": [
+    0.4361428684969819,
+    0.09714923883558377,
+    0.13034517535563578
+  ],
+  "predicted_bias_plus_gravity_sensor_n": [
+    -8.832391111261112,
+    -9.288256008482737,
+    4.047047028902771
+  ],
+  "jacobian_singular_values_mixed_units": [
+    1.886150963442823,
+    1.4533913830663734,
+    1.079062649357531,
+    0.39741735174112536,
+    0.28445039411395256,
+    0.21293319368963845
+  ],
+  "edg_channel_correspondence_confirmed": false,
+  "channels": {
+    "sdk_torque_original": {
+      "raw_mean_n": [
+        -10.2,
+        4.221666666666664,
+        -2.0999999999999974
+      ],
+      "raw_std_n": [
+        0.0,
+        0.04119735698102745,
+        2.6645352591003757e-15
+      ],
+      "residual_mean_tool0_n": [
+        10.520003456142307,
+        -5.964370447539256,
+        -8.713803095313201
+      ],
+      "residual_norm_n": 14.905520854254494,
+      "conditional_velocity_at_damping200_m_s": [
+        0.052600017280711536,
+        -0.02982185223769628,
+        -0.043569015476566005
+      ]
+    },
+    "sdk_actTorque": {
+      "raw_mean_n": [
+        -8.19399995804001,
+        -7.986404344395335,
+        6.236000442499992
+      ],
+      "raw_std_n": [
+        1.0658141036401503e-14,
+        0.00936349821286372,
+        7.993605777301127e-15
+      ],
+      "residual_mean_tool0_n": [
+        0.46913742628304694,
+        -2.0381288564196542,
+        1.5873937465503412
+      ],
+      "residual_norm_n": 2.625619558636989,
+      "conditional_velocity_at_damping200_m_s": [
+        0.0,
+        -0.01019064428209827,
+        0.007936968732751706
+      ]
+    }
+  },
+  "file_sha256": {
+    "src/robotics/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf": "bd2d2c6629ab88bff7616958fae0cea5bf17058869863a1b5cfb71fad8f92267",
+    "src/bringup/config/real/force_mpc_calibration.yaml": "6bcbd55e192c965fbfcd4e5e0bd1d7538e63060e17801132c70f3b97d409373e",
+    "docs/diagnostics/force_mpc_real_20261008/status.csv": "87fc195b5822e1b8e479af85e7f64b15df6bbc2eb41d9455935e410120bd6f2b"
+  },
+  "approximate_fixed_base_LQR_modal_gains_s_inv": [
+    17.450961840498426,
+    22.510036971447274,
+    38.8916556816712,
+    60.997120465016685,
+    82.93748200621404,
+    115.15962658304585
+  ],
+  "illustrative_model_not_real_mpc_replay": [
+    {
+      "mode": "velocity_integral",
+      "gain_s_inv": 10,
+      "assumed_delay_s": 0.0,
+      "first_1s_peak_to_peak_rad": 0.0011118531546805705,
+      "last_1s_peak_to_peak_rad": 1.8392987982510053e-55
+    },
+    {
+      "mode": "predicted_position",
+      "gain_s_inv": 10,
+      "assumed_delay_s": 0.0,
+      "first_1s_peak_to_peak_rad": 0.000939130506266907,
+      "last_1s_peak_to_peak_rad": 4.45529469676356e-68
+    },
+    {
+      "mode": "velocity_integral",
+      "gain_s_inv": 20,
+      "assumed_delay_s": 0.0,
+      "first_1s_peak_to_peak_rad": 0.0012427024384253165,
+      "last_1s_peak_to_peak_rad": 1.8574781618598143e-55
+    },
+    {
+      "mode": "predicted_position",
+      "gain_s_inv": 20,
+      "assumed_delay_s": 0.0,
+      "first_1s_peak_to_peak_rad": 0.0009172803610145148,
+      "last_1s_peak_to_peak_rad": 8.475169035043636e-93
+    },
+    {
+      "mode": "velocity_integral",
+      "gain_s_inv": 40,
+      "assumed_delay_s": 0.0,
+      "first_1s_peak_to_peak_rad": 0.0013706728524936142,
+      "last_1s_peak_to_peak_rad": 1.4446823211486287e-55
+    },
+    {
+      "mode": "predicted_position",
+      "gain_s_inv": 40,
+      "assumed_delay_s": 0.0,
+      "first_1s_peak_to_peak_rad": 0.000906104427614541,
+      "last_1s_peak_to_peak_rad": 1.8221502607811805e-105
+    },
+    {
+      "mode": "velocity_integral",
+      "gain_s_inv": 60,
+      "assumed_delay_s": 0.0,
+      "first_1s_peak_to_peak_rad": 0.0014353202546069704,
+      "last_1s_peak_to_peak_rad": 2.045552657650833e-55
+    },
+    {
+      "mode": "predicted_position",
+      "gain_s_inv": 60,
+      "assumed_delay_s": 0.0,
+      "first_1s_peak_to_peak_rad": 0.0009045905801688681,
+      "last_1s_peak_to_peak_rad": 3.4214145179901384e-107
+    },
+    {
+      "mode": "velocity_integral",
+      "gain_s_inv": 10,
+      "assumed_delay_s": 0.024,
+      "first_1s_peak_to_peak_rad": 0.001226979068003889,
+      "last_1s_peak_to_peak_rad": 8.820484704043601e-42
+    },
+    {
+      "mode": "predicted_position",
+      "gain_s_inv": 10,
+      "assumed_delay_s": 0.024,
+      "first_1s_peak_to_peak_rad": 0.0009385939062956303,
+      "last_1s_peak_to_peak_rad": 4.2909753234744116e-61
+    },
+    {
+      "mode": "velocity_integral",
+      "gain_s_inv": 20,
+      "assumed_delay_s": 0.024,
+      "first_1s_peak_to_peak_rad": 0.0015080046468443822,
+      "last_1s_peak_to_peak_rad": 3.3539906849638617e-29
+    },
+    {
+      "mode": "predicted_position",
+      "gain_s_inv": 20,
+      "assumed_delay_s": 0.024,
+      "first_1s_peak_to_peak_rad": 0.000917267473904792,
+      "last_1s_peak_to_peak_rad": 9.965548331246716e-89
+    },
+    {
+      "mode": "velocity_integral",
+      "gain_s_inv": 40,
+      "assumed_delay_s": 0.024,
+      "first_1s_peak_to_peak_rad": 0.0019141132475114409,
+      "last_1s_peak_to_peak_rad": 7.010210726597523e-07
+    },
+    {
+      "mode": "predicted_position",
+      "gain_s_inv": 40,
+      "assumed_delay_s": 0.024,
+      "first_1s_peak_to_peak_rad": 0.0009061040521303809,
+      "last_1s_peak_to_peak_rad": 8.731458849473113e-105
+    },
+    {
+      "mode": "velocity_integral",
+      "gain_s_inv": 60,
+      "assumed_delay_s": 0.024,
+      "first_1s_peak_to_peak_rad": 0.009507474986910045,
+      "last_1s_peak_to_peak_rad": 0.011261745568822564
+    },
+    {
+      "mode": "predicted_position",
+      "gain_s_inv": 60,
+      "assumed_delay_s": 0.024,
+      "first_1s_peak_to_peak_rad": 0.0009045905392381233,
+      "last_1s_peak_to_peak_rad": 4.255267298260135e-107
+    },
+    {
+      "mode": "velocity_integral",
+      "gain_s_inv": 10,
+      "assumed_delay_s": 0.04,
+      "first_1s_peak_to_peak_rad": 0.0013316670316496808,
+      "last_1s_peak_to_peak_rad": 2.7927802310651e-32
+    },
+    {
+      "mode": "predicted_position",
+      "gain_s_inv": 10,
+      "assumed_delay_s": 0.04,
+      "first_1s_peak_to_peak_rad": 0.0009379733240293391,
+      "last_1s_peak_to_peak_rad": 8.09924636833018e-57
+    },
+    {
+      "mode": "velocity_integral",
+      "gain_s_inv": 20,
+      "assumed_delay_s": 0.04,
+      "first_1s_peak_to_peak_rad": 0.0017458565098200864,
+      "last_1s_peak_to_peak_rad": 5.4260359058909083e-14
+    },
+    {
+      "mode": "predicted_position",
+      "gain_s_inv": 20,
+      "assumed_delay_s": 0.04,
+      "first_1s_peak_to_peak_rad": 0.0009172533456719736,
+      "last_1s_peak_to_peak_rad": 9.953333933057961e-86
+    },
+    {
+      "mode": "velocity_integral",
+      "gain_s_inv": 40,
+      "assumed_delay_s": 0.04,
+      "first_1s_peak_to_peak_rad": 0.013495458984962473,
+      "last_1s_peak_to_peak_rad": 0.018573324750805472
+    },
+    {
+      "mode": "predicted_position",
+      "gain_s_inv": 40,
+      "assumed_delay_s": 0.04,
+      "first_1s_peak_to_peak_rad": 0.0009061037207361852,
+      "last_1s_peak_to_peak_rad": 3.232737611439118e-104
+    },
+    {
+      "mode": "velocity_integral",
+      "gain_s_inv": 60,
+      "assumed_delay_s": 0.04,
+      "first_1s_peak_to_peak_rad": 0.019360900440499672,
+      "last_1s_peak_to_peak_rad": 0.019649058576674268
+    },
+    {
+      "mode": "predicted_position",
+      "gain_s_inv": 60,
+      "assumed_delay_s": 0.04,
+      "first_1s_peak_to_peak_rad": 0.0009045905046764521,
+      "last_1s_peak_to_peak_rad": 5.124028084891862e-107
+    }
+  ],
+  "static_model_collision": {
+    "available": true,
+    "pairs": 139,
+    "nearest": [
+      {
+        "distance_m": 0.050333947978090224,
+        "first": "Link_0_0",
+        "second": "Link_2_0"
+      },
+      {
+        "distance_m": 0.054302567712435884,
+        "first": "Link_4_0",
+        "second": "Link_6_0"
+      },
+      {
+        "distance_m": 0.06019621135392146,
+        "first": "Link_3_4",
+        "second": "Link_5_0"
+      },
+      {
+        "distance_m": 0.08908012412320056,
+        "first": "Link_3_4",
+        "second": "Link_6_0"
+      },
+      {
+        "distance_m": 0.13553874518511813,
+        "first": "Link_5_0",
+        "second": "d435i_link_0"
+      },
+      {
+        "distance_m": 0.15132965508227392,
+        "first": "Link_4_0",
+        "second": "tool0_and_camera_link_0"
+      },
+      {
+        "distance_m": 0.15573265214623383,
+        "first": "Link_0_0",
+        "second": "Link_2_1"
+      },
+      {
+        "distance_m": 0.16369333124721902,
+        "first": "Link_5_0",
+        "second": "tool0_and_camera_link_0"
+      }
+    ],
+    "within_joint_limits": true
+  }
+}

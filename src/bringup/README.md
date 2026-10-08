@@ -102,6 +102,12 @@ ros2 launch tracer_jaka_bringup navigation.launch.py backend:=real hardware_writ
 ros2 launch tracer_jaka_bringup arm_moveit.launch.py backend:=sim
 ```
 
+```bash
+ros2 launch tracer_jaka_bringup arm_moveit.launch.py backend:=real hardware_write:=true
+```
+
+
+
 启动后端、轨迹控制接口、MoveIt 和 RViz。选择 `arm` 规划组后操作
 **Plan / Execute**；实机执行时需添加 `hardware_write:=true`。
 

@@ -7,6 +7,25 @@
 
 namespace wbmm {
 
+// A safety transition must obey the same position slew limit as normal
+// execution. Its target is latched once, never chased from moving feedback.
+// Unlike the normal feedback envelope, this still works after feedback jumps.
+inline bool boundedArmHoldCommand(
+    const std::vector<double>& target, const std::vector<double>& previous,
+    double dt, double maxVelocity, std::vector<double>& command) {
+  command.clear();
+  if (target.empty() || target.size() != previous.size() ||
+      !std::isfinite(dt) || dt < 0.0 || !std::isfinite(maxVelocity) ||
+      maxVelocity <= 0.0 || !std::isfinite(dt * maxVelocity)) { return false; }
+  auto result = previous;
+  for (std::size_t i = 0; i < target.size(); ++i) {
+    if (!std::isfinite(target[i]) || !std::isfinite(previous[i])) { return false; }
+    result[i] += std::clamp(target[i] - previous[i], -dt * maxVelocity, dt * maxVelocity);
+  }
+  command = std::move(result);
+  return true;
+}
+
 // Limit successive position commands in robot time, while bounding how far
 // the commanded position can lead measured feedback. A disjoint envelope
 // means feedback jumped: the caller must stop/hold rather than break either

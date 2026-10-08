@@ -1,0 +1,224 @@
+{
+  "bag": "/tmp/wbmm_force_oscillation_03",
+  "sqlite_sha256": "f134f3660b7280ed65a8f0f096abb0578178d329e1aca859955c813345ea948b",
+  "recording_duration_s": 3.4268617150000003,
+  "topic_counts": {
+    "/rosout": 40,
+    "/whole_body_force_control/states": 422,
+    "/fts_broadcaster/wrench": 421,
+    "/arm_controller/commands": 421,
+    "/tf_static": 1,
+    "/whole_body_force_control/correction": 421,
+    "/joint_states": 420,
+    "/whole_body_force_control/force_sensor_states": 1,
+    "/tf": 228,
+    "/wheel/odometry": 168,
+    "/mobile_manipulator_force_execution_state": 420,
+    "/mobile_manipulator_mpc_observation": 420,
+    "/cmd_vel": 420,
+    "/mobile_manipulator_mpc_policy": 238,
+    "/mobile_manipulator_ee_target": 420,
+    "/whole_body_force_control/processed_wrench": 360
+  },
+  "states": {
+    "/whole_body_force_control/states": {
+      "ACTIVE": 422
+    },
+    "/whole_body_force_control/force_sensor_states": {
+      "ACTIVE": 1
+    },
+    "/mobile_manipulator_force_execution_state": {
+      "ACTIVE": 420
+    }
+  },
+  "first_nonzero_processed_force_s": 2.6614475470000003,
+  "first_nonzero_admittance_correction_s": 2.6631951870000004,
+  "target_before_first_correction_peak_to_peak": [
+    6.705522537231445e-08,
+    1.1920928955078125e-07,
+    3.2186508178710938e-06,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "target_full_position_peak_to_peak_mm": [
+    0.011682510375976562,
+    0.0260770320892334,
+    0.5414783954620361
+  ],
+  "measured_tcp_peak_to_peak_mm": [
+    8.702390858966403,
+    28.791338347905647,
+    32.95995812113128
+  ],
+  "max_tcp_tracking_error_mm": 23.336853050888372,
+  "joint_windows": [
+    {
+      "start_s": 0.08,
+      "end_s": 1.08,
+      "measured_joint_peak_to_peak_rad": [
+        0.0004188790204786297,
+        0.004799655442984552,
+        0.007731808586334932,
+        0.00401425727958693,
+        0.00026179938779913314,
+        0.0001396263401596265
+      ],
+      "command_peak_to_peak_rad": [
+        0.0008037734034213248,
+        0.006874088134776635,
+        0.010629184354945975,
+        0.006159179258398817,
+        0.0004920085101614013,
+        0.00017049540053593049
+      ]
+    },
+    {
+      "start_s": 1.08,
+      "end_s": 2.08,
+      "measured_joint_peak_to_peak_rad": [
+        0.0025132741228718336,
+        0.012514010736799364,
+        0.020385445663293922,
+        0.01350884841043598,
+        0.0002792526803188089,
+        0.0001745329251994221
+      ],
+      "command_peak_to_peak_rad": [
+        0.0046641362391615995,
+        0.019973924762811235,
+        0.03144329056077888,
+        0.02146881769106912,
+        0.000606756707783429,
+        0.0002273760342988984
+      ]
+    },
+    {
+      "start_s": 2.08,
+      "end_s": 2.65,
+      "measured_joint_peak_to_peak_rad": [
+        0.005166174585903224,
+        0.020542525295973446,
+        0.029984756549262803,
+        0.022671826983406085,
+        0.0003316125578789464,
+        0.00026179938779913314
+      ],
+      "command_peak_to_peak_rad": [
+        0.00925609573613579,
+        0.03191756687868663,
+        0.04065917703868749,
+        0.033548705800168444,
+        0.0010892347616224818,
+        0.0007367127311731503
+      ]
+    },
+    {
+      "start_s": 2.4,
+      "end_s": 3.4,
+      "measured_joint_peak_to_peak_rad": [
+        0.012897983172238094,
+        0.031485739705977345,
+        0.03480186528476681,
+        0.0323584043319749,
+        0.0038048177693477125,
+        0.0017627825445143408
+      ],
+      "command_peak_to_peak_rad": [
+        0.01717735530707947,
+        0.04341990380324501,
+        0.05008914718414337,
+        0.04314423685642521,
+        0.0052416944181745695,
+        0.002370634148852857
+      ]
+    }
+  ],
+  "dominant_joint2_period_s": 0.5719692914999999,
+  "dominant_joint2_frequency_hz": 1.7483456102642885,
+  "first_order_fits_from_ros_only": [
+    {
+      "joint": 2,
+      "assumed_model": "qdot=(qcmd(t-delay)-q)/tau",
+      "delay_s": 0.024,
+      "tau_s": 0.11919368437023589,
+      "velocity_rmse_rad_s": 0.0008142201693452484,
+      "velocity_correlation": 0.9998576803454409
+    },
+    {
+      "joint": 3,
+      "assumed_model": "qdot=(qcmd(t-delay)-q)/tau",
+      "delay_s": 0.026000000000000002,
+      "tau_s": 0.11783133193855101,
+      "velocity_rmse_rad_s": 0.0013874859108017733,
+      "velocity_correlation": 0.9998183916330067
+    },
+    {
+      "joint": 4,
+      "assumed_model": "qdot=(qcmd(t-delay)-q)/tau",
+      "delay_s": 0.025,
+      "tau_s": 0.1214823132019408,
+      "velocity_rmse_rad_s": 0.0015403301601718143,
+      "velocity_correlation": 0.9995413352561683
+    }
+  ],
+  "max_joint_command_lead_rad": [
+    0.010020925136645042,
+    0.022813452744309792,
+    0.02539199329859665,
+    0.023236365194113873,
+    0.003202582762732664,
+    0.001346546105676416
+  ],
+  "policy_input_reconstruction_is_approximate": true,
+  "estimated_policy_age_mean_s": 0.02545957096897374,
+  "estimated_policy_age_max_s": 0.04805860400000128,
+  "estimated_policy_arm_velocity_max_rad_s": [
+    0.11067500622585368,
+    0.2616251325063602,
+    0.34436040740650864,
+    0.26318733935079547,
+    0.050899152344807894,
+    0.018800689557494137
+  ],
+  "estimated_velocity_saturation_fraction": [
+    0.0,
+    0.059665871121718374,
+    0.1766109785202864,
+    0.06205250596658711,
+    0.0,
+    0.0
+  ],
+  "first_estimated_arm_velocity_saturation_s": 1.9413629700000001,
+  "recorded_command_peak_to_peak_rad": [
+    0.01717735530707947,
+    0.04341990380324501,
+    0.05008914718414337,
+    0.04314423685642521,
+    0.0052416944181745695,
+    0.002370634148852857
+  ],
+  "recorded_policy_position_preview_peak_to_peak_rad": [
+    0.001528182975260868,
+    0.0036905198155587904,
+    0.0039560162873388816,
+    0.004522052342435856,
+    0.000391721305322168,
+    0.0005131723711628844
+  ],
+  "position_preview_is_not_closed_loop_validation": true,
+  "base_command_max_abs": [
+    0.0036915310922852203,
+    0.0010434301591336066
+  ],
+  "wheel_odom_peak_to_peak": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "nominal_capture_log_original_stamp_relative_s": [
+    -1.248876125
+  ]
+}

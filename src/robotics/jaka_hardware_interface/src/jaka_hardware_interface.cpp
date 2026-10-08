@@ -16,10 +16,10 @@
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include <algorithm>
-#include <array>
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <stdexcept>
 #include <thread>
 
 using namespace std;
@@ -66,6 +66,26 @@ namespace jaka_hardware_interface
     {
       const auto &value = it_hardware_write->second;
       hardware_write_ = value == "true" || value == "True" || value == "1";
+    }
+
+    const auto read_limit = [this](const char *name) {
+      const auto entry = info_.hardware_parameters.find(name);
+      const double value = entry == info_.hardware_parameters.end() ? 0.0 : std::stod(entry->second);
+      if (!std::isfinite(value) || value < 0.0) {
+        throw std::invalid_argument(std::string(name) + " must be finite and non-negative");
+      }
+      return value;
+    };
+    try {
+      const double tracking_limit = read_limit("safety_max_tracking_error");
+      const double velocity_limit = read_limit("safety_max_joint_velocity");
+      servo_stream_.setLimits(tracking_limit, velocity_limit);
+      RCLCPP_INFO(rclcpp::get_logger("JakaHardwareInterface"),
+                  "Servo protection: tracking limit %.4f rad, feedback velocity limit %.3f rad/s (0 disables limit)",
+                  tracking_limit, velocity_limit);
+    } catch (const std::exception &error) {
+      RCLCPP_ERROR(rclcpp::get_logger("JakaHardwareInterface"), "Invalid servo protection: %s", error.what());
+      return CallbackReturn::ERROR;
     }
 
     hw_position_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
@@ -201,6 +221,24 @@ namespace jaka_hardware_interface
       const rclcpp_lifecycle::State & /*previous_state*/)
   {
     RCLCPP_INFO(rclcpp::get_logger("JakaHardwareInterface"), "Activating... (Ensuring EDG is running)");
+    if (servo_stream_.faulted()) {
+      RCLCPP_ERROR(rclcpp::get_logger("JakaHardwareInterface"),
+                   "Servo fault is latched (%s); refusing automatic reactivation.", servo_stream_.faultReason());
+      return CallbackReturn::ERROR;
+    }
+
+    // Acquire usable feedback before enabling the command stream.
+    const auto read_result = robot_.edg_get_stat(&edg_state_);
+    if (read_result != ERR_SUCC) {
+      RCLCPP_ERROR(rclcpp::get_logger("JakaHardwareInterface"), "Activation feedback read failed: %d", read_result);
+      return CallbackReturn::ERROR;
+    }
+    for (size_t i = 0; i < info_.joints.size() && i < 6; ++i) {
+      if (!std::isfinite(edg_state_.jointVal.jVal[i])) { return CallbackReturn::ERROR; }
+      hw_position_commands_[i] = edg_state_.jointVal.jVal[i];
+      hw_position_states_[i] = edg_state_.jointVal.jVal[i];
+      hw_velocity_states_[i] = edg_state_.jointVel.jVel[i];
+    }
     if (!hardware_write_)
     {
       RCLCPP_WARN(rclcpp::get_logger("JakaHardwareInterface"),
@@ -208,18 +246,15 @@ namespace jaka_hardware_interface
     }
     else
     {
-      robot_.servo_move_enable(true); // 机器人上电/使能
+      const auto result = robot_.servo_move_enable(true);
+      if (result != ERR_SUCC) {
+        RCLCPP_ERROR(rclcpp::get_logger("JakaHardwareInterface"), "Servo activation failed: %d", result);
+        return CallbackReturn::ERROR;
+      }
     }
 
     // FTS raw data is intentionally not zeroed or processed here.
     // The separate force process owns tare, transform, filtering and safety.
-
-    // 再次同步，因为从 Configure 到 Activate 可能有时间差
-    robot_.edg_get_stat(&edg_state_);
-    for (size_t i = 0; i < info_.joints.size() && i < 6; ++i)
-    {
-      hw_position_commands_[i] = edg_state_.jointVal.jVal[i];
-    }
 
     return CallbackReturn::SUCCESS;
   }
@@ -246,6 +281,9 @@ namespace jaka_hardware_interface
     errno_t ret = robot_.edg_get_stat(&edg_state_);
     if (ret != ERR_SUCC)
     {
+      if (hardware_write_) {
+        servo_stream_.trip("EDG feedback read failed", [this] { return stopServoAfterFault(); });
+      }
       // Publishing the previous sample with a fresh broadcaster stamp defeats
       // every downstream timeout. Invalidate it and stop ros2_control instead.
       std::fill(hw_fts_states_.begin(), hw_fts_states_.end(),
@@ -300,28 +338,37 @@ namespace jaka_hardware_interface
       }
     }
 
-    static std::array<double, 6> last_sent{};
-    static bool inited = false;
-
-    double eps = 1e-5; // 约0.0001 rad ≈ 0.0057°
-    bool changed = false;
-    for (int i = 0; i < 6; i++)
-    {
-      if (!inited || std::fabs(joint_cmd_.jVal[i] - last_sent[i]) > eps)
-      {
-        changed = true;
-      }
-    }
-
-    if (changed)
-    {
-      robot_.edg_servo_j(&joint_cmd_, MoveMode::ABS, 1);
-      for (int i = 0; i < 6; i++)
-        last_sent[i] = joint_cmd_.jVal[i];
-      inited = true;
+    const std::vector<double> command(joint_cmd_.jVal, joint_cmd_.jVal + 6);
+    const bool ok = servo_stream_.update(
+        command, hw_position_states_, hw_velocity_states_,
+        [this] {
+          const auto result = robot_.edg_servo_j(&joint_cmd_, MoveMode::ABS, 1);
+          if (result != ERR_SUCC) {
+            RCLCPP_ERROR(rclcpp::get_logger("JakaHardwareInterface"), "Servo command rejected: %d", result);
+          }
+          return result == ERR_SUCC;
+        },
+        [this] { return stopServoAfterFault(); });
+    if (!ok) {
+      static rclcpp::Clock fault_clock;
+      RCLCPP_ERROR_THROTTLE(rclcpp::get_logger("JakaHardwareInterface"), fault_clock, 1000,
+                           "Servo fault latched: %s; position commands blocked.", servo_stream_.faultReason());
+      return hardware_interface::return_type::ERROR;
     }
     
     return hardware_interface::return_type::OK;
+  }
+
+  bool JakaHardwareInterface::stopServoAfterFault()
+  {
+    // Same exit operation used by on_deactivate, requested immediately on a
+    // latched execution fault rather than waiting for controller shutdown.
+    // This method is never entered with hardware_write=false.
+    if (!hardware_write_) { return true; }
+    const auto result = robot_.servo_move_enable(false);
+    RCLCPP_ERROR(rclcpp::get_logger("JakaHardwareInterface"),
+                 "Fault stop: request servo exit, return code %d (0=SDK success).", result);
+    return result == ERR_SUCC;
   }
 } // namespace jaka_hardware_interface
 

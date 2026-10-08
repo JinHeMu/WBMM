@@ -104,11 +104,6 @@ public:
     }
 
     auto observation = makeObservation(0.0);
-    {
-      std::lock_guard<std::mutex> lock(stateMutex_);
-      lastGoodArmQ_ = armQ_;
-    }
-
     resetMpc(observation);
     if (!waitForFirstPolicy(observation))
     {
@@ -577,12 +572,8 @@ private:
     }
     if (!allowed) {
       forceWasAllowed_ = false;
-      if (forceHoldArm_.empty()) {
-        std::lock_guard<std::mutex> lock(stateMutex_);
-        forceHoldArm_ = armQ_;
-      }
       publishZeroBaseCommand();
-      publishArmPositions(forceHoldArm_);
+      publishHoldArmCommand(observation.time);
       publishForceExecutionState(faulted ? "FAULT_INTERLOCK" : "WAITING_FOR_ACTIVE");
       return false;
     }
@@ -591,18 +582,17 @@ private:
       // before the fresh nominal force reference was captured.
       minimumForcePolicyTime_ = observation.time;
       forceWasAllowed_ = true;
-      integratedArmCommand_.clear();
-      lastArmCommandTime_ = observation.time;
+      integratedArmCommand_ = lastPublishedArmCommand_;
+      lastArmCommandTime_ = lastPublishedArmCommandTime_;
     }
     const auto &policy = mrt_->getPolicy();
     if (policy.timeTrajectory_.empty() ||
         policy.timeTrajectory_.front() < minimumForcePolicyTime_) {
       publishZeroBaseCommand();
-      if (!forceHoldArm_.empty()) { publishArmPositions(forceHoldArm_); }
+      publishHoldArmCommand(observation.time);
       publishForceExecutionState("WAITING_FOR_FRESH_POLICY");
       return false;
     }
-    forceHoldArm_.clear();
     publishForceExecutionState("ACTIVE");
     return true;
   }
@@ -621,7 +611,7 @@ private:
     if (!readPlanEnd(observation.time, planEnd))
     {
       logExpiredPlan(observation.time, planEnd, ++expiredCount);
-      stopAndHold();
+      stopAndHold(observation.time);
       return;
     }
     expiredCount = 0;
@@ -634,7 +624,7 @@ private:
     {
       RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
                             "[SAFETY] MPC current output is invalid. Stopping base and holding arm.");
-      stopAndHold();
+      stopAndHold(observation.time);
       return;
     }
 
@@ -646,7 +636,7 @@ private:
           "[SAFETY] MPC policy mode (%zu) does not match requested task phase (%d). "
           "Stopping base and holding arm until a new policy arrives.",
           policyMode, currentPhase_.load());
-      stopAndHold();
+      stopAndHold(observation.time);
       return;
     }
 
@@ -655,13 +645,13 @@ private:
     {
       RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
                             "[SAFETY] Predicted arm command is unsafe. Stopping base and holding arm.");
-      stopAndHold();
+      stopAndHold(observation.time);
       return;
     }
 
     publishBaseCommand(policyInput);
-    publishArmPositions(armCommand);
-    lastGoodArmQ_ = armCommand;
+    forceHoldArm_.clear();
+    publishArmPositions(armCommand, observation.time);
   }
 
   // The plan-expiry gate above compares the MRT clock against
@@ -1105,7 +1095,7 @@ private:
     }
   }
 
-  void publishArmPositions(const std::vector<double> &positions)
+  void publishArmPositions(const std::vector<double> &positions, double time)
   {
     if (!commandOutputEnabled_)
     {
@@ -1127,42 +1117,51 @@ private:
     std_msgs::msg::Float64MultiArray msg;
     msg.data = positions;
     armPub_->publish(msg);
+    lastPublishedArmCommand_ = positions;
+    lastPublishedArmCommandTime_ = time;
   }
 
-  void publishHoldArmCommand()
+  void publishHoldArmCommand(double time)
   {
-    // "Stop and hold" must freeze the arm where it physically is. Holding
-    // lastGoodArmQ_ is NOT that: makePositionArmCommand() clamps its output to
-    // measured +/- arm_max_delta_per_step, so the last published command can
-    // sit a full rate-limit step away from the measurement and the arm keeps
-    // slewing after the safety gate has already fired.
-    std::vector<double> hold;
-    {
+    // Latch feedback once, then approach it from the last published command
+    // with a bounded step. Replacing a moving command directly with feedback
+    // bypasses the normal limiter (bag 04: J2 jumped 0.0116 rad in one tick).
+    if (forceHoldArm_.empty()) {
       std::lock_guard<std::mutex> lock(stateMutex_);
-      hold = armQ_;
+      forceHoldArm_ = armQ_;
     }
-    if (hold.size() != armJointNames_.size() ||
-        !std::all_of(hold.begin(), hold.end(), [](double value)
+    if (forceHoldArm_.size() != armJointNames_.size() ||
+        !std::all_of(forceHoldArm_.begin(), forceHoldArm_.end(), [](double value)
                      { return std::isfinite(value); }))
     {
-      // No usable measurement yet: fall back to the last commanded pose.
-      hold = lastGoodArmQ_;
+      forceHoldArm_ = lastPublishedArmCommand_;
     }
-    if (hold.size() != armJointNames_.size())
+    if (forceHoldArm_.size() != armJointNames_.size())
     {
       RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000, "Cannot publish arm hold command: invalid command size.");
       return;
     }
-    publishArmPositions(hold);
+    std::vector<double> hold;
+    if (lastPublishedArmCommand_.empty()) {
+      hold = forceHoldArm_;
+    } else if (!wbmm::boundedArmHoldCommand(
+                   forceHoldArm_, lastPublishedArmCommand_,
+                   std::clamp(time - lastPublishedArmCommandTime_, 0.0, kMaxCommandDt),
+                   armMaxCommandVelocity_, hold)) {
+      RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000, "Cannot construct bounded arm hold.");
+      return;
+    }
+    publishArmPositions(hold, time);
+    // Recovery must start from the command actually published during hold,
+    // not from feedback or a pre-fault MPC integral.
+    integratedArmCommand_ = hold;
+    lastArmCommandTime_ = time;
   }
 
-  void stopAndHold()
+  void stopAndHold(double time)
   {
-    // Restart the position/rate state from feedback when a valid policy
-    // returns, rather than replaying a pre-stop command or an old integral.
-    integratedArmCommand_.clear();
     publishZeroBaseCommand();
-    publishHoldArmCommand();
+    publishHoldArmCommand(time);
   }
 
   std::string taskFile_;
@@ -1205,6 +1204,8 @@ private:
   double baseMaxLinearVelocity_{0.5};
   double baseMaxAngularVelocity_{1.0};
   double lastArmCommandTime_{0.0};
+  double lastPublishedArmCommandTime_{0.0};
+  std::vector<double> lastPublishedArmCommand_;
   std::vector<std::string> armJointNames_;
 
   bool enableViz_{true};
@@ -1249,7 +1250,6 @@ private:
   double baseY_{0.0};
   double baseYaw_{0.0};
   std::vector<double> armQ_;
-  std::vector<double> lastGoodArmQ_;
   std::vector<double> integratedArmCommand_;
 };
 

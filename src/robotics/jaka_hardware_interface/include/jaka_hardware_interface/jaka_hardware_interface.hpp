@@ -29,6 +29,7 @@
 // JAKA SDK Headers
 #include "jaka_driver/JAKAZuRobot.h"
 #include "jaka_driver/jktypes.h"
+#include "jaka_hardware_interface/servo_command_stream.hpp"
 
 namespace jaka_hardware_interface
 {
@@ -58,6 +59,7 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
+  bool stopServoAfterFault();
 
   // JAKA Robot Object
   JAKAZuRobot robot_;
@@ -67,6 +69,7 @@ private:
   std::string local_ip_; // PC IP for EDG UDP
   int torque_sensor_mode_ = -1; // -1 preserves controller setting; force bringup requests mode 1
   bool hardware_write_ = false; // true: enable servo and write commands; false: read-only EDG telemetry
+  ServoCommandStream servo_stream_;
 
   // Data storage
   EDGState edg_state_;        // EDG 全量状态

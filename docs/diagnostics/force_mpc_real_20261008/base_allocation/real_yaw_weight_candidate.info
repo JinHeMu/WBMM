@@ -171,7 +171,7 @@ inputCost
         ; [问题1] 提高转向输入代价给底盘角速度加阻尼, 抑制末尾左右抖动
         scaling 1e-2
         (0,0)  2.5   ; forward velocity
-        (1,1)  10.0  ; turning velocity  (was 2.5)
+        (1,1)  5.0   ; turning velocity (force-following yaw candidate)
       }
     }
     arm

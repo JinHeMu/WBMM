@@ -1,3 +1,6 @@
+# REVIEW CANDIDATE ONLY: not loaded by any default launch.
+# Derived from current common/force_mpc.yaml; only MRT execution mode changes.
+# Recorded-policy preview is not closed-loop or real-hardware validation.
 # Integrated force following. Units: m, rad, N, Nm, seconds.
 # Dynamics mirror the tested jaka_keyboard profile; K=0 enables dragging.
 # These override the common and backend force_control.yaml layers only for
@@ -10,8 +13,8 @@ force_sensor_processor:
       filter_cutoff_hz: 4.44
       force_deadband_n: 1.0
       torque_deadband_nm: 0.5
-      hard_force_norm_limit: 30.0
-      hard_wrench_limit: [30.0, 30.0, 30.0, 10.0, 10.0, 10.0]
+      hard_force_norm_limit: 15.0
+      hard_wrench_limit: [15.0, 15.0, 15.0, 3.0, 3.0, 3.0]
       raw_timeout: 0.25
       tare_samples: 50
       tare_on_start: true

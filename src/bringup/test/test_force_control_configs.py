@@ -148,6 +148,13 @@ def test_integrated_real_calibration_and_execution_gates(monkeypatch, hardware_w
     assert args['hardware_write'] == args['start_arm_controller'] == hardware_write
     assert args['torque_sensor_mode'] == '1'
     assert args['start_arm_pose'] == 'false'
+    # Physical feedback protection follows the effective MRT limits, including
+    # a user-supplied force profile. These tests construct actions only.
+    assert float(args['safety_max_joint_velocity']) == pytest.approx(
+        2.0 * mrt['arm_max_command_velocity'])
+    assert float(args['safety_max_tracking_error']) == pytest.approx(
+        mrt['arm_max_delta_per_step'] +
+        2.0 * mrt['arm_max_command_velocity'] / mrt['mrt_loop_rate'])
 
 
 @pytest.mark.parametrize('tare, enabled', [('false', False), ('true', True)])
