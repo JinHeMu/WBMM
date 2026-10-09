@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "backend": "MuJoCo",
+  "positive_tcp_dx_m": 0.477569,
+  "base_travel_m": 0.199483,
+  "arm_joint_change_norm_rad": 0.615058,
+  "release_drift_m": 9.02036e-05,
+  "negative_tcp_dx_m": -0.479197,
+  "disconnect_fault": "FAULT_WRENCH_TIMEOUT",
+  "stopped_base_command_max": 0,
+  "hold_command_variation_rad": 0,
+  "recovery_displacement_m": 0.000147214,
+  "unexpected_collision": false
+}

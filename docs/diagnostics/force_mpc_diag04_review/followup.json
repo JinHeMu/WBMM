@@ -1,0 +1,70 @@
+{
+  "95": {
+    "admittance_speed_mean_max": [
+      0.10821862483181485,
+      0.13116827233442205
+    ],
+    "target_velocity_norm_mean": 0.10861738153523505,
+    "actual_velocity_norm_mean": 0.10951277879306863,
+    "velocity_mismatch_norm_mean": 0.014440616208222073,
+    "force_norm_N_p50_p95_max": [
+      10.22233668404029,
+      12.955317305807796,
+      13.331719004881094
+    ]
+  },
+  "100": {
+    "admittance_speed_mean_max": [
+      0.10638530996656226,
+      0.12406376627135271
+    ],
+    "target_velocity_norm_mean": 0.10637318809876596,
+    "actual_velocity_norm_mean": 0.09445089002402046,
+    "velocity_mismatch_norm_mean": 0.018532296137803436,
+    "force_norm_N_p50_p95_max": [
+      10.665511861942171,
+      12.444258775353202,
+      12.718656329028368
+    ]
+  },
+  "hold_after_0.1": {
+    "range_each_joint_rad": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "hold_after_0.2": {
+    "range_each_joint_rad": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "hold_after_0.3": {
+    "range_each_joint_rad": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "hold_after_1.0": {
+    "range_each_joint_rad": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  }
+}

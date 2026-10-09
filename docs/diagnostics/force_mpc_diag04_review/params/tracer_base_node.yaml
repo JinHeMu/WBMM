@@ -1,0 +1,27 @@
+/tracer_base_node:
+  ros__parameters:
+    base_frame: base_footprint
+    control_rate: 50
+    is_tracer_mini: false
+    odom_frame: odom
+    odom_topic_name: /wheel/odometry
+    port_name: can0
+    publish_command_timing: true
+    publish_odom_tf: true
+    qos_overrides:
+      /parameter_events:
+        publisher:
+          depth: 1000
+          durability: volatile
+          history: keep_last
+          reliability: reliable
+      /tf:
+        publisher:
+          depth: 100
+          durability: volatile
+          history: keep_last
+          reliability: reliable
+    simulated_robot: false
+    state_publish_rate: 50.0
+    use_sim_time: false
+

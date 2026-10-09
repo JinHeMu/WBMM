@@ -1,0 +1,80 @@
+/force_sensor_processor:
+  ros__parameters:
+    force_sensor:
+      filter_alpha: 0.15
+      filter_cutoff_hz: 4.44
+      force_deadband_n: 1.0
+      hard_wrench_limit:
+      - 30.0
+      - 30.0
+      - 30.0
+      - 10.0
+      - 10.0
+      - 10.0
+      load_compensation:
+        base_frame: jaka_base_link
+        center_of_mass_sensor_m:
+        - 8.687773691952532e-05
+        - -0.003714627227301273
+        - 0.0667849847576023
+        enable: true
+        force_bias_sensor_n:
+        - -7.443991314546081
+        - -7.015503408768838
+        - -1.9811366627602127
+        gravity_direction_base:
+        - 0.010397489680866524
+        - -0.0689772269488352
+        - -0.9975640502598242
+        gravity_m_s2: 9.80665
+        mass_kg: 0.6720235983168857
+        torque_bias_sensor_nm:
+        - 0.6919755927671335
+        - -0.7358580436630641
+        - 0.08326345101383147
+      monitor_rate: 50.0
+      raw_timeout: 0.25
+      require_stamped_wrench: true
+      sensor_frame: jk_se_vi_200_link
+      sensor_to_tcp_rotation:
+      - -0.7071067811865471
+      - 0.7071067811865474
+      - -6.711218596046747e-17
+      - -0.6644259853128232
+      - -0.6644259853128232
+      - -0.3421640251139344
+      - -0.24194650243614702
+      - -0.24194650243614685
+      - 0.9396402396225004
+      tare_after_compensation: true
+      tare_on_start: true
+      tare_samples: 50
+      tcp_frame: tool0
+      tcp_to_sensor_m:
+      - 0.0
+      - 0.05
+      - -0.4
+      tf_fallback_to_latest: false
+      tf_lookup_timeout: 0.05
+      torque_deadband_nm: 0.5
+      use_calibrated_transform: true
+      wrench_scale:
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+    qos_overrides:
+      /parameter_events:
+        publisher:
+          depth: 1000
+          durability: volatile
+          history: keep_last
+          reliability: reliable
+    topics:
+      processed_wrench: /whole_body_force_control/processed_wrench
+      raw_wrench: /fts_broadcaster/wrench
+      states: /whole_body_force_control/force_sensor_states
+    use_sim_time: false
+

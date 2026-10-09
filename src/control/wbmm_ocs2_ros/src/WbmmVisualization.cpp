@@ -285,7 +285,7 @@ namespace wbmm
         publishReferenceTrajectory(stamp, command.mpcTargetTrajectories_);
 
         if (geometryVisualization_ != nullptr) {
-            geometryVisualization_->publishDistances(observation.state);
+            geometryVisualization_->publishDistances(vector_t(observation.state.head(modelInfo_.configurationDim())));
         }
     }
 
@@ -309,7 +309,7 @@ namespace wbmm
         std::for_each(mpcStateTrajectory.begin(), mpcStateTrajectory.end(),
                       [&](const vector_t& state)
                       {
-                          pinocchio::forwardKinematics(model, data, state);
+                          pinocchio::forwardKinematics(model, data, vector_t(state.head(modelInfo_.configurationDim())));
                           pinocchio::updateFramePlacements(model, data);
                           const auto eeIndex = model.getBodyId(modelInfo_.eeFrame);
                           const vector_t eePosition = data.oMf[eeIndex].translation();
@@ -362,7 +362,7 @@ namespace wbmm
         visualization_msgs::msg::MarkerArray markerArray;
         const int refDim = static_cast<int>(refStates.front().size());
 
-        if (refDim == modelInfo_.stateDim)
+        if (refDim == modelInfo_.configurationDim())
         {
             const auto& model = pinocchioInterface_.getModel();
             auto& data = pinocchioInterface_.getData();
@@ -372,13 +372,13 @@ namespace wbmm
             baseRef.reserve(refStates.size());
             for (const auto& state : refStates)
             {
-                pinocchio::forwardKinematics(model, data, state);
+                pinocchio::forwardKinematics(model, data, vector_t(state.head(modelInfo_.configurationDim())));
                 pinocchio::updateFramePlacements(model, data);
                 const auto eeIndex = model.getBodyId(modelInfo_.eeFrame);
                 eeRef.push_back(ros_msg_helpers::getPointMsg(
                     vector_t(data.oMf[eeIndex].translation())));
                 baseRef.push_back(ros_msg_helpers::getPointMsg(
-                    getBasePosition(state, modelInfo_)));
+                    vector_t(Eigen::Vector3d(state(0), state(1), 0.0))));
             }
             markerArray.markers.emplace_back(
                 ros_msg_helpers::getLineMsg(std::move(eeRef), green, LINEWIDTH));

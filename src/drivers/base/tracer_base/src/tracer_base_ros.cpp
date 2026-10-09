@@ -9,12 +9,16 @@
 
 #include "tracer_base/tracer_base_ros.hpp"
 
+#include <chrono>
+#include <cmath>
+#include <stdexcept>
+
 #include "tracer_base/tracer_messenger.hpp"
 #include "ugv_sdk/utilities/protocol_detector.hpp"
 
 namespace westonrobot {
 TracerBaseRos::TracerBaseRos(std::string node_name)
-    : rclcpp::Node(node_name), keep_running_(false) {
+    : rclcpp::Node(node_name) {
     
 /***update for humble***/
   this->declare_parameter("port_name", rclcpp::ParameterValue("can0"));   //声明参数
@@ -27,6 +31,11 @@ TracerBaseRos::TracerBaseRos(std::string node_name)
   this->declare_parameter("is_tracer_mini", rclcpp::ParameterValue(false));
   this->declare_parameter("simulated_robot", rclcpp::ParameterValue(false));
   this->declare_parameter("control_rate", rclcpp::ParameterValue(50));
+  state_publish_rate_ = declare_parameter("state_publish_rate", 50.0);
+  declare_parameter("publish_command_timing", false);
+  if (!std::isfinite(state_publish_rate_) || state_publish_rate_ <= 0.0) {
+    throw std::invalid_argument("state_publish_rate must be finite and positive");
+  }
  /***update for humble***/
   LoadParameters();
 }
@@ -88,7 +97,7 @@ bool TracerBaseRos::Initialize() {
   return true;
 }
 
-void TracerBaseRos::Stop() { keep_running_ = false; }
+void TracerBaseRos::Stop() { executor_.cancel(); }
 
 void TracerBaseRos::Run() {
   robot_ = std::make_shared<TracerRobot>();
@@ -104,29 +113,36 @@ void TracerBaseRos::Run() {
   if (simulated_robot_) messenger->SetSimulationMode(sim_control_rate_);
 
   // connect to robot and setup ROS subscription
-  if (port_name_.find("can") != std::string::npos) {
+  if (simulated_robot_) {
+    RCLCPP_INFO(get_logger(), "Simulation mode: CAN connection disabled.");
+  } else if (port_name_.find("can") != std::string::npos) {
     if (robot_->Connect(port_name_)) {
       robot_->EnableCommandedMode();
       std::cout << "Using CAN bus to talk with the robot" << std::endl;
     } else {
-      std::cout << "Failed to connect to the robot CAN bus" << std::endl;
-      return;
+      throw std::runtime_error("Failed to connect to the robot CAN bus");
     }
   } else {
-    std::cout << "Please check the specified port name is a CAN port"
-              << std::endl;
-    return;
+    throw std::runtime_error("Please specify a CAN port");
   }
 
-  // publish robot state at 50Hz while listening to twist commands
+  // Publish state periodically, but wake for commands as soon as they arrive.
+  // One executor keeps SDK access serialized and the messenger alive until
+  // all callbacks have stopped. There is no 20ms sleep in the receive path.
   messenger->SetupSubscription();
-  keep_running_ = true;
-  rclcpp::Rate rate(50);
-  while (keep_running_) {
-    messenger->PublishStateToROS();
-    rclcpp::spin_some(shared_from_this());
-    rate.sleep();
+  auto state_timer = create_wall_timer(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::duration<double>(1.0 / state_publish_rate_)),
+      [&messenger]() { messenger->PublishStateToROS(); });
+  executor_.add_node(shared_from_this());
+  try {
+    executor_.spin();
+  } catch (...) {
+    if (!simulated_robot_) { robot_->SetMotionCommand(0.0, 0.0); }
+    throw;
   }
-  
+  state_timer->cancel();
+  executor_.remove_node(shared_from_this());
+  if (!simulated_robot_) { robot_->SetMotionCommand(0.0, 0.0); }
 }
 }  // namespace westonrobot

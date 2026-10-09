@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include "ArmPositionCommand.h"
+#include "ContinuousYaw.h"
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -280,9 +281,9 @@ private:
     armQ_.assign(armJointNames_.size(), 0.0);
 
     RCLCPP_INFO(get_logger(), "OCS2 model dims: state=%zu input=%zu arm=%zu", stateDim_, inputDim_, armDim_);
-    if (stateDim_ != 3 + armDim_)
+    if (stateDim_ != info.configurationDim() + (info.baseResponse.enabled ? 2 : 0))
     {
-      throw std::runtime_error("OCS2 state dimension must equal base plus arm.");
+      throw std::runtime_error("OCS2 state dimension does not match the configured base response model.");
     }
     if (inputDim_ != 2 + armDim_)
     {
@@ -453,7 +454,7 @@ private:
     ocs2::vector_t target;
     if (!useEeTarget)
     {
-      target = observation.state;
+      target = observation.state.head(3 + armDim_);
       std::ostringstream text;
       text << target.transpose();
       RCLCPP_INFO(get_logger(), "Initial whole-body target: [%s]", text.str().c_str());
@@ -834,9 +835,20 @@ private:
 
   void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
   {
+    if (interface_->getWbmmModelInfo().baseResponse.enabled) {
+      const double age = (now() - rclcpp::Time(msg->header.stamp, get_clock()->get_clock_type())).seconds();
+      if (msg->child_frame_id != baseFrame_ ||
+          age < -robotStateTimeout_ || age > robotStateTimeout_) {
+        RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
+            "Ignoring stale or wrong-frame base velocity feedback (child='%s', age=%.3f s).",
+            msg->child_frame_id.c_str(), age);
+        return;
+      }
+    }
     tf2::Quaternion quaternion(msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z,
                                msg->pose.pose.orientation.w);
     if (!std::isfinite(msg->pose.pose.position.x) || !std::isfinite(msg->pose.pose.position.y) ||
+        !std::isfinite(msg->twist.twist.linear.x) || !std::isfinite(msg->twist.twist.angular.z) ||
         !std::isfinite(quaternion.x()) || !std::isfinite(quaternion.y()) || !std::isfinite(quaternion.z()) ||
         !std::isfinite(quaternion.w()) || quaternion.length2() < 1.0e-12)
     {
@@ -857,7 +869,9 @@ private:
     std::lock_guard<std::mutex> lock(stateMutex_);
     baseX_ = msg->pose.pose.position.x;
     baseY_ = msg->pose.pose.position.y;
-    baseYaw_ = yaw;
+    baseYaw_ = continuousYaw_.update(yaw);
+    baseLinearVelocity_ = msg->twist.twist.linear.x;
+    baseAngularVelocity_ = msg->twist.twist.angular.z;
     lastOdom_ = std::chrono::steady_clock::now();
     gotOdom_.store(true);
   }
@@ -902,6 +916,10 @@ private:
     for (size_t i = 0; i < armDim_ && i < armQ_.size(); ++i)
     {
       state(static_cast<Eigen::Index>(3 + i)) = armQ_[i];
+    }
+    if (interface_->getWbmmModelInfo().baseResponse.enabled) {
+      state(3 + armDim_) = baseLinearVelocity_;
+      state(4 + armDim_) = baseAngularVelocity_;
     }
   }
 
@@ -1225,6 +1243,9 @@ private:
   double baseX_{0.0};
   double baseY_{0.0};
   double baseYaw_{0.0};
+  double baseLinearVelocity_{0.0};
+  double baseAngularVelocity_{0.0};
+  wbmm::ContinuousYaw continuousYaw_;
   std::vector<double> armQ_;
   std::vector<double> previousArmPositionCommand_;
 };

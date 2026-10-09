@@ -43,7 +43,7 @@ public:
     observation_ = node_->create_subscription<ocs2_msgs::msg::MpcObservation>(
         "/mobile_manipulator_mpc_observation", rclcpp::SensorDataQoS(),
         [this](const ocs2_msgs::msg::MpcObservation::SharedPtr msg) {
-          if (msg->state.value.size() == 9) {
+          if (msg->state.value.size() == 9 || msg->state.value.size() == 11) {
             for (int i = 0; i < 9; ++i) { state_[i] = msg->state.value[i]; }
             gotState_ = true;
           }

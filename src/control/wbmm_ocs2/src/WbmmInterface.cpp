@@ -215,6 +215,19 @@ namespace wbmm_ocs2
         modelInfo_ = createWbmmModelInfo(
             *pinocchioInterfacePtr_, baseFrame, eeFrame);
 
+        // Geometry stays 9D; only MPC observations/dynamics gain velocity states.
+        auto response = modelInfo_.baseResponse;
+        loadData::loadPtreeValue(pt, response.enabled, "baseResponse.activate", false);
+        loadData::loadPtreeValue(pt, response.linearTimeConstant, "baseResponse.linearTimeConstant", false);
+        loadData::loadPtreeValue(pt, response.angularTimeConstant, "baseResponse.angularTimeConstant", false);
+        loadData::loadPtreeValue(pt, response.linearGain, "baseResponse.linearGain", false);
+        loadData::loadPtreeValue(pt, response.angularGain, "baseResponse.angularGain", false);
+        modelInfo_.configureBaseResponse(response);
+        // Kinematics AD models also depend on observation dimension.
+        const std::string modelLibraryFolder = libraryFolder +
+            (response.enabled ? "/base_response_v1" : "");
+        boost::filesystem::create_directories(modelLibraryFolder);
+
         bool usePreComputation = true;
         bool recompileLibraries = true;
         std::cerr << "\n #### Model Settings:";
@@ -225,7 +238,7 @@ namespace wbmm_ocs2
 
         // Default initial state
         initialState_.setZero(modelInfo_.stateDim);
-        const int baseStateDim = modelInfo_.stateDim - modelInfo_.armDim;
+        const int baseStateDim = 3;
         const int armStateDim = modelInfo_.armDim;
 
         // arm base DOFs initial state
@@ -241,7 +254,7 @@ namespace wbmm_ocs2
         // arm joints DOFs velocity limits
         vector_t initialArmState = vector_t::Zero(armStateDim);
         loadData::loadEigenMatrix(taskFile, "initialState.arm", initialArmState);
-        initialState_.tail(armStateDim) = initialArmState;
+        initialState_.segment(3, armStateDim) = initialArmState;
 
         std::cerr << "Initial State:   " << initialState_.transpose() << std::endl;
 
@@ -274,11 +287,11 @@ namespace wbmm_ocs2
         }
 
         // 双参考管理器需要在 generic setTargetTrajectories() 中按维度路由：
-        //   whole-body target = modelInfo_.stateDim (9D)
+        //   whole-body target = configurationDim() (9D)
         //   end-effector target = 7D [x,y,z,qx,qy,qz,qw]
         wbmmRefManagerPtr_ = std::make_shared<WbmmReferenceManager>(
             static_cast<TaskPhase>(initialPhaseValue),
-            modelInfo_.stateDim, static_cast<std::size_t>(7));
+            modelInfo_.configurationDim(), static_cast<std::size_t>(7));
         referenceManagerPtr_ = wbmmRefManagerPtr_;
 
         /*
@@ -320,7 +333,7 @@ namespace wbmm_ocs2
                     getEndEffectorTrackingCost(
                         *pinocchioInterfacePtr_, taskFile,
                         "endEffectorTracking", usePreComputation,
-                        libraryFolder, recompileLibraries),
+                        modelLibraryFolder, recompileLibraries),
                     wbmmRefManagerPtr_, TargetKind::kEndEffector,
                     endEffectorWeights));
 
@@ -338,7 +351,7 @@ namespace wbmm_ocs2
                     getEndEffectorTrackingCost(
                         *pinocchioInterfacePtr_, taskFile,
                         "endEffectorTracking", usePreComputation,
-                        libraryFolder, recompileLibraries),
+                        modelLibraryFolder, recompileLibraries),
                     wbmmRefManagerPtr_, TargetKind::kEndEffector,
                     endEffectorWeights));
 
@@ -409,7 +422,7 @@ namespace wbmm_ocs2
             problem_.stateSoftConstraintPtr->add(
                 "selfCollision", getSelfCollisionConstraint(*pinocchioInterfacePtr_, taskFile, urdfFile,
                                                             "selfCollision", usePreComputation,
-                                                            libraryFolder, recompileLibraries));
+                                                            modelLibraryFolder, recompileLibraries));
         }
 
         // environment collision avoidance constraint
@@ -424,7 +437,7 @@ namespace wbmm_ocs2
 
         // Dynamics：WBMM 固定为轮式移动机械臂。
         problem_.dynamicsPtr = std::make_unique<WbmmDynamics>(
-            modelInfo_, "dynamics", libraryFolder,
+            modelInfo_, "dynamics", modelLibraryFolder,
             recompileLibraries, true);
 
         /*
@@ -480,9 +493,9 @@ namespace wbmm_ocs2
         boost::property_tree::ptree pt;
         boost::property_tree::read_info(taskFile, pt);
 
-        const int stateDim = modelInfo_.stateDim;
+        const int stateDim = modelInfo_.configurationDim();
         const int armStateDim = modelInfo_.armDim;
-        const int baseStateDim = stateDim - armStateDim;
+        const int baseStateDim = 3;
 
         matrix_t Q = matrix_t::Zero(stateDim, stateDim);
 
@@ -523,7 +536,7 @@ namespace wbmm_ocs2
         std::cerr << " #### =============================================================================\n";
 
         // TargetTrajectories 为空时的兜底参考 = initialState (保持不动)
-        return std::make_unique<WholeBodyTrajectoryCost>(std::move(Q), yawIndex, initialState_);
+        return std::make_unique<WholeBodyTrajectoryCost>(std::move(Q), yawIndex, initialState_.head(stateDim));
     }
 
     std::unique_ptr<StateCost> WbmmInterface::getEndEffectorTrackingCost(
@@ -867,7 +880,7 @@ namespace wbmm_ocs2
         bool activateJointPositionLimit = true;
         loadData::loadPtreeValue(pt, activateJointPositionLimit, "jointPositionLimits.activate", true);
 
-        const int baseStateDim = modelInfo_.stateDim - modelInfo_.armDim;
+        const int baseStateDim = 3;
         const int armStateDim = modelInfo_.armDim;
         const int baseInputDim = modelInfo_.inputDim - modelInfo_.armDim;
         const int armInputDim = modelInfo_.armDim;

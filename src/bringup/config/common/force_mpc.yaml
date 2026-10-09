@@ -23,8 +23,8 @@ whole_body_force_control:
     admittance:
       # Order: x, y, z, rx, ry, rz. Axes are fixed at enable-time TCP pose.
       selected_axes: [true, true, true, false, false, false]
-      mass: [20.0, 20.0, 20.0, 2.0, 2.0, 2.0]
-      damping: [200.0, 200.0, 200.0, 15.0, 15.0, 15.0]
+      mass: [10.0, 10.0, 10.0, 2.0, 2.0, 2.0]
+      damping: [100.0, 100.0, 100.0, 15.0, 15.0, 15.0]
       stiffness: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     force_sensor:
       force_timeout: 0.25

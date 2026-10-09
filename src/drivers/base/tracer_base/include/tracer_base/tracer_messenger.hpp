@@ -13,10 +13,12 @@
 #include <string>
 #include <mutex>
 #include <memory>
+#include <cmath>
 
 #include <rclcpp/rclcpp.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
@@ -55,7 +57,7 @@ class TracerMessenger {
         
     // cmd subscriber
     motion_cmd_sub_ = node_->create_subscription<geometry_msgs::msg::Twist>(
-        "/cmd_vel", 5,
+        "/cmd_vel", rclcpp::QoS(rclcpp::KeepLast(1)),
         std::bind(&TracerMessenger::TwistCmdCallback, this,
                   std::placeholders::_1));
     light_cmd_sub_ = node_->create_subscription<tracer_msgs::msg::TracerLightCmd>(
@@ -64,15 +66,20 @@ class TracerMessenger {
                   std::placeholders::_1));
 
     tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(node_);
+    if (node_->get_parameter("publish_command_timing").as_bool()) {
+      command_received_pub_ = node_->create_publisher<geometry_msgs::msg::TwistStamped>(
+          "~/command_received", 1);
+      command_dispatched_pub_ = node_->create_publisher<geometry_msgs::msg::TwistStamped>(
+          "~/command_dispatched", 1);
+    }
   }
 
   void PublishStateToROS() {
     current_time_ = node_->get_clock()->now();
 
-    static bool init_run = true;
-    if (init_run) {
+    if (init_run_) {
       last_time_ = current_time_;
-      init_run = false;
+      init_run_ = false;
       return;
     }
     double dt = (current_time_ - last_time_).seconds();
@@ -167,6 +174,8 @@ class TracerMessenger {
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
   rclcpp::Publisher<tracer_msgs::msg::TracerStatus>::SharedPtr status_pub_;
   rclcpp::Publisher<tracer_msgs::msg::TracerRCState>::SharedPtr rc_status_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr command_received_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr command_dispatched_pub_;
 
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr motion_cmd_sub_;
   rclcpp::Subscription<tracer_msgs::msg::TracerLightCmd>::SharedPtr
@@ -181,13 +190,32 @@ class TracerMessenger {
 
   rclcpp::Time last_time_;
   rclcpp::Time current_time_;
+  bool init_run_{true};
 
   void TwistCmdCallback(const geometry_msgs::msg::Twist::SharedPtr msg) {
+    if (!std::isfinite(msg->linear.x) || !std::isfinite(msg->angular.z)) {
+      RCLCPP_ERROR(node_->get_logger(), "Rejecting non-finite base command; stopping base.");
+      if (!simulated_robot_) { tracer_->SetMotionCommand(0.0, 0.0); }
+      return;
+    }
+    geometry_msgs::msg::TwistStamped timing;
+    if (command_received_pub_) {
+      timing.header.stamp = node_->now();
+      timing.header.frame_id = base_frame_;
+      timing.twist = *msg;
+    }
     if (!simulated_robot_) {
       SetTracerMotionCommand(msg);
     } else {
       std::lock_guard<std::mutex> guard(twist_mutex_);
       current_twist_ = *msg.get();
+    }
+    if (command_received_pub_) {
+      // This stamps SDK-call completion, not CAN acknowledgement or motion onset.
+      auto dispatched = timing;
+      dispatched.header.stamp = node_->now();
+      command_received_pub_->publish(timing);
+      command_dispatched_pub_->publish(dispatched);
     }
     // ROS_INFO("Cmd received:%f, %f", msg->linear.x, msg->angular.z);
   }
@@ -199,7 +227,7 @@ class TracerMessenger {
   void LightCmdCallback(const tracer_msgs::msg::TracerLightCmd::SharedPtr msg) {
     if (!simulated_robot_) {
       if (msg->cmd_ctrl_allowed) {
-        LightCommandMessage cmd;
+        LightCommandMessage cmd{};
 
         switch (msg->front_mode)
         {

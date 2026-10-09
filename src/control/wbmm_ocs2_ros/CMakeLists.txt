@@ -178,6 +178,13 @@ if(BUILD_TESTING)
   target_include_directories(test_force_execution_gate PRIVATE include)
   ament_add_gtest(test_arm_position_command test/test_arm_position_command.cpp)
   target_include_directories(test_arm_position_command PRIVATE include)
+  ament_add_gtest(test_continuous_yaw test/test_continuous_yaw.cpp)
+  target_include_directories(test_continuous_yaw PRIVATE include)
+  # Manual bag-export replay: no ROS graph or robot commands, never a CTest.
+  add_executable(replay_force_mpc test/replay_force_mpc.cpp)
+  ament_target_dependencies(replay_force_mpc wbmm_ocs2)
+  add_executable(simulate_base_response test/simulate_base_response.cpp)
+  ament_target_dependencies(simulate_base_response wbmm_ocs2)
 endif()
 
 ament_package()

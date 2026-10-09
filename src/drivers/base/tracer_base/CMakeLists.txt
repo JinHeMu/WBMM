@@ -67,6 +67,10 @@ install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}/)
   
 if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_tracer_commands test/test_tracer_commands.cpp)
+  target_link_libraries(test_tracer_commands ugv_sdk)
+  ament_target_dependencies(test_tracer_commands ${DEPENDENCIES})
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
   # uncomment the line when a copyright and license is not present in all source files

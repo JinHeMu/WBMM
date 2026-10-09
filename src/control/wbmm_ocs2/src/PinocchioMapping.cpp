@@ -57,8 +57,7 @@ template <typename SCALAR>
 auto WbmmPinocchioMappingTpl<SCALAR>::getPinocchioJointPosition(
     const vector_t& state) const -> vector_t
 {
-    // 差速底盘 + 机械臂：OCS2 state 与 Pinocchio q 一一对应。
-    return state;
+    return state.head(modelInfo_.configurationDim());
 }
 
 template <typename SCALAR>
@@ -66,12 +65,13 @@ auto WbmmPinocchioMappingTpl<SCALAR>::getPinocchioJointVelocity(
     const vector_t& state, const vector_t& input) const -> vector_t
 {
     // 差速底盘只有航向线速度 v 和 yaw 角速度 omega。
-    vector_t vPinocchio = vector_t::Zero(modelInfo_.stateDim);
+    vector_t vPinocchio = vector_t::Zero(modelInfo_.configurationDim());
     const SCALAR theta = state(2);
-    const SCALAR v = input(0);
+    const SCALAR v = modelInfo_.baseResponse.enabled ? state(modelInfo_.baseVelocityIndex()) : input(0);
+    const SCALAR w = modelInfo_.baseResponse.enabled ? state(modelInfo_.baseVelocityIndex() + 1) : input(1);
     vPinocchio << cos(theta) * v,
         sin(theta) * v,
-        input(1),
+        w,
         input.tail(static_cast<Eigen::Index>(modelInfo_.armDim));
     return vPinocchio;
 }
@@ -81,7 +81,9 @@ auto WbmmPinocchioMappingTpl<SCALAR>::getOcs2Jacobian(
     const vector_t& state, const matrix_t& Jq, const matrix_t& Jv) const
     -> std::pair<matrix_t, matrix_t>
 {
-    matrix_t dfdu(Jv.rows(), static_cast<Eigen::Index>(modelInfo_.inputDim));
+    matrix_t dfdx = matrix_t::Zero(Jq.rows(), modelInfo_.stateDim);
+    dfdx.leftCols(modelInfo_.configurationDim()) = Jq;
+    matrix_t dfdu = matrix_t::Zero(Jv.rows(), modelInfo_.inputDim);
     Eigen::Matrix<SCALAR, 3, 2> dvdu_base;
     const SCALAR theta = state(2);
     // clang-format off
@@ -89,10 +91,20 @@ auto WbmmPinocchioMappingTpl<SCALAR>::getOcs2Jacobian(
         sin(theta), SCALAR(0),
         SCALAR(0), SCALAR(1.0);
     // clang-format on
-    dfdu.template leftCols<2>() = Jv.template leftCols<3>() * dvdu_base;
+    if (modelInfo_.baseResponse.enabled) {
+        dfdx.middleCols(modelInfo_.baseVelocityIndex(), 2) = Jv.template leftCols<3>() * dvdu_base;
+    } else {
+        dfdu.template leftCols<2>() = Jv.template leftCols<3>() * dvdu_base;
+    }
+    // qdot's world-frame translation rotates with yaw. Jq is the partial
+    // derivative at fixed Pinocchio velocity; include the velocity-map term.
+    if (modelInfo_.baseResponse.enabled) {
+        const SCALAR v = state(modelInfo_.baseVelocityIndex());
+        dfdx.col(2) += v * (-sin(theta) * Jv.col(0) + cos(theta) * Jv.col(1));
+    }
     dfdu.template rightCols(static_cast<Eigen::Index>(modelInfo_.armDim)) =
         Jv.template rightCols(static_cast<Eigen::Index>(modelInfo_.armDim));
-    return {Jq, dfdu};
+    return {dfdx, dfdu};
 }
 
 // explicit template instantiation

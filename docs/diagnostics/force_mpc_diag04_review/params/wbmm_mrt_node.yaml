@@ -1,0 +1,49 @@
+/wbmm_mrt_node:
+  ros__parameters:
+    arm_cmd_topic: /arm_controller/commands
+    arm_joint_names:
+    - joint_1
+    - joint_2
+    - joint_3
+    - joint_4
+    - joint_5
+    - joint_6
+    arm_max_command_velocity: 0.2
+    arm_max_delta_per_step: 0.05
+    base_cmd_topic: /cmd_vel
+    base_frame: base_footprint
+    base_max_angular_velocity: 0.4
+    base_max_linear_velocity: 0.2
+    command_output_enabled: true
+    ee_frame: tool0
+    enable_visualization: true
+    esdfFile: ''
+    force_gate:
+      require_active: true
+      robot_state_timeout: 0.25
+      state_topic: /whole_body_force_control/states
+      timeout: 0.25
+    initial_task_phase: 2
+    joint_state_topic: /joint_states
+    libFolder: /tmp/wbmm_force_mpc/auto_generated/mrt
+    mrt_loop_rate: 125.0
+    odom_topic: /wheel/odometry
+    qos_overrides:
+      /parameter_events:
+        publisher:
+          depth: 1000
+          durability: volatile
+          history: keep_last
+          reliability: reliable
+    robot_name: mobile_manipulator
+    taskFile: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/real/task_force_mpc.info
+    task_phase_state_topic: mobile_manipulator_task_phase_state
+    traj_horizon: 0.1
+    urdfFile: /home/a/WBMM/install/tracer_jaka_description/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf
+    use_sim_time: false
+    use_stamped_cmd: false
+    use_whole_body_target: true
+    viz_rate: 20.0
+    viz_self_collision: true
+    world_frame: odom
+

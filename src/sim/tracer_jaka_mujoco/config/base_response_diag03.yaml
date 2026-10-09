@@ -1,0 +1,12 @@
+# Command-to-reported-velocity fit, diag03 10-24 s; held-out 24-30.1 s.
+# A test plant, not independently identified hardware dynamics. Unlike MPC's
+# effective first-order fit, this plant retains sampled input dead time.
+mujoco_bridge:
+  ros__parameters:
+    base_response.enabled: true
+    base_response.linear_tau: 0.1893
+    base_response.angular_tau: 0.3039
+    base_response.linear_gain: 0.8182
+    base_response.angular_gain: 1.1471
+    base_response.linear_delay: 0.12
+    base_response.angular_delay: 0.14

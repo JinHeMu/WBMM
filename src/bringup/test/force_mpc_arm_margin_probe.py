@@ -22,7 +22,6 @@ from ocs2_msgs.msg import MpcObservation, MpcTargetTrajectories
 from rosgraph_msgs.msg import Clock
 from std_msgs.msg import Bool, Float64MultiArray, String
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, qos_profile_sensor_data
-from keyboard_test_events import Keyboard
 
 
 def main():
@@ -30,7 +29,12 @@ def main():
     parser.add_argument('--output', required=True)
     parser.add_argument('--name', required=True)
     parser.add_argument('--sequence', default='f:14,zero:4,r:6,zero:4')
+    parser.add_argument('--direct-force', action='store_true',
+                        help='headless: feed the virtual sensor command instead of X11 keys')
+    parser.add_argument('--force-n', type=float, default=5.0)
     args = parser.parse_args()
+    if not np.isfinite(args.force_n) or args.force_n <= 0:
+        raise ValueError('force-n must be finite and positive')
     phases = [('initial_zero', None, 3.0)]
     for index, item in enumerate(args.sequence.split(',')):
         key, duration = item.split(':')
@@ -76,19 +80,23 @@ def main():
     ]
     rows, stages, faults = [], [], set()
     keyboard = None
+    command_pub = None
+    force_command = WrenchStamped()
+    force_command.header.frame_id = 'tool0'
+    last_force_publish = -np.inf
     error = None
     last_sample = -np.inf
     started_wall = time.monotonic()
     def sample(phase):
         nonlocal last_sample
-        if state['obs'] is None or len(state['obs']) != 9 or state['ref'] is None or state['sim'] is None:
+        if state['obs'] is None or len(state['obs']) not in (9, 11) or state['ref'] is None or state['sim'] is None:
             return
         if state['sim'] - last_sample < 0.02:
             return
         last_sample = state['sim']
         obs = np.array(state['obs'])
         q = pin.neutral(model)
-        q[qindices] = obs[3:]
+        q[qindices] = obs[3:9]
         pin.framesForwardKinematics(model, data, q)
         tcp_local = data.oMf[frame].translation.copy()
         c, s = np.cos(obs[2]), np.sin(obs[2])
@@ -108,6 +116,10 @@ def main():
                      'base_command': state['base_command']})
 
     def spin(phase, check=True):
+        nonlocal last_force_publish
+        if command_pub is not None and time.monotonic() - last_force_publish >= .02:
+            command_pub.publish(force_command)
+            last_force_publish = time.monotonic()
         rclpy.spin_once(node, timeout_sec=0.002)
         if state['controller'].startswith('FAULT') or state['gate'].startswith('FAULT'):
             faults.add((phase, state['controller'], state['gate']))
@@ -124,13 +136,23 @@ def main():
                 break
         else:
             raise RuntimeError(f'startup timeout: {state}')
-        keyboard = Keyboard()
-        keyboard.focus()
+        if args.direct_force:
+            command_pub = node.create_publisher(
+                WrenchStamped, '/whole_body_force_control/virtual_wrench_command', 1)
+        else:
+            from keyboard_test_events import Keyboard
+            keyboard = Keyboard()
+            keyboard.focus()
         for name, key, duration in phases:
             t0, wall0 = state['sim'], time.monotonic()
             print(f'START {args.name} {name} {duration} simulation seconds', flush=True)
             if key:
-                keyboard.key(key, True)
+                if keyboard:
+                    keyboard.key(key, True)
+                else:
+                    axis, sign = {'w': ('x', 1), 's': ('x', -1), 'a': ('y', 1),
+                                  'd': ('y', -1), 'r': ('z', 1), 'f': ('z', -1)}[key]
+                    setattr(force_command.wrench.force, axis, sign * args.force_n)
             try:
                 while state['sim'] - t0 < duration:
                     spin(name)
@@ -138,7 +160,13 @@ def main():
                         raise RuntimeError('simulation clock stalled')
             finally:
                 if key:
-                    keyboard.key(key, False)
+                    if keyboard:
+                        keyboard.key(key, False)
+                    else:
+                        force_command.wrench.force.x = 0.0
+                        force_command.wrench.force.y = 0.0
+                        force_command.wrench.force.z = 0.0
+                        command_pub.publish(force_command)
             selected = [r for r in rows if r['phase'] == name]
             if len(selected) < 10:
                 raise RuntimeError('insufficient measured samples')
@@ -147,7 +175,7 @@ def main():
                            'min_yoshikawa': min(r['yoshikawa'] for r in selected),
                            'tracking_rms_m': float(np.sqrt(np.mean([r['error_m'] ** 2 for r in selected]))),
                            'tcp_change_m': (np.array(selected[-1]['tcp']) - selected[0]['tcp']).tolist(),
-                           'end_q': selected[-1]['obs'][3:]})
+                           'end_q': selected[-1]['obs'][3:9]})
             forces = [r['force'] for r in selected if r['force'] is not None]
             mean_force = np.mean(forces, axis=0) if forces else np.zeros(3)
             stages[-1]['mean_force_tcp_n'] = mean_force.tolist()
@@ -155,7 +183,7 @@ def main():
                 axis, sign = {'w': (0, 1), 's': (0, -1), 'a': (1, 1),
                               'd': (1, -1), 'r': (2, 1), 'f': (2, -1)}[key]
                 if sign * mean_force[axis] < 1.0 or np.linalg.norm(stages[-1]['tcp_change_m']) < 0.01:
-                    raise RuntimeError('keyboard force or measured TCP motion was not observed')
+                    raise RuntimeError('virtual force or measured TCP motion was not observed')
             print(json.dumps(stages[-1]), flush=True)
     except Exception as exc:
         error = str(exc)
@@ -163,6 +191,8 @@ def main():
         if keyboard:
             for key in 'wsadrf':
                 keyboard.key(key, False)
+        if command_pub is not None:
+            command_pub.publish(WrenchStamped(header=force_command.header))
         valid = [r for r in rows if r['phase'] != 'startup']
         prediction = [r['prediction'] for r in valid if r['prediction'] and r['prediction'][7] == 1]
         report = {'name': args.name, 'passed': error is None and len(stages) == len(phases),

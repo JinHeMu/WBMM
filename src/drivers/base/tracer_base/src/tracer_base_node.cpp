@@ -18,23 +18,19 @@
 
 using namespace westonrobot;
 
-std::shared_ptr<TracerBaseRos> robot;
-
-void DetachRobot(int signal) {
-  (void)signal;
-  robot->Stop();
-}
-
 int main(int argc, char **argv) {
   // setup ROS node
   rclcpp::init(argc, argv);
   //   std::signal(SIGINT, DetachRobot);
 
-  robot = std::make_shared<TracerBaseRos>("tracer");
-  while(true) {
-    std::cout << "Robot initialized, start running ..." << std::endl;
+  int result = 0;
+  try {
+    auto robot = std::make_shared<TracerBaseRos>("tracer");
     robot->Run();
+  } catch (const std::exception& error) {
+    RCLCPP_ERROR(rclcpp::get_logger("tracer"), "%s", error.what());
+    result = 1;
   }
-
-  return 0;
+  rclcpp::shutdown();
+  return result;
 }

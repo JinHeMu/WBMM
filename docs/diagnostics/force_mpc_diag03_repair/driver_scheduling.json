@@ -1,0 +1,20 @@
+{
+  "simulation_only": true,
+  "state_publish_rate_hz": 1,
+  "command_rate_hz": 125,
+  "sent": 300,
+  "received": 300,
+  "matched": 300,
+  "receive_latency_ms_p50_p95_max": [
+    0.1379251480102539,
+    0.39271116256713867,
+    4.672765731811523
+  ],
+  "callback_dispatch_ms_p50_p95_max": [
+    0.0011920928955078125,
+    0.0019073486328125,
+    0.010728836059570312
+  ],
+  "odom_samples": 1,
+  "shutdown_returncode": 0
+}

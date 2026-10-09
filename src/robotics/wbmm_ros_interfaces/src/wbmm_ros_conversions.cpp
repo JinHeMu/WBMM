@@ -82,7 +82,8 @@ std::optional<wbmm::core::WholeBodyState> wholeBodyStateFromMpcObservation(
   const std::string & frame_id)
 {
   if (frame_id.empty() || joint_names.empty() ||
-    message.state.value.size() != 3 + joint_names.size())
+    (message.state.value.size() != 3 + joint_names.size() &&
+     message.state.value.size() != 5 + joint_names.size()))
   {
     return std::nullopt;
   }
@@ -90,8 +91,12 @@ std::optional<wbmm::core::WholeBodyState> wholeBodyStateFromMpcObservation(
     return std::nullopt;
   }
 
-  Eigen::VectorXd state(
-    static_cast<Eigen::Index>(message.state.value.size()));
+  // Augmented MPC observations append actual base v/w. Core geometry stays 9D.
+  if (!std::all_of(message.state.value.begin() + 3 + joint_names.size(), message.state.value.end(),
+                  [](float value) { return std::isfinite(value); })) {
+    return std::nullopt;
+  }
+  Eigen::VectorXd state(static_cast<Eigen::Index>(3 + joint_names.size()));
   for (Eigen::Index i = 0; i < state.size(); ++i) {
     state[i] = static_cast<double>(
       message.state.value[static_cast<std::size_t>(i)]);

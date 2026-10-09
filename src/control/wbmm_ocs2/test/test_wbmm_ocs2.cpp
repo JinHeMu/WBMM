@@ -1176,3 +1176,146 @@ TEST(WbmmReferenceManager, NavigationClearsStaleEndEffectorTarget)
   manager->preSolverRun(0.0, 1.0, state);
   EXPECT_FALSE(endEffectorCost->isActive(0.0));
 }
+
+TEST(WbmmBaseResponse, RejectsInvalidParametersAndKeepsGeometryDimension)
+{
+  Fixture fixture;
+  auto settings = fixture.info.baseResponse;
+  settings.enabled = true;
+  fixture.info.configureBaseResponse(settings);
+  EXPECT_EQ(fixture.info.stateDim, 11U);
+  EXPECT_EQ(fixture.info.configurationDim(), 9U);
+  settings.linearTimeConstant = 0.0;
+  EXPECT_THROW(fixture.info.configureBaseResponse(settings), std::invalid_argument);
+  settings.linearTimeConstant = 0.35;
+  settings.angularGain = std::numeric_limits<double>::infinity();
+  EXPECT_THROW(fixture.info.configureBaseResponse(settings), std::invalid_argument);
+}
+
+TEST(WbmmBaseResponse, DynamicsAndDerivativesUseMeasuredVelocity)
+{
+  Fixture fixture;
+  auto settings = fixture.info.baseResponse;
+  settings.enabled = true;
+  fixture.info.configureBaseResponse(settings);
+  wbmm_ocs2::WbmmDynamics dynamics(fixture.info, "response_test",
+      "/tmp/wbmm_ocs2_response_test", true, false);
+  ocs2::vector_t state(11);
+  state.head(9) = sampleState();
+  state.tail(2) << 0.03, -0.06;
+  ocs2::vector_t input = ocs2::vector_t::Constant(8, 0.02);
+  input.head(2) << -0.1, 0.2;
+  wbmm_ocs2::WbmmPreComputation pre(fixture.interface, fixture.info);
+  const auto flow = dynamics.computeFlowMap(0.0, state, input, pre);
+  EXPECT_NEAR(flow(0), 0.03 * std::cos(state(2)), 1e-12);
+  EXPECT_NEAR(flow(1), 0.03 * std::sin(state(2)), 1e-12);
+  EXPECT_DOUBLE_EQ(flow(2), -0.06);
+  EXPECT_TRUE(flow.segment(3, 6).isApprox(input.tail(6)));
+  EXPECT_NEAR(flow(9), (settings.linearGain * input(0) - state(9)) / settings.linearTimeConstant, 1e-12);
+  EXPECT_NEAR(flow(10), (settings.angularGain * input(1) - state(10)) / settings.angularTimeConstant, 1e-12);
+  const auto linear = dynamics.linearApproximation(0.0, state, input, pre);
+  for (int i = 0; i < 11; ++i) {
+    auto plus = state, minus = state;
+    plus(i) += 1e-6; minus(i) -= 1e-6;
+    const ocs2::vector_t numeric = (dynamics.computeFlowMap(0, plus, input, pre) -
+        dynamics.computeFlowMap(0, minus, input, pre)) / 2e-6;
+    EXPECT_TRUE(linear.dfdx.col(i).isApprox(numeric, 1e-8)) << i;
+  }
+  for (int i = 0; i < 8; ++i) {
+    auto plus = input, minus = input;
+    plus(i) += 1e-6; minus(i) -= 1e-6;
+    const ocs2::vector_t numeric = (dynamics.computeFlowMap(0, state, plus, pre) -
+        dynamics.computeFlowMap(0, state, minus, pre)) / 2e-6;
+    EXPECT_TRUE(linear.dfdu.col(i).isApprox(numeric, 1e-8)) << i;
+  }
+}
+
+TEST(WbmmBaseResponse, MappingVelocityJacobianMatchesFiniteDifferences)
+{
+  Fixture fixture;
+  auto settings = fixture.info.baseResponse;
+  settings.enabled = true;
+  fixture.info.configureBaseResponse(settings);
+  wbmm_ocs2::WbmmPinocchioMapping mapping(fixture.info);
+  ocs2::vector_t state(11);
+  state.head(9) = sampleState(); state.tail(2) << 0.08, -0.1;
+  const ocs2::vector_t input = ocs2::vector_t::Constant(8, 0.02);
+  EXPECT_TRUE(mapping.getPinocchioJointPosition(state).isApprox(sampleState()));
+  const auto jac = mapping.getOcs2Jacobian(state, ocs2::matrix_t::Zero(9, 9),
+                                          ocs2::matrix_t::Identity(9, 9));
+  for (int i = 0; i < 11; ++i) {
+    auto plus = state, minus = state;
+    plus(i) += 1e-6; minus(i) -= 1e-6;
+    const ocs2::vector_t numeric = (mapping.getPinocchioJointVelocity(plus, input) -
+        mapping.getPinocchioJointVelocity(minus, input)) / 2e-6;
+    EXPECT_TRUE(jac.first.col(i).isApprox(numeric, 1e-8)) << i;
+  }
+  EXPECT_TRUE(jac.second.leftCols(2).isZero());
+  EXPECT_TRUE(jac.second.bottomRightCorner(6, 6).isIdentity());
+}
+
+TEST(WbmmBaseResponse, GeometricTargetAndArmMetricIgnoreVelocityStates)
+{
+  Fixture fixture;
+  auto settings = fixture.info.baseResponse;
+  settings.enabled = true; fixture.info.configureBaseResponse(settings);
+  ocs2::vector_t state(11);
+  state.head(9) = sampleState(); state.tail(2) << 0.1, -0.3;
+  const auto reference = sampleState();
+  wbmm_ocs2::WholeBodyTrajectoryCost cost(ocs2::matrix_t::Identity(9, 9), 2, reference);
+  ocs2::TargetTrajectories targets({0.0}, {reference}, {});
+  ocs2::PreComputation pre;
+  const auto quadratic = cost.getQuadraticApproximation(0, state, targets, pre);
+  EXPECT_DOUBLE_EQ(quadratic.f, 0.0);
+  EXPECT_EQ(quadratic.dfdx.size(), 11);
+  EXPECT_TRUE(quadratic.dfdxx.bottomRows(2).isZero());
+  EXPECT_TRUE(quadratic.dfdxx.topLeftCorner(9, 9).isIdentity());
+  wbmm_ocs2::ArmManipulabilitySettings options;
+  options.stateFrame = "odom";
+  options.useMinSingularValue = true;
+  options.minSingularRef = 2.0;
+  options.hessianRegularization = 0.0;
+  for (const auto scope : {wbmm::metrics::JacobianScope::kArmColumns,
+                           wbmm::metrics::JacobianScope::kWholeBodyInput}) {
+    options.metricsOptions.scope = scope;
+    wbmm_ocs2::ArmManipulabilityCost augmented(fixture.interface, fixture.info, options);
+    auto idealInfo = fixture.info;
+    settings.enabled = false; idealInfo.configureBaseResponse(settings);
+    wbmm_ocs2::ArmManipulabilityCost ideal(fixture.interface, idealInfo, options);
+    EXPECT_NEAR(augmented.computeMetrics(state).sigma_min,
+                ideal.computeMetrics(reference).sigma_min, 1e-12);
+    const auto qa = augmented.getQuadraticApproximation(0, state, {}, pre);
+    const auto qi = ideal.getQuadraticApproximation(0, reference, {}, pre);
+    EXPECT_NEAR(qa.f, qi.f, 1e-12);
+    EXPECT_TRUE(qa.dfdx.head(9).isApprox(qi.dfdx, 1e-9));
+    EXPECT_TRUE(qa.dfdx.tail(2).isZero());
+    EXPECT_TRUE(qa.dfdxx.bottomRows(2).isZero());
+  }
+}
+
+TEST(WbmmBaseResponse, InterfacePreservesInitialJointsAndNineDimensionalReferences)
+{
+  std::ifstream source(WBMM_OCS2_TEST_MODE_SWITCH_TASK_FILE);
+  const std::string path = "/tmp/wbmm_ocs2_test_base_response.info";
+  {
+    std::ofstream output(path);
+    output << source.rdbuf() << "\nbaseResponse { activate true linearTimeConstant 0.35 "
+        "angularTimeConstant 0.60 linearGain 0.94 angularGain 1.31 }\n";
+  }
+  wbmm_ocs2::WbmmInterface interface(path, "/tmp/wbmm_ocs2_response_interface_test", testRobotUrdfPath());
+  const auto& initial = interface.getInitialState();
+  ASSERT_EQ(initial.size(), 11);
+  EXPECT_TRUE(initial.tail(2).isZero());
+  const ocs2::vector_t geometry = initial.head(9);
+  const ocs2::TargetTrajectories target({0.0}, {geometry}, {ocs2::vector_t::Zero(8)});
+  interface.setWholeBodyTarget(target);
+  interface.getReferenceManagerPtr()->preSolverRun(0.0, 1.0, initial);
+  ASSERT_EQ(interface.getWholeBodyTarget().stateTrajectory.front().size(), 9);
+  wbmm_ocs2::WbmmPreComputation pre(interface.getPinocchioInterface(), interface.getWbmmModelInfo());
+  pre.request(ocs2::Request::Cost + ocs2::Request::Approximation, 0, initial, ocs2::vector_t::Zero(8));
+  // Exercises mapping, whole-body cost, EE cost and joint bounds at 11D.
+  const auto& problem = interface.getOptimalControlProblem();
+  const auto qa = problem.stateCostPtr->getQuadraticApproximation(0, initial, target, pre);
+  EXPECT_TRUE(qa.dfdx.allFinite());
+  EXPECT_EQ(qa.dfdx.size(), 11);
+}

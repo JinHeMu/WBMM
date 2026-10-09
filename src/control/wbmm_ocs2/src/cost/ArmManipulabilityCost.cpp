@@ -103,11 +103,11 @@ namespace wbmm_ocs2
           settings_(std::move(settings))
     {
         const auto &model = pinocchioInterface_.getModel();
-        if (static_cast<std::size_t>(model.nq) != modelInfo_.stateDim ||
-            static_cast<std::size_t>(model.nv) != modelInfo_.stateDim)
+        if (static_cast<std::size_t>(model.nq) != modelInfo_.configurationDim() ||
+            static_cast<std::size_t>(model.nv) != modelInfo_.configurationDim())
         {
             throw std::runtime_error(
-                "[ArmManipulabilityCost] Pinocchio nq/nv must match stateDim.");
+                "[ArmManipulabilityCost] Pinocchio nq/nv must match configurationDim.");
         }
         if (settings_.frameName.empty())
         {
@@ -285,7 +285,7 @@ namespace wbmm_ocs2
 
     std::size_t ArmManipulabilityCost::armStateStartIndex() const noexcept
     {
-        return modelInfo_.stateDim - modelInfo_.armDim;
+        return 3;
     }
 
     ArmManipulabilityCost::Metrics ArmManipulabilityCost::computeMetrics(
@@ -318,10 +318,11 @@ namespace wbmm_ocs2
                 pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED,
                 pinocchioJacobian);
 
-            const matrix_t unusedStateJacobian =
-                matrix_t::Zero(6, model.nq);
-            const auto mappedJacobians = mapping.getOcs2Jacobian(
-                state, unusedStateJacobian, pinocchioJacobian);
+            auto mobilityInfo = modelInfo_;
+            mobilityInfo.baseResponse.enabled = false;
+            const WbmmPinocchioMapping mobilityMapping(mobilityInfo);
+            const auto mappedJacobians = mobilityMapping.getOcs2Jacobian(
+                state, matrix_t::Zero(6, model.nq), pinocchioJacobian);
 
             wbmm::core::Header header;
             header.frame_id = settings_.stateFrame;
@@ -385,7 +386,7 @@ namespace wbmm_ocs2
         std::lock_guard<std::mutex> lock(workspaceMutex_);
         const auto& model = pinocchioInterface_.getModel();
         auto& data = pinocchioInterface_.getData();
-        pinocchio::computeJointJacobians(model, data, state);
+        pinocchio::computeJointJacobians(model, data, vector_t(state.head(modelInfo_.configurationDim())));
         pinocchio::updateFramePlacement(model, data, endEffectorFrameId_);
         matrix_t frameJacobian = matrix_t::Zero(6, model.nv);
         pinocchio::getFrameJacobian(model, data, endEffectorFrameId_,
@@ -584,8 +585,8 @@ namespace wbmm_ocs2
         else
         {
             // Whole-body task Jacobian depends on yaw and arm joints, not on x/y.
-            indices.reserve(modelInfo_.stateDim - 2U);
-            for (std::size_t i = 2U; i < modelInfo_.stateDim; ++i)
+            indices.reserve(modelInfo_.configurationDim() - 2U);
+            for (std::size_t i = 2U; i < modelInfo_.configurationDim(); ++i)
             {
                 indices.push_back(static_cast<int>(i));
             }

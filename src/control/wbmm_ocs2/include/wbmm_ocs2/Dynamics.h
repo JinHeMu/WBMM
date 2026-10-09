@@ -39,11 +39,9 @@ namespace wbmm_ocs2
     /**
     * Implementation of a wheel-based mobile manipulator.
     *
-    * The wheel-based manipulator is simulated 2D-bicycle model for the base. The state
-    * of the robot is: (base x, base y, base yaw, arm joints).
-    *
-    * The robot is assumed to be velocity controlled with the base commands as the forward
-    * velocity and the angular velocity around z.
+    * Differential-drive base and velocity-controlled arm. With baseResponse
+    * enabled, actual body v/w are appended to the configuration and evolve
+    * under a first-order actuator model. Input remains [v_cmd,w_cmd,qdot_arm].
     */
     class WbmmDynamics final : public ocs2::SystemDynamicsBaseAD
     {

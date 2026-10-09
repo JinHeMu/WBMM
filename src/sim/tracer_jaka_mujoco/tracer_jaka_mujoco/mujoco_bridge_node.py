@@ -41,6 +41,7 @@ from .camera_sensor import CameraSensor
 from .imu_sensor import ImuSensor
 from .fts_sensor import MujocoFtsBroadcaster
 from .arm_servo import ArmBiasCompensator, configure_position_servos
+from .base_response import BaseResponse
 
 
 ARM_JOINTS = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
@@ -86,6 +87,11 @@ class MujocoBridge(Node):
         self.declare_parameter("odom_topic", "/wheel/odometry")
         self.declare_parameter("exact_base", True)
         self.declare_parameter("spin_wheels", True)
+        self.declare_parameter("base_response.enabled", False)
+        for key, default in (("linear_tau", 0.35), ("angular_tau", 0.60),
+                             ("linear_gain", 1.0), ("angular_gain", 1.0),
+                             ("linear_delay", 0.0), ("angular_delay", 0.0)):
+            self.declare_parameter("base_response." + key, default)
         # Safety envelope on the simulated base. With exact_base=True the
         # commanded (v, w) is integrated straight into qpos, so a diverging
         # controller command is applied verbatim and nothing physical can
@@ -202,6 +208,11 @@ class MujocoBridge(Node):
         self.odom_topic = gp("odom_topic")
         self.exact_base = bool(gp("exact_base"))
         self.spin_wheels = bool(gp("spin_wheels"))
+        self.base_response = BaseResponse(
+            enabled=gp("base_response.enabled"),
+            **{key: float(gp("base_response." + key)) for key in
+               ("linear_tau", "angular_tau", "linear_gain", "angular_gain",
+                "linear_delay", "angular_delay")})
         self.cmd_vel_max_linear = abs(float(gp("cmd_vel_max_linear")))
         self.cmd_vel_max_angular = abs(float(gp("cmd_vel_max_angular")))
         self.cmd_vel_timeout = abs(float(gp("cmd_vel_timeout")))
@@ -528,7 +539,11 @@ class MujocoBridge(Node):
         if stamp is None or (time.perf_counter() - stamp) > self.cmd_vel_timeout:
             v = 0.0
             w = 0.0
+            # Preserve the simulator's hard command-watchdog stop and flush
+            # pending commands so a reconnect cannot replay old motion.
+            self.base_response.reset()
         dt = self.dt
+        v, w = self.base_response.step(self.sim_time, dt, v, w)
         yaw_mid = self.base_yaw + 0.5 * w * dt
         self.base_x += v * math.cos(yaw_mid) * dt
         self.base_y += v * math.sin(yaw_mid) * dt

@@ -1,0 +1,4 @@
+Push: TCP dx=0.477569 base=0.199483 arm=0.615058
+Release drift=9.02036e-05
+Reverse TCP dx=-0.479197
+PASS: /tmp/wbmm_diag03_validation/interlock/response.json

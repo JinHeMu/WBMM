@@ -1,6 +1,7 @@
 #pragma once
 
 #include "whole_body_force_control/force_processor.hpp"
+#include "whole_body_force_control/sample_interval.hpp"
 
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <geometry_msgs/msg/wrench_stamped.hpp>
@@ -78,8 +79,7 @@ private:
   bool fault_latched_{false};
   std::string last_state_;
   std::chrono::steady_clock::time_point last_raw_;
-  std::chrono::steady_clock::time_point last_processed_;
-  bool processed_received_{false};
+  SampleInterval sample_interval_;
   bool tf_ready_{false};
   std::chrono::steady_clock::time_point reset_at_;
   int64_t last_stamp_ns_{0};

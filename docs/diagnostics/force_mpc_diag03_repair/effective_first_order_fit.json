@@ -1,0 +1,17 @@
+{
+  "description": "Effective first-order fit without explicit dead time; combines actuator and feedback response, not a pure physical inertia identification.",
+  "fits": {
+    "linear": {
+      "tau_s": 0.3512656124935912,
+      "gain": 0.9424583788148758,
+      "validation_rmse": 0.03476225377883204,
+      "instantaneous_rmse": 0.08020386900545154
+    },
+    "angular": {
+      "tau_s": 0.5979491707594741,
+      "gain": 1.3118362513433282,
+      "validation_rmse": 0.12930441114159533,
+      "instantaneous_rmse": 0.391817508111689
+    }
+  }
+}

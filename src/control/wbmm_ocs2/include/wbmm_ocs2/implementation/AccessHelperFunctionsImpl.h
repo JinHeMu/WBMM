@@ -62,7 +62,7 @@ namespace wbmm_ocs2
         assert(state.rows() == static_cast<Eigen::Index>(info.stateDim));
         assert(state.cols() == 1);
         const Eigen::Index startRow =
-            static_cast<Eigen::Index>(info.stateDim - info.armDim);
+            static_cast<Eigen::Index>(3);
         return Eigen::Block<Derived, -1, 1>(
             state.derived(), startRow, 0,
             static_cast<Eigen::Index>(info.armDim), 1);
@@ -75,7 +75,7 @@ namespace wbmm_ocs2
         assert(state.rows() == static_cast<Eigen::Index>(info.stateDim));
         assert(state.cols() == 1);
         const Eigen::Index startRow =
-            static_cast<Eigen::Index>(info.stateDim - info.armDim);
+            static_cast<Eigen::Index>(3);
         return Eigen::Block<const Derived, -1, 1>(
             state.derived(), startRow, 0,
             static_cast<Eigen::Index>(info.armDim), 1);

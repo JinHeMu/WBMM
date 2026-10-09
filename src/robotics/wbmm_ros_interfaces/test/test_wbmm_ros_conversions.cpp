@@ -228,3 +228,18 @@ TEST(WbmmRosConversions, EigenStateRoundTripMatchesCoreContract)
     wbmm::ros_interfaces::toCoreState(
       wrong_size, names, header).has_value());
 }
+
+TEST(WbmmRosConversions, AugmentedObservationProjectsOnlyGeometry)
+{
+  ocs2_msgs::msg::MpcObservation message;
+  message.time = 1.0;
+  message.state.value = {1, 2, 0.5, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.04, -0.2};
+  const auto state = wbmm::ros_interfaces::wholeBodyStateFromMpcObservation(message, jointNames(), "odom");
+  ASSERT_TRUE(state);
+  EXPECT_TRUE(wbmm::core::validate(*state));
+  EXPECT_NEAR(state->joints.positions.back(), 0.6, 1e-6);
+  message.state.value[10] = std::numeric_limits<float>::quiet_NaN();
+  EXPECT_FALSE(wbmm::ros_interfaces::wholeBodyStateFromMpcObservation(message, jointNames(), "odom"));
+  message.state.value.pop_back();
+  EXPECT_FALSE(wbmm::ros_interfaces::wholeBodyStateFromMpcObservation(message, jointNames(), "odom"));
+}

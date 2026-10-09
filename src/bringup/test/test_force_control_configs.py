@@ -152,6 +152,7 @@ def test_integrated_real_calibration_and_execution_gates(monkeypatch, hardware_w
     args = dict(backend['launch_arguments'])
     assert args['hardware_write'] == args['start_arm_controller'] == hardware_write
     assert args['torque_sensor_mode'] == '1'
+    assert float(args['robot_state_publish_frequency']) == 250.0
     assert args['start_arm_pose'] == 'false'
     # Physical feedback protection follows the effective MRT limits, including
     # a user-supplied force profile. These tests construct actions only.
@@ -226,11 +227,12 @@ def test_execution_speeds_do_not_override_mpc_planning(monkeypatch, tmp_path, ba
     assert 'base_max_linear_velocity' not in mpc
     assert 'base_max_angular_velocity' not in mpc
     assert mrt['arm_max_command_velocity'] == 0.31
-    assert mrt['base_max_linear_velocity'] == 0.1
+    profile_params = load_yaml(COMMON_CONFIG / 'force_mpc.yaml')
+    assert mrt['base_max_linear_velocity'] == profile_params['wbmm_mrt_node']['ros__parameters']['base_max_linear_velocity']
     assert mrt['base_max_angular_velocity'] == 0.4
     assert mpc['ee_frame'] == mrt['ee_frame'] == force['force_sensor.tcp_frame'] == 'Link_6'
     assert force['admittance.stiffness'] == [0.0] * 6
-    assert force['admittance.mass'] == [20.0] * 3 + [2.0] * 3
+    assert force['admittance.mass'] == profile_params['whole_body_force_control']['ros__parameters']['admittance']['mass']
     assert force['end_effector.max_linear_velocity'] == 0.2
     assert force['topics.wrench'] == '/test/processed_force'
 

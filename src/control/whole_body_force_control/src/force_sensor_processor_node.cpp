@@ -330,11 +330,9 @@ void ForceSensorProcessorNode::rawWrenchCallback(
     }
 
     const auto wall_now = std::chrono::steady_clock::now();
-    const double dt = processed_received_
-        ? std::chrono::duration<double>(wall_now - last_processed_).count()
-        : 1.0 / parameters_.monitor_rate;
-    last_processed_ = wall_now;
-    processed_received_ = true;
+    const double dt = sample_interval_.next(
+        rclcpp::Time(message->header.stamp).nanoseconds(), wall_now,
+        parameters_.require_stamped_wrench, 1.0 / parameters_.monitor_rate);
     tf_ready_ = true;
     const auto result = processor_.process(
         *raw, parameters_.tcp_frame, tcp_rotation_sensor,
@@ -392,7 +390,7 @@ void ForceSensorProcessorNode::monitorRawInput() {
 void ForceSensorProcessorNode::resetProcessor() {
   fault_latched_ = false;
   raw_received_ = false;
-  processed_received_ = false;
+  sample_interval_.reset();
   tf_ready_ = false;
   reset_at_ = std::chrono::steady_clock::now();
   last_stamp_ns_ = 0;

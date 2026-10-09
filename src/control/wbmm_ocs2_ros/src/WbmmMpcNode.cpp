@@ -152,7 +152,7 @@ int main(int argc, char* argv[])
       nodeHandle->get_parameter("ee_frame").as_string());
   const bool modeSwitchEnabled = interface.isModeSwitchEnabled();
   const std::size_t wholeBodyStateDim =
-      interface.getWbmmModelInfo().stateDim;
+      interface.getWbmmModelInfo().configurationDim();
 
   // Optional deterministic start phase for force-control profiles. The task
   // file remains the source of truth when this parameter is -1.

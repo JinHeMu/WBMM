@@ -3,6 +3,8 @@
 # interfaces remain identical across backends.
 controller_manager:
   ros__parameters:
+    # joint_state_broadcaster and fts_broadcaster run on this loop. Moving-joint
+    # TF is separately throttled by robot_state_publisher.publish_frequency.
     update_rate: 125
 
     joint_state_broadcaster:

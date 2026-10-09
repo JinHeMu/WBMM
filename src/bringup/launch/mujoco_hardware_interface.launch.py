@@ -96,7 +96,10 @@ def _make_nodes(context):
             executable="mujoco_bridge",
             name="mujoco_bridge",
             output="screen",
-            parameters=[sensors_yaml, _value(context, "arm_servo_config"), bridge_parameters],
+            parameters=[sensors_yaml, _value(context, "arm_servo_config"),
+                        *([_value(context, "base_response_config")]
+                          if _value(context, "base_response_config") else []),
+                        bridge_parameters],
         ),
     ]
 
@@ -144,6 +147,8 @@ def generate_launch_description():
             description=(
                 "Explicit keyframe override. When empty, initial_pose is used.")),
         DeclareLaunchArgument("viewer", default_value="true"),
+        DeclareLaunchArgument("base_response_config", default_value="",
+                             description="Optional YAML actuator lag/delay test plant"),
         DeclareLaunchArgument(
             "start_robot_state_publisher", default_value="true"),
         DeclareLaunchArgument(

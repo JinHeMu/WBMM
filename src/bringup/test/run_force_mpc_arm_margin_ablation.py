@@ -20,6 +20,9 @@ def main():
     parser.add_argument('--domain', type=int, default=68)
     parser.add_argument('--integration-probe', action='store_true',
                         help='run the existing C++ force/feedback-loss/recovery regression instead of keyboard probe')
+    parser.add_argument('--base-response-config', default='')
+    parser.add_argument('--direct-force', action='store_true')
+    parser.add_argument('--force-n', type=float, default=5.0)
     args = parser.parse_args()
     folder = Path(args.directory).resolve()
     probe = Path(__file__).with_name('force_mpc_arm_margin_probe.py')
@@ -31,8 +34,11 @@ def main():
         env = dict(os.environ, ROS_DOMAIN_ID=str(args.domain), ROS_LOG_DIR=f'/tmp/wbmm_arm_margin_{name}_ros')
         cmd = ['ros2', 'launch', 'tracer_jaka_bringup', 'force_mpc.launch.py',
                'backend:=sim', 'fake_wrench:=true',
-               f'keyboard_wrench:={"false" if args.integration_probe else "true"}',
+               f'keyboard_wrench:={"false" if args.integration_probe or args.direct_force else "true"}',
                'use_rviz:=false', f'task_file:={task}']
+        cmd += ['viewer:=false']
+        if args.base_response_config:
+            cmd.append(f'base_response_config:={args.base_response_config}')
         print('LAUNCH', name, flush=True)
         with (folder / f'{name}_launch.log').open('w') as launch_log:
             launch = subprocess.Popen(cmd, env=env, stdout=launch_log, stderr=subprocess.STDOUT, start_new_session=True)
@@ -40,6 +46,8 @@ def main():
                 with (folder / f'{name}_probe.log').open('w') as probe_log:
                     probe_cmd = [sys.executable, '-s', str(probe), '--name', name,
                                  '--sequence', args.sequence, '--output', str(folder / f'{name}.json')]
+                    if args.direct_force:
+                        probe_cmd += ['--direct-force', '--force-n', str(args.force_n)]
                     if args.integration_probe:
                         probe_cmd = ['ros2', 'run', 'whole_body_force_control', 'force_mpc_integration_probe',
                                      '--ros-args', '-p', f'report:={folder / (name + ".json")}']

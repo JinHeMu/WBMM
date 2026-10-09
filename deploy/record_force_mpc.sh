@@ -29,7 +29,7 @@ printf 'Bag: %s\nStop with Ctrl+C, then inspect with: ros2 bag info "%s"\n' "$BA
 # prevent the recorder from waiting for topics that appear later.
 PARAM_DIR="${BAG_DIR}.params"
 mkdir -p -- "$PARAM_DIR"
-for node in force_sensor_processor whole_body_force_control wbmm_mrt_node; do
+for node in force_sensor_processor whole_body_force_control wbmm_mrt_node tracer_base_node; do
   if ! timeout 5 ros2 param dump "/${node}" > "${PARAM_DIR}/${node}.yaml" 2> "${PARAM_DIR}/${node}.stderr"; then
     printf 'Could not snapshot /%s; recording will still proceed.\n' "$node" >&2
   fi
@@ -46,4 +46,5 @@ exec ros2 bag record --max-cache-size 20000000 -o "$BAG_DIR" \
   /mobile_manipulator_mpc_policy \
   /mobile_manipulator_force_execution_state \
   /arm_controller/commands /joint_states /wheel/odometry /cmd_vel \
+  /tracer_base_node/command_received /tracer_base_node/command_dispatched \
   /tf /tf_static /rosout /parameter_events

@@ -1,0 +1,136 @@
+{
+  "offline": {
+    "previous": {
+      "samples": 1101,
+      "max_error_m": 0.003909053550273854,
+      "rms_error_m": 0.0018142567779958754,
+      "startup": {
+        "base_displacement_m": 0.03190381831200198,
+        "v_command_rms": 0.014324184336277189,
+        "w_command_rms": 0.01389667315950655
+      },
+      "release_settled": {
+        "base_displacement_m": 0.0027016394195517484,
+        "v_command_rms": 0.0008243521715920412,
+        "w_command_rms": 0.0015785119960501
+      }
+    },
+    "ideal": {
+      "samples": 1101,
+      "max_error_m": 0.0036699356652397873,
+      "rms_error_m": 0.0018159017124957484,
+      "startup": {
+        "base_displacement_m": 0.0014270548877113928,
+        "v_command_rms": 0.0006622456209298755,
+        "w_command_rms": 0.0010383511853346396
+      },
+      "release_settled": {
+        "base_displacement_m": 0.0019138691370717137,
+        "v_command_rms": 0.000560705662056344,
+        "w_command_rms": 0.0012734433000317169
+      }
+    },
+    "response": {
+      "samples": 1101,
+      "max_error_m": 0.003933475265394793,
+      "rms_error_m": 0.0024656239964298402,
+      "startup": {
+        "base_displacement_m": 0.0012110941123406587,
+        "v_command_rms": 0.0005502768622301361,
+        "w_command_rms": 0.0007304863959868888
+      },
+      "release_settled": {
+        "base_displacement_m": 0.0019099382442313835,
+        "v_command_rms": 0.0005506041756540451,
+        "w_command_rms": 0.0007231619985159596
+      }
+    },
+    "response_delay150": {
+      "samples": 1101,
+      "max_error_m": 0.003899148626300425,
+      "rms_error_m": 0.0024664648693370353,
+      "startup": {
+        "base_displacement_m": 0.0011984032362527845,
+        "v_command_rms": 0.0005567639383012211,
+        "w_command_rms": 0.0007449772981042415
+      },
+      "release_settled": {
+        "base_displacement_m": 0.0018933217016276081,
+        "v_command_rms": 0.000540055112243496,
+        "w_command_rms": 0.0007125884458990683
+      }
+    }
+  },
+  "mujoco": {
+    "ideal": {
+      "passed": true,
+      "faults": [],
+      "unexpected_collision": false,
+      "tracking_rms_m": 0.008898159394116955,
+      "maximum_tracking_error_m": 0.022349606120282823,
+      "min_sigma": 0.12077687072137766,
+      "1_zero": {
+        "v_command_rms": 0.010618518784003118,
+        "w_command_rms": 0.0556102650929962,
+        "tracking_rms_m": 0.004829641212856064
+      },
+      "3_zero": {
+        "v_command_rms": 0.019906014236236173,
+        "w_command_rms": 0.11108468913222788,
+        "tracking_rms_m": 0.010013634887625047
+      }
+    },
+    "response": {
+      "passed": true,
+      "faults": [],
+      "unexpected_collision": false,
+      "tracking_rms_m": 0.008303551399650971,
+      "maximum_tracking_error_m": 0.013151727048112322,
+      "min_sigma": 0.12109689139211013,
+      "1_zero": {
+        "v_command_rms": 0.0013293708391523308,
+        "w_command_rms": 0.0006588806760478398,
+        "tracking_rms_m": 0.00022894527153379234
+      },
+      "3_zero": {
+        "v_command_rms": 0.0008818477829654815,
+        "w_command_rms": 0.0015508842420622793,
+        "tracking_rms_m": 0.00017156757450666722
+      }
+    }
+  },
+  "driver": {
+    "simulation_only": true,
+    "state_publish_rate_hz": 1,
+    "command_rate_hz": 125,
+    "sent": 300,
+    "received": 300,
+    "matched": 300,
+    "receive_latency_ms_p50_p95_max": [
+      0.1379251480102539,
+      0.39271116256713867,
+      4.672765731811523
+    ],
+    "callback_dispatch_ms_p50_p95_max": [
+      0.0011920928955078125,
+      0.0019073486328125,
+      0.010728836059570312
+    ],
+    "odom_samples": 1,
+    "shutdown_returncode": 0
+  },
+  "interlock": {
+    "passed": true,
+    "backend": "MuJoCo",
+    "positive_tcp_dx_m": 0.477569,
+    "base_travel_m": 0.199483,
+    "arm_joint_change_norm_rad": 0.615058,
+    "release_drift_m": 9.02036e-05,
+    "negative_tcp_dx_m": -0.479197,
+    "disconnect_fault": "FAULT_WRENCH_TIMEOUT",
+    "stopped_base_command_max": 0,
+    "hold_command_variation_rad": 0,
+    "recovery_displacement_m": 0.000147214,
+    "unexpected_collision": false
+  }
+}

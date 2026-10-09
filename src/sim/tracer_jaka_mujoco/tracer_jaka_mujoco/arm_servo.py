@@ -63,7 +63,7 @@ class ArmBiasCompensator:
             kp = model.actuator_gainprm[aid, 0]
             if (model.actuator_trntype[aid] != mujoco.mjtTrn.mjTRN_JOINT or
                     model.jnt_dofadr[joint] != did or
-                    model.jnt_type[joint] not in (mujoco.mjtJoint.mjJNT_HINGE, mujoco.mjtJoint.mjJNT_SLIDE) or
+                    int(model.jnt_type[joint]) not in (mujoco.mjtJoint.mjJNT_HINGE, mujoco.mjtJoint.mjJNT_SLIDE) or
                     not np.array_equal(model.actuator_gear[aid], [1, 0, 0, 0, 0, 0]) or
                     model.actuator_gaintype[aid] != mujoco.mjtGain.mjGAIN_FIXED or
                     model.actuator_biastype[aid] != mujoco.mjtBias.mjBIAS_AFFINE or

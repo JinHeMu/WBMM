@@ -11,9 +11,9 @@
  * 关键设计:
  *   1. 不持有 ocs2::ReferenceManager 指针。ocs2::StateCost 接口本身就把 ocs2::TargetTrajectories
  *      作为形参传进来, 由 solver 在 preSolverRun() 之后统一切换, 天然线程安全。
- *   2. stateTrajectory 的每个元素必须是 stateDim 维 (例如 9 = [x, y, yaw, q1..q6])。
- *      若维度不匹配 (例如仍然是旧的 7 维 EE pose), 本 cost 自动退化为 0,
- *      而不是抛异常把 MPC 线程打死。
+ *   2. References and Q describe geometry [x,y,yaw,q1..q6] (9D).
+ *      Augmented MPC velocity states have zero tracking gradient/Hessian.
+ *      Invalid references use the fallback geometric hold target.
  *   3. yaw 分量: 插值走最短角路径, 误差做 wrap 到 [-pi, pi]。
  *****************************************************************************/
 

@@ -30,6 +30,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
 #include <cstddef>
+#include <cmath>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -39,11 +41,12 @@ namespace wbmm_ocs2
 // ============================================================================
 // WbmmModelInfo —— WBMM 第一版移动机械臂 MPC 模型合同。
 //
-//   x = [base_x, base_y, base_yaw, q1..qN]   stateDim
+//   x = [base_x, base_y, base_yaw, q1..qN, (v_actual, omega_actual)]
 //   u = [v, omega, qdot1..qdotN]             inputDim
 //
 // 当前只实现 WBMM 差速底盘 + 六轴臂：
-//   stateDim = 9, inputDim = 8, armDim = 6。
+//   stateDim = 9 (ideal base) or 11 (base response), inputDim = 8, armDim = 6。
+// Pinocchio q and whole-body references always contain the first 9 coordinates.
 //
 // 不再保留 OCS2 mobile_manipulator 的 Default / FloatingArm /
 // FullyActuatedFloatingArm 分支；出现第二种真实底盘需求时再单独引入，
@@ -54,6 +57,28 @@ struct WbmmModelInfo
   std::size_t stateDim{0};
   std::size_t inputDim{0};
   std::size_t armDim{0};
+
+  struct BaseResponse {
+    bool enabled{false};
+    double linearTimeConstant{0.35};
+    double angularTimeConstant{0.60};
+    double linearGain{0.94};
+    double angularGain{1.31};
+  } baseResponse;
+
+  std::size_t configurationDim() const noexcept { return 3 + armDim; }
+  std::size_t baseVelocityIndex() const noexcept { return configurationDim(); }
+
+  void configureBaseResponse(BaseResponse settings) {
+    for (const double value : {settings.linearTimeConstant, settings.angularTimeConstant,
+                               settings.linearGain, settings.angularGain}) {
+      if (!std::isfinite(value) || value <= 0.0) {
+        throw std::invalid_argument("baseResponse gains/time constants must be finite and positive");
+      }
+    }
+    baseResponse = settings;
+    stateDim = configurationDim() + (settings.enabled ? 2 : 0);
+  }
 
   std::string baseFrame;   // URDF 根链路名（机械臂基座）
   std::string eeFrame;     // 唯一末端 frame

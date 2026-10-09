@@ -1,0 +1,235 @@
+Starting >>> whole_body_force_control
+Starting >>> wbmm_ocs2_ros
+UpdateCTestConfiguration  from :/home/a/WBMM/build/whole_body_force_control/CTestConfiguration.ini
+Parse Config file:/home/a/WBMM/build/whole_body_force_control/CTestConfiguration.ini
+   Site: a
+   Build name: (empty)
+ Add coverage exclude regular expressions.
+Create new tag: 20261009-0722 - Experimental
+UpdateCTestConfiguration  from :/home/a/WBMM/build/whole_body_force_control/CTestConfiguration.ini
+Parse Config file:/home/a/WBMM/build/whole_body_force_control/CTestConfiguration.ini
+Test project /home/a/WBMM/build/whole_body_force_control
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: test_force_control
+
+1: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/home/a/WBMM/build/whole_body_force_control/test_results/whole_body_force_control/test_force_control.gtest.xml" "--package-name" "whole_body_force_control" "--output-file" "/home/a/WBMM/build/whole_body_force_control/ament_cmake_gtest/test_force_control.txt" "--command" "/home/a/WBMM/build/whole_body_force_control/test_force_control" "--gtest_output=xml:/home/a/WBMM/build/whole_body_force_control/test_results/whole_body_force_control/test_force_control.gtest.xml"
+1: Test timeout computed to be: 60
+1: -- run_test.py: invoking following command in '/home/a/WBMM/build/whole_body_force_control':
+1:  - /home/a/WBMM/build/whole_body_force_control/test_force_control --gtest_output=xml:/home/a/WBMM/build/whole_body_force_control/test_results/whole_body_force_control/test_force_control.gtest.xml
+1: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+1: [==========] Running 29 tests from 7 test suites.
+1: [----------] Global test environment set-up.
+1: [----------] 4 tests from AdmittanceController
+1: [ RUN      ] AdmittanceController.PassiveAdmittanceIsBoundedAndReturnsToZero
+1: [       OK ] AdmittanceController.PassiveAdmittanceIsBoundedAndReturnsToZero (0 ms)
+1: [ RUN      ] AdmittanceController.ZeroStiffnessFollowsWhileForceIsPresent
+1: [       OK ] AdmittanceController.ZeroStiffnessFollowsWhileForceIsPresent (0 ms)
+1: [ RUN      ] AdmittanceController.LimitOffsetStopsIntegratorWindup
+1: [       OK ] AdmittanceController.LimitOffsetStopsIntegratorWindup (0 ms)
+1: [ RUN      ] AdmittanceController.VelocityFollowsDynamicsWithoutAxisSaturation
+1: [       OK ] AdmittanceController.VelocityFollowsDynamicsWithoutAxisSaturation (0 ms)
+1: [----------] 4 tests from AdmittanceController (0 ms total)
+1: 
+1: [----------] 2 tests from CartesianComplianceController
+1: [ RUN      ] CartesianComplianceController.SelectsIndependentSixAxisAdmittance
+1: [       OK ] CartesianComplianceController.SelectsIndependentSixAxisAdmittance (1 ms)
+1: [ RUN      ] CartesianComplianceController.TransformsForceAndLeverArmTorque
+1: [       OK ] CartesianComplianceController.TransformsForceAndLeverArmTorque (0 ms)
+1: [----------] 2 tests from CartesianComplianceController (1 ms total)
+1: 
+1: [----------] 1 test from EndEffectorPoseTarget
+1: [ RUN      ] EndEffectorPoseTarget.AppliesLocalCorrectionInNominalFrame
+1: [       OK ] EndEffectorPoseTarget.AppliesLocalCorrectionInNominalFrame (0 ms)
+1: [----------] 1 test from EndEffectorPoseTarget (0 ms total)
+1: 
+1: [----------] 5 tests from PinocchioRobotModel
+1: [ RUN      ] PinocchioRobotModel.MatchesCoreDimensionAndJointContract
+UpdateCTestConfiguration  from :/home/a/WBMM/build/wbmm_ocs2_ros/CTestConfiguration.ini
+Parse Config file:/home/a/WBMM/build/wbmm_ocs2_ros/CTestConfiguration.ini
+   Site: a
+   Build name: (empty)
+ Add coverage exclude regular expressions.
+Create new tag: 20261009-0722 - Experimental
+UpdateCTestConfiguration  from :/home/a/WBMM/build/wbmm_ocs2_ros/CTestConfiguration.ini
+Parse Config file:/home/a/WBMM/build/wbmm_ocs2_ros/CTestConfiguration.ini
+Test project /home/a/WBMM/build/wbmm_ocs2_ros
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: test_force_execution_gate
+
+1: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_force_execution_gate.gtest.xml" "--package-name" "wbmm_ocs2_ros" "--output-file" "/home/a/WBMM/build/wbmm_ocs2_ros/ament_cmake_gtest/test_force_execution_gate.txt" "--command" "/home/a/WBMM/build/wbmm_ocs2_ros/test_force_execution_gate" "--gtest_output=xml:/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_force_execution_gate.gtest.xml"
+1: Test timeout computed to be: 60
+1: [       OK ] PinocchioRobotModel.MatchesCoreDimensionAndJointContract (4 ms)
+1: [ RUN      ] PinocchioRobotModel.RejectsJointOutsideLimits
+1: [       OK ] PinocchioRobotModel.RejectsJointOutsideLimits (0 ms)
+1: [ RUN      ] PinocchioRobotModel.ForwardKinematicsMapsJointsByName
+1: [       OK ] PinocchioRobotModel.ForwardKinematicsMapsJointsByName (0 ms)
+1: [ RUN      ] PinocchioRobotModel.ValidationMapsJointVelocitiesByName
+1: [       OK ] PinocchioRobotModel.ValidationMapsJointVelocitiesByName (0 ms)
+1: [ RUN      ] PinocchioRobotModel.JacobianMatchesExactFiniteDifference
+1: [       OK ] PinocchioRobotModel.JacobianMatchesExactFiniteDifference (1 ms)
+1: [----------] 5 tests from PinocchioRobotModel (5 ms total)
+1: 
+1: [----------] 14 tests from ForceProcessor
+1: [ RUN      ] ForceProcessor.AutoTareAndProcessedOutput
+1: [       OK ] ForceProcessor.AutoTareAndProcessedOutput (0 ms)
+1: [ RUN      ] ForceProcessor.LowPassFilterUsesConfiguredAlpha
+1: [       OK ] ForceProcessor.LowPassFilterUsesConfiguredAlpha (0 ms)
+1: [ RUN      ] ForceProcessor.DeadbandDoesNotEraseTcpFilterMemory
+1: [       OK ] ForceProcessor.DeadbandDoesNotEraseTcpFilterMemory (1 ms)
+1: [ RUN      ] ForceProcessor.TransformIncludesLeverArmTorque
+1: [       OK ] ForceProcessor.TransformIncludesLeverArmTorque (0 ms)
+1: [ RUN      ] ForceProcessor.HardLimitIsReported
+1: [       OK ] ForceProcessor.HardLimitIsReported (0 ms)
+1: [ RUN      ] ForceProcessor.PerAxisForceLimitStopsDuringTare
+1: [       OK ] ForceProcessor.PerAxisForceLimitStopsDuringTare (0 ms)
+1: [ RUN      ] ForceProcessor.DiagonalForceUsesAxisLimitsBeforeAndAfterCompensation
+1: [       OK ] ForceProcessor.DiagonalForceUsesAxisLimitsBeforeAndAfterCompensation (0 ms)
+1: [ RUN      ] ForceProcessor.LoadCompensationSkipsTareAndRemovesGravity
+1: [       OK ] ForceProcessor.LoadCompensationSkipsTareAndRemovesGravity (0 ms)
+1: [ RUN      ] ForceProcessor.DeadbandZerosSmallForceAndTorque
+1: [       OK ] ForceProcessor.DeadbandZerosSmallForceAndTorque (0 ms)
+1: [ RUN      ] ForceProcessor.ResidualTareAfterGravityDoesNotRemovePoseDependentGravityTwice
+1: [       OK ] ForceProcessor.ResidualTareAfterGravityDoesNotRemovePoseDependentGravityTwice (0 ms)
+1: [ RUN      ] ForceProcessor.CutoffFilterHasTheSameResponseAcrossSensorRates
+1: [       OK ] ForceProcessor.CutoffFilterHasTheSameResponseAcrossSensorRates (0 ms)
+1: [ RUN      ] ForceProcessor.StampedFilterIsInvariantToTfWaitAndBatchedDelivery
+1: [       OK ] ForceProcessor.StampedFilterIsInvariantToTfWaitAndBatchedDelivery (3 ms)
+1: [ RUN      ] ForceProcessor.ResidualTareCannotAbsorbExcessiveExternalForce
+1: [       OK ] ForceProcessor.ResidualTareCannotAbsorbExcessiveExternalForce (0 ms)
+1: [ RUN      ] ForceProcessor.UnfilteredMomentArmSpikeCannotBeHiddenByFiltering
+1: [       OK ] ForceProcessor.UnfilteredMomentArmSpikeCannotBeHiddenByFiltering (0 ms)
+1: [----------] 14 tests from ForceProcessor (4 ms total)
+1: 
+1: [----------] 1 test from SampleInterval
+1: [ RUN      ] SampleInterval.ResetSkippedSamplesAndLegacyClock
+1: [       OK ] SampleInterval.ResetSkippedSamplesAndLegacyClock (0 ms)
+1: [----------] 1 test from SampleInterval (0 ms total)
+1: 
+1: [----------] 2 tests from CartesianReference
+1: [ RUN      ] CartesianReference.InitialAndDiagonalStepsRespectVectorNormLimits
+1: [       OK ] CartesianReference.InitialAndDiagonalStepsRespectVectorNormLimits (0 ms)
+1: [ RUN      ] CartesianReference.RotatingToolDoesNotRotateAConstantWorldForceDirection
+1: [       OK ] CartesianReference.RotatingToolDoesNotRotateAConstantWorldForceDirection (0 ms)
+1: [----------] 2 tests from CartesianReference (0 ms total)
+1: 
+1: [----------] Global test environment tear-down
+1: [==========] 29 tests from 7 test suites ran. (10 ms total)
+1: [  PASSED  ] 29 tests.
+1: -- run_test.py: return code 0
+1: -- run_test.py: inject classname prefix into gtest result file '/home/a/WBMM/build/whole_body_force_control/test_results/whole_body_force_control/test_force_control.gtest.xml'
+1: -- run_test.py: verify result file '/home/a/WBMM/build/whole_body_force_control/test_results/whole_body_force_control/test_force_control.gtest.xml'
+1/1 Test #1: test_force_control ...............   Passed    0.07 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Label Time Summary:
+gtest    =   0.07 sec*proc (1 test)
+
+Total Test time (real) =   0.07 sec
+Finished <<< whole_body_force_control [0.13s]
+1: -- run_test.py: invoking following command in '/home/a/WBMM/build/wbmm_ocs2_ros':
+1:  - /home/a/WBMM/build/wbmm_ocs2_ros/test_force_execution_gate --gtest_output=xml:/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_force_execution_gate.gtest.xml
+1: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+1: [==========] Running 3 tests from 1 test suite.
+1: [----------] Global test environment set-up.
+1: [----------] 3 tests from ForceExecutionGate
+1: [ RUN      ] ForceExecutionGate.NoMotionBeforeActiveAndDuringTareOrDisable
+1: [       OK ] ForceExecutionGate.NoMotionBeforeActiveAndDuringTareOrDisable (0 ms)
+1: [ RUN      ] ForceExecutionGate.FaultRemainsLatchedWhenForceDataReturns
+1: [       OK ] ForceExecutionGate.FaultRemainsLatchedWhenForceDataReturns (0 ms)
+1: [ RUN      ] ForceExecutionGate.LostProcessHeartbeatLatchesAndRequiresFreshReset
+1: [       OK ] ForceExecutionGate.LostProcessHeartbeatLatchesAndRequiresFreshReset (0 ms)
+1: [----------] 3 tests from ForceExecutionGate (0 ms total)
+1: 
+1: [----------] Global test environment tear-down
+1: [==========] 3 tests from 1 test suite ran. (0 ms total)
+1: [  PASSED  ] 3 tests.
+1: -- run_test.py: return code 0
+1: -- run_test.py: inject classname prefix into gtest result file '/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_force_execution_gate.gtest.xml'
+1: -- run_test.py: verify result file '/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_force_execution_gate.gtest.xml'
+1/3 Test #1: test_force_execution_gate ........   Passed    0.06 sec
+test 2
+    Start 2: test_arm_position_command
+
+2: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_arm_position_command.gtest.xml" "--package-name" "wbmm_ocs2_ros" "--output-file" "/home/a/WBMM/build/wbmm_ocs2_ros/ament_cmake_gtest/test_arm_position_command.txt" "--command" "/home/a/WBMM/build/wbmm_ocs2_ros/test_arm_position_command" "--gtest_output=xml:/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_arm_position_command.gtest.xml"
+2: Test timeout computed to be: 60
+2: -- run_test.py: invoking following command in '/home/a/WBMM/build/wbmm_ocs2_ros':
+2:  - /home/a/WBMM/build/wbmm_ocs2_ros/test_arm_position_command --gtest_output=xml:/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_arm_position_command.gtest.xml
+2: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+2: [==========] Running 7 tests from 2 test suites.
+2: [----------] Global test environment set-up.
+2: [----------] 5 tests from ArmPositionCommand
+2: [ RUN      ] ArmPositionCommand.ReversalsRespectVelocityInRobotTime
+2: [       OK ] ArmPositionCommand.ReversalsRespectVelocityInRobotTime (0 ms)
+2: [ RUN      ] ArmPositionCommand.PausedClockKeepsPreviousCommand
+2: [       OK ] ArmPositionCommand.PausedClockKeepsPreviousCommand (0 ms)
+2: [ RUN      ] ArmPositionCommand.LeadCannotAccumulateWhenActuatorIsBlocked
+2: [       OK ] ArmPositionCommand.LeadCannotAccumulateWhenActuatorIsBlocked (0 ms)
+2: [ RUN      ] ArmPositionCommand.FeedbackJumpRequiresStopRatherThanBreakingVelocityLimit
+2: [       OK ] ArmPositionCommand.FeedbackJumpRequiresStopRatherThanBreakingVelocityLimit (0 ms)
+2: [ RUN      ] ArmPositionCommand.RejectsInvalidInputsAtomically
+2: [       OK ] ArmPositionCommand.RejectsInvalidInputsAtomically (0 ms)
+2: [----------] 5 tests from ArmPositionCommand (0 ms total)
+2: 
+2: [----------] 2 tests from ArmHoldCommand
+2: [ RUN      ] ArmHoldCommand.Bag04FaultTransitionCannotBypassVelocityLimit
+2: [       OK ] ArmHoldCommand.Bag04FaultTransitionCannotBypassVelocityLimit (0 ms)
+2: [ RUN      ] ArmHoldCommand.StaleOrJumpingFeedbackDoesNotMoveLatchedHoldTarget
+2: [       OK ] ArmHoldCommand.StaleOrJumpingFeedbackDoesNotMoveLatchedHoldTarget (0 ms)
+2: [----------] 2 tests from ArmHoldCommand (0 ms total)
+2: 
+2: [----------] Global test environment tear-down
+2: [==========] 7 tests from 2 test suites ran. (0 ms total)
+2: [  PASSED  ] 7 tests.
+2: -- run_test.py: return code 0
+2: -- run_test.py: inject classname prefix into gtest result file '/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_arm_position_command.gtest.xml'
+2: -- run_test.py: verify result file '/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_arm_position_command.gtest.xml'
+2/3 Test #2: test_arm_position_command ........   Passed    0.05 sec
+test 3
+    Start 3: test_continuous_yaw
+
+3: Test command: /usr/bin/python3 "-u" "/opt/ros/humble/share/ament_cmake_test/cmake/run_test.py" "/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_continuous_yaw.gtest.xml" "--package-name" "wbmm_ocs2_ros" "--output-file" "/home/a/WBMM/build/wbmm_ocs2_ros/ament_cmake_gtest/test_continuous_yaw.txt" "--command" "/home/a/WBMM/build/wbmm_ocs2_ros/test_continuous_yaw" "--gtest_output=xml:/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_continuous_yaw.gtest.xml"
+3: Test timeout computed to be: 60
+3: -- run_test.py: invoking following command in '/home/a/WBMM/build/wbmm_ocs2_ros':
+3:  - /home/a/WBMM/build/wbmm_ocs2_ros/test_continuous_yaw --gtest_output=xml:/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_continuous_yaw.gtest.xml
+3: Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+3: [==========] Running 3 tests from 1 test suite.
+3: [----------] Global test environment set-up.
+3: [----------] 3 tests from ContinuousYaw
+3: [ RUN      ] ContinuousYaw.KeepsInitialCoordinateAndCrossesBothWrapBoundaries
+3: [       OK ] ContinuousYaw.KeepsInitialCoordinateAndCrossesBothWrapBoundaries (0 ms)
+3: [ RUN      ] ContinuousYaw.RecordedDiag02WrapIsASmallPhysicalStep
+3: [       OK ] ContinuousYaw.RecordedDiag02WrapIsASmallPhysicalStep (0 ms)
+3: [ RUN      ] ContinuousYaw.SupportsMultipleTurnsInEitherDirection
+3: [       OK ] ContinuousYaw.SupportsMultipleTurnsInEitherDirection (0 ms)
+3: [----------] 3 tests from ContinuousYaw (0 ms total)
+3: 
+3: [----------] Global test environment tear-down
+3: [==========] 3 tests from 1 test suite ran. (0 ms total)
+3: [  PASSED  ] 3 tests.
+3: -- run_test.py: return code 0
+3: -- run_test.py: inject classname prefix into gtest result file '/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_continuous_yaw.gtest.xml'
+3: -- run_test.py: verify result file '/home/a/WBMM/build/wbmm_ocs2_ros/test_results/wbmm_ocs2_ros/test_continuous_yaw.gtest.xml'
+3/3 Test #3: test_continuous_yaw ..............   Passed    0.05 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Label Time Summary:
+gtest    =   0.16 sec*proc (3 tests)
+
+Total Test time (real) =   0.16 sec
+Finished <<< wbmm_ocs2_ros [0.27s]
+
+Summary: 2 packages finished [0.59s]

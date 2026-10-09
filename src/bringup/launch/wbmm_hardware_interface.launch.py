@@ -204,6 +204,9 @@ def generate_launch_description():
         DeclareLaunchArgument("start_base", default_value="true"),
         DeclareLaunchArgument(
             "start_robot_state_publisher", default_value="true"),
+        DeclareLaunchArgument(
+            "robot_state_publish_frequency", default_value="20.0",
+            description="Maximum moving-joint TF rate; joint states come from ros2_control."),
         DeclareLaunchArgument("start_arm_pose", default_value="false"),
         DeclareLaunchArgument("start_imu", default_value="true"),
         DeclareLaunchArgument("start_lidar", default_value="true"),
@@ -261,7 +264,11 @@ def generate_launch_description():
             executable="robot_state_publisher",
             name="robot_state_publisher",
             output="screen",
-            parameters=[robot_description, {"use_sim_time": False}],
+            parameters=[robot_description, {
+                "use_sim_time": False,
+                "publish_frequency": ParameterValue(
+                    LaunchConfiguration("robot_state_publish_frequency"), value_type=float),
+            }],
             condition=IfCondition(start_rsp),
         ),
         Node(
@@ -292,6 +299,8 @@ def generate_launch_description():
                 "is_tracer_mini": False,
                 "simulated_robot": False,
                 "control_rate": 50,
+                "state_publish_rate": 50.0,
+                "publish_command_timing": True,
             }],
             condition=IfCondition(start_base),
         ),

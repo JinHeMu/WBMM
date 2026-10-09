@@ -141,12 +141,12 @@ namespace wbmm_ocs2
       const PreComputation & /*preComputation*/) const
   {
     const vector_t xd = getDesiredState(time, targetTrajectories);
-    if (xd.size() != state.size())
+    if (state.size() < xd.size())
     {
       return 0.0; // reference 不可用 -> 本项不产生任何梯度
     }
 
-    vector_t e = state - xd;
+    vector_t e = state.head(xd.size()) - xd;
     if (yawIndex_ >= 0)
     {
       e(yawIndex_) = wrapToPi(e(yawIndex_));
@@ -164,7 +164,7 @@ namespace wbmm_ocs2
     ScalarFunctionQuadraticApproximation L;
 
     const vector_t xd = getDesiredState(time, targetTrajectories);
-    if (xd.size() != state.size())
+    if (state.size() < xd.size())
     {
       L.f = 0.0;
       L.dfdx = vector_t::Zero(state.rows());
@@ -172,7 +172,7 @@ namespace wbmm_ocs2
       return L;
     }
 
-    vector_t e = state - xd;
+    vector_t e = state.head(xd.size()) - xd;
     if (yawIndex_ >= 0)
     {
       // wrap 之后, d(e_yaw)/d(yaw) 仍然是 1 (除了 +-pi 的测度零点),
@@ -181,8 +181,10 @@ namespace wbmm_ocs2
     }
 
     L.f = 0.5 * e.dot(Q_ * e);
-    L.dfdx = Q_ * e;
-    L.dfdxx = Q_;
+    L.dfdx = vector_t::Zero(state.size());
+    L.dfdx.head(e.size()) = Q_ * e;
+    L.dfdxx = matrix_t::Zero(state.size(), state.size());
+    L.dfdxx.topLeftCorner(e.size(), e.size()) = Q_;
     return L;
   }
 

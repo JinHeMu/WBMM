@@ -1,5 +1,6 @@
 #include "whole_body_force_control/controllers.hpp"
 #include "whole_body_force_control/force_processor.hpp"
+#include "whole_body_force_control/sample_interval.hpp"
 #include "wbmm_pinocchio/pinocchio_robot_model.hpp"
 #include "wbmm_robot_model/wbmm_robot_model.hpp"
 #include "wbmm_ros_interfaces/wbmm_conversions.hpp"
@@ -723,6 +724,47 @@ TEST(ForceProcessor, CutoffFilterHasTheSameResponseAcrossSensorRates)
     return result.wrench.force.x;
   };
   EXPECT_NEAR(simulate(50), simulate(125), 1e-12);
+}
+
+TEST(ForceProcessor, StampedFilterIsInvariantToTfWaitAndBatchedDelivery)
+{
+  using namespace whole_body_force_control;
+  ForceProcessorConfig config;
+  config.filter_cutoff_hz = 4.44;
+  config.force_deadband_n = 0.0;
+  ForceProcessor regular(config), batched(config);
+  SampleInterval regular_clock, batched_clock;
+  wbmm::core::Wrench raw;
+  const auto R = Eigen::Matrix3d::Identity();
+  const auto p = Eigen::Vector3d::Zero();
+  for (int i = 0; i < 125; ++i) {
+    raw.force.x = i == 0 ? 0.0 : 5.0 + std::sin(i * 0.1);
+    const int64_t stamp = 1000000000LL + i * 8000000LL;
+    const auto regular_time = SampleInterval::Clock::time_point(std::chrono::microseconds(i * 8000));
+    // Seven 8 ms samples delivered together after waiting for a 56 ms TF.
+    const auto batch_time = SampleInterval::Clock::time_point(
+        std::chrono::microseconds((i / 7 + 1) * 56000 + (i % 7) * 80));
+    const auto a = regular.process(raw, "tool0", R, p, R,
+        regular_clock.next(stamp, regular_time, true, 0.02));
+    const auto b = batched.process(raw, "tool0", R, p, R,
+        batched_clock.next(stamp, batch_time, true, 0.02));
+    ASSERT_TRUE(a.ok);
+    ASSERT_TRUE(b.ok);
+    EXPECT_DOUBLE_EQ(a.wrench.force.x, b.wrench.force.x);
+  }
+}
+
+TEST(SampleInterval, ResetSkippedSamplesAndLegacyClock)
+{
+  using namespace whole_body_force_control;
+  SampleInterval clock;
+  const SampleInterval::Clock::time_point origin{};
+  EXPECT_DOUBLE_EQ(clock.next(1000000000, origin, true, .02), .02);
+  // A failed startup TF lookup never advances this clock.
+  EXPECT_NEAR(clock.next(1024000000, origin, true, .02), .024, 1e-12);
+  clock.reset();
+  EXPECT_DOUBLE_EQ(clock.next(0, origin, false, .02), .02);
+  EXPECT_NEAR(clock.next(0, origin + std::chrono::milliseconds(17), false, .02), .017, 1e-12);
 }
 
 TEST(ForceProcessor, ResidualTareCannotAbsorbExcessiveExternalForce)

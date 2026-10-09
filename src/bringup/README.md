@@ -19,7 +19,7 @@ source install/setup.bash
 只修改 bringup 的启动文件或配置后，可以增量编译：
 
 ```bash
-colcon build --symlink-install --packages-select tracer_jaka_bringup
+colcon build --symlink-install --packages-up-to tracer_jaka_bringup
 source install/setup.bash
 ```
 

@@ -1,0 +1,2951 @@
+{
+  "epoch": 1791534467.4333177,
+  "duration": 124.81219376300001,
+  "topics": {
+    "/rosout": 112,
+    "/tf": 21821,
+    "/fts_broadcaster/wrench": 15586,
+    "/joint_states": 15586,
+    "/tracer_base_node/command_dispatched": 15586,
+    "/tracer_base_node/command_received": 15586,
+    "/whole_body_force_control/processed_wrench": 15586,
+    "/tf_static": 1,
+    "/whole_body_force_control/force_sensor_states": 1,
+    "/wheel/odometry": 6234,
+    "/mobile_manipulator_mpc_observation": 15394,
+    "/mobile_manipulator_force_execution_state": 15394,
+    "/arm_controller/commands": 15394,
+    "/cmd_vel": 15394,
+    "/mobile_manipulator_mpc_policy": 12686,
+    "/mobile_manipulator_ee_target": 15394,
+    "/whole_body_force_control/correction": 12820,
+    "/whole_body_force_control/states": 15394
+  },
+  "states": {
+    "/whole_body_force_control/states": [
+      {
+        "t": 1.649991127,
+        "state": "ACTIVE"
+      },
+      {
+        "t": 104.207583451,
+        "state": "FAULT_TRACKING_ERROR"
+      }
+    ],
+    "/whole_body_force_control/force_sensor_states": [
+      {
+        "t": 0.120168751,
+        "state": "ACTIVE"
+      }
+    ],
+    "/mobile_manipulator_force_execution_state": [
+      {
+        "t": 1.6469385390000002,
+        "state": "ACTIVE"
+      },
+      {
+        "t": 104.21478353500001,
+        "state": "FAULT_INTERLOCK"
+      }
+    ]
+  },
+  "logs": [
+    {
+      "t": -0.004271091,
+      "receipt": 0.0,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Press SPACE for pausing/resuming"
+    },
+    {
+      "t": -0.002316733,
+      "receipt": 1.4923000000000001e-05,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Listening for topics..."
+    },
+    {
+      "t": -0.002310625,
+      "receipt": 2.2759e-05,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Event publisher thread: Starting"
+    },
+    {
+      "t": -0.001185829,
+      "receipt": 3.0641e-05,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/rosout'"
+    },
+    {
+      "t": -0.00021754,
+      "receipt": 3.8355e-05,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/parameter_events'"
+    },
+    {
+      "t": -0.000150104,
+      "receipt": 4.5990000000000005e-05,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Recording..."
+    },
+    {
+      "t": -9.459006552,
+      "receipt": 0.096386256,
+      "name": "controller_manager",
+      "level": 20,
+      "message": "Loading controller 'arm_controller'"
+    },
+    {
+      "t": -9.438945529,
+      "receipt": 0.096404768,
+      "name": "controller_manager",
+      "level": 20,
+      "message": "Configuring controller 'arm_controller'"
+    },
+    {
+      "t": -8.921812159,
+      "receipt": 0.096412155,
+      "name": "controller_manager",
+      "level": 20,
+      "message": "Loading controller 'fts_broadcaster'"
+    },
+    {
+      "t": -8.912552973,
+      "receipt": 0.096417286,
+      "name": "controller_manager",
+      "level": 20,
+      "message": "Configuring controller 'fts_broadcaster'"
+    },
+    {
+      "t": -9.438423411,
+      "receipt": 0.09737206600000001,
+      "name": "arm_controller",
+      "level": 20,
+      "message": "configure successful"
+    },
+    {
+      "t": -9.42661032,
+      "receipt": 0.09737967700000001,
+      "name": "arm_controller",
+      "level": 20,
+      "message": "activate successful"
+    },
+    {
+      "t": 0.10340291600000001,
+      "receipt": 0.103448858,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/fts_broadcaster/wrench'"
+    },
+    {
+      "t": 0.10443426900000001,
+      "receipt": 0.10448024800000001,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/joint_states'"
+    },
+    {
+      "t": 0.105778592,
+      "receipt": 0.106269238,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/tf'"
+    },
+    {
+      "t": 0.106377542,
+      "receipt": 0.10648102000000001,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/tf_static'"
+    },
+    {
+      "t": 0.107118951,
+      "receipt": 0.107165123,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/tracer_base_node/command_dispatched'"
+    },
+    {
+      "t": 0.107626338,
+      "receipt": 0.10766639700000001,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/whole_body_force_control/processed_wrench'"
+    },
+    {
+      "t": 0.10812301,
+      "receipt": 0.10815334900000001,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/tracer_base_node/command_received'"
+    },
+    {
+      "t": 0.109111999,
+      "receipt": 0.10915324200000001,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/wheel/odometry'"
+    },
+    {
+      "t": 0.10990696700000001,
+      "receipt": 0.109941595,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/whole_body_force_control/force_sensor_states'"
+    },
+    {
+      "t": 1.642209492,
+      "receipt": 1.642309406,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/mobile_manipulator_mpc_observation'"
+    },
+    {
+      "t": 1.6429421100000001,
+      "receipt": 1.643211734,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/mobile_manipulator_ee_target'"
+    },
+    {
+      "t": 1.6436318490000001,
+      "receipt": 1.643659087,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/mobile_manipulator_force_execution_state'"
+    },
+    {
+      "t": 1.6443746590000001,
+      "receipt": 1.64440381,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/mobile_manipulator_mpc_policy'"
+    },
+    {
+      "t": 1.645012243,
+      "receipt": 1.645049235,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/arm_controller/commands'"
+    },
+    {
+      "t": 1.645709802,
+      "receipt": 1.6457875210000001,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/whole_body_force_control/correction'"
+    },
+    {
+      "t": 1.646488446,
+      "receipt": 1.646528892,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/cmd_vel'"
+    },
+    {
+      "t": 1.6474855640000001,
+      "receipt": 1.6475335080000002,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "Subscribed to topic '/whole_body_force_control/states'"
+    },
+    {
+      "t": 1.6475395570000002,
+      "receipt": 1.647577888,
+      "name": "rosbag2_recorder",
+      "level": 20,
+      "message": "All requested topics are subscribed. Stopping discovery..."
+    },
+    {
+      "t": -1.180791554,
+      "receipt": 1.6854982760000001,
+      "name": "whole_body_force_control",
+      "level": 20,
+      "message": "Latched hold EE target: pos=(0.501, -0.363, 0.548)"
+    },
+    {
+      "t": -0.67806142,
+      "receipt": 1.6855199310000002,
+      "name": "whole_body_force_control",
+      "level": 20,
+      "message": "Captured nominal TCP axes in odom"
+    },
+    {
+      "t": -8.081335921,
+      "receipt": 1.688344915,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.5 Hz (target 125.0) | work avg=0.25 ms max=1.34 ms | MPC_policy_seen=108.0 Hz | plan_age avg=17.3 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": -6.0813060310000004,
+      "receipt": 1.688370029,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.25 ms max=1.28 ms | MPC_policy_seen=109.0 Hz | plan_age avg=17.3 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": -4.081280572,
+      "receipt": 1.6883877170000001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.37 ms | MPC_policy_seen=112.5 Hz | plan_age avg=17.0 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": -2.081238114,
+      "receipt": 1.688405348,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.25 ms max=1.23 ms | MPC_policy_seen=108.5 Hz | plan_age avg=17.7 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": -0.657346808,
+      "receipt": 1.6884216060000001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "MPC policy window: 0.258 s (planEnd - mpcInitObservation.time)."
+    },
+    {
+      "t": -0.081230826,
+      "receipt": 1.688436888,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.38 ms | MPC_policy_seen=106.0 Hz | plan_age avg=18.3 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 1.926760175,
+      "receipt": 1.9268350580000002,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.26 ms max=1.32 ms | MPC_policy_seen=108.1 Hz | plan_age avg=16.7 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 3.927398671,
+      "receipt": 3.9274641120000005,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.63 ms | MPC_policy_seen=109.5 Hz | plan_age avg=17.2 ms max=32.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 5.934735409,
+      "receipt": 5.934795082,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.28 ms | MPC_policy_seen=109.6 Hz | plan_age avg=18.0 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 7.94265966,
+      "receipt": 7.942821203,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.34 ms | MPC_policy_seen=112.6 Hz | plan_age avg=17.6 ms max=24.5 ms | sim/wall=1.000"
+    },
+    {
+      "t": 9.942715703000001,
+      "receipt": 9.942803824,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.26 ms max=1.37 ms | MPC_policy_seen=107.5 Hz | plan_age avg=18.4 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 11.943771999,
+      "receipt": 11.943852723000001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=124.9 Hz (target 125.0) | work avg=0.26 ms max=1.43 ms | MPC_policy_seen=109.4 Hz | plan_age avg=18.0 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 13.950698802000002,
+      "receipt": 13.951244963,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.1 Hz (target 125.0) | work avg=0.28 ms max=1.64 ms | MPC_policy_seen=106.1 Hz | plan_age avg=18.7 ms max=40.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 15.950724842000001,
+      "receipt": 15.950786351000001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.37 ms | MPC_policy_seen=109.0 Hz | plan_age avg=18.1 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 17.950730133,
+      "receipt": 17.95084886,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.34 ms | MPC_policy_seen=107.0 Hz | plan_age avg=18.4 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 19.959318215,
+      "receipt": 19.959393657,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.32 ms | MPC_policy_seen=107.5 Hz | plan_age avg=18.3 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 21.966702914000003,
+      "receipt": 21.966763494000002,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.31 ms | MPC_policy_seen=110.1 Hz | plan_age avg=18.0 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 23.974660843000002,
+      "receipt": 23.974725595000002,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.39 ms | MPC_policy_seen=110.6 Hz | plan_age avg=17.8 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 25.974706238000003,
+      "receipt": 25.975251445,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.39 ms | MPC_policy_seen=106.0 Hz | plan_age avg=18.6 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 27.975742102,
+      "receipt": 27.975869550000002,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=124.9 Hz (target 125.0) | work avg=0.29 ms max=1.32 ms | MPC_policy_seen=105.4 Hz | plan_age avg=18.0 ms max=32.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 29.982695065,
+      "receipt": 29.982794609000003,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.1 Hz (target 125.0) | work avg=0.27 ms max=1.26 ms | MPC_policy_seen=108.1 Hz | plan_age avg=17.5 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 31.990680736,
+      "receipt": 31.990751362,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.26 ms max=1.24 ms | MPC_policy_seen=113.0 Hz | plan_age avg=17.5 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 33.990725056,
+      "receipt": 33.99080421,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.44 ms | MPC_policy_seen=108.5 Hz | plan_age avg=18.1 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 35.991352678000005,
+      "receipt": 35.991415157,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.50 ms | MPC_policy_seen=111.0 Hz | plan_age avg=17.8 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 37.998715057000005,
+      "receipt": 37.998877877000005,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.26 ms max=1.28 ms | MPC_policy_seen=108.1 Hz | plan_age avg=18.2 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 40.006691306,
+      "receipt": 40.006777585,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.27 ms | MPC_policy_seen=110.1 Hz | plan_age avg=17.9 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 42.006697445,
+      "receipt": 42.006783101,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.41 ms | MPC_policy_seen=109.0 Hz | plan_age avg=18.0 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 44.007249426,
+      "receipt": 44.007321699,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.26 ms max=1.27 ms | MPC_policy_seen=109.5 Hz | plan_age avg=18.0 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 46.014680853,
+      "receipt": 46.014811384000005,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.27 ms | MPC_policy_seen=109.1 Hz | plan_age avg=18.1 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 48.014709998,
+      "receipt": 48.014917569000005,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.32 ms | MPC_policy_seen=108.5 Hz | plan_age avg=18.2 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 50.022669335,
+      "receipt": 50.022752848,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.27 ms | MPC_policy_seen=108.6 Hz | plan_age avg=18.2 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 52.023331023000004,
+      "receipt": 52.023406869000006,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.29 ms | MPC_policy_seen=108.0 Hz | plan_age avg=18.2 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 54.030707418000006,
+      "receipt": 54.03077467200001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.48 ms | MPC_policy_seen=107.1 Hz | plan_age avg=18.3 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 56.030708593,
+      "receipt": 56.03082743,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.35 ms | MPC_policy_seen=101.5 Hz | plan_age avg=19.0 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 58.030731934,
+      "receipt": 58.03083002,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.33 ms | MPC_policy_seen=100.5 Hz | plan_age avg=19.5 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 60.03933133700001,
+      "receipt": 60.03939427700001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.39 ms | MPC_policy_seen=100.1 Hz | plan_age avg=19.3 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 62.046693715,
+      "receipt": 62.046803814,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.29 ms max=1.61 ms | MPC_policy_seen=100.1 Hz | plan_age avg=19.5 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 64.04670154,
+      "receipt": 64.046794015,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.31 ms max=2.20 ms | MPC_policy_seen=98.5 Hz | plan_age avg=20.4 ms max=63.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 66.048270328,
+      "receipt": 66.048418274,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=124.9 Hz (target 125.0) | work avg=0.33 ms max=2.20 ms | MPC_policy_seen=84.4 Hz | plan_age avg=22.5 ms max=40.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 68.05527712,
+      "receipt": 68.055344523,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.1 Hz (target 125.0) | work avg=0.55 ms max=4.21 ms | MPC_policy_seen=73.2 Hz | plan_age avg=28.1 ms max=56.2 ms | sim/wall=1.000"
+    },
+    {
+      "t": 70.06272893900001,
+      "receipt": 70.062830442,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.29 ms max=1.42 ms | MPC_policy_seen=101.1 Hz | plan_age avg=19.3 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 72.07068586700001,
+      "receipt": 72.070858027,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.39 ms | MPC_policy_seen=106.1 Hz | plan_age avg=18.9 ms max=40.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 74.070734594,
+      "receipt": 74.070836176,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.36 ms | MPC_policy_seen=107.5 Hz | plan_age avg=18.2 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 76.071437735,
+      "receipt": 76.071540375,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.33 ms | MPC_policy_seen=105.5 Hz | plan_age avg=18.6 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 78.078703054,
+      "receipt": 78.078759084,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.37 ms | MPC_policy_seen=105.6 Hz | plan_age avg=18.7 ms max=40.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 80.086698291,
+      "receipt": 80.08676712900001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.37 ms | MPC_policy_seen=98.6 Hz | plan_age avg=20.7 ms max=48.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 82.086708113,
+      "receipt": 82.086762562,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.33 ms | MPC_policy_seen=107.0 Hz | plan_age avg=18.2 ms max=32.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 84.087881217,
+      "receipt": 84.087951133,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=124.9 Hz (target 125.0) | work avg=0.28 ms max=1.32 ms | MPC_policy_seen=107.9 Hz | plan_age avg=18.4 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 86.094679552,
+      "receipt": 86.095239898,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.1 Hz (target 125.0) | work avg=0.29 ms max=1.35 ms | MPC_policy_seen=109.6 Hz | plan_age avg=17.8 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 88.102676559,
+      "receipt": 88.10273834,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.26 ms max=1.30 ms | MPC_policy_seen=108.6 Hz | plan_age avg=18.1 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 90.10274712100001,
+      "receipt": 90.10280645600001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.32 ms | MPC_policy_seen=115.0 Hz | plan_age avg=16.7 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 92.103351462,
+      "receipt": 92.103413214,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.26 ms max=1.39 ms | MPC_policy_seen=113.5 Hz | plan_age avg=17.4 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 94.110691695,
+      "receipt": 94.11077529100001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.29 ms | MPC_policy_seen=111.6 Hz | plan_age avg=17.8 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 96.110695215,
+      "receipt": 96.11081159800001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.26 ms max=1.25 ms | MPC_policy_seen=105.0 Hz | plan_age avg=18.6 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 98.118698519,
+      "receipt": 98.11887023300001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.27 ms max=1.24 ms | MPC_policy_seen=106.6 Hz | plan_age avg=18.4 ms max=24.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 100.119757714,
+      "receipt": 100.119812119,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=124.9 Hz (target 125.0) | work avg=0.27 ms max=1.32 ms | MPC_policy_seen=105.4 Hz | plan_age avg=18.5 ms max=24.2 ms | sim/wall=1.000"
+    },
+    {
+      "t": 102.126715703,
+      "receipt": 102.12718000000001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.1 Hz (target 125.0) | work avg=0.27 ms max=1.31 ms | MPC_policy_seen=103.6 Hz | plan_age avg=18.8 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 104.126749333,
+      "receipt": 104.12716654100001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.29 ms max=1.43 ms | MPC_policy_seen=109.0 Hz | plan_age avg=18.1 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 104.20747669000001,
+      "receipt": 104.20754960400001,
+      "name": "whole_body_force_control",
+      "level": 40,
+      "message": "TCP tracking error: 0.0855 m (limit 0.1000), 0.3503 rad (limit 0.3500)"
+    },
+    {
+      "t": 104.207535695,
+      "receipt": 104.20757885600001,
+      "name": "whole_body_force_control",
+      "level": 40,
+      "message": "Force-control fault latched: TRACKING_ERROR"
+    },
+    {
+      "t": 104.20762423800001,
+      "receipt": 104.207664061,
+      "name": "whole_body_force_control",
+      "level": 20,
+      "message": "Latched hold EE target: pos=(-0.796, -0.840, 0.628)"
+    },
+    {
+      "t": 106.12675153500001,
+      "receipt": 106.127268548,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.30 ms max=1.34 ms | MPC_policy_seen=91.0 Hz | plan_age avg=20.9 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 108.13525404900001,
+      "receipt": 108.13537959000001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.29 ms max=1.49 ms | MPC_policy_seen=85.6 Hz | plan_age avg=21.8 ms max=32.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 110.142698526,
+      "receipt": 110.142781857,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.47 ms | MPC_policy_seen=83.7 Hz | plan_age avg=22.2 ms max=40.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 112.142730275,
+      "receipt": 112.143241011,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.30 ms max=1.38 ms | MPC_policy_seen=84.5 Hz | plan_age avg=22.0 ms max=40.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 114.15073563000001,
+      "receipt": 114.15080966800001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.29 ms max=1.42 ms | MPC_policy_seen=84.7 Hz | plan_age avg=21.9 ms max=40.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 116.15147088600001,
+      "receipt": 116.151548757,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.29 ms max=1.50 ms | MPC_policy_seen=87.5 Hz | plan_age avg=21.7 ms max=32.1 ms | sim/wall=1.000"
+    },
+    {
+      "t": 118.15867040900001,
+      "receipt": 118.158742774,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.29 ms max=1.38 ms | MPC_policy_seen=85.7 Hz | plan_age avg=21.8 ms max=32.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 120.158687415,
+      "receipt": 120.1591786,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.28 ms max=1.27 ms | MPC_policy_seen=83.5 Hz | plan_age avg=22.4 ms max=40.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 122.158718741,
+      "receipt": 122.15884011400001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.29 ms max=1.42 ms | MPC_policy_seen=85.5 Hz | plan_age avg=21.8 ms max=40.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 124.158772239,
+      "receipt": 124.15885945400001,
+      "name": "wbmm_mrt_node",
+      "level": 20,
+      "message": "[timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.29 ms max=1.37 ms | MPC_policy_seen=86.0 Hz | plan_age avg=21.8 ms max=40.0 ms | sim/wall=1.000"
+    },
+    {
+      "t": 124.794411748,
+      "receipt": 124.79746035000001,
+      "name": "controller_manager",
+      "level": 20,
+      "message": "Shutdown request received...."
+    },
+    {
+      "t": 124.794658768,
+      "receipt": 124.79750202100001,
+      "name": "controller_manager",
+      "level": 20,
+      "message": "Shutting down all controllers in the controller manager."
+    },
+    {
+      "t": 124.794705547,
+      "receipt": 124.797520336,
+      "name": "controller_manager",
+      "level": 20,
+      "message": "Deactivating controller 'joint_state_broadcaster'"
+    },
+    {
+      "t": 124.79474789300001,
+      "receipt": 124.79753598,
+      "name": "controller_manager",
+      "level": 20,
+      "message": "Shutting down controller 'joint_state_broadcaster'"
+    },
+    {
+      "t": 124.794781779,
+      "receipt": 124.79755100300001,
+      "name": "controller_manager",
+      "level": 20,
+      "message": "Deactivating controller 'arm_controller'"
+    },
+    {
+      "t": 124.794814532,
+      "receipt": 124.79756591600001,
+      "name": "controller_manager",
+      "level": 20,
+      "message": "Shutting down controller 'arm_controller'"
+    },
+    {
+      "t": 124.79483390200001,
+      "receipt": 124.797581471,
+      "name": "controller_manager",
+      "level": 20,
+      "message": "Deactivating controller 'fts_broadcaster'"
+    },
+    {
+      "t": 124.794851843,
+      "receipt": 124.797596811,
+      "name": "controller_manager",
+      "level": 20,
+      "message": "Shutting down controller 'fts_broadcaster'"
+    },
+    {
+      "t": 124.812039088,
+      "receipt": 124.81219376300001,
+      "name": "controller_manager",
+      "level": 20,
+      "message": "Shutting down the controller manager."
+    }
+  ],
+  "initial": {
+    "state": [
+      0.0,
+      0.0,
+      0.0,
+      0.829380452632904,
+      1.0920350551605225,
+      -0.8302531242370605,
+      1.1812562942504883,
+      1.4639123678207397,
+      -0.24171064794063568,
+      0.0,
+      0.0
+    ],
+    "sigma": 0.07546520359765943,
+    "target": [
+      0.5012487173080444,
+      -0.3628183603286743,
+      0.5478336215019226,
+      0.5940389633178711,
+      0.8001139163970947,
+      -0.04703908786177635,
+      -0.06872210651636124
+    ],
+    "processed_wrench": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "base_command": [
+      -0.0010288217841263494,
+      0.002249110909622045
+    ],
+    "odom": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "tf": {
+    "base_footprint": {
+      "count": 6235,
+      "stamp_gap_ms": {
+        "min": 13.785730999998691,
+        "p50": 19.999475999997074,
+        "p95": 20.023169850005473,
+        "p99": 20.051780280000386,
+        "max": 25.88626700000418
+      }
+    },
+    "Link_1": {
+      "count": 15586,
+      "stamp_gap_ms": {
+        "min": 5.016159000007292,
+        "p50": 7.999703999999497,
+        "p95": 8.015952600004539,
+        "p99": 8.046605079999551,
+        "max": 11.037453000000141
+      }
+    },
+    "Link_2": {
+      "count": 15586,
+      "stamp_gap_ms": {
+        "min": 5.016159000007292,
+        "p50": 7.999703999999497,
+        "p95": 8.015952600004539,
+        "p99": 8.046605079999551,
+        "max": 11.037453000000141
+      }
+    },
+    "Link_3": {
+      "count": 15586,
+      "stamp_gap_ms": {
+        "min": 5.016159000007292,
+        "p50": 7.999703999999497,
+        "p95": 8.015952600004539,
+        "p99": 8.046605079999551,
+        "max": 11.037453000000141
+      }
+    },
+    "Link_4": {
+      "count": 15586,
+      "stamp_gap_ms": {
+        "min": 5.016159000007292,
+        "p50": 7.999703999999497,
+        "p95": 8.015952600004539,
+        "p99": 8.046605079999551,
+        "max": 11.037453000000141
+      }
+    },
+    "Link_5": {
+      "count": 15586,
+      "stamp_gap_ms": {
+        "min": 5.016159000007292,
+        "p50": 7.999703999999497,
+        "p95": 8.015952600004539,
+        "p99": 8.046605079999551,
+        "max": 11.037453000000141
+      }
+    },
+    "Link_6": {
+      "count": 15586,
+      "stamp_gap_ms": {
+        "min": 5.016159000007292,
+        "p50": 7.999703999999497,
+        "p95": 8.015952600004539,
+        "p99": 8.046605079999551,
+        "max": 11.037453000000141
+      }
+    }
+  },
+  "force_age_ms": {
+    "min": 0.22192299999801435,
+    "p50": 2.755781500002996,
+    "p95": 10.418311749999631,
+    "p99": 10.544207299994213,
+    "max": 16.951589000001377
+  },
+  "force_interarrival_ms": {
+    "min": 0.012664999999856263,
+    "p50": 5.9915659999916215,
+    "p95": 16.071155000000203,
+    "p99": 17.920067839996534,
+    "max": 20.210551999994664
+  },
+  "policy_interval_ms": {
+    "min": 6.648772000001912,
+    "p50": 9.107567999997457,
+    "p95": 13.801017600003718,
+    "p99": 17.705588200000335,
+    "max": 32.07896199999993
+  },
+  "policy_age_ms": {
+    "min": 7.909658000002651,
+    "p50": 16.007197000000417,
+    "p95": 24.053691000004562,
+    "p99": 32.04665569000184,
+    "max": 63.12564699999257
+  },
+  "poserr_mm": {
+    "min": 0.018885468514718104,
+    "p50": 19.075645254623986,
+    "p95": 42.68647128736866,
+    "p99": 75.82310544436268,
+    "max": 86.34906712586525
+  },
+  "angerr_deg": {
+    "min": 0.03122385333100141,
+    "p50": 2.568607048516933,
+    "p95": 9.340057135810508,
+    "p99": 16.56322308292386,
+    "max": 20.068828657488464
+  },
+  "sigma": {
+    "min": 0.02862357586461408,
+    "p50": 0.06298421720714076,
+    "p95": 0.11203318694236755,
+    "p99": 0.11642651908446658,
+    "max": 0.11688853864760729
+  },
+  "yaw_max_step": 0.0052051544189453125,
+  "windows": [
+    {
+      "window": [
+        0,
+        10
+      ],
+      "base_cmd": {
+        "mean": [
+          -0.02296021008532604,
+          -0.026946074049156866
+        ],
+        "rms": [
+          0.027859204401464978,
+          0.04571499980934049
+        ],
+        "min": [
+          -0.05263266843433191,
+          -0.16286142045700874
+        ],
+        "max": [
+          0.0017651087198665353,
+          0.06474928779395668
+        ]
+      },
+      "odom_velocity": {
+        "mean": [
+          -0.012779352211804405,
+          -0.022277327985898685
+        ],
+        "rms": [
+          0.018966676536455614,
+          0.036626603855786796
+        ],
+        "min": [
+          -0.04399999976158142,
+          -0.11100000143051147
+        ],
+        "max": [
+          0.006000000052154064,
+          0.03700000047683716
+        ]
+      },
+      "force": {
+        "mean": [
+          -0.6103012243516537,
+          -4.339365221992822,
+          0.5902175437133885
+        ],
+        "rms": [
+          1.2826344228023747,
+          5.7790962884598756,
+          2.5506427254711235
+        ],
+        "min": [
+          -3.3807298640214616,
+          -9.380895346936684,
+          -3.600496797514403
+        ],
+        "max": [
+          2.077695120390896,
+          0.0,
+          10.750790929338585
+        ]
+      },
+      "cor_velocity": {
+        "mean": [
+          -0.005706799256650235,
+          -0.05137604206607074,
+          0.004585435372169959
+        ],
+        "rms": [
+          0.011841780572297554,
+          0.06296225093263673,
+          0.02445638760934968
+        ],
+        "min": [
+          -0.028416068772977546,
+          -0.09471022097790985,
+          -0.03176479043643191
+        ],
+        "max": [
+          0.01436791549222448,
+          0.0,
+          0.103796579171885
+        ]
+      },
+      "qvel": {
+        "mean": [
+          -0.027845677067394332,
+          0.0064408716428326985,
+          0.0028458037898969127,
+          -0.006231784866880331,
+          -0.005713674636787516,
+          -0.04800418759981435
+        ],
+        "rms": [
+          0.03895373646865775,
+          0.02689338784912166,
+          0.0221724794973706,
+          0.0192152005839043,
+          0.014782847369697847,
+          0.06311675072122745
+        ],
+        "min": [
+          -0.09154251926710258,
+          -0.06860889289589708,
+          -0.07859217621730466,
+          -0.048328166987722986,
+          -0.03460987906704756,
+          -0.11168361883511714
+        ],
+        "max": [
+          0.029286624848464848,
+          0.06035348553396392,
+          0.051871185369271475,
+          0.07412413333219917,
+          0.030700341542580258,
+          0.00017453292519943296
+        ]
+      },
+      "sigma_min": 0.07223551169485645,
+      "position_error_mm_max": 27.459166924994285,
+      "state_start": [
+        0.0,
+        0.0,
+        0.0,
+        0.829380452632904,
+        1.0920350551605225,
+        -0.8302531242370605,
+        1.1812562942504883,
+        1.4639123678207397,
+        -0.24171064794063568,
+        0.0,
+        0.0
+      ],
+      "state_end": [
+        -0.1254400610923767,
+        0.011606847867369652,
+        -0.22009502351284027,
+        0.5533042550086975,
+        1.1577991247177124,
+        -0.7997273206710815,
+        1.1172550916671753,
+        1.4068576097488403,
+        -0.7159340381622314,
+        -0.04100000113248825,
+        -0.017999999225139618
+      ],
+      "target_change": [
+        -0.39788880944252014,
+        -0.16972386837005615,
+        0.026989102363586426
+      ]
+    },
+    {
+      "window": [
+        10,
+        20
+      ],
+      "base_cmd": {
+        "mean": [
+          0.02604063064585188,
+          0.023070219120770168
+        ],
+        "rms": [
+          0.055486454936268526,
+          0.056185454007852055
+        ],
+        "min": [
+          -0.07432004336571367,
+          -0.10144209778672253
+        ],
+        "max": [
+          0.08802109437937888,
+          0.15994997114175116
+        ]
+      },
+      "odom_velocity": {
+        "mean": [
+          0.019989999999292195,
+          0.030104000210762025
+        ],
+        "rms": [
+          0.04728743995724053,
+          0.051768716735925674
+        ],
+        "min": [
+          -0.07199999690055847,
+          -0.054999999701976776
+        ],
+        "max": [
+          0.0820000022649765,
+          0.11100000143051147
+        ]
+      },
+      "force": {
+        "mean": [
+          0.8272990548574064,
+          6.884863621208831,
+          -1.2674805610784974
+        ],
+        "rms": [
+          1.5757459744836817,
+          7.441265330911078,
+          4.1244332240423125
+        ],
+        "min": [
+          -1.3469010553122074,
+          -3.110308096216759,
+          -8.032991634572134
+        ],
+        "max": [
+          4.142022383825086,
+          11.048598605647847,
+          11.907177435935349
+        ]
+      },
+      "cor_velocity": {
+        "mean": [
+          0.01143030474082429,
+          0.06608047591134568,
+          -0.013859145089281608
+        ],
+        "rms": [
+          0.017163905968778405,
+          0.07227705702529427,
+          0.04387562503756569
+        ],
+        "min": [
+          -0.0025034025053224324,
+          -0.038091699318844936,
+          -0.08209552368620852
+        ],
+        "max": [
+          0.04381639557826602,
+          0.10243401082649244,
+          0.11680180461559313
+        ]
+      },
+      "qvel": {
+        "mean": [
+          0.03654461144946834,
+          -0.011830204698501982,
+          0.01657606211262293,
+          0.0030381016102635516,
+          0.0105346537760636,
+          0.061896175078484716
+        ],
+        "rms": [
+          0.048477459773464716,
+          0.03282805568245208,
+          0.06611677500314514,
+          0.061331789065926956,
+          0.01766845293454273,
+          0.06948303500433892
+        ],
+        "min": [
+          -0.05080653452555493,
+          -0.10002481943179503,
+          -0.10271262647986629,
+          -0.08569566627292158,
+          -0.02584832622203602,
+          -0.02881538595042638
+        ],
+        "max": [
+          0.09512044423369097,
+          0.030525808617380825,
+          0.11651818086314143,
+          0.12433725591207603,
+          0.044418629463255685,
+          0.11953760046909162
+        ]
+      },
+      "sigma_min": 0.05874633071802455,
+      "position_error_mm_max": 42.92906433669622,
+      "state_start": [
+        -0.12624062597751617,
+        0.01178594958037138,
+        -0.22045518457889557,
+        0.5533741116523743,
+        1.1572405099868774,
+        -0.8003382086753845,
+        1.117848515510559,
+        1.4069099426269531,
+        -0.7161434888839722,
+        -0.04100000113248825,
+        -0.017999999225139618
+      ],
+      "state_end": [
+        0.07570742815732956,
+        0.0505252368748188,
+        0.08093629032373428,
+        0.9178162813186646,
+        1.0378426313400269,
+        -0.6399773359298706,
+        1.1524235010147095,
+        1.5123103857040405,
+        -0.09875072538852692,
+        0.07599999755620956,
+        -0.03700000047683716
+      ],
+      "target_change": [
+        0.6147423982620239,
+        0.30006933212280273,
+        0.03993034362792969
+      ]
+    },
+    {
+      "window": [
+        20,
+        30
+      ],
+      "base_cmd": {
+        "mean": [
+          0.02483003819205061,
+          0.009360502545237756
+        ],
+        "rms": [
+          0.04896394880219412,
+          0.025122553412939647
+        ],
+        "min": [
+          -0.030482815764216003,
+          -0.04612732124688913
+        ],
+        "max": [
+          0.08982883585530518,
+          0.08857304913981472
+        ]
+      },
+      "odom_velocity": {
+        "mean": [
+          0.024192000198177993,
+          8.000016212463378e-06
+        ],
+        "rms": [
+          0.043032871529692325,
+          0.018191536409082384
+        ],
+        "min": [
+          -0.02500000037252903,
+          -0.03700000047683716
+        ],
+        "max": [
+          0.08500000089406967,
+          0.054999999701976776
+        ]
+      },
+      "force": {
+        "mean": [
+          0.622236401488372,
+          2.974968137693642,
+          0.7689708584566215
+        ],
+        "rms": [
+          1.062115673398861,
+          4.72915143277851,
+          2.4905956884806866
+        ],
+        "min": [
+          0.0,
+          0.0,
+          -4.971350756677281
+        ],
+        "max": [
+          2.834710689095338,
+          9.690353844039532,
+          6.224218598762752
+        ]
+      },
+      "cor_velocity": {
+        "mean": [
+          0.006984868029572937,
+          0.0304702527768337,
+          0.004925124603642177
+        ],
+        "rms": [
+          0.011060736166365914,
+          0.047691486938383806,
+          0.025209551709022525
+        ],
+        "min": [
+          4.8283870844085775e-28,
+          1.6887799838069845e-27,
+          -0.05625096342031201
+        ],
+        "max": [
+          0.025952337859427656,
+          0.09547338493830446,
+          0.06006577381877149
+        ]
+      },
+      "qvel": {
+        "mean": [
+          0.022083120445391687,
+          -0.01560871686536358,
+          0.009324917202287298,
+          -0.007683469947371623,
+          0.0008153061254596244,
+          0.024492735973329034
+        ],
+        "rms": [
+          0.03339398574966377,
+          0.026308872273920557,
+          0.04143883463825904,
+          0.042624047443978456,
+          0.005841421799532692,
+          0.03411320074007731
+        ],
+        "min": [
+          -0.03300417615521277,
+          -0.06387905062299247,
+          -0.04113741046950635,
+          -0.09768607823412263,
+          -0.016179202165987436,
+          -0.0002617993877991494
+        ],
+        "max": [
+          0.07162831250184729,
+          0.003961897402027128,
+          0.1145285055158679,
+          0.0624478806363571,
+          0.021118483949131385,
+          0.07087782092348972
+        ]
+      },
+      "sigma_min": 0.04546674840250697,
+      "position_error_mm_max": 42.78901888848369,
+      "state_start": [
+        0.07722284644842148,
+        0.05064815655350685,
+        0.08019609749317169,
+        0.9182002544403076,
+        1.0378077030181885,
+        -0.6391221284866333,
+        1.1517252922058105,
+        1.5123627185821533,
+        -0.09847147762775421,
+        0.07599999755620956,
+        -0.03700000047683716
+      ],
+      "state_end": [
+        0.3172680735588074,
+        0.06333328783512115,
+        0.08101347833871841,
+        1.1402933597564697,
+        0.8813738226890564,
+        -0.543129026889801,
+        1.0730109214782715,
+        1.5206530094146729,
+        0.14730578660964966,
+        0.0,
+        0.0
+      ],
+      "target_change": [
+        0.25894904136657715,
+        0.1552419513463974,
+        -0.09293752908706665
+      ]
+    },
+    {
+      "window": [
+        30,
+        40
+      ],
+      "base_cmd": {
+        "mean": [
+          -0.046980546900638645,
+          -0.018054288760181753
+        ],
+        "rms": [
+          0.049492700555131205,
+          0.03180949691000847
+        ],
+        "min": [
+          -0.0733257317387905,
+          -0.11858494645184156
+        ],
+        "max": [
+          -0.0009248795641599466,
+          0.06891878155272663
+        ]
+      },
+      "odom_velocity": {
+        "mean": [
+          -0.03808600012771785,
+          -0.018511999890208245
+        ],
+        "rms": [
+          0.041330981167691516,
+          0.029063654254392057
+        ],
+        "min": [
+          -0.07900000363588333,
+          -0.07400000095367432
+        ],
+        "max": [
+          0.0,
+          0.07400000095367432
+        ]
+      },
+      "force": {
+        "mean": [
+          -0.7300800351646568,
+          -7.0005843337,
+          0.6532352966683342
+        ],
+        "rms": [
+          1.575918735552457,
+          7.387972182669032,
+          1.1627862773207678
+        ],
+        "min": [
+          -2.82425086674921,
+          -10.98442614310158,
+          -3.210537876328207
+        ],
+        "max": [
+          3.7734330712238675,
+          0.0,
+          2.3238063966259626
+        ]
+      },
+      "cor_velocity": {
+        "mean": [
+          -0.005871787831327484,
+          -0.06962043792273602,
+          0.004329302840942381
+        ],
+        "rms": [
+          0.014070227024858942,
+          0.0734598587774996,
+          0.008934905692370486
+        ],
+        "min": [
+          -0.023075507013405175,
+          -0.10587767729371228,
+          -0.02483234711635701
+        ],
+        "max": [
+          0.0362834491922697,
+          1.5533721016911548e-27,
+          0.01831230043686835
+        ]
+      },
+      "qvel": {
+        "mean": [
+          -0.0316407109809208,
+          0.032516349647963357,
+          -0.03515506407483456,
+          0.00445808752705211,
+          -0.009341993503688775,
+          -0.04655644835743847
+        ],
+        "rms": [
+          0.0385797280550314,
+          0.03645314110104488,
+          0.03867275703782001,
+          0.022875578526796284,
+          0.012714656140090354,
+          0.052486340220457374
+        ],
+        "min": [
+          -0.07545058356371487,
+          0.0006981317007977319,
+          -0.0761138086794727,
+          -0.07112216701876893,
+          -0.03207915165165578,
+          -0.0805818515645782
+        ],
+        "max": [
+          0.04379031093253773,
+          0.07569492965899408,
+          -0.001239183768915974,
+          0.04707152992628707,
+          0.02548180707911721,
+          0.000593411945678072
+        ]
+      },
+      "sigma_min": 0.051144481157336864,
+      "position_error_mm_max": 29.69355256583036,
+      "state_start": [
+        0.3172680735588074,
+        0.06333328783512115,
+        0.08101347833871841,
+        1.1402933597564697,
+        0.8813738226890564,
+        -0.5431464910507202,
+        1.072993516921997,
+        1.5206530094146729,
+        0.14728833734989166,
+        0.0,
+        0.0
+      ],
+      "state_end": [
+        -0.06295653432607651,
+        0.056629493832588196,
+        -0.10410252958536148,
+        0.8253138661384583,
+        1.206231951713562,
+        -0.8940274715423584,
+        1.1172027587890625,
+        1.4276968240737915,
+        -0.3159220516681671,
+        -0.03400000184774399,
+        -0.017999999225139618
+      ],
+      "target_change": [
+        -0.6477519273757935,
+        -0.25768160820007324,
+        0.06337946653366089
+      ]
+    },
+    {
+      "window": [
+        40,
+        50
+      ],
+      "base_cmd": {
+        "mean": [
+          -0.026541989177808898,
+          -0.04490382553240579
+        ],
+        "rms": [
+          0.036302538553924964,
+          0.05624445688858212
+        ],
+        "min": [
+          -0.05309816573915994,
+          -0.1377946420106465
+        ],
+        "max": [
+          0.038903343933664444,
+          0.05466765352807048
+        ]
+      },
+      "odom_velocity": {
+        "mean": [
+          -0.022072000028565526,
+          -0.040078000128269196
+        ],
+        "rms": [
+          0.028556610449395486,
+          0.04857487024077383
+        ],
+        "min": [
+          -0.04699999839067459,
+          -0.14800000190734863
+        ],
+        "max": [
+          0.03099999949336052,
+          0.017999999225139618
+        ]
+      },
+      "force": {
+        "mean": [
+          -1.0457201168053094,
+          -7.387907769098713,
+          1.440035083314533
+        ],
+        "rms": [
+          1.3410647630955521,
+          7.635856289128298,
+          1.757519103229614
+        ],
+        "min": [
+          -3.6927526715317063,
+          -10.824880967751826,
+          -1.7724663502618885
+        ],
+        "max": [
+          0.0,
+          0.0,
+          3.083142739484722
+        ]
+      },
+      "cor_velocity": {
+        "mean": [
+          -0.00754590583542516,
+          -0.07480104043935647,
+          0.01229550033484364
+        ],
+        "rms": [
+          0.0103762331584629,
+          0.077037904021879,
+          0.015052920110475352
+        ],
+        "min": [
+          -0.031760211513507844,
+          -0.10310557276882414,
+          -0.013225725425905992
+        ],
+        "max": [
+          0.0035684036263720466,
+          -0.0060624120053500135,
+          0.026992994355889793
+        ]
+      },
+      "qvel": {
+        "mean": [
+          -0.049161359247357095,
+          -0.01926717830495593,
+          0.018979073314670764,
+          0.020987137450943275,
+          -0.003951942043973752,
+          -0.08978131450023207
+        ],
+        "rms": [
+          0.053570199160870545,
+          0.02762583954647299,
+          0.034724259403087133,
+          0.024934974264935707,
+          0.012314074615082831,
+          0.0902564690289771
+        ],
+        "min": [
+          -0.08990190977022791,
+          -0.05913175505756789,
+          -0.03223623128433527,
+          -0.015358897417550098,
+          -0.02569124658935653,
+          -0.10876891898428662
+        ],
+        "max": [
+          0.034854225162326766,
+          0.021729349187329404,
+          0.09379399400217525,
+          0.03830997708127553,
+          0.03612831551628262,
+          -0.05939355444536703
+        ]
+      },
+      "sigma_min": 0.06152643580551706,
+      "position_error_mm_max": 27.52970853069468,
+      "state_start": [
+        -0.0636327862739563,
+        0.056700147688388824,
+        -0.10446249693632126,
+        0.824842631816864,
+        1.2063192129135132,
+        -0.8942369222640991,
+        1.1173772811889648,
+        1.4275223016738892,
+        -0.3165154457092285,
+        -0.03400000184774399,
+        -0.017999999225139618
+      ],
+      "state_end": [
+        -0.277895450592041,
+        0.10489101707935333,
+        -0.5048688650131226,
+        0.33196163177490234,
+        1.0152928829193115,
+        -0.707277238368988,
+        1.3278988599777222,
+        1.3873971700668335,
+        -1.2139637470245361,
+        0.03099999949336052,
+        -0.14800000190734863
+      ],
+      "target_change": [
+        -0.7045093774795532,
+        -0.2878986597061157,
+        -0.007952630519866943
+      ]
+    },
+    {
+      "window": [
+        50,
+        60
+      ],
+      "base_cmd": {
+        "mean": [
+          0.04102653799347665,
+          -0.06487793690161696
+        ],
+        "rms": [
+          0.046550593533734225,
+          0.0872427195004095
+        ],
+        "min": [
+          0.0029994876776369157,
+          -0.20067107490793107
+        ],
+        "max": [
+          0.07505083019603935,
+          0.028797105468442913
+        ]
+      },
+      "odom_velocity": {
+        "mean": [
+          0.032089999927207825,
+          -0.061501999482512476
+        ],
+        "rms": [
+          0.039069502056773855,
+          0.0803269435302658
+        ],
+        "min": [
+          0.0,
+          -0.14800000190734863
+        ],
+        "max": [
+          0.0689999982714653,
+          0.03700000047683716
+        ]
+      },
+      "force": {
+        "mean": [
+          -0.5146326530229827,
+          -1.917713439594961,
+          0.42685121391429054
+        ],
+        "rms": [
+          1.003116619087574,
+          3.309676674994104,
+          0.9321834342021872
+        ],
+        "min": [
+          -3.1093775435294413,
+          -8.056279941284238,
+          0.0
+        ],
+        "max": [
+          0.0,
+          0.0,
+          3.1194330384885847
+        ]
+      },
+      "cor_velocity": {
+        "mean": [
+          -0.004238723090299813,
+          -0.02033337678023903,
+          0.003100794955486948
+        ],
+        "rms": [
+          0.008646865169196811,
+          0.03420278264643132,
+          0.00756982495489692
+        ],
+        "min": [
+          -0.028324814067598587,
+          -0.07917311134758599,
+          -0.0045072597467628985
+        ],
+        "max": [
+          0.004096517790420211,
+          -2.071545437839292e-30,
+          0.02228181387367263
+        ]
+      },
+      "qvel": {
+        "mean": [
+          0.0009304559681892,
+          -0.00852462090839479,
+          0.014330214319058678,
+          -0.0005897676981999048,
+          0.006106432323171612,
+          -0.0647354767056291
+        ],
+        "rms": [
+          0.021989882554417195,
+          0.025516386213457424,
+          0.039675646428066064,
+          0.014110667477217995,
+          0.009326423685892553,
+          0.07988616165076316
+        ],
+        "min": [
+          -0.05569345643113906,
+          -0.05773549165597242,
+          -0.0240680903850018,
+          -0.02378883770468271,
+          -0.010925761117484502,
+          -0.12538445346327262
+        ],
+        "max": [
+          0.05986479334340551,
+          0.024801128670839424,
+          0.09258971681829918,
+          0.03855432317655474,
+          0.02467895562319982,
+          -3.490658503988659e-05
+        ]
+      },
+      "sigma_min": 0.04371739223354927,
+      "position_error_mm_max": 28.214243330417666,
+      "state_start": [
+        -0.2773400545120239,
+        0.10458407551050186,
+        -0.5078984498977661,
+        0.33187437057495117,
+        1.014891505241394,
+        -0.7065965533256531,
+        1.3278988599777222,
+        1.3873971700668335,
+        -1.2147666215896606,
+        0.03099999949336052,
+        -0.14800000190734863
+      ],
+      "state_end": [
+        -0.07112089544534683,
+        -0.1337168961763382,
+        -1.1198838949203491,
+        0.3407406210899353,
+        0.9285500645637512,
+        -0.5615771412849426,
+        1.3218425512313843,
+        1.4485011100769043,
+        -1.8645002841949463,
+        0.003000000026077032,
+        -0.017999999225139618
+      ],
+      "target_change": [
+        -0.18454113602638245,
+        -0.09915930032730103,
+        -0.0010222792625427246
+      ]
+    },
+    {
+      "window": [
+        60,
+        70
+      ],
+      "base_cmd": {
+        "mean": [
+          0.004739722479341745,
+          -0.0015296643524309733
+        ],
+        "rms": [
+          0.006711555640848037,
+          0.005670981521473237
+        ],
+        "min": [
+          -0.026649291089708073,
+          -0.03756521305847827
+        ],
+        "max": [
+          0.010240425378828362,
+          0.030829795532111515
+        ]
+      },
+      "odom_velocity": {
+        "mean": [
+          0.00036600000038743017,
+          -3.800000250339508e-05
+        ],
+        "rms": [
+          0.0016486357885938763,
+          0.005584442572587792
+        ],
+        "min": [
+          -0.008999999612569809,
+          -0.03700000047683716
+        ],
+        "max": [
+          0.012000000104308128,
+          0.03700000047683716
+        ]
+      },
+      "force": {
+        "mean": [
+          0.0,
+          0.08122819340814137,
+          0.2022715974016932
+        ],
+        "rms": [
+          0.0,
+          0.4180262346304024,
+          0.7407069560593503
+        ],
+        "min": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "max": [
+          0.0,
+          3.237703796266306,
+          3.799345093178905
+        ]
+      },
+      "cor_velocity": {
+        "mean": [
+          -1.0064959504210986e-06,
+          0.0005615665392866784,
+          0.001909510967812404
+        ],
+        "rms": [
+          7.55337321690162e-06,
+          0.003079579591509835,
+          0.006976543977750634
+        ],
+        "min": [
+          -3.376593891429152e-05,
+          -2.996304487778226e-05,
+          1.2821423338320333e-71
+        ],
+        "max": [
+          3.2941310770377506e-05,
+          0.025528601607630878,
+          0.034908924824767616
+        ]
+      },
+      "qvel": {
+        "mean": [
+          -0.0003037571030170929,
+          -0.0009514278444811649,
+          -0.0013932614352820335,
+          0.000632549208824793,
+          4.082674186265133e-05,
+          -0.00021344678620189924
+        ],
+        "rms": [
+          0.004330033628234849,
+          0.004752268304345903,
+          0.0049589645396701035,
+          0.0029991488822678027,
+          0.0009902473394250997,
+          0.001778155078335019
+        ],
+        "min": [
+          -0.026686084262993296,
+          -0.027139869868511822,
+          -0.03677408733952053,
+          -0.003787364476827695,
+          -0.008709192967451705,
+          -0.006667157742618338
+        ],
+        "max": [
+          0.027646015351590184,
+          0.0038222710618675813,
+          0.00019198621771937622,
+          0.01722639971718403,
+          0.005602506898901799,
+          0.011257373675363426
+        ]
+      },
+      "sigma_min": 0.0494638361427617,
+      "position_error_mm_max": 7.760201941080405,
+      "state_start": [
+        -0.07109473645687103,
+        -0.1337709277868271,
+        -1.120244026184082,
+        0.3407406210899353,
+        0.9285500645637512,
+        -0.5615771412849426,
+        1.3218425512313843,
+        1.4485011100769043,
+        -1.8644828796386719,
+        0.003000000026077032,
+        -0.017999999225139618
+      ],
+      "state_end": [
+        -0.06953219324350357,
+        -0.13701438903808594,
+        -1.1202647686004639,
+        0.3373023271560669,
+        0.9196314215660095,
+        -0.574475109577179,
+        1.3278465270996094,
+        1.4493563175201416,
+        -1.8671183586120605,
+        -0.008999999612569809,
+        0.017999999225139618
+      ],
+      "target_change": [
+        0.0021375417709350586,
+        0.0017394423484802246,
+        -0.01971149444580078
+      ]
+    },
+    {
+      "window": [
+        70,
+        80
+      ],
+      "base_cmd": {
+        "mean": [
+          -0.0025961014044904823,
+          0.07328950655414308
+        ],
+        "rms": [
+          0.0407786166040421,
+          0.08991025341059239
+        ],
+        "min": [
+          -0.06856856391385577,
+          -0.052475489631261155
+        ],
+        "max": [
+          0.06183162654338025,
+          0.23778495615467357
+        ]
+      },
+      "odom_velocity": {
+        "mean": [
+          -0.004145999914966524,
+          0.07088199998438359
+        ],
+        "rms": [
+          0.03237959233769723,
+          0.08164813517663784
+        ],
+        "min": [
+          -0.07199999690055847,
+          -0.017999999225139618
+        ],
+        "max": [
+          0.05700000002980232,
+          0.16699999570846558
+        ]
+      },
+      "force": {
+        "mean": [
+          -0.7780453228100122,
+          8.89418066577445,
+          0.06996069335667375
+        ],
+        "rms": [
+          1.1479336354807523,
+          9.253567851395601,
+          1.425475475315358
+        ],
+        "min": [
+          -2.532599825552192,
+          0.0,
+          -4.497974653779908
+        ],
+        "max": [
+          0.0,
+          12.358109912238639,
+          3.99390582896004
+        ]
+      },
+      "cor_velocity": {
+        "mean": [
+          -0.00034776805801879835,
+          0.08847056584055207,
+          -0.005529119817591605
+        ],
+        "rms": [
+          0.007248866264555101,
+          0.0920684547446549,
+          0.013436080630027429
+        ],
+        "min": [
+          -0.02290267193592698,
+          0.0030640175653113707,
+          -0.04152823214333937
+        ],
+        "max": [
+          0.011490654833439714,
+          0.12061261048991839,
+          0.03027525595593614
+        ]
+      },
+      "qvel": {
+        "mean": [
+          0.05687970785450063,
+          0.050267981768925635,
+          -0.09123514584187536,
+          0.022840286162808827,
+          0.00413799414223635,
+          0.12052146351239187
+        ],
+        "rms": [
+          0.06394594675738181,
+          0.05777678188932323,
+          0.09680890074539696,
+          0.04048789427547271,
+          0.018870017385845594,
+          0.12288474057381361
+        ],
+        "min": [
+          -0.04653047785816882,
+          -0.016947147036864937,
+          -0.14636331107224446,
+          -0.07279768310068349,
+          -0.0622035345410779,
+          0.01043706892692609
+        ],
+        "max": [
+          0.11780972450961724,
+          0.1007753110101526,
+          -0.0124965574442794,
+          0.07152359274672762,
+          0.04625122517784973,
+          0.14287265256825582
+        ]
+      },
+      "sigma_min": 0.05051938794207568,
+      "position_error_mm_max": 48.25567738430167,
+      "state_start": [
+        -0.06961067020893097,
+        -0.13685214519500732,
+        -1.1199043989181519,
+        0.3373372256755829,
+        0.9195092916488647,
+        -0.5747718214988708,
+        1.3279861211776733,
+        1.4493563175201416,
+        -1.8670135736465454,
+        -0.008999999612569809,
+        0.017999999225139618
+      ],
+      "state_end": [
+        -0.059598904103040695,
+        -0.067567840218544,
+        -0.4114658534526825,
+        0.9046739935874939,
+        1.4218848943710327,
+        -1.4873695373535156,
+        1.556362509727478,
+        1.4898130893707275,
+        -0.6651973128318787,
+        0.05700000002980232,
+        0.11100000143051147
+      ],
+      "target_change": [
+        0.8452374935150146,
+        0.2526489198207855,
+        -0.08436593413352966
+      ]
+    },
+    {
+      "window": [
+        80,
+        90
+      ],
+      "base_cmd": {
+        "mean": [
+          0.030594915677228853,
+          0.02521392673524749
+        ],
+        "rms": [
+          0.05622671482050826,
+          0.06542161072747227
+        ],
+        "min": [
+          -0.053184998931826016,
+          -0.11818482250995889
+        ],
+        "max": [
+          0.08292099067393872,
+          0.11826876044649129
+        ]
+      },
+      "odom_velocity": {
+        "mean": [
+          0.026779999859631063,
+          0.014820000246167184
+        ],
+        "rms": [
+          0.04706531610006541,
+          0.06288036272135568
+        ],
+        "min": [
+          -0.05700000002980232,
+          -0.16699999570846558
+        ],
+        "max": [
+          0.07900000363588333,
+          0.11100000143051147
+        ]
+      },
+      "force": {
+        "mean": [
+          -0.7359800235995575,
+          2.733129711651971,
+          -1.200697428802502
+        ],
+        "rms": [
+          2.2183298559033666,
+          9.627638920953663,
+          4.913723684225414
+        ],
+        "min": [
+          -4.987921598302482,
+          -12.46999505686605,
+          -21.373436590426202
+        ],
+        "max": [
+          5.086299027453725,
+          15.793649328157294,
+          3.061061603696187
+        ]
+      },
+      "cor_velocity": {
+        "mean": [
+          -0.001948706173153018,
+          0.024448853116851573,
+          -0.01563913811087255
+        ],
+        "rms": [
+          0.020512135312643058,
+          0.09219113788683729,
+          0.048742105740805924
+        ],
+        "min": [
+          -0.04222076204830352,
+          -0.12137887969336864,
+          -0.20766899844332945
+        ],
+        "max": [
+          0.05419352393859967,
+          0.14428134144472743,
+          0.03242684978852368
+        ]
+      },
+      "qvel": {
+        "mean": [
+          0.01761915464941885,
+          0.004501664907815908,
+          0.024558918858564625,
+          -0.035105762014124194,
+          -0.007058279046673263,
+          0.0468136680012804
+        ],
+        "rms": [
+          0.052060786962100904,
+          0.0491284170095695,
+          0.055873007070926226,
+          0.0681933476631629,
+          0.029593592673085572,
+          0.10130153982446426
+        ],
+        "min": [
+          -0.07946484084330183,
+          -0.06686356364390277,
+          -0.05780530482605219,
+          -0.133587500947646,
+          -0.07380997406684019,
+          -0.11714649939385939
+        ],
+        "max": [
+          0.08656833089891874,
+          0.12747884856566583,
+          0.1269028899125077,
+          0.033859387488689996,
+          0.058171823968971005,
+          0.13220869083857045
+        ]
+      },
+      "sigma_min": 0.10028334641808054,
+      "position_error_mm_max": 61.46695487640368,
+      "state_start": [
+        -0.05855344235897064,
+        -0.06802405416965485,
+        -0.4092445373535156,
+        0.9051975607872009,
+        1.4219197034835815,
+        -1.4875266551971436,
+        1.556484580039978,
+        1.4900399446487427,
+        -0.6642025113105774,
+        0.05700000002980232,
+        0.11100000143051147
+      ],
+      "state_end": [
+        0.20081524550914764,
+        -0.12171222269535065,
+        -0.26326999068260193,
+        1.0845301151275635,
+        1.466670036315918,
+        -1.24347722530365,
+        1.2053593397140503,
+        1.4209598302841187,
+        -0.18968237936496735,
+        -0.04100000113248825,
+        -0.054999999701976776
+      ],
+      "target_change": [
+        0.26352325081825256,
+        0.05160292983055115,
+        0.114582359790802
+      ]
+    },
+    {
+      "window": [
+        90,
+        100
+      ],
+      "base_cmd": {
+        "mean": [
+          -0.044649498250706764,
+          -0.07525605031667941
+        ],
+        "rms": [
+          0.051939727992194026,
+          0.08373295646549501
+        ],
+        "min": [
+          -0.06983561835917482,
+          -0.20978611770462674
+        ],
+        "max": [
+          0.05477825322574154,
+          -0.009750157734410939
+        ]
+      },
+      "odom_velocity": {
+        "mean": [
+          -0.03879999984428287,
+          -0.0654700003117323
+        ],
+        "rms": [
+          0.044010544005029455,
+          0.07262025919789346
+        ],
+        "min": [
+          -0.06599999964237213,
+          -0.2409999966621399
+        ],
+        "max": [
+          0.04100000113248825,
+          -0.017999999225139618
+        ]
+      },
+      "force": {
+        "mean": [
+          -0.2997462611549937,
+          -10.571072708237141,
+          2.4405540706825146
+        ],
+        "rms": [
+          2.161266534242331,
+          10.64659476123893,
+          2.85310940673402
+        ],
+        "min": [
+          -5.233563937648588,
+          -12.966941488818158,
+          -1.4862879252399923
+        ],
+        "max": [
+          3.5448690333626818,
+          -8.546406930440321,
+          4.9356731970174215
+        ]
+      },
+      "cor_velocity": {
+        "mean": [
+          0.008301433950753351,
+          -0.10683437813282202,
+          0.01647338376912595
+        ],
+        "rms": [
+          0.023900206637809812,
+          0.10753971188570484,
+          0.02158473624638222
+        ],
+        "min": [
+          -0.04078289342780554,
+          -0.1279850789102688,
+          -0.018398306799784353
+        ],
+        "max": [
+          0.04428769839655863,
+          -0.08626267292862173,
+          0.0379647652388778
+        ]
+      },
+      "qvel": {
+        "mean": [
+          -0.06680028498654253,
+          -0.05388609119621185,
+          0.0667546969864804,
+          0.01741999163781524,
+          -0.005744814064792418,
+          -0.12678084252857424
+        ],
+        "rms": [
+          0.0697282315146342,
+          0.05739333748133329,
+          0.06968478089830976,
+          0.024263957819128948,
+          0.019022358900205733,
+          0.126900366110108
+        ],
+        "min": [
+          -0.09445721911793312,
+          -0.08466592201424493,
+          0.028763026072866547,
+          -0.01689478715930511,
+          -0.04120722363958612,
+          -0.14187781489461904
+        ],
+        "max": [
+          0.07688175355035022,
+          0.011693705988362009,
+          0.10531316706533785,
+          0.051783918906671764,
+          0.04143411644234539,
+          -0.11138691286227811
+        ]
+      },
+      "sigma_min": 0.05019296606836328,
+      "position_error_mm_max": 45.660671876898355,
+      "state_start": [
+        0.2000226378440857,
+        -0.12149859219789505,
+        -0.26437121629714966,
+        1.0840065479278564,
+        1.4667048454284668,
+        -1.2432503700256348,
+        1.2054989337921143,
+        1.4207329750061035,
+        -0.19062486290931702,
+        -0.04100000113248825,
+        -0.054999999701976776
+      ],
+      "state_end": [
+        -0.1310708373785019,
+        0.0734148845076561,
+        -0.9179527759552002,
+        0.4121595025062561,
+        0.9294402003288269,
+        -0.577669084072113,
+        1.3792115449905396,
+        1.3614091873168945,
+        -1.456878662109375,
+        0.04100000113248825,
+        -0.2409999966621399
+      ],
+      "target_change": [
+        -1.0589780807495117,
+        -0.22857385873794556,
+        0.009452998638153076
+      ]
+    },
+    {
+      "window": [
+        100,
+        110
+      ],
+      "base_cmd": {
+        "mean": [
+          0.036830277061387404,
+          -0.09466235053485611
+        ],
+        "rms": [
+          0.057283619893915526,
+          0.14974035065532246
+        ],
+        "min": [
+          0.0,
+          -0.29419031498702153
+        ],
+        "max": [
+          0.09827881541447607,
+          0.0
+        ]
+      },
+      "odom_velocity": {
+        "mean": [
+          0.03394800015352666,
+          -0.08821599957346916
+        ],
+        "rms": [
+          0.05252580343024876,
+          0.13638775539910078
+        ],
+        "min": [
+          -0.02199999988079071,
+          -0.25999999046325684
+        ],
+        "max": [
+          0.0949999988079071,
+          0.054999999701976776
+        ]
+      },
+      "force": {
+        "mean": [
+          -2.9099908869408413,
+          -4.037633355955461,
+          0.5408757826899876
+        ],
+        "rms": [
+          4.569549112516264,
+          5.930298510351655,
+          2.2313584188471642
+        ],
+        "min": [
+          -11.869752331214041,
+          -10.130429352474403,
+          -8.951153910805456
+        ],
+        "max": [
+          0.0,
+          1.6538496638962419,
+          5.732713568049217
+        ]
+      },
+      "cor_velocity": {
+        "mean": [
+          -0.03553199672005273,
+          -0.09559369167942734,
+          -0.0016910982721296797
+        ],
+        "rms": [
+          0.04719398610929262,
+          0.09597872249215013,
+          0.00560946590903903
+        ],
+        "min": [
+          -0.09489189894664825,
+          -0.11180526118259701,
+          -0.013872314109227393
+        ],
+        "max": [
+          0.008077192882373716,
+          -0.07793278790475829,
+          0.010852956083380008
+        ]
+      },
+      "qvel": {
+        "mean": [
+          0.03956460352341312,
+          -0.01710188094702975,
+          0.0252555844827907,
+          0.023086321736803972,
+          0.015370500366417357,
+          -0.05492613987879232
+        ],
+        "rms": [
+          0.0652354650812864,
+          0.02702673151570784,
+          0.040155012455586635,
+          0.038838153442157373,
+          0.027461619439131058,
+          0.08558463798634262
+        ],
+        "min": [
+          -0.079412480965742,
+          -0.05361651462126581,
+          -0.020210912738094333,
+          -0.04544837372193235,
+          -0.03082251459021986,
+          -0.1474628685010009
+        ],
+        "max": [
+          0.13651965409099645,
+          0.021956241990088665,
+          0.09236282401553991,
+          0.0922755575529402,
+          0.07960446718346137,
+          0.06803293424273897
+        ]
+      },
+      "sigma_min": 0.02862357586461408,
+      "position_error_mm_max": 86.34906712586525,
+      "state_start": [
+        -0.13057269155979156,
+        0.07276346534490585,
+        -0.9227731227874756,
+        0.41266563534736633,
+        0.9290387630462646,
+        -0.5769534707069397,
+        1.3794209957122803,
+        1.3616883754730225,
+        -1.457943320274353,
+        0.04100000113248825,
+        -0.2409999966621399
+      ],
+      "state_end": [
+        -0.07697763293981552,
+        -0.25067391991615295,
+        -1.8000972270965576,
+        0.8112290501594543,
+        0.7565478682518005,
+        -0.3217514455318451,
+        1.6113752126693726,
+        1.5169878005981445,
+        -2.0111429691314697,
+        0.0,
+        0.0
+      ],
+      "target_change": [
+        -0.28702473640441895,
+        -0.19474267959594727,
+        0.031620800495147705
+      ]
+    },
+    {
+      "window": [
+        110,
+        120
+      ],
+      "base_cmd": {
+        "mean": [
+          0.0,
+          0.0
+        ],
+        "rms": [
+          0.0,
+          0.0
+        ],
+        "min": [
+          0.0,
+          0.0
+        ],
+        "max": [
+          0.0,
+          0.0
+        ]
+      },
+      "odom_velocity": {
+        "mean": [
+          1.2000000104308128e-05,
+          -0.00028799998760223387
+        ],
+        "rms": [
+          0.0003794733225187182,
+          0.002276839817308286
+        ],
+        "min": [
+          -0.003000000026077032,
+          -0.017999999225139618
+        ],
+        "max": [
+          0.003000000026077032,
+          0.0
+        ]
+      },
+      "force": {
+        "mean": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rms": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "min": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "max": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "qvel": {
+        "mean": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rms": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "min": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "max": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "sigma_min": 0.028786689599393834,
+      "position_error_mm_max": 12.377610862768131,
+      "state_start": [
+        -0.07697763293981552,
+        -0.25067391991615295,
+        -1.8000972270965576,
+        0.8112290501594543,
+        0.7565478682518005,
+        -0.3217689096927643,
+        1.6113927364349365,
+        1.5169878005981445,
+        -2.011125326156616,
+        0.0,
+        0.0
+      ],
+      "state_end": [
+        -0.07700472325086594,
+        -0.2507907450199127,
+        -1.8029773235321045,
+        0.811194121837616,
+        0.7565478682518005,
+        -0.3217689096927643,
+        1.6113752126693726,
+        1.5169878005981445,
+        -2.011125326156616,
+        0.0,
+        0.0
+      ],
+      "target_change": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "window": [
+        120,
+        130
+      ],
+      "base_cmd": {
+        "mean": [
+          0.0,
+          0.0
+        ],
+        "rms": [
+          0.0,
+          0.0
+        ],
+        "min": [
+          0.0,
+          0.0
+        ],
+        "max": [
+          0.0,
+          0.0
+        ]
+      },
+      "odom_velocity": {
+        "mean": [
+          0.0,
+          0.0
+        ],
+        "rms": [
+          0.0,
+          0.0
+        ],
+        "min": [
+          0.0,
+          0.0
+        ],
+        "max": [
+          0.0,
+          0.0
+        ]
+      },
+      "force": {
+        "mean": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rms": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "min": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "max": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "qvel": {
+        "mean": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rms": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "min": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "max": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "sigma_min": 0.028788068062428347,
+      "position_error_mm_max": 12.377307517609218,
+      "state_start": [
+        -0.07700472325086594,
+        -0.2507907450199127,
+        -1.8029773235321045,
+        0.8112290501594543,
+        0.7565478682518005,
+        -0.3217339813709259,
+        1.6113752126693726,
+        1.5169878005981445,
+        -2.0111429691314697,
+        0.0,
+        0.0
+      ],
+      "state_end": [
+        -0.07700472325086594,
+        -0.2507907450199127,
+        -1.8029773235321045,
+        0.8112290501594543,
+        0.7565478682518005,
+        -0.3217339813709259,
+        1.6113927364349365,
+        1.5170053243637085,
+        -2.0111429691314697,
+        0.0,
+        0.0
+      ],
+      "target_change": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ]
+}

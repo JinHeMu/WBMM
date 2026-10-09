@@ -28,6 +28,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 
 #include "wbmm_ocs2/Dynamics.h"
+#include <cstdint>
+#include <cstring>
+#include <sstream>
 
 namespace wbmm_ocs2
 {
@@ -43,7 +46,22 @@ using namespace ocs2;
         bool recompileLibraries /*= true*/, bool verbose /*= true*/)
         : info_(std::move(info))
     {
-        this->initialize(info_.stateDim, info_.inputDim, modelName, modelFolder, recompileLibraries, verbose);
+        // Constants are baked into CppAD code: segregate cache by dynamics settings.
+        std::string cacheName = modelName;
+        if (info_.baseResponse.enabled) {
+            const auto& b = info_.baseResponse;
+            std::ostringstream signature;
+            signature << "_response_v1" << std::hex;
+            for (const double value : {b.linearTimeConstant, b.angularTimeConstant,
+                                       b.linearGain, b.angularGain}) {
+                std::uint64_t bits;
+                static_assert(sizeof(bits) == sizeof(value));
+                std::memcpy(&bits, &value, sizeof(bits));
+                signature << '_' << bits;
+            }
+            cacheName += signature.str();
+        }
+        this->initialize(info_.stateDim, info_.inputDim, cacheName, modelFolder, recompileLibraries, verbose);
     }
 
 
@@ -54,8 +72,16 @@ using namespace ocs2;
         (void)time;
         ad_vector_t dxdt(info_.stateDim);
         const auto theta = state(2);
-        const auto v = input(0); // forward velocity in base frame
-        dxdt << cos(theta) * v, sin(theta) * v, input(1), input.tail(info_.armDim);
+        const auto velocityIndex = info_.baseVelocityIndex();
+        const ad_scalar_t v = info_.baseResponse.enabled ? state(velocityIndex) : input(0);
+        const ad_scalar_t w = info_.baseResponse.enabled ? state(velocityIndex + 1) : input(1);
+        dxdt.head(3) << cos(theta) * v, sin(theta) * v, w;
+        dxdt.segment(3, info_.armDim) = input.tail(info_.armDim);
+        if (info_.baseResponse.enabled) {
+            const auto& b = info_.baseResponse;
+            dxdt(velocityIndex) = (b.linearGain * input(0) - v) / b.linearTimeConstant;
+            dxdt(velocityIndex + 1) = (b.angularGain * input(1) - w) / b.angularTimeConstant;
+        }
         return dxdt;
     }
 }

@@ -1,0 +1,43 @@
+[
+  {
+    "publish_frequency": 20.0,
+    "sent": 1250,
+    "processed": 1067,
+    "states": [
+      "ACTIVE"
+    ],
+    "tf_count": 179,
+    "tf_gap_ms_p50": 55.99987506866455,
+    "tf_gap_ms_p95": 56.06292486190796,
+    "processed_age_ms_p50": 20.522282,
+    "processed_age_ms_p95": 51.135497599999994
+  },
+  {
+    "publish_frequency": 125.0,
+    "sent": 1250,
+    "processed": 1249,
+    "states": [
+      "ACTIVE",
+      "WAITING_FOR_WRENCH"
+    ],
+    "tf_count": 646,
+    "tf_gap_ms_p50": 15.998601913452148,
+    "tf_gap_ms_p95": 16.09654426574707,
+    "processed_age_ms_p50": 10.524326,
+    "processed_age_ms_p95": 10.8795098
+  },
+  {
+    "publish_frequency": 250.0,
+    "sent": 1250,
+    "processed": 1248,
+    "states": [
+      "ACTIVE",
+      "WAITING_FOR_WRENCH"
+    ],
+    "tf_count": 1249,
+    "tf_gap_ms_p50": 7.999897003173828,
+    "tf_gap_ms_p95": 8.032870292663574,
+    "processed_age_ms_p50": 3.1899185,
+    "processed_age_ms_p95": 10.879594149999999
+  }
+]

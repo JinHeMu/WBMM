@@ -10,7 +10,6 @@
 #ifndef TRACER_BASE_ROS_HPP
 #define TRACER_BASE_ROS_HPP
 
-#include <atomic>
 #include <memory>
 
 #include <rclcpp/rclcpp.hpp>
@@ -43,7 +42,8 @@ class TracerBaseRos : public rclcpp::Node {
   std::shared_ptr<TracerRobot> robot_;
   // std::shared_ptr<TracerMiniOmniRobot> omni_robot_;
 
-  std::atomic<bool> keep_running_;
+  rclcpp::executors::SingleThreadedExecutor executor_;
+  double state_publish_rate_{50.0};
 
   void LoadParameters();
 };

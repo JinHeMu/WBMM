@@ -176,6 +176,7 @@ def _make_nodes(context):
             filename = "mujoco_hardware_interface.launch.py"
             args = {"scene": "force_follow_infinite", "viewer": _value(context, "viewer"),
                     "arm_servo_config": _value(context, "arm_servo_config"),
+                    "base_response_config": _value(context, "base_response_config"),
                     "arm_bias_compensation": _value(context, "arm_bias_compensation"),
                     "publish_odom_tf": "true", "start_fts": str(not fake_wrench).lower(),
                     "start_camera": "false", "start_lidar": "false", "start_imu": "false"}
@@ -193,6 +194,10 @@ def _make_nodes(context):
                     "start_arm_controller": str(hardware_write).lower(),
                     "start_arm_pose": "false", "start_jaka_fts": "true",
                     "torque_sensor_mode": "1", "publish_odom_tf": "true",
+                    # JSB already publishes at the 125 Hz control-loop rate.
+                    # Allow every JS sample through despite 8 ms stamp jitter;
+                    # a cap exactly at 125 Hz can skip alternate samples.
+                    "robot_state_publish_frequency": "250.0",
                     "safety_max_joint_velocity": str(2.0 * speed_limit),
                     "safety_max_tracking_error": str(lead_limit + 2.0 * speed_limit / loop_rate),
                     "start_lidar": "false", "start_imu": "false",
@@ -235,6 +240,7 @@ def generate_launch_description():
         DeclareLaunchArgument("lib_folder", default_value="/tmp/wbmm_force_mpc/auto_generated"),
         DeclareLaunchArgument("use_rviz", default_value="true"),
         DeclareLaunchArgument("viewer", default_value="true"),
+        DeclareLaunchArgument("base_response_config", default_value=""),
         DeclareLaunchArgument("arm_servo_config", default_value=os.path.join(
             get_package_share_directory("tracer_jaka_mujoco"), "config", "arm_servo.yaml")),
         DeclareLaunchArgument("arm_bias_compensation", default_value="auto",

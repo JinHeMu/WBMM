@@ -1,0 +1,12 @@
+Loading parameters: 
+- port name: NO_CAN_DIAGNOSTIC
+- odom frame name: odom
+- base frame name: base_link
+- odom topic name: /wheel/odometry
+- publish odom TF: true
+- is tracer mini: false
+- simulated robot: true
+- sim control rate: 50
+----------------------------
+[INFO] [1791534128.485631686] [tracer_base_node]: Simulation mode: CAN connection disabled.
+[INFO] [1791534131.192059988] [rclcpp]: signal_handler(SIGINT/SIGTERM)
