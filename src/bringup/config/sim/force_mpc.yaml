@@ -1,6 +1,0 @@
-# MuJoCo exposes bounded physical joint position servos, not ideal qdot inputs.
-# Follow MPC predicted positions instead of adding an external velocity
-# integrator ahead of those servos. Real JAKA keeps its existing execution mode.
-wbmm_mrt_node:
-  ros__parameters:
-    arm_use_velocity_integrator: false

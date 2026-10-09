@@ -1,0 +1,477 @@
+; robot model meta-information
+model_information {
+  manipulatorModelType     1      // 0: Default-arm, 1: Wheel-based manipulator, 2: Floating-arm manipulator, 3: Fully actuated floating-arm manipulator
+
+  ; motion joints in the URDF to consider fixed
+  ; 对于 wheelBasedMobileManipulator (=1), OCS2 不会建模轮子,
+  ; 必须把所有 movable wheel joint 放到这里, 否则会被当成 arm DoF
+  ; (URDF 里 fl_wheel/fr_wheel/rl_wheel/rr_wheel 是 FIXED_JOINT, 不用列)
+  removeJoints {
+    [0] "left_wheel"
+    [1] "right_wheel"
+  }
+
+  ; base frame of the robot (from URDF)
+  baseFrame                       "base_footprint"
+  ; end-effector frame of the robot (from URDF)
+  eeFrame                         "tool0"
+}
+
+model_settings
+{
+  usePreComputation               true
+  recompileLibraries              true
+}
+
+; ============================================================================
+; 双参考 + 模式切换
+;
+;   phase: 0=Navigation, 1=Transition, 2=Execution, 3=Retract
+;
+;   Navigation : whole-body 跟踪
+;   Transition : whole-body 与 EE 同时加权
+;   Execution  : EE 主导; wholeBody 权重 0.0，避免末端执行时被
+;                初始全身参考拉回
+;   Retract    : whole-body 重新主导
+;
+;   运行中通过 /mobile_manipulator_set_task_phase service 切换。
+; ============================================================================
+modeSwitch
+{
+  activate       true
+  initialPhase   0
+}
+
+; DDP settings
+ddp
+{
+  algorithm                       SLQ
+
+  nThreads                        3
+  threadPriority                  50
+
+  maxNumIterations                1
+  minRelCost                      0.1
+  constraintTolerance             1e-3
+
+  displayInfo                     false
+  displayShortSummary             false
+  checkNumericalStability         false
+  debugPrintRollout               false
+  debugCaching                    false
+
+  AbsTolODE                       1e-5
+  RelTolODE                       1e-3
+  maxNumStepsPerSecond            100000
+  timeStep                        1e-3
+  backwardPassIntegratorType      ODE45
+
+  constraintPenaltyInitialValue   20.0
+  constraintPenaltyIncreaseRate   2.0
+
+  preComputeRiccatiTerms          true
+
+  useFeedbackPolicy               true
+
+  strategy                        LINE_SEARCH
+  lineSearch
+  {
+    minStepLength                 1e-2
+    maxStepLength                 1.0
+    hessianCorrectionStrategy     DIAGONAL_SHIFT
+    hessianCorrectionMultiple     1e-3
+  }
+}
+
+; Rollout settings
+rollout
+{
+  AbsTolODE                       1e-5
+  RelTolODE                       1e-3
+  timeStep                        1e-2
+  integratorType                  ODE45
+  maxNumStepsPerSecond            100000
+  checkNumericalStability         false
+}
+
+; MPC settings
+mpc
+{
+  timeHorizon                     2.0  ; [s]
+  solutionTimeWindow              0.2   ; [s]
+  coldStart                       false
+
+  ; 想在终端看 MPC 每次求解耗时时, 把它设成 true (见文末延迟测试说明)
+  debugPrint                      false
+
+  mpcDesiredFrequency             100   ; [Hz]
+  mrtDesiredFrequency             400   ; [Hz]
+}
+
+; initial state
+initialState
+{
+  base
+  {
+    defaultManipulator               { }
+    floatingArmManipulator
+    {
+      (0,0)  0.0
+      (1,0)  0.0
+      (2,0)  0.0
+      (3,0)  0.0
+      (4,0)  0.0
+      (5,0)  0.0
+    }
+    fullyActuatedFloatingArmManipulator
+    {
+      (0,0)  0.0
+      (1,0)  0.0
+      (2,0)  0.0
+      (3,0)  0.0
+      (4,0)  0.0
+      (5,0)  0.0
+    }
+    wheelBasedMobileManipulator
+    {
+      (0,0)  0.0  ; position x
+      (1,0)  0.0  ; position y
+      (2,0)  0.0  ; heading
+    }
+  }
+
+  arm
+  {
+    ; 与 MuJoCo 的 home keyframe 保持一致。该姿态高约 1.52 m，
+    ; 无法直接穿过 1.10 m 桌底，迫使 REMANI 在路径中规划折叠动作。
+    (0,0)  0.0    ; joint_1
+    (1,0)  1.5707 ; joint_2
+    (2,0)  0.0    ; joint_3
+    (3,0)  1.5707 ; joint_4
+    (4,0)  3.14159; joint_5
+    (5,0)  0.785398; joint_6
+
+  }
+}
+
+inputCost
+{
+  R
+  {
+    base
+    {
+      defaultManipulator               { }
+      floatingArmManipulator           { }
+      fullyActuatedFloatingArmManipulator
+      {
+        scaling 1e-2
+        (0,0)  5.0
+        (1,1)  5.0
+        (2,2)  5.0
+        (3,3)  5.0
+        (4,4)  5.0
+        (5,5)  5.0
+      }
+      wheelBasedMobileManipulator
+      {
+        ; [问题1] 提高转向输入代价给底盘角速度加阻尼, 抑制末尾左右抖动
+        scaling 1e-1
+        (0,0)  2.5   ; forward velocity
+        (1,1)  10.0  ; turning velocity  (was 2.5)
+      }
+    }
+    arm
+    {
+      scaling 1e-2
+      (0,0)  1.0
+      (1,1)  1.0
+      (2,2)  1.0
+      (3,3)  1.0
+      (4,4)  1.0
+      (5,5)  1.0
+    }
+  }
+}
+
+; ============================================================================
+; 全身轨迹跟踪 cost (WholeBodyTrajectoryCost)
+; ============================================================================
+wholeBodyTracking
+{
+  activate   true
+
+  ; phase:    Navigation Transition Execution Retract
+  phaseWeights
+  {
+    (0,0)  1.0
+    (1,0)  0.5
+    (2,0)  0.0
+    (3,0)  0.5
+  }
+
+  ; [问题1] 终端权重缩放 5 -> 1.0, 避免末尾过度追逐横向位置
+  finalWeightScale  1.0
+
+  Q
+  {
+    base
+    {
+      (0,0)  5.0   ; x   [m]
+      (1,1)  5.0   ; y   [m]
+      (2,2)  2.0   ; yaw [rad]  [问题1] 0.5 -> 2.0, 优先对齐航向
+    }
+    arm
+    {
+      (0,0)  2.0   ; joint_1
+      (1,1)  2.0   ; joint_2
+      (2,2)  2.0   ; joint_3
+      (3,3)  2.0   ; joint_4
+      (4,4)  2.0   ; joint_5
+      (5,5)  2.0   ; joint_6
+    }
+  }
+}
+
+; ============================================================================
+; 末端参考跟踪 cost (EndEffectorTrackingCost)
+;
+;   目标来自 mobile_manipulator_ee_target，单目标 7D:
+;     [x, y, z, qx, qy, qz, qw]
+;   Execution 阶段由该 cost 主导。
+; ============================================================================
+endEffectorTracking
+{
+  activate true
+
+  phaseWeights
+  {
+    (0,0)  0.0
+    (1,0)  0.5
+    (2,0)  1.0
+    (3,0)  0.0
+  }
+
+  Q
+  {
+    position
+    {
+      (0,0)  100.0
+      (1,1)  100.0
+      (2,2)  100.0
+    }
+    orientation
+    {
+      (0,0)  25.0
+      (1,1)  25.0
+      (2,2)  25.0
+    }
+  }
+}
+
+; ============================================================================
+; 自碰撞 (环境避障复用它的几何模型, 必须保持 activate true)
+; ============================================================================
+selfCollision
+{
+  activate true
+
+  collisionObjectPairs
+  {
+  }
+
+  collisionLinkPairs
+  {
+    ; 机械臂与底盘
+    [0]  "base_link, Link_2"
+    [1]  "base_link, Link_3"
+    [2]  "base_link, Link_4"
+    [3]  "base_link, Link_5"
+    [4]  "base_link, Link_6"
+    [5]  "base_link, tool0_and_camera_link"
+    [6]  "base_link, d435i_link"
+
+    ; 非相邻机械臂 link
+    [7]  "Link_0, Link_2"
+    [8]  "Link_0, Link_3"
+    [9]  "Link_1, Link_3"
+    [10] "Link_1, Link_4"
+    [11] "Link_2, Link_4"
+    [12] "Link_2, Link_5"
+    [13] "Link_3, Link_5"
+    [14] "Link_3, Link_6"
+    [15] "Link_4, Link_6"
+
+    ; 工具和相机折回碰机械臂
+    [16] "Link_0, tool0_and_camera_link"
+    [17] "Link_1, tool0_and_camera_link"
+    [18] "Link_2, tool0_and_camera_link"
+    [19] "Link_3, tool0_and_camera_link"
+    [20] "Link_4, tool0_and_camera_link"
+    [21] "Link_5, tool0_and_camera_link"
+
+    [22] "Link_0, d435i_link"
+    [23] "Link_1, d435i_link"
+    [24] "Link_2, d435i_link"
+    [25] "Link_3, d435i_link"
+    [26] "Link_4, d435i_link"
+    [27] "Link_5, d435i_link"
+  }
+
+  minimumDistance    0.02
+  activationDistance 0.05  ; 距离小于 5 cm 时才激活自碰撞惩罚
+  mu                  1e-2
+  delta               1e-3
+}
+
+; ============================================================================
+; 环境避障 (EnvironmentCollisionConstraint)
+;
+;   手工 obstacles 已删除，环境几何以 REMANI 的静态 ESDF 为准。
+;   这里保持 activate=false，避免 OCS2 再使用手工 obstacles。
+;   如需 OCS2 ESDF backend，请使用 task_esdf*.info 并配置 esdf_file。
+; ============================================================================
+environmentCollision
+{
+  activate            false
+
+  mu                  1e-3
+  delta               1e-3
+  minimumDistance     0.05    ; 期望最小间隙 [m]
+  activationDistance  0.20    ; 距离 < 此值才开始惩罚 [m]
+
+  collisionLinks
+  {
+    [0] "base_link"
+    [1] "d455_link"
+    [2] "Link_0"
+    [3] "Link_1"
+    [4] "Link_2"
+    [5] "Link_3"
+    [6] "Link_4"
+    [7] "Link_5"
+    [8] "Link_6"
+    [9] "tool0_and_camera_link"
+    [10] "d435i_link"
+  }
+}
+
+jointPositionLimits
+{
+  activate  true
+  mu        0.01
+  delta     1e-3
+}
+
+jointVelocityLimits
+{
+  mu        0.01
+  delta     1e-3
+
+  lowerBound
+  {
+    base
+    {
+      defaultManipulator               { }
+      floatingArmManipulator           { }
+      fullyActuatedFloatingArmManipulator
+      {
+        (0,0)  -0.1
+        (1,0)  -0.1
+        (2,0)  -0.1
+        (3,0)  -0.3
+        (4,0)  -0.3
+        (5,0)  -0.3
+      }
+      wheelBasedMobileManipulator
+      {
+        (0,0)  -0.1
+        (1,0)  -0.4
+      }
+    }
+    arm
+    {
+      (0,0)  -0.2
+      (1,0)  -0.2
+      (2,0)  -0.2
+      (3,0)  -0.2
+      (4,0)  -0.2
+      (5,0)  -0.2
+    }
+  }
+
+  upperBound
+  {
+    base
+    {
+      defaultManipulator               { }
+      floatingArmManipulator           { }
+      fullyActuatedFloatingArmManipulator
+      {
+        (0,0)  0.2
+        (1,0)  0.2
+        (2,0)  0.2
+        (3,0)  0.3
+        (4,0)  0.3
+        (5,0)  0.3
+      }
+      wheelBasedMobileManipulator
+      {
+        (0,0)  0.1
+        (1,0)  0.4
+      }
+    }
+    arm
+    {
+      (0,0)  0.2
+      (1,0)  0.2
+      (2,0)  0.2
+      (3,0)  0.2
+      (4,0)  0.2
+      (5,0)  0.2
+    }
+  }
+}
+
+; Force-MPC arm margin. Formula/frame/units are documented in
+; wbmm_ocs2/cost/ArmManipulabilityCost.h. Only the six arm columns are evaluated.
+; Process and terminal switches are independent. Terminal inherits all base
+; settings, then overrides the listed fields. References use this fixed ell.
+armManipulability
+{
+  activate true
+  frameName "tool0"
+  stateFrame "odom"
+  normalizeMargins true
+  weightScale 1.0
+  metrics
+  {
+    scope "arm"
+    task "pose"
+    scaling "characteristic_length"
+    characteristicLength 0.30
+    regularization 1e-6
+    singularValueFloor 1e-9
+    useTaskDirection false
+  }
+  useMinSingularValue true
+  minSingularRef 0.12
+  minSingularWeight 0.5
+  useYoshikawa false
+  yoshikawaRef 0.0015
+  yoshikawaWeight 0.005
+  useInverseManipulability false
+  useConditionNumber false
+  finiteDiffStep 1e-6
+  hessianRegularization 1e-8
+  invalidMetricsPenalty 1e6
+  terminal
+  {
+    activate true
+    weightScale 1.0
+    minSingularRef 0.12
+  }
+  diagnostics
+  {
+    activate false
+  }
+}

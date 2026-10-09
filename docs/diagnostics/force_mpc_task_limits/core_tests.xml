@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="25" failures="0" disabled="0" errors="0" time="4.629" timestamp="2026-10-09T12:46:59" name="AllTests">
+  <testsuite name="WbmmFactory" tests="1" failures="0" disabled="0" errors="0" time="0.002" timestamp="2026-10-09T12:46:59">
+    <testcase name="ResolvesWheelBasedModelDimensions" status="run" result="completed" time="0.002" timestamp="2026-10-09T12:46:59" classname="WbmmFactory" />
+  </testsuite>
+  <testsuite name="WbmmPinocchioMapping" tests="2" failures="0" disabled="0" errors="0" time="0.002" timestamp="2026-10-09T12:46:59">
+    <testcase name="MapsDifferentialDriveVelocity" status="run" result="completed" time="0.001" timestamp="2026-10-09T12:46:59" classname="WbmmPinocchioMapping" />
+    <testcase name="MapsOcs2JacobianWithoutSideslip" status="run" result="completed" time="0.001" timestamp="2026-10-09T12:46:59" classname="WbmmPinocchioMapping" />
+  </testsuite>
+  <testsuite name="WbmmDynamics" tests="1" failures="0" disabled="0" errors="0" time="0.481" timestamp="2026-10-09T12:46:59">
+    <testcase name="FlowMapMatchesDifferentialDriveContract" status="run" result="completed" time="0.481" timestamp="2026-10-09T12:46:59" classname="WbmmDynamics" />
+  </testsuite>
+  <testsuite name="WbmmInterface" tests="7" failures="0" disabled="0" errors="0" time="4.092" timestamp="2026-10-09T12:46:59">
+    <testcase name="AssemblesProblemAndRegistersTerms" status="run" result="completed" time="0.501" timestamp="2026-10-09T12:46:59" classname="WbmmInterface" />
+    <testcase name="PositionLimitToggleKeepsTaskVelocityConstraints" status="run" result="completed" time="1.125" timestamp="2026-10-09T12:47:00" classname="WbmmInterface" />
+    <testcase name="TcpOverridePreservesTaskVelocityBounds" status="run" result="completed" time="0.684" timestamp="2026-10-09T12:47:01" classname="WbmmInterface" />
+    <testcase name="ArmTerminalRegistrationIsIndependentAndOverridesReferences" status="run" result="completed" time="0.528" timestamp="2026-10-09T12:47:02" classname="WbmmInterface" />
+    <testcase name="SupportsDualReferenceModeSwitch" status="run" result="completed" time="0.607" timestamp="2026-10-09T12:47:02" classname="WbmmInterface" />
+    <testcase name="LoadsEsdfBackendAndQueriesGrid" status="run" result="completed" time="0.634" timestamp="2026-10-09T12:47:03" classname="WbmmInterface" />
+    <testcase name="RejectsEsdfFrameMismatch" status="run" result="completed" time="0.013" timestamp="2026-10-09T12:47:03" classname="WbmmInterface" />
+  </testsuite>
+  <testsuite name="EndEffectorTrackingCost" tests="2" failures="0" disabled="0" errors="0" time="0.003" timestamp="2026-10-09T12:47:03">
+    <testcase name="SevenDimensionalTargetMatchesFiniteDifference" status="run" result="completed" time="0.001" timestamp="2026-10-09T12:47:03" classname="EndEffectorTrackingCost" />
+    <testcase name="NineDimensionalTargetIsIgnored" status="run" result="completed" time="0.002" timestamp="2026-10-09T12:47:03" classname="EndEffectorTrackingCost" />
+  </testsuite>
+  <testsuite name="ArmManipulabilityCost" tests="6" failures="0" disabled="0" errors="0" time="0.042" timestamp="2026-10-09T12:47:03">
+    <testcase name="MetricsMatchEigenSvd" status="run" result="completed" time="0.001" timestamp="2026-10-09T12:47:03" classname="ArmManipulabilityCost" />
+    <testcase name="GradientMatchesFiniteDifference" status="run" result="completed" time="0.006" timestamp="2026-10-09T12:47:03" classname="ArmManipulabilityCost" />
+    <testcase name="InvalidStateUsesConfiguredPenalty" status="run" result="completed" time="0.001" timestamp="2026-10-09T12:47:03" classname="ArmManipulabilityCost" />
+    <testcase name="NormalizedSigmaAndYoshikawaScaleValuesAndDerivatives" status="run" result="completed" time="0.006" timestamp="2026-10-09T12:47:03" classname="ArmManipulabilityCost" />
+    <testcase name="ReusedWorkspaceAndConcurrentClonesPreserveMetrics" status="run" result="completed" time="0.027" timestamp="2026-10-09T12:47:03" classname="ArmManipulabilityCost" />
+    <testcase name="NormalizedReferencesRejectZero" status="run" result="completed" time="0.001" timestamp="2026-10-09T12:47:04" classname="ArmManipulabilityCost" />
+  </testsuite>
+  <testsuite name="WbmmReferenceManager" tests="3" failures="0" disabled="0" errors="0" time="0" timestamp="2026-10-09T12:47:04">
+    <testcase name="LatchesPhaseAndKeepsTargetsSeparate" status="run" result="completed" time="0" timestamp="2026-10-09T12:47:04" classname="WbmmReferenceManager" />
+    <testcase name="RvalueSetRoutesByStateDimension" status="run" result="completed" time="0" timestamp="2026-10-09T12:47:04" classname="WbmmReferenceManager" />
+    <testcase name="NavigationClearsStaleEndEffectorTarget" status="run" result="completed" time="0" timestamp="2026-10-09T12:47:04" classname="WbmmReferenceManager" />
+  </testsuite>
+  <testsuite name="EsdfEnvironmentCollisionConstraint" tests="1" failures="0" disabled="0" errors="0" time="0.003" timestamp="2026-10-09T12:47:04">
+    <testcase name="SimpleLinearFieldValueAndGradient" status="run" result="completed" time="0.003" timestamp="2026-10-09T12:47:04" classname="EsdfEnvironmentCollisionConstraint" />
+  </testsuite>
+  <testsuite name="WholeBodyTrajectoryCost" tests="2" failures="0" disabled="0" errors="0" time="0.004" timestamp="2026-10-09T12:47:04">
+    <testcase name="TracksWholeBodyStateAndWrapsYaw" status="run" result="completed" time="0.002" timestamp="2026-10-09T12:47:04" classname="WholeBodyTrajectoryCost" />
+    <testcase name="InvalidReferenceFallsBackToHoldState" status="run" result="completed" time="0.002" timestamp="2026-10-09T12:47:04" classname="WholeBodyTrajectoryCost" />
+  </testsuite>
+</testsuites>

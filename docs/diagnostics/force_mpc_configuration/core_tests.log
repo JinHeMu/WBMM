@@ -1,0 +1,2531 @@
+Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+[==========] Running 25 tests from 9 test suites.
+[----------] Global test environment set-up.
+[----------] 1 test from WbmmFactory
+[ RUN      ] WbmmFactory.ResolvesWheelBasedModelDimensions
+[       OK ] WbmmFactory.ResolvesWheelBasedModelDimensions (1 ms)
+[----------] 1 test from WbmmFactory (1 ms total)
+
+[----------] 2 tests from WbmmPinocchioMapping
+[ RUN      ] WbmmPinocchioMapping.MapsDifferentialDriveVelocity
+[       OK ] WbmmPinocchioMapping.MapsDifferentialDriveVelocity (1 ms)
+[ RUN      ] WbmmPinocchioMapping.MapsOcs2JacobianWithoutSideslip
+[       OK ] WbmmPinocchioMapping.MapsOcs2JacobianWithoutSideslip (1 ms)
+[----------] 2 tests from WbmmPinocchioMapping (2 ms total)
+
+[----------] 1 test from WbmmDynamics
+[ RUN      ] WbmmDynamics.FlowMapMatchesDifferentialDriveContract
+[       OK ] WbmmDynamics.FlowMapMatchesDifferentialDriveContract (470 ms)
+[----------] 1 test from WbmmDynamics (470 ms total)
+
+[----------] 7 tests from WbmmInterface
+[ RUN      ] WbmmInterface.AssemblesProblemAndRegistersTerms
+[WbmmInterface] Loading task file: "/home/a/WBMM/src/control/wbmm_ocs2/test/resources/task.info"
+[WbmmInterface] Loading Pinocchio model from: "/home/a/WBMM/install/tracer_jaka_description/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf"
+[WbmmInterface] Generated library path: "/tmp/wbmm_ocs2_interface_test_lib"
+
+ #### Model Information:
+ #### =============================================================================
+
+ #### model: wheelBasedMobileManipulator (fixed by wbmm_ocs2)
+ #### model_information.removeJoints: "left_wheel" "right_wheel" 
+ #### Note: All mimic joints will be automatically detected and removed
+ #### model_information.baseFrame: "base_footprint"
+ #### model_information.eeFrame: "tool0"
+ #### =============================================================================
+model.nv = 9
+model.nq = 9
+model.njoints = 8
+model.nbodies = 7
+model.nframes = 69
+
+Joints:
+            universe:   ID = 0
+          root_joint:   ID = 1
+             joint_1:   ID = 2
+             joint_2:   ID = 3
+             joint_3:   ID = 4
+             joint_4:   ID = 5
+             joint_5:   ID = 6
+             joint_6:   ID = 7
+
+Frames:
+            universe:   ID = 0, parent = 0, type = "FIXED_JOINT "
+          root_joint:   ID = 1, parent = 1, type = "JOINT "
+      base_footprint:   ID = 2, parent = 1, type = "BODY "
+base_footprint_to_base_link:   ID = 3, parent = 1, type = "FIXED_JOINT "
+           base_link:   ID = 4, parent = 1, type = "BODY "
+        base_to_d455:   ID = 5, parent = 1, type = "FIXED_JOINT "
+           d455_link:   ID = 6, parent = 1, type = "BODY "
+         base_to_imu:   ID = 7, parent = 1, type = "FIXED_JOINT "
+            imu_link:   ID = 8, parent = 1, type = "BODY "
+        base_to_jaka:   ID = 9, parent = 1, type = "FIXED_JOINT "
+      jaka_base_link:   ID = 10, parent = 1, type = "BODY "
+               fixed:   ID = 11, parent = 1, type = "FIXED_JOINT "
+              Link_0:   ID = 12, parent = 1, type = "BODY "
+             joint_1:   ID = 13, parent = 2, type = "JOINT "
+              Link_1:   ID = 14, parent = 2, type = "BODY "
+             joint_2:   ID = 15, parent = 3, type = "JOINT "
+              Link_2:   ID = 16, parent = 3, type = "BODY "
+             joint_3:   ID = 17, parent = 4, type = "JOINT "
+              Link_3:   ID = 18, parent = 4, type = "BODY "
+             joint_4:   ID = 19, parent = 5, type = "JOINT "
+              Link_4:   ID = 20, parent = 5, type = "BODY "
+             joint_5:   ID = 21, parent = 6, type = "JOINT "
+              Link_5:   ID = 22, parent = 6, type = "BODY "
+             joint_6:   ID = 23, parent = 7, type = "JOINT "
+              Link_6:   ID = 24, parent = 7, type = "BODY "
+             fixed_2:   ID = 25, parent = 7, type = "FIXED_JOINT "
+           Link_6_45:   ID = 26, parent = 7, type = "BODY "
+  jk_se_vi_200_joint:   ID = 27, parent = 7, type = "FIXED_JOINT "
+   jk_se_vi_200_link:   ID = 28, parent = 7, type = "BODY "
+tool0_and_camera_link_joint:   ID = 29, parent = 7, type = "FIXED_JOINT "
+tool0_and_camera_link:   ID = 30, parent = 7, type = "BODY "
+         d435i_joint:   ID = 31, parent = 7, type = "FIXED_JOINT "
+          d435i_link:   ID = 32, parent = 7, type = "BODY "
+         tool0_joint:   ID = 33, parent = 7, type = "FIXED_JOINT "
+               tool0:   ID = 34, parent = 7, type = "BODY "
+       base_to_laser:   ID = 35, parent = 1, type = "FIXED_JOINT "
+          laser_link:   ID = 36, parent = 1, type = "BODY "
+     fl_castor_wheel:   ID = 37, parent = 1, type = "FIXED_JOINT "
+      fl_castor_link:   ID = 38, parent = 1, type = "BODY "
+            fl_wheel:   ID = 39, parent = 1, type = "FIXED_JOINT "
+       fl_wheel_link:   ID = 40, parent = 1, type = "BODY "
+     fr_castor_wheel:   ID = 41, parent = 1, type = "FIXED_JOINT "
+      fr_castor_link:   ID = 42, parent = 1, type = "BODY "
+            fr_wheel:   ID = 43, parent = 1, type = "FIXED_JOINT "
+       fr_wheel_link:   ID = 44, parent = 1, type = "BODY "
+      inertial_joint:   ID = 45, parent = 1, type = "FIXED_JOINT "
+       inertial_link:   ID = 46, parent = 1, type = "BODY "
+joint_aluminium_2_base_link:   ID = 47, parent = 1, type = "FIXED_JOINT "
+aluminium_2_base_link:   ID = 48, parent = 1, type = "BODY "
+joint_aluminium_3_base_link:   ID = 49, parent = 1, type = "FIXED_JOINT "
+aluminium_3_base_link:   ID = 50, parent = 1, type = "BODY "
+joint_aluminium_4_base_link:   ID = 51, parent = 1, type = "FIXED_JOINT "
+aluminium_4_base_link:   ID = 52, parent = 1, type = "BODY "
+joint_aluminium_base_link:   ID = 53, parent = 1, type = "FIXED_JOINT "
+ aluminium_base_link:   ID = 54, parent = 1, type = "BODY "
+          left_wheel:   ID = 55, parent = 1, type = "FIXED_JOINT "
+     left_wheel_link:   ID = 56, parent = 1, type = "BODY "
+         right_wheel:   ID = 57, parent = 1, type = "FIXED_JOINT "
+    right_wheel_link:   ID = 58, parent = 1, type = "BODY "
+     rl_castor_wheel:   ID = 59, parent = 1, type = "FIXED_JOINT "
+      rl_castor_link:   ID = 60, parent = 1, type = "BODY "
+            rl_wheel:   ID = 61, parent = 1, type = "FIXED_JOINT "
+       rl_wheel_link:   ID = 62, parent = 1, type = "BODY "
+     rr_castor_wheel:   ID = 63, parent = 1, type = "FIXED_JOINT "
+      rr_castor_link:   ID = 64, parent = 1, type = "BODY "
+            rr_wheel:   ID = 65, parent = 1, type = "FIXED_JOINT "
+       rr_wheel_link:   ID = 66, parent = 1, type = "BODY "
+         tracer_base:   ID = 67, parent = 1, type = "FIXED_JOINT "
+    urbase_base_link:   ID = 68, parent = 1, type = "BODY "
+
+ #### Model Settings:
+ #### =============================================================================
+ #### 'usePreComputation'......................................................1
+ #### 'recompileLibraries'.....................................................1
+ #### =============================================================================
+Initial State:          0        0        0        0   1.5707        0   1.5707  3.14159 0.785398
+
+ #### DDP Settings: 
+ #### =============================================================================
+ #### 'algorithm'............................................................SLQ
+ #### 'nThreads'...............................................................3
+ #### 'threadPriority'........................................................50
+ #### 'maxNumIterations'.......................................................1
+ #### 'minRelCost'...........................................................0.1
+ #### 'constraintTolerance'................................................0.001
+ #### 'displayInfo'............................................................0
+ #### 'displayShortSummary'....................................................0
+ #### 'checkNumericalStability'................................................0
+ #### 'debugPrintRollout'......................................................0
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'...........................................................0.001
+ #### 'backwardPassIntegratorType'.........................................ODE45
+ #### 'constraintPenaltyInitialValue'.........................................20
+ #### 'constraintPenaltyIncreaseRate'..........................................2
+ #### 'preComputeRiccatiTerms'.................................................1
+ #### 'useFeedbackPolicy'......................................................1
+ #### 'riskSensitiveCoeff'.....................................................0 (default)
+ #### 'strategy'.....................................................LINE_SEARCH
+ #### LINE_SEARCH Settings: {
+ #### 'minStepLength'.......................................................0.01
+ #### 'maxStepLength'..........................................................1
+ #### 'contractionRate'......................................................0.5 (default)
+ #### 'armijoCoefficient'.................................................0.0001 (default)
+ #### 'hessianCorrectionStrategy'.................................DIAGONAL_SHIFT
+ #### 'hessianCorrectionMultiple'..........................................0.001
+ #### }
+ #### =============================================================================
+
+ #### MPC Settings:
+ #### =============================================================================
+ #### 'timeHorizon'............................................................2
+ #### 'solutionTimeWindow'...................................................0.2
+ #### 'coldStart'..............................................................0
+ #### 'debugPrint'.............................................................0
+ #### 'mpcDesiredFrequency'..................................................100
+ #### 'mrtDesiredFrequency'..................................................400
+ #### =============================================================================
+
+ #### Multiple-Shooting SQP Settings:
+ #### =============================================================================
+ #### 'sqpIteration'..........................................................10 (default)
+ #### 'deltaTol'...........................................................1e-06 (default)
+ #### 'alpha_decay'..........................................................0.5 (default)
+ #### 'alpha_min'.........................................................0.0001 (default)
+ #### 'gamma_c'............................................................1e-06 (default)
+ #### 'g_max'..............................................................1e+06 (default)
+ #### 'g_min'..............................................................1e-06 (default)
+ #### 'armijoFactor'......................................................0.0001 (default)
+ #### 'costTol'...........................................................0.0001 (default)
+ #### 'dt'..................................................................0.01 (default)
+ #### 'useFeedbackPolicy'......................................................1 (default)
+ #### 'createValueFunction'....................................................0 (default)
+ #### 'integratorType'.......................................................RK2 (default)
+ #### 'inequalityConstraintMu'.................................................0 (default)
+ #### 'inequalityConstraintDelta'..........................................1e-06 (default)
+ #### 'projectStateInputEqualityConstraints'...................................1 (default)
+ #### 'extractProjectionMultiplier'............................................0 (default)
+ #### 'printSolverStatus'......................................................0 (default)
+ #### 'printSolverStatistics'..................................................0 (default)
+ #### 'printLinesearch'........................................................0 (default)
+ #### 'enableLogging'..........................................................1 (default)
+ #### 'logSize'.............................................................1000 (default)
+ #### 'logFilePath'.........................................../tmp/ocs2/sqp_log/ (default)
+ #### 'nThreads'...............................................................4 (default)
+ #### 'threadPriority'........................................................50 (default)
+
+ #### HPIPM Settings:
+ #### =============================================================================
+ #### 'mode'...................................................................1 (default)
+ #### 'iter_max'..............................................................30 (default)
+ #### 'alpha_min'..........................................................1e-12 (default)
+ #### 'mu0'...................................................................10 (default)
+ #### 'tol_stat'...........................................................1e-06 (default)
+ #### 'tol_eq'.............................................................1e-08 (default)
+ #### 'tol_ineq'...........................................................1e-08 (default)
+ #### 'tol_comp'...........................................................1e-08 (default)
+ #### 'reg_prim'...........................................................1e-12 (default)
+ #### 'warm_start'.............................................................0 (default)
+ #### 'pred_corr'..............................................................1 (default)
+ #### 'ric_alg'................................................................0 (default)
+ #### =============================================================================
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "inputCost.R.base.wheelBasedMobileManipulator"
+WARNING: Loaded at least one default value in matrix: "inputCost.R.arm"
+
+ #### Input Cost Settings: 
+ #### =============================================================================
+inputCost.R:  
+0.25    0    0    0    0    0    0    0
+   0    1    0    0    0    0    0    0
+   0    0 0.01    0    0    0    0    0
+   0    0    0 0.01    0    0    0    0
+   0    0    0    0 0.01    0    0    0
+   0    0    0    0    0 0.01    0    0
+   0    0    0    0    0    0 0.01    0
+   0    0    0    0    0    0    0 0.01
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### JointPositionLimits Settings: 
+ #### =============================================================================
+ #### lowerBound: -6.28 -1.48 -3.05 -1.48 -6.28 -6.28
+ #### upperBound: 6.28 4.62 3.05 4.62 6.28 6.28
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+
+ #### JointVelocityLimits Settings: 
+ #### =============================================================================
+ #### 'lowerBound':  -0.5   -1   -2   -2   -2   -2   -2   -2
+ #### 'upperBound':  0.5   1   2   2   2   2   2   2
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+ #### 'activate'...............................................................1
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (intermediate) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (final) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### SelfCollision Settings: 
+ #### =============================================================================
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### 'minimumDistance'.....................................................0.02
+ #### 'selfCollision.collisionObjectPairs': { }
+ #### 'selfCollision.collisionLinkPairs': {[base_link, Link_2], [base_link, Link_3], [base_link, Link_4], [base_link, Link_5], [base_link, Link_6], [base_link, tool0_and_camera_link], [base_link, d435i_link], [Link_0, Link_2], [Link_0, Link_3], [Link_1, Link_3], [Link_1, Link_4], [Link_2, Link_4], [Link_2, Link_5], [Link_3, Link_5], [Link_3, Link_6], [Link_4, Link_6], [Link_0, tool0_and_camera_link], [Link_1, tool0_and_camera_link], [Link_2, tool0_and_camera_link], [Link_3, tool0_and_camera_link], [Link_4, tool0_and_camera_link], [Link_5, tool0_and_camera_link], [Link_0, d435i_link], [Link_1, d435i_link], [Link_2, d435i_link], [Link_3, d435i_link], [Link_4, d435i_link], [Link_5, d435i_link], }
+ #### minimumDistance: 0.02 (minimum allowed distance)
+ #### activationDistance: 0.05 (penalty only active when distance < this value)
+ #### =============================================================================
+SelfCollision: Testing for 139 collision pairs
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_ocs2_interface_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp-82658414.so
+[CppAdInterface] Renaming /tmp/wbmm_ocs2_interface_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp-82658414.so to /tmp/wbmm_ocs2_interface_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_ocs2_interface_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp-68358414.so
+[CppAdInterface] Renaming /tmp/wbmm_ocs2_interface_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp-68358414.so to /tmp/wbmm_ocs2_interface_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_ocs2_interface_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp-37258414.so
+[CppAdInterface] Renaming /tmp/wbmm_ocs2_interface_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp-37258414.so to /tmp/wbmm_ocs2_interface_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_lib.so
+
+ #### Rollout Settings: 
+ #### =============================================================================
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'............................................................0.01
+ #### 'integratorType'.....................................................ODE45
+ #### 'checkNumericalStability'................................................0
+ #### 'reconstructInputTrajectory'.............................................1 (default)
+ #### 'rootFindingAlgorithm'...................................................0 (default)
+ #### 'maxSingleEventIterations'..............................................10 (default)
+ #### 'useTrajectorySpreadingController'.......................................0 (default)
+ #### =============================================================================
+[       OK ] WbmmInterface.AssemblesProblemAndRegistersTerms (478 ms)
+[ RUN      ] WbmmInterface.IntegrationLimitsChangeTheActualVelocityPenalty
+[WbmmInterface] Loading task file: "/home/a/WBMM/src/control/wbmm_ocs2/test/resources/task.info"
+[WbmmInterface] Loading Pinocchio model from: "/home/a/WBMM/install/tracer_jaka_description/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf"
+[WbmmInterface] Generated library path: "/tmp/wbmm_velocity_legacy_test"
+
+ #### Model Information:
+ #### =============================================================================
+
+ #### model: wheelBasedMobileManipulator (fixed by wbmm_ocs2)
+ #### model_information.removeJoints: "left_wheel" "right_wheel" 
+ #### Note: All mimic joints will be automatically detected and removed
+ #### model_information.baseFrame: "base_footprint"
+ #### model_information.eeFrame: "tool0"
+ #### =============================================================================
+model.nv = 9
+model.nq = 9
+model.njoints = 8
+model.nbodies = 7
+model.nframes = 69
+
+Joints:
+            universe:   ID = 0
+          root_joint:   ID = 1
+             joint_1:   ID = 2
+             joint_2:   ID = 3
+             joint_3:   ID = 4
+             joint_4:   ID = 5
+             joint_5:   ID = 6
+             joint_6:   ID = 7
+
+Frames:
+            universe:   ID = 0, parent = 0, type = "FIXED_JOINT "
+          root_joint:   ID = 1, parent = 1, type = "JOINT "
+      base_footprint:   ID = 2, parent = 1, type = "BODY "
+base_footprint_to_base_link:   ID = 3, parent = 1, type = "FIXED_JOINT "
+           base_link:   ID = 4, parent = 1, type = "BODY "
+        base_to_d455:   ID = 5, parent = 1, type = "FIXED_JOINT "
+           d455_link:   ID = 6, parent = 1, type = "BODY "
+         base_to_imu:   ID = 7, parent = 1, type = "FIXED_JOINT "
+            imu_link:   ID = 8, parent = 1, type = "BODY "
+        base_to_jaka:   ID = 9, parent = 1, type = "FIXED_JOINT "
+      jaka_base_link:   ID = 10, parent = 1, type = "BODY "
+               fixed:   ID = 11, parent = 1, type = "FIXED_JOINT "
+              Link_0:   ID = 12, parent = 1, type = "BODY "
+             joint_1:   ID = 13, parent = 2, type = "JOINT "
+              Link_1:   ID = 14, parent = 2, type = "BODY "
+             joint_2:   ID = 15, parent = 3, type = "JOINT "
+              Link_2:   ID = 16, parent = 3, type = "BODY "
+             joint_3:   ID = 17, parent = 4, type = "JOINT "
+              Link_3:   ID = 18, parent = 4, type = "BODY "
+             joint_4:   ID = 19, parent = 5, type = "JOINT "
+              Link_4:   ID = 20, parent = 5, type = "BODY "
+             joint_5:   ID = 21, parent = 6, type = "JOINT "
+              Link_5:   ID = 22, parent = 6, type = "BODY "
+             joint_6:   ID = 23, parent = 7, type = "JOINT "
+              Link_6:   ID = 24, parent = 7, type = "BODY "
+             fixed_2:   ID = 25, parent = 7, type = "FIXED_JOINT "
+           Link_6_45:   ID = 26, parent = 7, type = "BODY "
+  jk_se_vi_200_joint:   ID = 27, parent = 7, type = "FIXED_JOINT "
+   jk_se_vi_200_link:   ID = 28, parent = 7, type = "BODY "
+tool0_and_camera_link_joint:   ID = 29, parent = 7, type = "FIXED_JOINT "
+tool0_and_camera_link:   ID = 30, parent = 7, type = "BODY "
+         d435i_joint:   ID = 31, parent = 7, type = "FIXED_JOINT "
+          d435i_link:   ID = 32, parent = 7, type = "BODY "
+         tool0_joint:   ID = 33, parent = 7, type = "FIXED_JOINT "
+               tool0:   ID = 34, parent = 7, type = "BODY "
+       base_to_laser:   ID = 35, parent = 1, type = "FIXED_JOINT "
+          laser_link:   ID = 36, parent = 1, type = "BODY "
+     fl_castor_wheel:   ID = 37, parent = 1, type = "FIXED_JOINT "
+      fl_castor_link:   ID = 38, parent = 1, type = "BODY "
+            fl_wheel:   ID = 39, parent = 1, type = "FIXED_JOINT "
+       fl_wheel_link:   ID = 40, parent = 1, type = "BODY "
+     fr_castor_wheel:   ID = 41, parent = 1, type = "FIXED_JOINT "
+      fr_castor_link:   ID = 42, parent = 1, type = "BODY "
+            fr_wheel:   ID = 43, parent = 1, type = "FIXED_JOINT "
+       fr_wheel_link:   ID = 44, parent = 1, type = "BODY "
+      inertial_joint:   ID = 45, parent = 1, type = "FIXED_JOINT "
+       inertial_link:   ID = 46, parent = 1, type = "BODY "
+joint_aluminium_2_base_link:   ID = 47, parent = 1, type = "FIXED_JOINT "
+aluminium_2_base_link:   ID = 48, parent = 1, type = "BODY "
+joint_aluminium_3_base_link:   ID = 49, parent = 1, type = "FIXED_JOINT "
+aluminium_3_base_link:   ID = 50, parent = 1, type = "BODY "
+joint_aluminium_4_base_link:   ID = 51, parent = 1, type = "FIXED_JOINT "
+aluminium_4_base_link:   ID = 52, parent = 1, type = "BODY "
+joint_aluminium_base_link:   ID = 53, parent = 1, type = "FIXED_JOINT "
+ aluminium_base_link:   ID = 54, parent = 1, type = "BODY "
+          left_wheel:   ID = 55, parent = 1, type = "FIXED_JOINT "
+     left_wheel_link:   ID = 56, parent = 1, type = "BODY "
+         right_wheel:   ID = 57, parent = 1, type = "FIXED_JOINT "
+    right_wheel_link:   ID = 58, parent = 1, type = "BODY "
+     rl_castor_wheel:   ID = 59, parent = 1, type = "FIXED_JOINT "
+      rl_castor_link:   ID = 60, parent = 1, type = "BODY "
+            rl_wheel:   ID = 61, parent = 1, type = "FIXED_JOINT "
+       rl_wheel_link:   ID = 62, parent = 1, type = "BODY "
+     rr_castor_wheel:   ID = 63, parent = 1, type = "FIXED_JOINT "
+      rr_castor_link:   ID = 64, parent = 1, type = "BODY "
+            rr_wheel:   ID = 65, parent = 1, type = "FIXED_JOINT "
+       rr_wheel_link:   ID = 66, parent = 1, type = "BODY "
+         tracer_base:   ID = 67, parent = 1, type = "FIXED_JOINT "
+    urbase_base_link:   ID = 68, parent = 1, type = "BODY "
+
+ #### Model Settings:
+ #### =============================================================================
+ #### 'usePreComputation'......................................................1
+ #### 'recompileLibraries'.....................................................1
+ #### =============================================================================
+Initial State:          0        0        0        0   1.5707        0   1.5707  3.14159 0.785398
+
+ #### DDP Settings: 
+ #### =============================================================================
+ #### 'algorithm'............................................................SLQ
+ #### 'nThreads'...............................................................3
+ #### 'threadPriority'........................................................50
+ #### 'maxNumIterations'.......................................................1
+ #### 'minRelCost'...........................................................0.1
+ #### 'constraintTolerance'................................................0.001
+ #### 'displayInfo'............................................................0
+ #### 'displayShortSummary'....................................................0
+ #### 'checkNumericalStability'................................................0
+ #### 'debugPrintRollout'......................................................0
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'...........................................................0.001
+ #### 'backwardPassIntegratorType'.........................................ODE45
+ #### 'constraintPenaltyInitialValue'.........................................20
+ #### 'constraintPenaltyIncreaseRate'..........................................2
+ #### 'preComputeRiccatiTerms'.................................................1
+ #### 'useFeedbackPolicy'......................................................1
+ #### 'riskSensitiveCoeff'.....................................................0 (default)
+ #### 'strategy'.....................................................LINE_SEARCH
+ #### LINE_SEARCH Settings: {
+ #### 'minStepLength'.......................................................0.01
+ #### 'maxStepLength'..........................................................1
+ #### 'contractionRate'......................................................0.5 (default)
+ #### 'armijoCoefficient'.................................................0.0001 (default)
+ #### 'hessianCorrectionStrategy'.................................DIAGONAL_SHIFT
+ #### 'hessianCorrectionMultiple'..........................................0.001
+ #### }
+ #### =============================================================================
+
+ #### MPC Settings:
+ #### =============================================================================
+ #### 'timeHorizon'............................................................2
+ #### 'solutionTimeWindow'...................................................0.2
+ #### 'coldStart'..............................................................0
+ #### 'debugPrint'.............................................................0
+ #### 'mpcDesiredFrequency'..................................................100
+ #### 'mrtDesiredFrequency'..................................................400
+ #### =============================================================================
+
+ #### Multiple-Shooting SQP Settings:
+ #### =============================================================================
+ #### 'sqpIteration'..........................................................10 (default)
+ #### 'deltaTol'...........................................................1e-06 (default)
+ #### 'alpha_decay'..........................................................0.5 (default)
+ #### 'alpha_min'.........................................................0.0001 (default)
+ #### 'gamma_c'............................................................1e-06 (default)
+ #### 'g_max'..............................................................1e+06 (default)
+ #### 'g_min'..............................................................1e-06 (default)
+ #### 'armijoFactor'......................................................0.0001 (default)
+ #### 'costTol'...........................................................0.0001 (default)
+ #### 'dt'..................................................................0.01 (default)
+ #### 'useFeedbackPolicy'......................................................1 (default)
+ #### 'createValueFunction'....................................................0 (default)
+ #### 'integratorType'.......................................................RK2 (default)
+ #### 'inequalityConstraintMu'.................................................0 (default)
+ #### 'inequalityConstraintDelta'..........................................1e-06 (default)
+ #### 'projectStateInputEqualityConstraints'...................................1 (default)
+ #### 'extractProjectionMultiplier'............................................0 (default)
+ #### 'printSolverStatus'......................................................0 (default)
+ #### 'printSolverStatistics'..................................................0 (default)
+ #### 'printLinesearch'........................................................0 (default)
+ #### 'enableLogging'..........................................................1 (default)
+ #### 'logSize'.............................................................1000 (default)
+ #### 'logFilePath'.........................................../tmp/ocs2/sqp_log/ (default)
+ #### 'nThreads'...............................................................4 (default)
+ #### 'threadPriority'........................................................50 (default)
+
+ #### HPIPM Settings:
+ #### =============================================================================
+ #### 'mode'...................................................................1 (default)
+ #### 'iter_max'..............................................................30 (default)
+ #### 'alpha_min'..........................................................1e-12 (default)
+ #### 'mu0'...................................................................10 (default)
+ #### 'tol_stat'...........................................................1e-06 (default)
+ #### 'tol_eq'.............................................................1e-08 (default)
+ #### 'tol_ineq'...........................................................1e-08 (default)
+ #### 'tol_comp'...........................................................1e-08 (default)
+ #### 'reg_prim'...........................................................1e-12 (default)
+ #### 'warm_start'.............................................................0 (default)
+ #### 'pred_corr'..............................................................1 (default)
+ #### 'ric_alg'................................................................0 (default)
+ #### =============================================================================
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "inputCost.R.base.wheelBasedMobileManipulator"
+WARNING: Loaded at least one default value in matrix: "inputCost.R.arm"
+
+ #### Input Cost Settings: 
+ #### =============================================================================
+inputCost.R:  
+0.25    0    0    0    0    0    0    0
+   0    1    0    0    0    0    0    0
+   0    0 0.01    0    0    0    0    0
+   0    0    0 0.01    0    0    0    0
+   0    0    0    0 0.01    0    0    0
+   0    0    0    0    0 0.01    0    0
+   0    0    0    0    0    0 0.01    0
+   0    0    0    0    0    0    0 0.01
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### JointPositionLimits Settings: 
+ #### =============================================================================
+ #### lowerBound: -6.28 -1.48 -3.05 -1.48 -6.28 -6.28
+ #### upperBound: 6.28 4.62 3.05 4.62 6.28 6.28
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+
+ #### JointVelocityLimits Settings: 
+ #### =============================================================================
+ #### 'lowerBound':  -0.5   -1   -2   -2   -2   -2   -2   -2
+ #### 'upperBound':  0.5   1   2   2   2   2   2   2
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+ #### 'activate'...............................................................1
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (intermediate) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (final) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### SelfCollision Settings: 
+ #### =============================================================================
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### 'minimumDistance'.....................................................0.02
+ #### 'selfCollision.collisionObjectPairs': { }
+ #### 'selfCollision.collisionLinkPairs': {[base_link, Link_2], [base_link, Link_3], [base_link, Link_4], [base_link, Link_5], [base_link, Link_6], [base_link, tool0_and_camera_link], [base_link, d435i_link], [Link_0, Link_2], [Link_0, Link_3], [Link_1, Link_3], [Link_1, Link_4], [Link_2, Link_4], [Link_2, Link_5], [Link_3, Link_5], [Link_3, Link_6], [Link_4, Link_6], [Link_0, tool0_and_camera_link], [Link_1, tool0_and_camera_link], [Link_2, tool0_and_camera_link], [Link_3, tool0_and_camera_link], [Link_4, tool0_and_camera_link], [Link_5, tool0_and_camera_link], [Link_0, d435i_link], [Link_1, d435i_link], [Link_2, d435i_link], [Link_3, d435i_link], [Link_4, d435i_link], [Link_5, d435i_link], }
+ #### minimumDistance: 0.02 (minimum allowed distance)
+ #### activationDistance: 0.05 (penalty only active when distance < this value)
+ #### =============================================================================
+SelfCollision: Testing for 139 collision pairs
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_velocity_legacy_test/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp-62058414.so
+[CppAdInterface] Renaming /tmp/wbmm_velocity_legacy_test/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp-62058414.so to /tmp/wbmm_velocity_legacy_test/dynamics_flow_map/cppad_generated/dynamics_flow_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_velocity_legacy_test/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp-81458414.so
+[CppAdInterface] Renaming /tmp/wbmm_velocity_legacy_test/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp-81458414.so to /tmp/wbmm_velocity_legacy_test/dynamics_jump_map/cppad_generated/dynamics_jump_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_velocity_legacy_test/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp-45858414.so
+[CppAdInterface] Renaming /tmp/wbmm_velocity_legacy_test/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp-45858414.so to /tmp/wbmm_velocity_legacy_test/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_lib.so
+
+ #### Rollout Settings: 
+ #### =============================================================================
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'............................................................0.01
+ #### 'integratorType'.....................................................ODE45
+ #### 'checkNumericalStability'................................................0
+ #### 'reconstructInputTrajectory'.............................................1 (default)
+ #### 'rootFindingAlgorithm'...................................................0 (default)
+ #### 'maxSingleEventIterations'..............................................10 (default)
+ #### 'useTrajectorySpreadingController'.......................................0 (default)
+ #### =============================================================================
+[WbmmInterface] Loading task file: "/home/a/WBMM/src/control/wbmm_ocs2/test/resources/task.info"
+[WbmmInterface] Loading Pinocchio model from: "/home/a/WBMM/install/tracer_jaka_description/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf"
+[WbmmInterface] Generated library path: "/tmp/wbmm_velocity_integrated_test"
+
+ #### Model Information:
+ #### =============================================================================
+
+ #### model: wheelBasedMobileManipulator (fixed by wbmm_ocs2)
+ #### model_information.removeJoints: "left_wheel" "right_wheel" 
+ #### Note: All mimic joints will be automatically detected and removed
+ #### model_information.baseFrame: "base_footprint"
+ #### model_information.eeFrame: "tool0"
+ #### =============================================================================
+model.nv = 9
+model.nq = 9
+model.njoints = 8
+model.nbodies = 7
+model.nframes = 69
+
+Joints:
+            universe:   ID = 0
+          root_joint:   ID = 1
+             joint_1:   ID = 2
+             joint_2:   ID = 3
+             joint_3:   ID = 4
+             joint_4:   ID = 5
+             joint_5:   ID = 6
+             joint_6:   ID = 7
+
+Frames:
+            universe:   ID = 0, parent = 0, type = "FIXED_JOINT "
+          root_joint:   ID = 1, parent = 1, type = "JOINT "
+      base_footprint:   ID = 2, parent = 1, type = "BODY "
+base_footprint_to_base_link:   ID = 3, parent = 1, type = "FIXED_JOINT "
+           base_link:   ID = 4, parent = 1, type = "BODY "
+        base_to_d455:   ID = 5, parent = 1, type = "FIXED_JOINT "
+           d455_link:   ID = 6, parent = 1, type = "BODY "
+         base_to_imu:   ID = 7, parent = 1, type = "FIXED_JOINT "
+            imu_link:   ID = 8, parent = 1, type = "BODY "
+        base_to_jaka:   ID = 9, parent = 1, type = "FIXED_JOINT "
+      jaka_base_link:   ID = 10, parent = 1, type = "BODY "
+               fixed:   ID = 11, parent = 1, type = "FIXED_JOINT "
+              Link_0:   ID = 12, parent = 1, type = "BODY "
+             joint_1:   ID = 13, parent = 2, type = "JOINT "
+              Link_1:   ID = 14, parent = 2, type = "BODY "
+             joint_2:   ID = 15, parent = 3, type = "JOINT "
+              Link_2:   ID = 16, parent = 3, type = "BODY "
+             joint_3:   ID = 17, parent = 4, type = "JOINT "
+              Link_3:   ID = 18, parent = 4, type = "BODY "
+             joint_4:   ID = 19, parent = 5, type = "JOINT "
+              Link_4:   ID = 20, parent = 5, type = "BODY "
+             joint_5:   ID = 21, parent = 6, type = "JOINT "
+              Link_5:   ID = 22, parent = 6, type = "BODY "
+             joint_6:   ID = 23, parent = 7, type = "JOINT "
+              Link_6:   ID = 24, parent = 7, type = "BODY "
+             fixed_2:   ID = 25, parent = 7, type = "FIXED_JOINT "
+           Link_6_45:   ID = 26, parent = 7, type = "BODY "
+  jk_se_vi_200_joint:   ID = 27, parent = 7, type = "FIXED_JOINT "
+   jk_se_vi_200_link:   ID = 28, parent = 7, type = "BODY "
+tool0_and_camera_link_joint:   ID = 29, parent = 7, type = "FIXED_JOINT "
+tool0_and_camera_link:   ID = 30, parent = 7, type = "BODY "
+         d435i_joint:   ID = 31, parent = 7, type = "FIXED_JOINT "
+          d435i_link:   ID = 32, parent = 7, type = "BODY "
+         tool0_joint:   ID = 33, parent = 7, type = "FIXED_JOINT "
+               tool0:   ID = 34, parent = 7, type = "BODY "
+       base_to_laser:   ID = 35, parent = 1, type = "FIXED_JOINT "
+          laser_link:   ID = 36, parent = 1, type = "BODY "
+     fl_castor_wheel:   ID = 37, parent = 1, type = "FIXED_JOINT "
+      fl_castor_link:   ID = 38, parent = 1, type = "BODY "
+            fl_wheel:   ID = 39, parent = 1, type = "FIXED_JOINT "
+       fl_wheel_link:   ID = 40, parent = 1, type = "BODY "
+     fr_castor_wheel:   ID = 41, parent = 1, type = "FIXED_JOINT "
+      fr_castor_link:   ID = 42, parent = 1, type = "BODY "
+            fr_wheel:   ID = 43, parent = 1, type = "FIXED_JOINT "
+       fr_wheel_link:   ID = 44, parent = 1, type = "BODY "
+      inertial_joint:   ID = 45, parent = 1, type = "FIXED_JOINT "
+       inertial_link:   ID = 46, parent = 1, type = "BODY "
+joint_aluminium_2_base_link:   ID = 47, parent = 1, type = "FIXED_JOINT "
+aluminium_2_base_link:   ID = 48, parent = 1, type = "BODY "
+joint_aluminium_3_base_link:   ID = 49, parent = 1, type = "FIXED_JOINT "
+aluminium_3_base_link:   ID = 50, parent = 1, type = "BODY "
+joint_aluminium_4_base_link:   ID = 51, parent = 1, type = "FIXED_JOINT "
+aluminium_4_base_link:   ID = 52, parent = 1, type = "BODY "
+joint_aluminium_base_link:   ID = 53, parent = 1, type = "FIXED_JOINT "
+ aluminium_base_link:   ID = 54, parent = 1, type = "BODY "
+          left_wheel:   ID = 55, parent = 1, type = "FIXED_JOINT "
+     left_wheel_link:   ID = 56, parent = 1, type = "BODY "
+         right_wheel:   ID = 57, parent = 1, type = "FIXED_JOINT "
+    right_wheel_link:   ID = 58, parent = 1, type = "BODY "
+     rl_castor_wheel:   ID = 59, parent = 1, type = "FIXED_JOINT "
+      rl_castor_link:   ID = 60, parent = 1, type = "BODY "
+            rl_wheel:   ID = 61, parent = 1, type = "FIXED_JOINT "
+       rl_wheel_link:   ID = 62, parent = 1, type = "BODY "
+     rr_castor_wheel:   ID = 63, parent = 1, type = "FIXED_JOINT "
+      rr_castor_link:   ID = 64, parent = 1, type = "BODY "
+            rr_wheel:   ID = 65, parent = 1, type = "FIXED_JOINT "
+       rr_wheel_link:   ID = 66, parent = 1, type = "BODY "
+         tracer_base:   ID = 67, parent = 1, type = "FIXED_JOINT "
+    urbase_base_link:   ID = 68, parent = 1, type = "BODY "
+
+ #### Model Settings:
+ #### =============================================================================
+ #### 'usePreComputation'......................................................1
+ #### 'recompileLibraries'.....................................................1
+ #### =============================================================================
+Initial State:          0        0        0        0   1.5707        0   1.5707  3.14159 0.785398
+
+ #### DDP Settings: 
+ #### =============================================================================
+ #### 'algorithm'............................................................SLQ
+ #### 'nThreads'...............................................................3
+ #### 'threadPriority'........................................................50
+ #### 'maxNumIterations'.......................................................1
+ #### 'minRelCost'...........................................................0.1
+ #### 'constraintTolerance'................................................0.001
+ #### 'displayInfo'............................................................0
+ #### 'displayShortSummary'....................................................0
+ #### 'checkNumericalStability'................................................0
+ #### 'debugPrintRollout'......................................................0
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'...........................................................0.001
+ #### 'backwardPassIntegratorType'.........................................ODE45
+ #### 'constraintPenaltyInitialValue'.........................................20
+ #### 'constraintPenaltyIncreaseRate'..........................................2
+ #### 'preComputeRiccatiTerms'.................................................1
+ #### 'useFeedbackPolicy'......................................................1
+ #### 'riskSensitiveCoeff'.....................................................0 (default)
+ #### 'strategy'.....................................................LINE_SEARCH
+ #### LINE_SEARCH Settings: {
+ #### 'minStepLength'.......................................................0.01
+ #### 'maxStepLength'..........................................................1
+ #### 'contractionRate'......................................................0.5 (default)
+ #### 'armijoCoefficient'.................................................0.0001 (default)
+ #### 'hessianCorrectionStrategy'.................................DIAGONAL_SHIFT
+ #### 'hessianCorrectionMultiple'..........................................0.001
+ #### }
+ #### =============================================================================
+
+ #### MPC Settings:
+ #### =============================================================================
+ #### 'timeHorizon'............................................................2
+ #### 'solutionTimeWindow'...................................................0.2
+ #### 'coldStart'..............................................................0
+ #### 'debugPrint'.............................................................0
+ #### 'mpcDesiredFrequency'..................................................100
+ #### 'mrtDesiredFrequency'..................................................400
+ #### =============================================================================
+
+ #### Multiple-Shooting SQP Settings:
+ #### =============================================================================
+ #### 'sqpIteration'..........................................................10 (default)
+ #### 'deltaTol'...........................................................1e-06 (default)
+ #### 'alpha_decay'..........................................................0.5 (default)
+ #### 'alpha_min'.........................................................0.0001 (default)
+ #### 'gamma_c'............................................................1e-06 (default)
+ #### 'g_max'..............................................................1e+06 (default)
+ #### 'g_min'..............................................................1e-06 (default)
+ #### 'armijoFactor'......................................................0.0001 (default)
+ #### 'costTol'...........................................................0.0001 (default)
+ #### 'dt'..................................................................0.01 (default)
+ #### 'useFeedbackPolicy'......................................................1 (default)
+ #### 'createValueFunction'....................................................0 (default)
+ #### 'integratorType'.......................................................RK2 (default)
+ #### 'inequalityConstraintMu'.................................................0 (default)
+ #### 'inequalityConstraintDelta'..........................................1e-06 (default)
+ #### 'projectStateInputEqualityConstraints'...................................1 (default)
+ #### 'extractProjectionMultiplier'............................................0 (default)
+ #### 'printSolverStatus'......................................................0 (default)
+ #### 'printSolverStatistics'..................................................0 (default)
+ #### 'printLinesearch'........................................................0 (default)
+ #### 'enableLogging'..........................................................1 (default)
+ #### 'logSize'.............................................................1000 (default)
+ #### 'logFilePath'.........................................../tmp/ocs2/sqp_log/ (default)
+ #### 'nThreads'...............................................................4 (default)
+ #### 'threadPriority'........................................................50 (default)
+
+ #### HPIPM Settings:
+ #### =============================================================================
+ #### 'mode'...................................................................1 (default)
+ #### 'iter_max'..............................................................30 (default)
+ #### 'alpha_min'..........................................................1e-12 (default)
+ #### 'mu0'...................................................................10 (default)
+ #### 'tol_stat'...........................................................1e-06 (default)
+ #### 'tol_eq'.............................................................1e-08 (default)
+ #### 'tol_ineq'...........................................................1e-08 (default)
+ #### 'tol_comp'...........................................................1e-08 (default)
+ #### 'reg_prim'...........................................................1e-12 (default)
+ #### 'warm_start'.............................................................0 (default)
+ #### 'pred_corr'..............................................................1 (default)
+ #### 'ric_alg'................................................................0 (default)
+ #### =============================================================================
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "inputCost.R.base.wheelBasedMobileManipulator"
+WARNING: Loaded at least one default value in matrix: "inputCost.R.arm"
+
+ #### Input Cost Settings: 
+ #### =============================================================================
+inputCost.R:  
+0.25    0    0    0    0    0    0    0
+   0    1    0    0    0    0    0    0
+   0    0 0.01    0    0    0    0    0
+   0    0    0 0.01    0    0    0    0
+   0    0    0    0 0.01    0    0    0
+   0    0    0    0    0 0.01    0    0
+   0    0    0    0    0    0 0.01    0
+   0    0    0    0    0    0    0 0.01
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### JointPositionLimits Settings: 
+ #### =============================================================================
+ #### lowerBound: -6.28 -1.48 -3.05 -1.48 -6.28 -6.28
+ #### upperBound: 6.28 4.62 3.05 4.62 6.28 6.28
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+
+ #### Velocity limits supplied by integration configuration.
+
+ #### JointVelocityLimits Settings: 
+ #### =============================================================================
+ #### 'lowerBound':  -0.1 -0.4 -0.2 -0.2 -0.2 -0.2 -0.2 -0.2
+ #### 'upperBound':  0.1 0.4 0.2 0.2 0.2 0.2 0.2 0.2
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+ #### 'activate'...............................................................1
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (intermediate) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (final) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### SelfCollision Settings: 
+ #### =============================================================================
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### 'minimumDistance'.....................................................0.02
+ #### 'selfCollision.collisionObjectPairs': { }
+ #### 'selfCollision.collisionLinkPairs': {[base_link, Link_2], [base_link, Link_3], [base_link, Link_4], [base_link, Link_5], [base_link, Link_6], [base_link, tool0_and_camera_link], [base_link, d435i_link], [Link_0, Link_2], [Link_0, Link_3], [Link_1, Link_3], [Link_1, Link_4], [Link_2, Link_4], [Link_2, Link_5], [Link_3, Link_5], [Link_3, Link_6], [Link_4, Link_6], [Link_0, tool0_and_camera_link], [Link_1, tool0_and_camera_link], [Link_2, tool0_and_camera_link], [Link_3, tool0_and_camera_link], [Link_4, tool0_and_camera_link], [Link_5, tool0_and_camera_link], [Link_0, d435i_link], [Link_1, d435i_link], [Link_2, d435i_link], [Link_3, d435i_link], [Link_4, d435i_link], [Link_5, d435i_link], }
+ #### minimumDistance: 0.02 (minimum allowed distance)
+ #### activationDistance: 0.05 (penalty only active when distance < this value)
+ #### =============================================================================
+SelfCollision: Testing for 139 collision pairs
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_velocity_integrated_test/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp21658414.so
+[CppAdInterface] Renaming /tmp/wbmm_velocity_integrated_test/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp21658414.so to /tmp/wbmm_velocity_integrated_test/dynamics_flow_map/cppad_generated/dynamics_flow_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_velocity_integrated_test/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp26758414.so
+[CppAdInterface] Renaming /tmp/wbmm_velocity_integrated_test/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp26758414.so to /tmp/wbmm_velocity_integrated_test/dynamics_jump_map/cppad_generated/dynamics_jump_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_velocity_integrated_test/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp58458414.so
+[CppAdInterface] Renaming /tmp/wbmm_velocity_integrated_test/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp58458414.so to /tmp/wbmm_velocity_integrated_test/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_lib.so
+
+ #### Rollout Settings: 
+ #### =============================================================================
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'............................................................0.01
+ #### 'integratorType'.....................................................ODE45
+ #### 'checkNumericalStability'................................................0
+ #### 'reconstructInputTrajectory'.............................................1 (default)
+ #### 'rootFindingAlgorithm'...................................................0 (default)
+ #### 'maxSingleEventIterations'..............................................10 (default)
+ #### 'useTrajectorySpreadingController'.......................................0 (default)
+ #### =============================================================================
+[       OK ] WbmmInterface.IntegrationLimitsChangeTheActualVelocityPenalty (958 ms)
+[ RUN      ] WbmmInterface.IntegrationSuppliesBoundsAndTcpWithoutDuplicateTaskFields
+[WbmmInterface] Loading task file: "/tmp/wbmm_integrated_config_test.info"
+[WbmmInterface] Loading Pinocchio model from: "/home/a/WBMM/install/tracer_jaka_description/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf"
+[WbmmInterface] Generated library path: "/tmp/wbmm_integrated_config_test_lib"
+
+ #### Model Information:
+ #### =============================================================================
+
+ #### model: wheelBasedMobileManipulator (fixed by wbmm_ocs2)
+ #### model_information.removeJoints: "left_wheel" "right_wheel" 
+ #### Note: All mimic joints will be automatically detected and removed
+ #### model_information.baseFrame: "base_footprint"
+ #### model_information.eeFrame: "Link_6"
+ #### =============================================================================
+model.nv = 9
+model.nq = 9
+model.njoints = 8
+model.nbodies = 7
+model.nframes = 69
+
+Joints:
+            universe:   ID = 0
+          root_joint:   ID = 1
+             joint_1:   ID = 2
+             joint_2:   ID = 3
+             joint_3:   ID = 4
+             joint_4:   ID = 5
+             joint_5:   ID = 6
+             joint_6:   ID = 7
+
+Frames:
+            universe:   ID = 0, parent = 0, type = "FIXED_JOINT "
+          root_joint:   ID = 1, parent = 1, type = "JOINT "
+      base_footprint:   ID = 2, parent = 1, type = "BODY "
+base_footprint_to_base_link:   ID = 3, parent = 1, type = "FIXED_JOINT "
+           base_link:   ID = 4, parent = 1, type = "BODY "
+        base_to_d455:   ID = 5, parent = 1, type = "FIXED_JOINT "
+           d455_link:   ID = 6, parent = 1, type = "BODY "
+         base_to_imu:   ID = 7, parent = 1, type = "FIXED_JOINT "
+            imu_link:   ID = 8, parent = 1, type = "BODY "
+        base_to_jaka:   ID = 9, parent = 1, type = "FIXED_JOINT "
+      jaka_base_link:   ID = 10, parent = 1, type = "BODY "
+               fixed:   ID = 11, parent = 1, type = "FIXED_JOINT "
+              Link_0:   ID = 12, parent = 1, type = "BODY "
+             joint_1:   ID = 13, parent = 2, type = "JOINT "
+              Link_1:   ID = 14, parent = 2, type = "BODY "
+             joint_2:   ID = 15, parent = 3, type = "JOINT "
+              Link_2:   ID = 16, parent = 3, type = "BODY "
+             joint_3:   ID = 17, parent = 4, type = "JOINT "
+              Link_3:   ID = 18, parent = 4, type = "BODY "
+             joint_4:   ID = 19, parent = 5, type = "JOINT "
+              Link_4:   ID = 20, parent = 5, type = "BODY "
+             joint_5:   ID = 21, parent = 6, type = "JOINT "
+              Link_5:   ID = 22, parent = 6, type = "BODY "
+             joint_6:   ID = 23, parent = 7, type = "JOINT "
+              Link_6:   ID = 24, parent = 7, type = "BODY "
+             fixed_2:   ID = 25, parent = 7, type = "FIXED_JOINT "
+           Link_6_45:   ID = 26, parent = 7, type = "BODY "
+  jk_se_vi_200_joint:   ID = 27, parent = 7, type = "FIXED_JOINT "
+   jk_se_vi_200_link:   ID = 28, parent = 7, type = "BODY "
+tool0_and_camera_link_joint:   ID = 29, parent = 7, type = "FIXED_JOINT "
+tool0_and_camera_link:   ID = 30, parent = 7, type = "BODY "
+         d435i_joint:   ID = 31, parent = 7, type = "FIXED_JOINT "
+          d435i_link:   ID = 32, parent = 7, type = "BODY "
+         tool0_joint:   ID = 33, parent = 7, type = "FIXED_JOINT "
+               tool0:   ID = 34, parent = 7, type = "BODY "
+       base_to_laser:   ID = 35, parent = 1, type = "FIXED_JOINT "
+          laser_link:   ID = 36, parent = 1, type = "BODY "
+     fl_castor_wheel:   ID = 37, parent = 1, type = "FIXED_JOINT "
+      fl_castor_link:   ID = 38, parent = 1, type = "BODY "
+            fl_wheel:   ID = 39, parent = 1, type = "FIXED_JOINT "
+       fl_wheel_link:   ID = 40, parent = 1, type = "BODY "
+     fr_castor_wheel:   ID = 41, parent = 1, type = "FIXED_JOINT "
+      fr_castor_link:   ID = 42, parent = 1, type = "BODY "
+            fr_wheel:   ID = 43, parent = 1, type = "FIXED_JOINT "
+       fr_wheel_link:   ID = 44, parent = 1, type = "BODY "
+      inertial_joint:   ID = 45, parent = 1, type = "FIXED_JOINT "
+       inertial_link:   ID = 46, parent = 1, type = "BODY "
+joint_aluminium_2_base_link:   ID = 47, parent = 1, type = "FIXED_JOINT "
+aluminium_2_base_link:   ID = 48, parent = 1, type = "BODY "
+joint_aluminium_3_base_link:   ID = 49, parent = 1, type = "FIXED_JOINT "
+aluminium_3_base_link:   ID = 50, parent = 1, type = "BODY "
+joint_aluminium_4_base_link:   ID = 51, parent = 1, type = "FIXED_JOINT "
+aluminium_4_base_link:   ID = 52, parent = 1, type = "BODY "
+joint_aluminium_base_link:   ID = 53, parent = 1, type = "FIXED_JOINT "
+ aluminium_base_link:   ID = 54, parent = 1, type = "BODY "
+          left_wheel:   ID = 55, parent = 1, type = "FIXED_JOINT "
+     left_wheel_link:   ID = 56, parent = 1, type = "BODY "
+         right_wheel:   ID = 57, parent = 1, type = "FIXED_JOINT "
+    right_wheel_link:   ID = 58, parent = 1, type = "BODY "
+     rl_castor_wheel:   ID = 59, parent = 1, type = "FIXED_JOINT "
+      rl_castor_link:   ID = 60, parent = 1, type = "BODY "
+            rl_wheel:   ID = 61, parent = 1, type = "FIXED_JOINT "
+       rl_wheel_link:   ID = 62, parent = 1, type = "BODY "
+     rr_castor_wheel:   ID = 63, parent = 1, type = "FIXED_JOINT "
+      rr_castor_link:   ID = 64, parent = 1, type = "BODY "
+            rr_wheel:   ID = 65, parent = 1, type = "FIXED_JOINT "
+       rr_wheel_link:   ID = 66, parent = 1, type = "BODY "
+         tracer_base:   ID = 67, parent = 1, type = "FIXED_JOINT "
+    urbase_base_link:   ID = 68, parent = 1, type = "BODY "
+
+ #### Model Settings:
+ #### =============================================================================
+ #### 'usePreComputation'......................................................1
+ #### 'recompileLibraries'.....................................................1
+ #### =============================================================================
+Initial State:          0        0        0        0   1.5707        0   1.5707  3.14159 0.785398
+
+ #### DDP Settings: 
+ #### =============================================================================
+ #### 'algorithm'............................................................SLQ
+ #### 'nThreads'...............................................................3
+ #### 'threadPriority'........................................................50
+ #### 'maxNumIterations'.......................................................1
+ #### 'minRelCost'...........................................................0.1
+ #### 'constraintTolerance'................................................0.001
+ #### 'displayInfo'............................................................0
+ #### 'displayShortSummary'....................................................0
+ #### 'checkNumericalStability'................................................0
+ #### 'debugPrintRollout'......................................................0
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'...........................................................0.001
+ #### 'backwardPassIntegratorType'.........................................ODE45
+ #### 'constraintPenaltyInitialValue'.........................................20
+ #### 'constraintPenaltyIncreaseRate'..........................................2
+ #### 'preComputeRiccatiTerms'.................................................1
+ #### 'useFeedbackPolicy'......................................................1
+ #### 'riskSensitiveCoeff'.....................................................0 (default)
+ #### 'strategy'.....................................................LINE_SEARCH
+ #### LINE_SEARCH Settings: {
+ #### 'minStepLength'.......................................................0.01
+ #### 'maxStepLength'..........................................................1
+ #### 'contractionRate'......................................................0.5 (default)
+ #### 'armijoCoefficient'.................................................0.0001 (default)
+ #### 'hessianCorrectionStrategy'.................................DIAGONAL_SHIFT
+ #### 'hessianCorrectionMultiple'..........................................0.001
+ #### }
+ #### =============================================================================
+
+ #### MPC Settings:
+ #### =============================================================================
+ #### 'timeHorizon'............................................................2
+ #### 'solutionTimeWindow'...................................................0.2
+ #### 'coldStart'..............................................................0
+ #### 'debugPrint'.............................................................0
+ #### 'mpcDesiredFrequency'..................................................100
+ #### 'mrtDesiredFrequency'..................................................400
+ #### =============================================================================
+
+ #### Multiple-Shooting SQP Settings:
+ #### =============================================================================
+ #### 'sqpIteration'..........................................................10 (default)
+ #### 'deltaTol'...........................................................1e-06 (default)
+ #### 'alpha_decay'..........................................................0.5 (default)
+ #### 'alpha_min'.........................................................0.0001 (default)
+ #### 'gamma_c'............................................................1e-06 (default)
+ #### 'g_max'..............................................................1e+06 (default)
+ #### 'g_min'..............................................................1e-06 (default)
+ #### 'armijoFactor'......................................................0.0001 (default)
+ #### 'costTol'...........................................................0.0001 (default)
+ #### 'dt'..................................................................0.01 (default)
+ #### 'useFeedbackPolicy'......................................................1 (default)
+ #### 'createValueFunction'....................................................0 (default)
+ #### 'integratorType'.......................................................RK2 (default)
+ #### 'inequalityConstraintMu'.................................................0 (default)
+ #### 'inequalityConstraintDelta'..........................................1e-06 (default)
+ #### 'projectStateInputEqualityConstraints'...................................1 (default)
+ #### 'extractProjectionMultiplier'............................................0 (default)
+ #### 'printSolverStatus'......................................................0 (default)
+ #### 'printSolverStatistics'..................................................0 (default)
+ #### 'printLinesearch'........................................................0 (default)
+ #### 'enableLogging'..........................................................1 (default)
+ #### 'logSize'.............................................................1000 (default)
+ #### 'logFilePath'.........................................../tmp/ocs2/sqp_log/ (default)
+ #### 'nThreads'...............................................................4 (default)
+ #### 'threadPriority'........................................................50 (default)
+
+ #### HPIPM Settings:
+ #### =============================================================================
+ #### 'mode'...................................................................1 (default)
+ #### 'iter_max'..............................................................30 (default)
+ #### 'alpha_min'..........................................................1e-12 (default)
+ #### 'mu0'...................................................................10 (default)
+ #### 'tol_stat'...........................................................1e-06 (default)
+ #### 'tol_eq'.............................................................1e-08 (default)
+ #### 'tol_ineq'...........................................................1e-08 (default)
+ #### 'tol_comp'...........................................................1e-08 (default)
+ #### 'reg_prim'...........................................................1e-12 (default)
+ #### 'warm_start'.............................................................0 (default)
+ #### 'pred_corr'..............................................................1 (default)
+ #### 'ric_alg'................................................................0 (default)
+ #### =============================================================================
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "inputCost.R.base.wheelBasedMobileManipulator"
+WARNING: Loaded at least one default value in matrix: "inputCost.R.arm"
+
+ #### Input Cost Settings: 
+ #### =============================================================================
+inputCost.R:  
+0.25    0    0    0    0    0    0    0
+   0    1    0    0    0    0    0    0
+   0    0 0.01    0    0    0    0    0
+   0    0    0 0.01    0    0    0    0
+   0    0    0    0 0.01    0    0    0
+   0    0    0    0    0 0.01    0    0
+   0    0    0    0    0    0 0.01    0
+   0    0    0    0    0    0    0 0.01
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### JointPositionLimits Settings: 
+ #### =============================================================================
+ #### lowerBound: -6.28 -1.48 -3.05 -1.48 -6.28 -6.28
+ #### upperBound: 6.28 4.62 3.05 4.62 6.28 6.28
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+
+ #### Velocity limits supplied by integration configuration.
+
+ #### JointVelocityLimits Settings: 
+ #### =============================================================================
+ #### 'lowerBound':  -0.2 -0.2 -0.2 -0.2 -0.2 -0.2 -0.2 -0.2
+ #### 'upperBound':  0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+ #### 'activate'...............................................................1
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (intermediate) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (final) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### SelfCollision Settings: 
+ #### =============================================================================
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### 'minimumDistance'.....................................................0.02
+ #### 'selfCollision.collisionObjectPairs': { }
+ #### 'selfCollision.collisionLinkPairs': {[base_link, Link_2], [base_link, Link_3], [base_link, Link_4], [base_link, Link_5], [base_link, Link_6], [base_link, tool0_and_camera_link], [base_link, d435i_link], [Link_0, Link_2], [Link_0, Link_3], [Link_1, Link_3], [Link_1, Link_4], [Link_2, Link_4], [Link_2, Link_5], [Link_3, Link_5], [Link_3, Link_6], [Link_4, Link_6], [Link_0, tool0_and_camera_link], [Link_1, tool0_and_camera_link], [Link_2, tool0_and_camera_link], [Link_3, tool0_and_camera_link], [Link_4, tool0_and_camera_link], [Link_5, tool0_and_camera_link], [Link_0, d435i_link], [Link_1, d435i_link], [Link_2, d435i_link], [Link_3, d435i_link], [Link_4, d435i_link], [Link_5, d435i_link], }
+ #### minimumDistance: 0.02 (minimum allowed distance)
+ #### activationDistance: 0.05 (penalty only active when distance < this value)
+ #### =============================================================================
+SelfCollision: Testing for 139 collision pairs
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_integrated_config_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp10258414.so
+[CppAdInterface] Renaming /tmp/wbmm_integrated_config_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp10258414.so to /tmp/wbmm_integrated_config_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_integrated_config_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp11258414.so
+[CppAdInterface] Renaming /tmp/wbmm_integrated_config_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp11258414.so to /tmp/wbmm_integrated_config_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_integrated_config_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp43458414.so
+[CppAdInterface] Renaming /tmp/wbmm_integrated_config_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp43458414.so to /tmp/wbmm_integrated_config_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_lib.so
+
+ #### Rollout Settings: 
+ #### =============================================================================
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'............................................................0.01
+ #### 'integratorType'.....................................................ODE45
+ #### 'checkNumericalStability'................................................0
+ #### 'reconstructInputTrajectory'.............................................1 (default)
+ #### 'rootFindingAlgorithm'...................................................0 (default)
+ #### 'maxSingleEventIterations'..............................................10 (default)
+ #### 'useTrajectorySpreadingController'.......................................0 (default)
+ #### =============================================================================
+[       OK ] WbmmInterface.IntegrationSuppliesBoundsAndTcpWithoutDuplicateTaskFields (470 ms)
+[ RUN      ] WbmmInterface.ArmTerminalRegistrationIsIndependentAndOverridesReferences
+[WbmmInterface] Loading task file: "/tmp/wbmm_arm_terminal_registration.info"
+[WbmmInterface] Loading Pinocchio model from: "/home/a/WBMM/install/tracer_jaka_description/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf"
+[WbmmInterface] Generated library path: "/tmp/wbmm_arm_terminal_test_lib"
+
+ #### Model Information:
+ #### =============================================================================
+
+ #### model: wheelBasedMobileManipulator (fixed by wbmm_ocs2)
+ #### model_information.removeJoints: "left_wheel" "right_wheel" 
+ #### Note: All mimic joints will be automatically detected and removed
+ #### model_information.baseFrame: "base_footprint"
+ #### model_information.eeFrame: "tool0"
+ #### =============================================================================
+model.nv = 9
+model.nq = 9
+model.njoints = 8
+model.nbodies = 7
+model.nframes = 69
+
+Joints:
+            universe:   ID = 0
+          root_joint:   ID = 1
+             joint_1:   ID = 2
+             joint_2:   ID = 3
+             joint_3:   ID = 4
+             joint_4:   ID = 5
+             joint_5:   ID = 6
+             joint_6:   ID = 7
+
+Frames:
+            universe:   ID = 0, parent = 0, type = "FIXED_JOINT "
+          root_joint:   ID = 1, parent = 1, type = "JOINT "
+      base_footprint:   ID = 2, parent = 1, type = "BODY "
+base_footprint_to_base_link:   ID = 3, parent = 1, type = "FIXED_JOINT "
+           base_link:   ID = 4, parent = 1, type = "BODY "
+        base_to_d455:   ID = 5, parent = 1, type = "FIXED_JOINT "
+           d455_link:   ID = 6, parent = 1, type = "BODY "
+         base_to_imu:   ID = 7, parent = 1, type = "FIXED_JOINT "
+            imu_link:   ID = 8, parent = 1, type = "BODY "
+        base_to_jaka:   ID = 9, parent = 1, type = "FIXED_JOINT "
+      jaka_base_link:   ID = 10, parent = 1, type = "BODY "
+               fixed:   ID = 11, parent = 1, type = "FIXED_JOINT "
+              Link_0:   ID = 12, parent = 1, type = "BODY "
+             joint_1:   ID = 13, parent = 2, type = "JOINT "
+              Link_1:   ID = 14, parent = 2, type = "BODY "
+             joint_2:   ID = 15, parent = 3, type = "JOINT "
+              Link_2:   ID = 16, parent = 3, type = "BODY "
+             joint_3:   ID = 17, parent = 4, type = "JOINT "
+              Link_3:   ID = 18, parent = 4, type = "BODY "
+             joint_4:   ID = 19, parent = 5, type = "JOINT "
+              Link_4:   ID = 20, parent = 5, type = "BODY "
+             joint_5:   ID = 21, parent = 6, type = "JOINT "
+              Link_5:   ID = 22, parent = 6, type = "BODY "
+             joint_6:   ID = 23, parent = 7, type = "JOINT "
+              Link_6:   ID = 24, parent = 7, type = "BODY "
+             fixed_2:   ID = 25, parent = 7, type = "FIXED_JOINT "
+           Link_6_45:   ID = 26, parent = 7, type = "BODY "
+  jk_se_vi_200_joint:   ID = 27, parent = 7, type = "FIXED_JOINT "
+   jk_se_vi_200_link:   ID = 28, parent = 7, type = "BODY "
+tool0_and_camera_link_joint:   ID = 29, parent = 7, type = "FIXED_JOINT "
+tool0_and_camera_link:   ID = 30, parent = 7, type = "BODY "
+         d435i_joint:   ID = 31, parent = 7, type = "FIXED_JOINT "
+          d435i_link:   ID = 32, parent = 7, type = "BODY "
+         tool0_joint:   ID = 33, parent = 7, type = "FIXED_JOINT "
+               tool0:   ID = 34, parent = 7, type = "BODY "
+       base_to_laser:   ID = 35, parent = 1, type = "FIXED_JOINT "
+          laser_link:   ID = 36, parent = 1, type = "BODY "
+     fl_castor_wheel:   ID = 37, parent = 1, type = "FIXED_JOINT "
+      fl_castor_link:   ID = 38, parent = 1, type = "BODY "
+            fl_wheel:   ID = 39, parent = 1, type = "FIXED_JOINT "
+       fl_wheel_link:   ID = 40, parent = 1, type = "BODY "
+     fr_castor_wheel:   ID = 41, parent = 1, type = "FIXED_JOINT "
+      fr_castor_link:   ID = 42, parent = 1, type = "BODY "
+            fr_wheel:   ID = 43, parent = 1, type = "FIXED_JOINT "
+       fr_wheel_link:   ID = 44, parent = 1, type = "BODY "
+      inertial_joint:   ID = 45, parent = 1, type = "FIXED_JOINT "
+       inertial_link:   ID = 46, parent = 1, type = "BODY "
+joint_aluminium_2_base_link:   ID = 47, parent = 1, type = "FIXED_JOINT "
+aluminium_2_base_link:   ID = 48, parent = 1, type = "BODY "
+joint_aluminium_3_base_link:   ID = 49, parent = 1, type = "FIXED_JOINT "
+aluminium_3_base_link:   ID = 50, parent = 1, type = "BODY "
+joint_aluminium_4_base_link:   ID = 51, parent = 1, type = "FIXED_JOINT "
+aluminium_4_base_link:   ID = 52, parent = 1, type = "BODY "
+joint_aluminium_base_link:   ID = 53, parent = 1, type = "FIXED_JOINT "
+ aluminium_base_link:   ID = 54, parent = 1, type = "BODY "
+          left_wheel:   ID = 55, parent = 1, type = "FIXED_JOINT "
+     left_wheel_link:   ID = 56, parent = 1, type = "BODY "
+         right_wheel:   ID = 57, parent = 1, type = "FIXED_JOINT "
+    right_wheel_link:   ID = 58, parent = 1, type = "BODY "
+     rl_castor_wheel:   ID = 59, parent = 1, type = "FIXED_JOINT "
+      rl_castor_link:   ID = 60, parent = 1, type = "BODY "
+            rl_wheel:   ID = 61, parent = 1, type = "FIXED_JOINT "
+       rl_wheel_link:   ID = 62, parent = 1, type = "BODY "
+     rr_castor_wheel:   ID = 63, parent = 1, type = "FIXED_JOINT "
+      rr_castor_link:   ID = 64, parent = 1, type = "BODY "
+            rr_wheel:   ID = 65, parent = 1, type = "FIXED_JOINT "
+       rr_wheel_link:   ID = 66, parent = 1, type = "BODY "
+         tracer_base:   ID = 67, parent = 1, type = "FIXED_JOINT "
+    urbase_base_link:   ID = 68, parent = 1, type = "BODY "
+
+ #### Model Settings:
+ #### =============================================================================
+ #### 'usePreComputation'......................................................1
+ #### 'recompileLibraries'.....................................................1
+ #### =============================================================================
+Initial State:          0        0        0        0   1.5707        0   1.5707  3.14159 0.785398
+
+ #### DDP Settings: 
+ #### =============================================================================
+ #### 'algorithm'............................................................SLQ
+ #### 'nThreads'...............................................................3
+ #### 'threadPriority'........................................................50
+ #### 'maxNumIterations'.......................................................1
+ #### 'minRelCost'...........................................................0.1
+ #### 'constraintTolerance'................................................0.001
+ #### 'displayInfo'............................................................0
+ #### 'displayShortSummary'....................................................0
+ #### 'checkNumericalStability'................................................0
+ #### 'debugPrintRollout'......................................................0
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'...........................................................0.001
+ #### 'backwardPassIntegratorType'.........................................ODE45
+ #### 'constraintPenaltyInitialValue'.........................................20
+ #### 'constraintPenaltyIncreaseRate'..........................................2
+ #### 'preComputeRiccatiTerms'.................................................1
+ #### 'useFeedbackPolicy'......................................................1
+ #### 'riskSensitiveCoeff'.....................................................0 (default)
+ #### 'strategy'.....................................................LINE_SEARCH
+ #### LINE_SEARCH Settings: {
+ #### 'minStepLength'.......................................................0.01
+ #### 'maxStepLength'..........................................................1
+ #### 'contractionRate'......................................................0.5 (default)
+ #### 'armijoCoefficient'.................................................0.0001 (default)
+ #### 'hessianCorrectionStrategy'.................................DIAGONAL_SHIFT
+ #### 'hessianCorrectionMultiple'..........................................0.001
+ #### }
+ #### =============================================================================
+
+ #### MPC Settings:
+ #### =============================================================================
+ #### 'timeHorizon'............................................................2
+ #### 'solutionTimeWindow'...................................................0.2
+ #### 'coldStart'..............................................................0
+ #### 'debugPrint'.............................................................0
+ #### 'mpcDesiredFrequency'..................................................100
+ #### 'mrtDesiredFrequency'..................................................400
+ #### =============================================================================
+
+ #### Multiple-Shooting SQP Settings:
+ #### =============================================================================
+ #### 'sqpIteration'..........................................................10 (default)
+ #### 'deltaTol'...........................................................1e-06 (default)
+ #### 'alpha_decay'..........................................................0.5 (default)
+ #### 'alpha_min'.........................................................0.0001 (default)
+ #### 'gamma_c'............................................................1e-06 (default)
+ #### 'g_max'..............................................................1e+06 (default)
+ #### 'g_min'..............................................................1e-06 (default)
+ #### 'armijoFactor'......................................................0.0001 (default)
+ #### 'costTol'...........................................................0.0001 (default)
+ #### 'dt'..................................................................0.01 (default)
+ #### 'useFeedbackPolicy'......................................................1 (default)
+ #### 'createValueFunction'....................................................0 (default)
+ #### 'integratorType'.......................................................RK2 (default)
+ #### 'inequalityConstraintMu'.................................................0 (default)
+ #### 'inequalityConstraintDelta'..........................................1e-06 (default)
+ #### 'projectStateInputEqualityConstraints'...................................1 (default)
+ #### 'extractProjectionMultiplier'............................................0 (default)
+ #### 'printSolverStatus'......................................................0 (default)
+ #### 'printSolverStatistics'..................................................0 (default)
+ #### 'printLinesearch'........................................................0 (default)
+ #### 'enableLogging'..........................................................1 (default)
+ #### 'logSize'.............................................................1000 (default)
+ #### 'logFilePath'.........................................../tmp/ocs2/sqp_log/ (default)
+ #### 'nThreads'...............................................................4 (default)
+ #### 'threadPriority'........................................................50 (default)
+
+ #### HPIPM Settings:
+ #### =============================================================================
+ #### 'mode'...................................................................1 (default)
+ #### 'iter_max'..............................................................30 (default)
+ #### 'alpha_min'..........................................................1e-12 (default)
+ #### 'mu0'...................................................................10 (default)
+ #### 'tol_stat'...........................................................1e-06 (default)
+ #### 'tol_eq'.............................................................1e-08 (default)
+ #### 'tol_ineq'...........................................................1e-08 (default)
+ #### 'tol_comp'...........................................................1e-08 (default)
+ #### 'reg_prim'...........................................................1e-12 (default)
+ #### 'warm_start'.............................................................0 (default)
+ #### 'pred_corr'..............................................................1 (default)
+ #### 'ric_alg'................................................................0 (default)
+ #### =============================================================================
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "inputCost.R.base.wheelBasedMobileManipulator"
+WARNING: Loaded at least one default value in matrix: "inputCost.R.arm"
+
+ #### Input Cost Settings: 
+ #### =============================================================================
+inputCost.R:  
+0.25    0    0    0    0    0    0    0
+   0    1    0    0    0    0    0    0
+   0    0 0.01    0    0    0    0    0
+   0    0    0 0.01    0    0    0    0
+   0    0    0    0 0.01    0    0    0
+   0    0    0    0    0 0.01    0    0
+   0    0    0    0    0    0 0.01    0
+   0    0    0    0    0    0    0 0.01
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### JointPositionLimits Settings: 
+ #### =============================================================================
+ #### lowerBound: -6.28 -1.48 -3.05 -1.48 -6.28 -6.28
+ #### upperBound: 6.28 4.62 3.05 4.62 6.28 6.28
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+
+ #### JointVelocityLimits Settings: 
+ #### =============================================================================
+ #### 'lowerBound':  -0.5   -1   -2   -2   -2   -2   -2   -2
+ #### 'upperBound':  0.5   1   2   2   2   2   2   2
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+ #### 'activate'...............................................................1
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (intermediate) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (final) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+
+ #### Arm Manipulability Settings:
+ #### =============================================================================
+ #### frameName: tool0
+ #### stateFrame: odom
+ #### metrics.scope/task/scaling: arm / pose / raw
+ #### term: terminal, normalized: 1, weightScale: 3, sigma: 1 ref=0.4 weight=1, Yoshikawa: 1 ref=0.02 weight=0.3
+ #### =============================================================================
+
+ #### Arm Manipulability Settings:
+ #### =============================================================================
+ #### frameName: tool0
+ #### stateFrame: odom
+ #### metrics.scope/task/scaling: arm / pose / raw
+ #### term: process/evaluator, normalized: 1, weightScale: 1, sigma: 1 ref=0.2 weight=1, Yoshikawa: 0 ref=0.1 weight=0.1
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### SelfCollision Settings: 
+ #### =============================================================================
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### 'minimumDistance'.....................................................0.02
+ #### 'selfCollision.collisionObjectPairs': { }
+ #### 'selfCollision.collisionLinkPairs': {[base_link, Link_2], [base_link, Link_3], [base_link, Link_4], [base_link, Link_5], [base_link, Link_6], [base_link, tool0_and_camera_link], [base_link, d435i_link], [Link_0, Link_2], [Link_0, Link_3], [Link_1, Link_3], [Link_1, Link_4], [Link_2, Link_4], [Link_2, Link_5], [Link_3, Link_5], [Link_3, Link_6], [Link_4, Link_6], [Link_0, tool0_and_camera_link], [Link_1, tool0_and_camera_link], [Link_2, tool0_and_camera_link], [Link_3, tool0_and_camera_link], [Link_4, tool0_and_camera_link], [Link_5, tool0_and_camera_link], [Link_0, d435i_link], [Link_1, d435i_link], [Link_2, d435i_link], [Link_3, d435i_link], [Link_4, d435i_link], [Link_5, d435i_link], }
+ #### minimumDistance: 0.02 (minimum allowed distance)
+ #### activationDistance: 0.05 (penalty only active when distance < this value)
+ #### =============================================================================
+SelfCollision: Testing for 139 collision pairs
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_arm_terminal_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp69058414.so
+[CppAdInterface] Renaming /tmp/wbmm_arm_terminal_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp69058414.so to /tmp/wbmm_arm_terminal_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_arm_terminal_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp56658414.so
+[CppAdInterface] Renaming /tmp/wbmm_arm_terminal_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp56658414.so to /tmp/wbmm_arm_terminal_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_arm_terminal_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp96358414.so
+[CppAdInterface] Renaming /tmp/wbmm_arm_terminal_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp96358414.so to /tmp/wbmm_arm_terminal_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_lib.so
+
+ #### Rollout Settings: 
+ #### =============================================================================
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'............................................................0.01
+ #### 'integratorType'.....................................................ODE45
+ #### 'checkNumericalStability'................................................0
+ #### 'reconstructInputTrajectory'.............................................1 (default)
+ #### 'rootFindingAlgorithm'...................................................0 (default)
+ #### 'maxSingleEventIterations'..............................................10 (default)
+ #### 'useTrajectorySpreadingController'.......................................0 (default)
+ #### =============================================================================
+[       OK ] WbmmInterface.ArmTerminalRegistrationIsIndependentAndOverridesReferences (471 ms)
+[ RUN      ] WbmmInterface.SupportsDualReferenceModeSwitch
+[WbmmInterface] Loading task file: "/home/a/WBMM/src/control/wbmm_ocs2/test/resources/task_mode_switch.info"
+[WbmmInterface] Loading Pinocchio model from: "/home/a/WBMM/install/tracer_jaka_description/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf"
+[WbmmInterface] Generated library path: "/tmp/wbmm_ocs2_mode_switch_test_lib"
+
+ #### Model Information:
+ #### =============================================================================
+
+ #### model: wheelBasedMobileManipulator (fixed by wbmm_ocs2)
+ #### model_information.removeJoints: "left_wheel" "right_wheel" 
+ #### Note: All mimic joints will be automatically detected and removed
+ #### model_information.baseFrame: "base_footprint"
+ #### model_information.eeFrame: "tool0"
+ #### =============================================================================
+model.nv = 9
+model.nq = 9
+model.njoints = 8
+model.nbodies = 7
+model.nframes = 69
+
+Joints:
+            universe:   ID = 0
+          root_joint:   ID = 1
+             joint_1:   ID = 2
+             joint_2:   ID = 3
+             joint_3:   ID = 4
+             joint_4:   ID = 5
+             joint_5:   ID = 6
+             joint_6:   ID = 7
+
+Frames:
+            universe:   ID = 0, parent = 0, type = "FIXED_JOINT "
+          root_joint:   ID = 1, parent = 1, type = "JOINT "
+      base_footprint:   ID = 2, parent = 1, type = "BODY "
+base_footprint_to_base_link:   ID = 3, parent = 1, type = "FIXED_JOINT "
+           base_link:   ID = 4, parent = 1, type = "BODY "
+        base_to_d455:   ID = 5, parent = 1, type = "FIXED_JOINT "
+           d455_link:   ID = 6, parent = 1, type = "BODY "
+         base_to_imu:   ID = 7, parent = 1, type = "FIXED_JOINT "
+            imu_link:   ID = 8, parent = 1, type = "BODY "
+        base_to_jaka:   ID = 9, parent = 1, type = "FIXED_JOINT "
+      jaka_base_link:   ID = 10, parent = 1, type = "BODY "
+               fixed:   ID = 11, parent = 1, type = "FIXED_JOINT "
+              Link_0:   ID = 12, parent = 1, type = "BODY "
+             joint_1:   ID = 13, parent = 2, type = "JOINT "
+              Link_1:   ID = 14, parent = 2, type = "BODY "
+             joint_2:   ID = 15, parent = 3, type = "JOINT "
+              Link_2:   ID = 16, parent = 3, type = "BODY "
+             joint_3:   ID = 17, parent = 4, type = "JOINT "
+              Link_3:   ID = 18, parent = 4, type = "BODY "
+             joint_4:   ID = 19, parent = 5, type = "JOINT "
+              Link_4:   ID = 20, parent = 5, type = "BODY "
+             joint_5:   ID = 21, parent = 6, type = "JOINT "
+              Link_5:   ID = 22, parent = 6, type = "BODY "
+             joint_6:   ID = 23, parent = 7, type = "JOINT "
+              Link_6:   ID = 24, parent = 7, type = "BODY "
+             fixed_2:   ID = 25, parent = 7, type = "FIXED_JOINT "
+           Link_6_45:   ID = 26, parent = 7, type = "BODY "
+  jk_se_vi_200_joint:   ID = 27, parent = 7, type = "FIXED_JOINT "
+   jk_se_vi_200_link:   ID = 28, parent = 7, type = "BODY "
+tool0_and_camera_link_joint:   ID = 29, parent = 7, type = "FIXED_JOINT "
+tool0_and_camera_link:   ID = 30, parent = 7, type = "BODY "
+         d435i_joint:   ID = 31, parent = 7, type = "FIXED_JOINT "
+          d435i_link:   ID = 32, parent = 7, type = "BODY "
+         tool0_joint:   ID = 33, parent = 7, type = "FIXED_JOINT "
+               tool0:   ID = 34, parent = 7, type = "BODY "
+       base_to_laser:   ID = 35, parent = 1, type = "FIXED_JOINT "
+          laser_link:   ID = 36, parent = 1, type = "BODY "
+     fl_castor_wheel:   ID = 37, parent = 1, type = "FIXED_JOINT "
+      fl_castor_link:   ID = 38, parent = 1, type = "BODY "
+            fl_wheel:   ID = 39, parent = 1, type = "FIXED_JOINT "
+       fl_wheel_link:   ID = 40, parent = 1, type = "BODY "
+     fr_castor_wheel:   ID = 41, parent = 1, type = "FIXED_JOINT "
+      fr_castor_link:   ID = 42, parent = 1, type = "BODY "
+            fr_wheel:   ID = 43, parent = 1, type = "FIXED_JOINT "
+       fr_wheel_link:   ID = 44, parent = 1, type = "BODY "
+      inertial_joint:   ID = 45, parent = 1, type = "FIXED_JOINT "
+       inertial_link:   ID = 46, parent = 1, type = "BODY "
+joint_aluminium_2_base_link:   ID = 47, parent = 1, type = "FIXED_JOINT "
+aluminium_2_base_link:   ID = 48, parent = 1, type = "BODY "
+joint_aluminium_3_base_link:   ID = 49, parent = 1, type = "FIXED_JOINT "
+aluminium_3_base_link:   ID = 50, parent = 1, type = "BODY "
+joint_aluminium_4_base_link:   ID = 51, parent = 1, type = "FIXED_JOINT "
+aluminium_4_base_link:   ID = 52, parent = 1, type = "BODY "
+joint_aluminium_base_link:   ID = 53, parent = 1, type = "FIXED_JOINT "
+ aluminium_base_link:   ID = 54, parent = 1, type = "BODY "
+          left_wheel:   ID = 55, parent = 1, type = "FIXED_JOINT "
+     left_wheel_link:   ID = 56, parent = 1, type = "BODY "
+         right_wheel:   ID = 57, parent = 1, type = "FIXED_JOINT "
+    right_wheel_link:   ID = 58, parent = 1, type = "BODY "
+     rl_castor_wheel:   ID = 59, parent = 1, type = "FIXED_JOINT "
+      rl_castor_link:   ID = 60, parent = 1, type = "BODY "
+            rl_wheel:   ID = 61, parent = 1, type = "FIXED_JOINT "
+       rl_wheel_link:   ID = 62, parent = 1, type = "BODY "
+     rr_castor_wheel:   ID = 63, parent = 1, type = "FIXED_JOINT "
+      rr_castor_link:   ID = 64, parent = 1, type = "BODY "
+            rr_wheel:   ID = 65, parent = 1, type = "FIXED_JOINT "
+       rr_wheel_link:   ID = 66, parent = 1, type = "BODY "
+         tracer_base:   ID = 67, parent = 1, type = "FIXED_JOINT "
+    urbase_base_link:   ID = 68, parent = 1, type = "BODY "
+
+ #### Model Settings:
+ #### =============================================================================
+ #### 'usePreComputation'......................................................1
+ #### 'recompileLibraries'.....................................................1
+ #### =============================================================================
+Initial State:          0        0        0        0   1.5707        0   1.5707  3.14159 0.785398
+
+ #### DDP Settings: 
+ #### =============================================================================
+ #### 'algorithm'............................................................SLQ
+ #### 'nThreads'...............................................................3
+ #### 'threadPriority'........................................................50
+ #### 'maxNumIterations'.......................................................1
+ #### 'minRelCost'...........................................................0.1
+ #### 'constraintTolerance'................................................0.001
+ #### 'displayInfo'............................................................0
+ #### 'displayShortSummary'....................................................0
+ #### 'checkNumericalStability'................................................0
+ #### 'debugPrintRollout'......................................................0
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'...........................................................0.001
+ #### 'backwardPassIntegratorType'.........................................ODE45
+ #### 'constraintPenaltyInitialValue'.........................................20
+ #### 'constraintPenaltyIncreaseRate'..........................................2
+ #### 'preComputeRiccatiTerms'.................................................1
+ #### 'useFeedbackPolicy'......................................................1
+ #### 'riskSensitiveCoeff'.....................................................0 (default)
+ #### 'strategy'.....................................................LINE_SEARCH
+ #### LINE_SEARCH Settings: {
+ #### 'minStepLength'.......................................................0.01
+ #### 'maxStepLength'..........................................................1
+ #### 'contractionRate'......................................................0.5 (default)
+ #### 'armijoCoefficient'.................................................0.0001 (default)
+ #### 'hessianCorrectionStrategy'.................................DIAGONAL_SHIFT
+ #### 'hessianCorrectionMultiple'..........................................0.001
+ #### }
+ #### =============================================================================
+
+ #### MPC Settings:
+ #### =============================================================================
+ #### 'timeHorizon'............................................................2
+ #### 'solutionTimeWindow'...................................................0.2
+ #### 'coldStart'..............................................................0
+ #### 'debugPrint'.............................................................0
+ #### 'mpcDesiredFrequency'..................................................100
+ #### 'mrtDesiredFrequency'..................................................400
+ #### =============================================================================
+
+ #### Multiple-Shooting SQP Settings:
+ #### =============================================================================
+ #### 'sqpIteration'..........................................................10 (default)
+ #### 'deltaTol'...........................................................1e-06 (default)
+ #### 'alpha_decay'..........................................................0.5 (default)
+ #### 'alpha_min'.........................................................0.0001 (default)
+ #### 'gamma_c'............................................................1e-06 (default)
+ #### 'g_max'..............................................................1e+06 (default)
+ #### 'g_min'..............................................................1e-06 (default)
+ #### 'armijoFactor'......................................................0.0001 (default)
+ #### 'costTol'...........................................................0.0001 (default)
+ #### 'dt'..................................................................0.01 (default)
+ #### 'useFeedbackPolicy'......................................................1 (default)
+ #### 'createValueFunction'....................................................0 (default)
+ #### 'integratorType'.......................................................RK2 (default)
+ #### 'inequalityConstraintMu'.................................................0 (default)
+ #### 'inequalityConstraintDelta'..........................................1e-06 (default)
+ #### 'projectStateInputEqualityConstraints'...................................1 (default)
+ #### 'extractProjectionMultiplier'............................................0 (default)
+ #### 'printSolverStatus'......................................................0 (default)
+ #### 'printSolverStatistics'..................................................0 (default)
+ #### 'printLinesearch'........................................................0 (default)
+ #### 'enableLogging'..........................................................1 (default)
+ #### 'logSize'.............................................................1000 (default)
+ #### 'logFilePath'.........................................../tmp/ocs2/sqp_log/ (default)
+ #### 'nThreads'...............................................................4 (default)
+ #### 'threadPriority'........................................................50 (default)
+
+ #### HPIPM Settings:
+ #### =============================================================================
+ #### 'mode'...................................................................1 (default)
+ #### 'iter_max'..............................................................30 (default)
+ #### 'alpha_min'..........................................................1e-12 (default)
+ #### 'mu0'...................................................................10 (default)
+ #### 'tol_stat'...........................................................1e-06 (default)
+ #### 'tol_eq'.............................................................1e-08 (default)
+ #### 'tol_ineq'...........................................................1e-08 (default)
+ #### 'tol_comp'...........................................................1e-08 (default)
+ #### 'reg_prim'...........................................................1e-12 (default)
+ #### 'warm_start'.............................................................0 (default)
+ #### 'pred_corr'..............................................................1 (default)
+ #### 'ric_alg'................................................................0 (default)
+ #### =============================================================================
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "inputCost.R.base.wheelBasedMobileManipulator"
+WARNING: Loaded at least one default value in matrix: "inputCost.R.arm"
+
+ #### Input Cost Settings: 
+ #### =============================================================================
+inputCost.R:  
+0.25    0    0    0    0    0    0    0
+   0    1    0    0    0    0    0    0
+   0    0 0.01    0    0    0    0    0
+   0    0    0 0.01    0    0    0    0
+   0    0    0    0 0.01    0    0    0
+   0    0    0    0    0 0.01    0    0
+   0    0    0    0    0    0 0.01    0
+   0    0    0    0    0    0    0 0.01
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### JointPositionLimits Settings: 
+ #### =============================================================================
+ #### lowerBound: -6.28 -1.48 -3.05 -1.48 -6.28 -6.28
+ #### upperBound: 6.28 4.62 3.05 4.62 6.28 6.28
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+
+ #### JointVelocityLimits Settings: 
+ #### =============================================================================
+ #### 'lowerBound':  -0.5   -1   -2   -2   -2   -2   -2   -2
+ #### 'upperBound':  0.5   1   2   2   2   2   2   2
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+
+ #### Dual-reference phase switching is ENABLED.
+ #### wholeBodyTracking and endEffectorTracking are both registered and weighted by task phase.
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (intermediate) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "endEffectorTracking.Q.position"
+WARNING: Loaded at least one default value in matrix: "endEffectorTracking.Q.orientation"
+
+ #### endEffectorTracking Settings: 
+ #### =============================================================================
+ #### Q.position:
+100   0   0
+  0 100   0
+  0   0 100
+ #### Q.orientation:
+25  0  0
+ 0 25  0
+ 0  0 25
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (final) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "endEffectorTracking.Q.position"
+WARNING: Loaded at least one default value in matrix: "endEffectorTracking.Q.orientation"
+
+ #### endEffectorTracking Settings: 
+ #### =============================================================================
+ #### Q.position:
+100   0   0
+  0 100   0
+  0   0 100
+ #### Q.orientation:
+25  0  0
+ 0 25  0
+ 0  0 25
+ #### =============================================================================
+
+ #### Arm Manipulability Settings:
+ #### =============================================================================
+ #### frameName: tool0
+ #### stateFrame: odom
+ #### metrics.scope/task/scaling: arm / pose / raw
+ #### term: process/evaluator, normalized: 0, weightScale: 1, sigma: 1 ref=0.05 weight=1, Yoshikawa: 0 ref=0.1 weight=0.1
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### SelfCollision Settings: 
+ #### =============================================================================
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### 'minimumDistance'.....................................................0.02
+ #### 'selfCollision.collisionObjectPairs': { }
+ #### 'selfCollision.collisionLinkPairs': {[base_link, Link_2], [base_link, Link_3], [base_link, Link_4], [base_link, Link_5], [base_link, Link_6], [base_link, tool0_and_camera_link], [base_link, d435i_link], [Link_0, Link_2], [Link_0, Link_3], [Link_1, Link_3], [Link_1, Link_4], [Link_2, Link_4], [Link_2, Link_5], [Link_3, Link_5], [Link_3, Link_6], [Link_4, Link_6], [Link_0, tool0_and_camera_link], [Link_1, tool0_and_camera_link], [Link_2, tool0_and_camera_link], [Link_3, tool0_and_camera_link], [Link_4, tool0_and_camera_link], [Link_5, tool0_and_camera_link], [Link_0, d435i_link], [Link_1, d435i_link], [Link_2, d435i_link], [Link_3, d435i_link], [Link_4, d435i_link], [Link_5, d435i_link], }
+ #### minimumDistance: 0.02 (minimum allowed distance)
+ #### activationDistance: 0.05 (penalty only active when distance < this value)
+ #### =============================================================================
+SelfCollision: Testing for 139 collision pairs
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_ocs2_mode_switch_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp94558414.so
+[CppAdInterface] Renaming /tmp/wbmm_ocs2_mode_switch_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp94558414.so to /tmp/wbmm_ocs2_mode_switch_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_ocs2_mode_switch_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp18658414.so
+[CppAdInterface] Renaming /tmp/wbmm_ocs2_mode_switch_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp18658414.so to /tmp/wbmm_ocs2_mode_switch_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_ocs2_mode_switch_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp48158414.so
+[CppAdInterface] Renaming /tmp/wbmm_ocs2_mode_switch_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp48158414.so to /tmp/wbmm_ocs2_mode_switch_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_lib.so
+
+ #### Rollout Settings: 
+ #### =============================================================================
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'............................................................0.01
+ #### 'integratorType'.....................................................ODE45
+ #### 'checkNumericalStability'................................................0
+ #### 'reconstructInputTrajectory'.............................................1 (default)
+ #### 'rootFindingAlgorithm'...................................................0 (default)
+ #### 'maxSingleEventIterations'..............................................10 (default)
+ #### 'useTrajectorySpreadingController'.......................................0 (default)
+ #### =============================================================================
+[       OK ] WbmmInterface.SupportsDualReferenceModeSwitch (505 ms)
+[ RUN      ] WbmmInterface.LoadsEsdfBackendAndQueriesGrid
+[WbmmInterface] Loading task file: "/home/a/WBMM/src/control/wbmm_ocs2/test/resources/task_esdf.info"
+[WbmmInterface] Loading Pinocchio model from: "/home/a/WBMM/install/tracer_jaka_description/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf"
+[WbmmInterface] Generated library path: "/tmp/wbmm_ocs2_esdf_interface_test_lib"
+
+ #### Model Information:
+ #### =============================================================================
+
+ #### model: wheelBasedMobileManipulator (fixed by wbmm_ocs2)
+ #### model_information.removeJoints: "left_wheel" "right_wheel" 
+ #### Note: All mimic joints will be automatically detected and removed
+ #### model_information.baseFrame: "base_footprint"
+ #### model_information.eeFrame: "tool0"
+ #### =============================================================================
+model.nv = 9
+model.nq = 9
+model.njoints = 8
+model.nbodies = 7
+model.nframes = 69
+
+Joints:
+            universe:   ID = 0
+          root_joint:   ID = 1
+             joint_1:   ID = 2
+             joint_2:   ID = 3
+             joint_3:   ID = 4
+             joint_4:   ID = 5
+             joint_5:   ID = 6
+             joint_6:   ID = 7
+
+Frames:
+            universe:   ID = 0, parent = 0, type = "FIXED_JOINT "
+          root_joint:   ID = 1, parent = 1, type = "JOINT "
+      base_footprint:   ID = 2, parent = 1, type = "BODY "
+base_footprint_to_base_link:   ID = 3, parent = 1, type = "FIXED_JOINT "
+           base_link:   ID = 4, parent = 1, type = "BODY "
+        base_to_d455:   ID = 5, parent = 1, type = "FIXED_JOINT "
+           d455_link:   ID = 6, parent = 1, type = "BODY "
+         base_to_imu:   ID = 7, parent = 1, type = "FIXED_JOINT "
+            imu_link:   ID = 8, parent = 1, type = "BODY "
+        base_to_jaka:   ID = 9, parent = 1, type = "FIXED_JOINT "
+      jaka_base_link:   ID = 10, parent = 1, type = "BODY "
+               fixed:   ID = 11, parent = 1, type = "FIXED_JOINT "
+              Link_0:   ID = 12, parent = 1, type = "BODY "
+             joint_1:   ID = 13, parent = 2, type = "JOINT "
+              Link_1:   ID = 14, parent = 2, type = "BODY "
+             joint_2:   ID = 15, parent = 3, type = "JOINT "
+              Link_2:   ID = 16, parent = 3, type = "BODY "
+             joint_3:   ID = 17, parent = 4, type = "JOINT "
+              Link_3:   ID = 18, parent = 4, type = "BODY "
+             joint_4:   ID = 19, parent = 5, type = "JOINT "
+              Link_4:   ID = 20, parent = 5, type = "BODY "
+             joint_5:   ID = 21, parent = 6, type = "JOINT "
+              Link_5:   ID = 22, parent = 6, type = "BODY "
+             joint_6:   ID = 23, parent = 7, type = "JOINT "
+              Link_6:   ID = 24, parent = 7, type = "BODY "
+             fixed_2:   ID = 25, parent = 7, type = "FIXED_JOINT "
+           Link_6_45:   ID = 26, parent = 7, type = "BODY "
+  jk_se_vi_200_joint:   ID = 27, parent = 7, type = "FIXED_JOINT "
+   jk_se_vi_200_link:   ID = 28, parent = 7, type = "BODY "
+tool0_and_camera_link_joint:   ID = 29, parent = 7, type = "FIXED_JOINT "
+tool0_and_camera_link:   ID = 30, parent = 7, type = "BODY "
+         d435i_joint:   ID = 31, parent = 7, type = "FIXED_JOINT "
+          d435i_link:   ID = 32, parent = 7, type = "BODY "
+         tool0_joint:   ID = 33, parent = 7, type = "FIXED_JOINT "
+               tool0:   ID = 34, parent = 7, type = "BODY "
+       base_to_laser:   ID = 35, parent = 1, type = "FIXED_JOINT "
+          laser_link:   ID = 36, parent = 1, type = "BODY "
+     fl_castor_wheel:   ID = 37, parent = 1, type = "FIXED_JOINT "
+      fl_castor_link:   ID = 38, parent = 1, type = "BODY "
+            fl_wheel:   ID = 39, parent = 1, type = "FIXED_JOINT "
+       fl_wheel_link:   ID = 40, parent = 1, type = "BODY "
+     fr_castor_wheel:   ID = 41, parent = 1, type = "FIXED_JOINT "
+      fr_castor_link:   ID = 42, parent = 1, type = "BODY "
+            fr_wheel:   ID = 43, parent = 1, type = "FIXED_JOINT "
+       fr_wheel_link:   ID = 44, parent = 1, type = "BODY "
+      inertial_joint:   ID = 45, parent = 1, type = "FIXED_JOINT "
+       inertial_link:   ID = 46, parent = 1, type = "BODY "
+joint_aluminium_2_base_link:   ID = 47, parent = 1, type = "FIXED_JOINT "
+aluminium_2_base_link:   ID = 48, parent = 1, type = "BODY "
+joint_aluminium_3_base_link:   ID = 49, parent = 1, type = "FIXED_JOINT "
+aluminium_3_base_link:   ID = 50, parent = 1, type = "BODY "
+joint_aluminium_4_base_link:   ID = 51, parent = 1, type = "FIXED_JOINT "
+aluminium_4_base_link:   ID = 52, parent = 1, type = "BODY "
+joint_aluminium_base_link:   ID = 53, parent = 1, type = "FIXED_JOINT "
+ aluminium_base_link:   ID = 54, parent = 1, type = "BODY "
+          left_wheel:   ID = 55, parent = 1, type = "FIXED_JOINT "
+     left_wheel_link:   ID = 56, parent = 1, type = "BODY "
+         right_wheel:   ID = 57, parent = 1, type = "FIXED_JOINT "
+    right_wheel_link:   ID = 58, parent = 1, type = "BODY "
+     rl_castor_wheel:   ID = 59, parent = 1, type = "FIXED_JOINT "
+      rl_castor_link:   ID = 60, parent = 1, type = "BODY "
+            rl_wheel:   ID = 61, parent = 1, type = "FIXED_JOINT "
+       rl_wheel_link:   ID = 62, parent = 1, type = "BODY "
+     rr_castor_wheel:   ID = 63, parent = 1, type = "FIXED_JOINT "
+      rr_castor_link:   ID = 64, parent = 1, type = "BODY "
+            rr_wheel:   ID = 65, parent = 1, type = "FIXED_JOINT "
+       rr_wheel_link:   ID = 66, parent = 1, type = "BODY "
+         tracer_base:   ID = 67, parent = 1, type = "FIXED_JOINT "
+    urbase_base_link:   ID = 68, parent = 1, type = "BODY "
+
+ #### Model Settings:
+ #### =============================================================================
+ #### 'usePreComputation'......................................................1
+ #### 'recompileLibraries'.....................................................1
+ #### =============================================================================
+Initial State:          0        0        0        0   1.5707        0   1.5707  3.14159 0.785398
+
+ #### DDP Settings: 
+ #### =============================================================================
+ #### 'algorithm'............................................................SLQ
+ #### 'nThreads'...............................................................3
+ #### 'threadPriority'........................................................50
+ #### 'maxNumIterations'.......................................................1
+ #### 'minRelCost'...........................................................0.1
+ #### 'constraintTolerance'................................................0.001
+ #### 'displayInfo'............................................................0
+ #### 'displayShortSummary'....................................................0
+ #### 'checkNumericalStability'................................................0
+ #### 'debugPrintRollout'......................................................0
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'...........................................................0.001
+ #### 'backwardPassIntegratorType'.........................................ODE45
+ #### 'constraintPenaltyInitialValue'.........................................20
+ #### 'constraintPenaltyIncreaseRate'..........................................2
+ #### 'preComputeRiccatiTerms'.................................................1
+ #### 'useFeedbackPolicy'......................................................1
+ #### 'riskSensitiveCoeff'.....................................................0 (default)
+ #### 'strategy'.....................................................LINE_SEARCH
+ #### LINE_SEARCH Settings: {
+ #### 'minStepLength'.......................................................0.01
+ #### 'maxStepLength'..........................................................1
+ #### 'contractionRate'......................................................0.5 (default)
+ #### 'armijoCoefficient'.................................................0.0001 (default)
+ #### 'hessianCorrectionStrategy'.................................DIAGONAL_SHIFT
+ #### 'hessianCorrectionMultiple'..........................................0.001
+ #### }
+ #### =============================================================================
+
+ #### MPC Settings:
+ #### =============================================================================
+ #### 'timeHorizon'............................................................2
+ #### 'solutionTimeWindow'...................................................0.2
+ #### 'coldStart'..............................................................0
+ #### 'debugPrint'.............................................................0
+ #### 'mpcDesiredFrequency'..................................................100
+ #### 'mrtDesiredFrequency'..................................................400
+ #### =============================================================================
+
+ #### Multiple-Shooting SQP Settings:
+ #### =============================================================================
+ #### 'sqpIteration'..........................................................10 (default)
+ #### 'deltaTol'...........................................................1e-06 (default)
+ #### 'alpha_decay'..........................................................0.5 (default)
+ #### 'alpha_min'.........................................................0.0001 (default)
+ #### 'gamma_c'............................................................1e-06 (default)
+ #### 'g_max'..............................................................1e+06 (default)
+ #### 'g_min'..............................................................1e-06 (default)
+ #### 'armijoFactor'......................................................0.0001 (default)
+ #### 'costTol'...........................................................0.0001 (default)
+ #### 'dt'..................................................................0.01 (default)
+ #### 'useFeedbackPolicy'......................................................1 (default)
+ #### 'createValueFunction'....................................................0 (default)
+ #### 'integratorType'.......................................................RK2 (default)
+ #### 'inequalityConstraintMu'.................................................0 (default)
+ #### 'inequalityConstraintDelta'..........................................1e-06 (default)
+ #### 'projectStateInputEqualityConstraints'...................................1 (default)
+ #### 'extractProjectionMultiplier'............................................0 (default)
+ #### 'printSolverStatus'......................................................0 (default)
+ #### 'printSolverStatistics'..................................................0 (default)
+ #### 'printLinesearch'........................................................0 (default)
+ #### 'enableLogging'..........................................................1 (default)
+ #### 'logSize'.............................................................1000 (default)
+ #### 'logFilePath'.........................................../tmp/ocs2/sqp_log/ (default)
+ #### 'nThreads'...............................................................4 (default)
+ #### 'threadPriority'........................................................50 (default)
+
+ #### HPIPM Settings:
+ #### =============================================================================
+ #### 'mode'...................................................................1 (default)
+ #### 'iter_max'..............................................................30 (default)
+ #### 'alpha_min'..........................................................1e-12 (default)
+ #### 'mu0'...................................................................10 (default)
+ #### 'tol_stat'...........................................................1e-06 (default)
+ #### 'tol_eq'.............................................................1e-08 (default)
+ #### 'tol_ineq'...........................................................1e-08 (default)
+ #### 'tol_comp'...........................................................1e-08 (default)
+ #### 'reg_prim'...........................................................1e-12 (default)
+ #### 'warm_start'.............................................................0 (default)
+ #### 'pred_corr'..............................................................1 (default)
+ #### 'ric_alg'................................................................0 (default)
+ #### =============================================================================
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "inputCost.R.base.wheelBasedMobileManipulator"
+WARNING: Loaded at least one default value in matrix: "inputCost.R.arm"
+
+ #### Input Cost Settings: 
+ #### =============================================================================
+inputCost.R:  
+0.25    0    0    0    0    0    0    0
+   0    1    0    0    0    0    0    0
+   0    0 0.01    0    0    0    0    0
+   0    0    0 0.01    0    0    0    0
+   0    0    0    0 0.01    0    0    0
+   0    0    0    0    0 0.01    0    0
+   0    0    0    0    0    0 0.01    0
+   0    0    0    0    0    0    0 0.01
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### JointPositionLimits Settings: 
+ #### =============================================================================
+ #### lowerBound: -6.28 -1.48 -3.05 -1.48 -6.28 -6.28
+ #### upperBound: 6.28 4.62 3.05 4.62 6.28 6.28
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+
+ #### JointVelocityLimits Settings: 
+ #### =============================================================================
+ #### 'lowerBound':  -0.5   -1   -2   -2   -2   -2   -2   -2
+ #### 'upperBound':  0.5   1   2   2   2   2   2   2
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+ #### 'activate'...............................................................1
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (intermediate) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (final) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### SelfCollision Settings: 
+ #### =============================================================================
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### 'minimumDistance'.....................................................0.02
+ #### 'selfCollision.collisionObjectPairs': { }
+ #### 'selfCollision.collisionLinkPairs': {[base_link, Link_2], [base_link, Link_3], [base_link, Link_4], [base_link, Link_5], [base_link, Link_6], [base_link, tool0_and_camera_link], [base_link, d435i_link], [Link_0, Link_2], [Link_0, Link_3], [Link_1, Link_3], [Link_1, Link_4], [Link_2, Link_4], [Link_2, Link_5], [Link_3, Link_5], [Link_3, Link_6], [Link_4, Link_6], [Link_0, tool0_and_camera_link], [Link_1, tool0_and_camera_link], [Link_2, tool0_and_camera_link], [Link_3, tool0_and_camera_link], [Link_4, tool0_and_camera_link], [Link_5, tool0_and_camera_link], [Link_0, d435i_link], [Link_1, d435i_link], [Link_2, d435i_link], [Link_3, d435i_link], [Link_4, d435i_link], [Link_5, d435i_link], }
+ #### minimumDistance: 0.02 (minimum allowed distance)
+ #### activationDistance: 0.05 (penalty only active when distance < this value)
+ #### =============================================================================
+SelfCollision: Testing for 139 collision pairs
+
+ #### EnvironmentCollision Settings: 
+ #### =============================================================================
+ #### 'mu'.................................................................0.001
+ #### 'delta'..............................................................0.001
+ #### 'minimumDistance'.....................................................0.05
+ #### 'environmentCollision.collisionLinks': {base_link, d455_link, Link_0, Link_1, Link_2, Link_3, Link_4, Link_5, Link_6, tool0_and_camera_link, d435i_link, }
+ #### backend: esdf
+ #### minimumDistance: 0.05 (minimum allowed distance)
+ #### activationDistance: 0.2 (penalty only active when distance < this value)
+ #### collisionLinks: [base_link, d455_link, Link_0, Link_1, Link_2, Link_3, Link_4, Link_5, Link_6, tool0_and_camera_link, d435i_link]
+ #### =============================================================================
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_ocs2_esdf_interface_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp-5758414.so
+[CppAdInterface] Renaming /tmp/wbmm_ocs2_esdf_interface_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp-5758414.so to /tmp/wbmm_ocs2_esdf_interface_test_lib/dynamics_flow_map/cppad_generated/dynamics_flow_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_ocs2_esdf_interface_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp-69158414.so
+[CppAdInterface] Renaming /tmp/wbmm_ocs2_esdf_interface_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp-69158414.so to /tmp/wbmm_ocs2_esdf_interface_test_lib/dynamics_jump_map/cppad_generated/dynamics_jump_map_lib.so
+[CppAdInterface] Compiling Shared Library: /tmp/wbmm_ocs2_esdf_interface_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp-20658414.so
+[CppAdInterface] Renaming /tmp/wbmm_ocs2_esdf_interface_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp-20658414.so to /tmp/wbmm_ocs2_esdf_interface_test_lib/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_lib.so
+
+ #### Rollout Settings: 
+ #### =============================================================================
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'............................................................0.01
+ #### 'integratorType'.....................................................ODE45
+ #### 'checkNumericalStability'................................................0
+ #### 'reconstructInputTrajectory'.............................................1 (default)
+ #### 'rootFindingAlgorithm'...................................................0 (default)
+ #### 'maxSingleEventIterations'..............................................10 (default)
+ #### 'useTrajectorySpreadingController'.......................................0 (default)
+ #### =============================================================================
+[       OK ] WbmmInterface.LoadsEsdfBackendAndQueriesGrid (506 ms)
+[ RUN      ] WbmmInterface.RejectsEsdfFrameMismatch
+[WbmmInterface] Loading task file: "/home/a/WBMM/src/control/wbmm_ocs2/test/resources/task_esdf.info"
+[WbmmInterface] Loading Pinocchio model from: "/home/a/WBMM/install/tracer_jaka_description/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf"
+[WbmmInterface] Generated library path: "/tmp/wbmm_ocs2_esdf_frame_mismatch_test_lib"
+
+ #### Model Information:
+ #### =============================================================================
+
+ #### model: wheelBasedMobileManipulator (fixed by wbmm_ocs2)
+ #### model_information.removeJoints: "left_wheel" "right_wheel" 
+ #### Note: All mimic joints will be automatically detected and removed
+ #### model_information.baseFrame: "base_footprint"
+ #### model_information.eeFrame: "tool0"
+ #### =============================================================================
+model.nv = 9
+model.nq = 9
+model.njoints = 8
+model.nbodies = 7
+model.nframes = 69
+
+Joints:
+            universe:   ID = 0
+          root_joint:   ID = 1
+             joint_1:   ID = 2
+             joint_2:   ID = 3
+             joint_3:   ID = 4
+             joint_4:   ID = 5
+             joint_5:   ID = 6
+             joint_6:   ID = 7
+
+Frames:
+            universe:   ID = 0, parent = 0, type = "FIXED_JOINT "
+          root_joint:   ID = 1, parent = 1, type = "JOINT "
+      base_footprint:   ID = 2, parent = 1, type = "BODY "
+base_footprint_to_base_link:   ID = 3, parent = 1, type = "FIXED_JOINT "
+           base_link:   ID = 4, parent = 1, type = "BODY "
+        base_to_d455:   ID = 5, parent = 1, type = "FIXED_JOINT "
+           d455_link:   ID = 6, parent = 1, type = "BODY "
+         base_to_imu:   ID = 7, parent = 1, type = "FIXED_JOINT "
+            imu_link:   ID = 8, parent = 1, type = "BODY "
+        base_to_jaka:   ID = 9, parent = 1, type = "FIXED_JOINT "
+      jaka_base_link:   ID = 10, parent = 1, type = "BODY "
+               fixed:   ID = 11, parent = 1, type = "FIXED_JOINT "
+              Link_0:   ID = 12, parent = 1, type = "BODY "
+             joint_1:   ID = 13, parent = 2, type = "JOINT "
+              Link_1:   ID = 14, parent = 2, type = "BODY "
+             joint_2:   ID = 15, parent = 3, type = "JOINT "
+              Link_2:   ID = 16, parent = 3, type = "BODY "
+             joint_3:   ID = 17, parent = 4, type = "JOINT "
+              Link_3:   ID = 18, parent = 4, type = "BODY "
+             joint_4:   ID = 19, parent = 5, type = "JOINT "
+              Link_4:   ID = 20, parent = 5, type = "BODY "
+             joint_5:   ID = 21, parent = 6, type = "JOINT "
+              Link_5:   ID = 22, parent = 6, type = "BODY "
+             joint_6:   ID = 23, parent = 7, type = "JOINT "
+              Link_6:   ID = 24, parent = 7, type = "BODY "
+             fixed_2:   ID = 25, parent = 7, type = "FIXED_JOINT "
+           Link_6_45:   ID = 26, parent = 7, type = "BODY "
+  jk_se_vi_200_joint:   ID = 27, parent = 7, type = "FIXED_JOINT "
+   jk_se_vi_200_link:   ID = 28, parent = 7, type = "BODY "
+tool0_and_camera_link_joint:   ID = 29, parent = 7, type = "FIXED_JOINT "
+tool0_and_camera_link:   ID = 30, parent = 7, type = "BODY "
+         d435i_joint:   ID = 31, parent = 7, type = "FIXED_JOINT "
+          d435i_link:   ID = 32, parent = 7, type = "BODY "
+         tool0_joint:   ID = 33, parent = 7, type = "FIXED_JOINT "
+               tool0:   ID = 34, parent = 7, type = "BODY "
+       base_to_laser:   ID = 35, parent = 1, type = "FIXED_JOINT "
+          laser_link:   ID = 36, parent = 1, type = "BODY "
+     fl_castor_wheel:   ID = 37, parent = 1, type = "FIXED_JOINT "
+      fl_castor_link:   ID = 38, parent = 1, type = "BODY "
+            fl_wheel:   ID = 39, parent = 1, type = "FIXED_JOINT "
+       fl_wheel_link:   ID = 40, parent = 1, type = "BODY "
+     fr_castor_wheel:   ID = 41, parent = 1, type = "FIXED_JOINT "
+      fr_castor_link:   ID = 42, parent = 1, type = "BODY "
+            fr_wheel:   ID = 43, parent = 1, type = "FIXED_JOINT "
+       fr_wheel_link:   ID = 44, parent = 1, type = "BODY "
+      inertial_joint:   ID = 45, parent = 1, type = "FIXED_JOINT "
+       inertial_link:   ID = 46, parent = 1, type = "BODY "
+joint_aluminium_2_base_link:   ID = 47, parent = 1, type = "FIXED_JOINT "
+aluminium_2_base_link:   ID = 48, parent = 1, type = "BODY "
+joint_aluminium_3_base_link:   ID = 49, parent = 1, type = "FIXED_JOINT "
+aluminium_3_base_link:   ID = 50, parent = 1, type = "BODY "
+joint_aluminium_4_base_link:   ID = 51, parent = 1, type = "FIXED_JOINT "
+aluminium_4_base_link:   ID = 52, parent = 1, type = "BODY "
+joint_aluminium_base_link:   ID = 53, parent = 1, type = "FIXED_JOINT "
+ aluminium_base_link:   ID = 54, parent = 1, type = "BODY "
+          left_wheel:   ID = 55, parent = 1, type = "FIXED_JOINT "
+     left_wheel_link:   ID = 56, parent = 1, type = "BODY "
+         right_wheel:   ID = 57, parent = 1, type = "FIXED_JOINT "
+    right_wheel_link:   ID = 58, parent = 1, type = "BODY "
+     rl_castor_wheel:   ID = 59, parent = 1, type = "FIXED_JOINT "
+      rl_castor_link:   ID = 60, parent = 1, type = "BODY "
+            rl_wheel:   ID = 61, parent = 1, type = "FIXED_JOINT "
+       rl_wheel_link:   ID = 62, parent = 1, type = "BODY "
+     rr_castor_wheel:   ID = 63, parent = 1, type = "FIXED_JOINT "
+      rr_castor_link:   ID = 64, parent = 1, type = "BODY "
+            rr_wheel:   ID = 65, parent = 1, type = "FIXED_JOINT "
+       rr_wheel_link:   ID = 66, parent = 1, type = "BODY "
+         tracer_base:   ID = 67, parent = 1, type = "FIXED_JOINT "
+    urbase_base_link:   ID = 68, parent = 1, type = "BODY "
+
+ #### Model Settings:
+ #### =============================================================================
+ #### 'usePreComputation'......................................................1
+ #### 'recompileLibraries'.....................................................1
+ #### =============================================================================
+Initial State:          0        0        0        0   1.5707        0   1.5707  3.14159 0.785398
+
+ #### DDP Settings: 
+ #### =============================================================================
+ #### 'algorithm'............................................................SLQ
+ #### 'nThreads'...............................................................3
+ #### 'threadPriority'........................................................50
+ #### 'maxNumIterations'.......................................................1
+ #### 'minRelCost'...........................................................0.1
+ #### 'constraintTolerance'................................................0.001
+ #### 'displayInfo'............................................................0
+ #### 'displayShortSummary'....................................................0
+ #### 'checkNumericalStability'................................................0
+ #### 'debugPrintRollout'......................................................0
+ #### 'AbsTolODE'..........................................................1e-05
+ #### 'RelTolODE'..........................................................0.001
+ #### 'maxNumStepsPerSecond'..............................................100000
+ #### 'timeStep'...........................................................0.001
+ #### 'backwardPassIntegratorType'.........................................ODE45
+ #### 'constraintPenaltyInitialValue'.........................................20
+ #### 'constraintPenaltyIncreaseRate'..........................................2
+ #### 'preComputeRiccatiTerms'.................................................1
+ #### 'useFeedbackPolicy'......................................................1
+ #### 'riskSensitiveCoeff'.....................................................0 (default)
+ #### 'strategy'.....................................................LINE_SEARCH
+ #### LINE_SEARCH Settings: {
+ #### 'minStepLength'.......................................................0.01
+ #### 'maxStepLength'..........................................................1
+ #### 'contractionRate'......................................................0.5 (default)
+ #### 'armijoCoefficient'.................................................0.0001 (default)
+ #### 'hessianCorrectionStrategy'.................................DIAGONAL_SHIFT
+ #### 'hessianCorrectionMultiple'..........................................0.001
+ #### }
+ #### =============================================================================
+
+ #### MPC Settings:
+ #### =============================================================================
+ #### 'timeHorizon'............................................................2
+ #### 'solutionTimeWindow'...................................................0.2
+ #### 'coldStart'..............................................................0
+ #### 'debugPrint'.............................................................0
+ #### 'mpcDesiredFrequency'..................................................100
+ #### 'mrtDesiredFrequency'..................................................400
+ #### =============================================================================
+
+ #### Multiple-Shooting SQP Settings:
+ #### =============================================================================
+ #### 'sqpIteration'..........................................................10 (default)
+ #### 'deltaTol'...........................................................1e-06 (default)
+ #### 'alpha_decay'..........................................................0.5 (default)
+ #### 'alpha_min'.........................................................0.0001 (default)
+ #### 'gamma_c'............................................................1e-06 (default)
+ #### 'g_max'..............................................................1e+06 (default)
+ #### 'g_min'..............................................................1e-06 (default)
+ #### 'armijoFactor'......................................................0.0001 (default)
+ #### 'costTol'...........................................................0.0001 (default)
+ #### 'dt'..................................................................0.01 (default)
+ #### 'useFeedbackPolicy'......................................................1 (default)
+ #### 'createValueFunction'....................................................0 (default)
+ #### 'integratorType'.......................................................RK2 (default)
+ #### 'inequalityConstraintMu'.................................................0 (default)
+ #### 'inequalityConstraintDelta'..........................................1e-06 (default)
+ #### 'projectStateInputEqualityConstraints'...................................1 (default)
+ #### 'extractProjectionMultiplier'............................................0 (default)
+ #### 'printSolverStatus'......................................................0 (default)
+ #### 'printSolverStatistics'..................................................0 (default)
+ #### 'printLinesearch'........................................................0 (default)
+ #### 'enableLogging'..........................................................1 (default)
+ #### 'logSize'.............................................................1000 (default)
+ #### 'logFilePath'.........................................../tmp/ocs2/sqp_log/ (default)
+ #### 'nThreads'...............................................................4 (default)
+ #### 'threadPriority'........................................................50 (default)
+
+ #### HPIPM Settings:
+ #### =============================================================================
+ #### 'mode'...................................................................1 (default)
+ #### 'iter_max'..............................................................30 (default)
+ #### 'alpha_min'..........................................................1e-12 (default)
+ #### 'mu0'...................................................................10 (default)
+ #### 'tol_stat'...........................................................1e-06 (default)
+ #### 'tol_eq'.............................................................1e-08 (default)
+ #### 'tol_ineq'...........................................................1e-08 (default)
+ #### 'tol_comp'...........................................................1e-08 (default)
+ #### 'reg_prim'...........................................................1e-12 (default)
+ #### 'warm_start'.............................................................0 (default)
+ #### 'pred_corr'..............................................................1 (default)
+ #### 'ric_alg'................................................................0 (default)
+ #### =============================================================================
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "inputCost.R.base.wheelBasedMobileManipulator"
+WARNING: Loaded at least one default value in matrix: "inputCost.R.arm"
+
+ #### Input Cost Settings: 
+ #### =============================================================================
+inputCost.R:  
+0.25    0    0    0    0    0    0    0
+   0    1    0    0    0    0    0    0
+   0    0 0.01    0    0    0    0    0
+   0    0    0 0.01    0    0    0    0
+   0    0    0    0 0.01    0    0    0
+   0    0    0    0    0 0.01    0    0
+   0    0    0    0    0    0 0.01    0
+   0    0    0    0    0    0    0 0.01
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### JointPositionLimits Settings: 
+ #### =============================================================================
+ #### lowerBound: -6.28 -1.48 -3.05 -1.48 -6.28 -6.28
+ #### upperBound: 6.28 4.62 3.05 4.62 6.28 6.28
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+
+ #### JointVelocityLimits Settings: 
+ #### =============================================================================
+ #### 'lowerBound':  -0.5   -1   -2   -2   -2   -2   -2   -2
+ #### 'upperBound':  0.5   1   2   2   2   2   2   2
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### =============================================================================
+ #### 'activate'...............................................................1
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (intermediate) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+
+ #### wholeBodyTracking (final) Settings: 
+ #### =============================================================================
+ #### stateDim : 9  (base 3 + arm 6)
+ #### yawIndex : 2
+ #### Q:
+5 0 0 0 0 0 0 0 0
+0 5 0 0 0 0 0 0 0
+0 0 2 0 0 0 0 0 0
+0 0 0 2 0 0 0 0 0
+0 0 0 0 2 0 0 0 0
+0 0 0 0 0 2 0 0 0
+0 0 0 0 0 0 2 0 0
+0 0 0 0 0 0 0 2 0
+0 0 0 0 0 0 0 0 2
+ #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+ #### =============================================================================
+ #### 'activate'...............................................................1
+
+ #### SelfCollision Settings: 
+ #### =============================================================================
+ #### 'mu'..................................................................0.01
+ #### 'delta'..............................................................0.001
+ #### 'minimumDistance'.....................................................0.02
+ #### 'selfCollision.collisionObjectPairs': { }
+ #### 'selfCollision.collisionLinkPairs': {[base_link, Link_2], [base_link, Link_3], [base_link, Link_4], [base_link, Link_5], [base_link, Link_6], [base_link, tool0_and_camera_link], [base_link, d435i_link], [Link_0, Link_2], [Link_0, Link_3], [Link_1, Link_3], [Link_1, Link_4], [Link_2, Link_4], [Link_2, Link_5], [Link_3, Link_5], [Link_3, Link_6], [Link_4, Link_6], [Link_0, tool0_and_camera_link], [Link_1, tool0_and_camera_link], [Link_2, tool0_and_camera_link], [Link_3, tool0_and_camera_link], [Link_4, tool0_and_camera_link], [Link_5, tool0_and_camera_link], [Link_0, d435i_link], [Link_1, d435i_link], [Link_2, d435i_link], [Link_3, d435i_link], [Link_4, d435i_link], [Link_5, d435i_link], }
+ #### minimumDistance: 0.02 (minimum allowed distance)
+ #### activationDistance: 0.05 (penalty only active when distance < this value)
+ #### =============================================================================
+SelfCollision: Testing for 139 collision pairs
+
+ #### EnvironmentCollision Settings: 
+ #### =============================================================================
+ #### 'mu'.................................................................0.001
+ #### 'delta'..............................................................0.001
+ #### 'minimumDistance'.....................................................0.05
+ #### 'environmentCollision.collisionLinks': {base_link, d455_link, Link_0, Link_1, Link_2, Link_3, Link_4, Link_5, Link_6, tool0_and_camera_link, d435i_link, }
+ #### backend: esdf
+ #### minimumDistance: 0.05 (minimum allowed distance)
+ #### activationDistance: 0.2 (penalty only active when distance < this value)
+ #### collisionLinks: [base_link, d455_link, Link_0, Link_1, Link_2, Link_3, Link_4, Link_5, Link_6, tool0_and_camera_link, d435i_link]
+ #### =============================================================================
+[       OK ] WbmmInterface.RejectsEsdfFrameMismatch (8 ms)
+[----------] 7 tests from WbmmInterface (3396 ms total)
+
+[----------] 2 tests from EndEffectorTrackingCost
+[ RUN      ] EndEffectorTrackingCost.SevenDimensionalTargetMatchesFiniteDifference
+[       OK ] EndEffectorTrackingCost.SevenDimensionalTargetMatchesFiniteDifference (2 ms)
+[ RUN      ] EndEffectorTrackingCost.NineDimensionalTargetIsIgnored
+[EndEffectorTrackingCost] Invalid end-effector reference: expected each target state to be finite 7D [x, y, z, qx, qy, qz, qw]. Cost is treated as zero until a valid 7D target arrives.
+[       OK ] EndEffectorTrackingCost.NineDimensionalTargetIsIgnored (1 ms)
+[----------] 2 tests from EndEffectorTrackingCost (3 ms total)
+
+[----------] 6 tests from ArmManipulabilityCost
+[ RUN      ] ArmManipulabilityCost.MetricsMatchEigenSvd
+[       OK ] ArmManipulabilityCost.MetricsMatchEigenSvd (1 ms)
+[ RUN      ] ArmManipulabilityCost.GradientMatchesFiniteDifference
+[       OK ] ArmManipulabilityCost.GradientMatchesFiniteDifference (5 ms)
+[ RUN      ] ArmManipulabilityCost.InvalidStateUsesConfiguredPenalty
+[       OK ] ArmManipulabilityCost.InvalidStateUsesConfiguredPenalty (1 ms)
+[ RUN      ] ArmManipulabilityCost.NormalizedSigmaAndYoshikawaScaleValuesAndDerivatives
+[       OK ] ArmManipulabilityCost.NormalizedSigmaAndYoshikawaScaleValuesAndDerivatives (5 ms)
+[ RUN      ] ArmManipulabilityCost.ReusedWorkspaceAndConcurrentClonesPreserveMetrics
+[       OK ] ArmManipulabilityCost.ReusedWorkspaceAndConcurrentClonesPreserveMetrics (23 ms)
+[ RUN      ] ArmManipulabilityCost.NormalizedReferencesRejectZero
+[       OK ] ArmManipulabilityCost.NormalizedReferencesRejectZero (2 ms)
+[----------] 6 tests from ArmManipulabilityCost (37 ms total)
+
+[----------] 3 tests from WbmmReferenceManager
+[ RUN      ] WbmmReferenceManager.LatchesPhaseAndKeepsTargetsSeparate
+[       OK ] WbmmReferenceManager.LatchesPhaseAndKeepsTargetsSeparate (0 ms)
+[ RUN      ] WbmmReferenceManager.RvalueSetRoutesByStateDimension
+[       OK ] WbmmReferenceManager.RvalueSetRoutesByStateDimension (0 ms)
+[ RUN      ] WbmmReferenceManager.NavigationClearsStaleEndEffectorTarget
+[       OK ] WbmmReferenceManager.NavigationClearsStaleEndEffectorTarget (0 ms)
+[----------] 3 tests from WbmmReferenceManager (0 ms total)
+
+[----------] 1 test from EsdfEnvironmentCollisionConstraint
+[ RUN      ] EsdfEnvironmentCollisionConstraint.SimpleLinearFieldValueAndGradient
+[       OK ] EsdfEnvironmentCollisionConstraint.SimpleLinearFieldValueAndGradient (2 ms)
+[----------] 1 test from EsdfEnvironmentCollisionConstraint (2 ms total)
+
+[----------] 2 tests from WholeBodyTrajectoryCost
+[ RUN      ] WholeBodyTrajectoryCost.TracksWholeBodyStateAndWrapsYaw
+[       OK ] WholeBodyTrajectoryCost.TracksWholeBodyStateAndWrapsYaw (1 ms)
+[ RUN      ] WholeBodyTrajectoryCost.InvalidReferenceFallsBackToHoldState
+[WholeBodyTrajectoryCost] WARNING: invalid whole-body TargetTrajectories; using fallback hold state.
+[       OK ] WholeBodyTrajectoryCost.InvalidReferenceFallsBackToHoldState (1 ms)
+[----------] 2 tests from WholeBodyTrajectoryCost (2 ms total)
+
+[----------] Global test environment tear-down
+[==========] 25 tests from 9 test suites ran. (3913 ms total)
+[  PASSED  ] 25 tests.

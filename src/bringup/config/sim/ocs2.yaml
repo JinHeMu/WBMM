@@ -14,7 +14,6 @@ wbmm_mrt_node:
     # i.e. 0.5 s into the future, which whips the arm whenever the plan is
     # stale.
     traj_horizon: 0.10
-    arm_use_velocity_integrator: false
     arm_max_command_velocity: 0.50
     # 0.50 rad/step at 125 Hz is 62.5 rad/s, i.e. no limit at all: the MPC
     # joint-velocity constraint is only +/-2.0 rad/s. 0.05 rad/step is

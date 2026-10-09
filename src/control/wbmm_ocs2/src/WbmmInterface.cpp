@@ -143,7 +143,8 @@ namespace wbmm_ocs2
                                  const std::string &libraryFolder,
                                  const std::string &urdfFile,
                                  const std::string &esdfFileOverride,
-                                 const std::string &worldFrame)
+                                 const std::string &worldFrame,
+                                 const std::string &eeFrameOverride)
     {
         esdfFileOverride_ = esdfFileOverride;
         worldFrame_ = worldFrame;
@@ -187,6 +188,9 @@ namespace wbmm_ocs2
         std::string baseFrame, eeFrame;
         loadData::loadPtreeValue<std::string>(pt, baseFrame, "model_information.baseFrame", false);
         loadData::loadPtreeValue<std::string>(pt, eeFrame, "model_information.eeFrame", false);
+        if (!eeFrameOverride.empty()) {
+            eeFrame = eeFrameOverride;
+        }
 
         std::cerr << "\n #### Model Information:";
         std::cerr << "\n #### =============================================================================\n";
@@ -379,6 +383,23 @@ namespace wbmm_ocs2
                     *pinocchioInterfacePtr_, taskFile,
                     "armManipulability"));
         }
+        loadData::loadPtreeValue(pt, finalArmManipulabilityEnabled_,
+                                "armManipulability.terminal.activate", false);
+        if (finalArmManipulabilityEnabled_)
+        {
+            problem_.finalCostPtr->add(
+                "finalArmManipulability",
+                getArmManipulabilityCost(*pinocchioInterfacePtr_, taskFile,
+                                         "armManipulability", true));
+        }
+        bool metricsDiagnostics = false;
+        loadData::loadPtreeValue(pt, metricsDiagnostics,
+                                "armManipulability.diagnostics.activate", false);
+        if (metricsDiagnostics)
+        {
+            armMetricsEvaluator_ = getArmManipulabilityCost(
+                *pinocchioInterfacePtr_, taskFile, "armManipulability");
+        }
 
         // self-collision avoidance constraint
         selfCollisionEnabled_ = true;
@@ -558,19 +579,26 @@ namespace wbmm_ocs2
             std::move(orientationWeight));
     }
 
-    std::unique_ptr<StateCost> WbmmInterface::getArmManipulabilityCost(
+    std::unique_ptr<ArmManipulabilityCost> WbmmInterface::getArmManipulabilityCost(
         const PinocchioInterface &pinocchioInterface,
         const std::string &taskFile,
-        const std::string &prefix)
+        const std::string &prefix, bool terminal)
     {
         boost::property_tree::ptree pt;
         boost::property_tree::read_info(taskFile, pt);
 
         ArmManipulabilitySettings settings;
+        settings.stateFrame = worldFrame_;
+        loadData::loadPtreeValue(pt, settings.normalizeMargins, prefix + ".normalizeMargins", false);
+        loadData::loadPtreeValue(pt, settings.weightScale, prefix + ".weightScale", false);
         loadData::loadPtreeValue(
             pt, settings.frameName, prefix + ".frameName", false);
         loadData::loadPtreeValue(
             pt, settings.stateFrame, prefix + ".stateFrame", false);
+        if (settings.stateFrame != worldFrame_)
+        {
+            throw std::runtime_error("[WbmmInterface] arm metric stateFrame must match the OCS2 world frame.");
+        }
 
         std::string scope = "arm";
         std::string task = "pose";
@@ -713,6 +741,29 @@ namespace wbmm_ocs2
             pt, settings.invalidMetricsPenalty,
             prefix + ".invalidMetricsPenalty", false);
 
+        // The terminal cost inherits the process definition, with explicit
+        // metric switches/references/weights overridable under terminal.*.
+        // Activation of the two OCP terms is independent and happens above.
+        if (terminal)
+        {
+            const auto finalPrefix = prefix + ".terminal";
+            loadData::loadPtreeValue(pt, settings.weightScale, finalPrefix + ".weightScale", false);
+            loadData::loadPtreeValue(pt, settings.normalizeMargins, finalPrefix + ".normalizeMargins", false);
+            loadData::loadPtreeValue(pt, settings.useMinSingularValue, finalPrefix + ".useMinSingularValue", false);
+            loadData::loadPtreeValue(pt, settings.minSingularWeight, finalPrefix + ".minSingularWeight", false);
+            loadData::loadPtreeValue(pt, settings.minSingularRef, finalPrefix + ".minSingularRef", false);
+            loadData::loadPtreeValue(pt, settings.useYoshikawa, finalPrefix + ".useYoshikawa", false);
+            loadData::loadPtreeValue(pt, settings.yoshikawaWeight, finalPrefix + ".yoshikawaWeight", false);
+            loadData::loadPtreeValue(pt, settings.yoshikawaRef, finalPrefix + ".yoshikawaRef", false);
+            loadData::loadPtreeValue(pt, settings.taskDirectionWeight, finalPrefix + ".taskDirectionWeight", false);
+            loadData::loadPtreeValue(pt, settings.taskDirectionRef, finalPrefix + ".taskDirectionRef", false);
+            loadData::loadPtreeValue(pt, settings.useInverseManipulability, finalPrefix + ".useInverseManipulability", false);
+            loadData::loadPtreeValue(pt, settings.inverseManipulabilityWeight, finalPrefix + ".inverseManipulabilityWeight", false);
+            loadData::loadPtreeValue(pt, settings.useConditionNumber, finalPrefix + ".useConditionNumber", false);
+            loadData::loadPtreeValue(pt, settings.conditionWeight, finalPrefix + ".conditionWeight", false);
+            loadData::loadPtreeValue(pt, settings.conditionMax, finalPrefix + ".conditionMax", false);
+        }
+
         std::cerr << "\n #### Arm Manipulability Settings:";
         std::cerr << "\n #### =============================================================================\n";
         std::cerr << " #### frameName: "
@@ -722,6 +773,13 @@ namespace wbmm_ocs2
         std::cerr << " #### stateFrame: " << settings.stateFrame << '\n';
         std::cerr << " #### metrics.scope/task/scaling: "
                   << scope << " / " << task << " / " << scaling << '\n';
+        std::cerr << " #### term: " << (terminal ? "terminal" : "process/evaluator")
+                  << ", normalized: " << settings.normalizeMargins
+                  << ", weightScale: " << settings.weightScale
+                  << ", sigma: " << settings.useMinSingularValue << " ref=" << settings.minSingularRef
+                  << " weight=" << settings.minSingularWeight
+                  << ", Yoshikawa: " << settings.useYoshikawa << " ref=" << settings.yoshikawaRef
+                  << " weight=" << settings.yoshikawaWeight << '\n';
         std::cerr << " #### =============================================================================\n";
 
         return std::make_unique<ArmManipulabilityCost>(
@@ -849,12 +907,14 @@ namespace wbmm_ocs2
         // load velocity limits
         std::vector<StateInputSoftBoxConstraint::BoxConstraint> inputLimits;
         {
-            vector_t lowerBound = vector_t::Zero(modelInfo_.inputDim);
-            vector_t upperBound = vector_t::Zero(modelInfo_.inputDim);
+            auto &lowerBound = inputVelocityLowerBound_;
+            auto &upperBound = inputVelocityUpperBound_;
+            lowerBound = vector_t::Zero(modelInfo_.inputDim);
+            upperBound = vector_t::Zero(modelInfo_.inputDim);
             scalar_t muVelocityLimits = 1e-2;
             scalar_t deltaVelocityLimits = 1e-3;
 
-            // Base DOFs velocity limits
+            // Velocity planning bounds are always read from task.info.
             if (baseInputDim > 0)
             {
                 vector_t lowerBoundBase = vector_t::Zero(baseInputDim);

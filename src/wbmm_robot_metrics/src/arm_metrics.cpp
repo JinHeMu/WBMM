@@ -201,8 +201,8 @@ ArmKinematicMetrics ArmMetrics::evaluate(
     options.task_direction.normalize();
   }
 
-  Eigen::JacobiSVD<Eigen::MatrixXd> svd(
-    task_jacobian, Eigen::ComputeThinU | Eigen::ComputeThinV);
+  // Diagnostics consume singular values only; do not construct unused U/V.
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(task_jacobian);
   const Eigen::VectorXd singular_values = svd.singularValues();
   if (singular_values.size() == 0 || !singular_values.allFinite()) {
     return invalidMetrics(

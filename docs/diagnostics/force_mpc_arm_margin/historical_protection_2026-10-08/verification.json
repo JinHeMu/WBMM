@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-08",
+  "scope": "source, build, unit/config tests, MuJoCo closed-loop only",
+  "hardware_motion_tested": false,
+  "cpp_tests": {
+    "wbmm_ocs2": {
+      "tests": 23,
+      "failures": 0
+    },
+    "wbmm_ocs2_ros": {
+      "tests": 13,
+      "failures": 0
+    },
+    "whole_body_force_control": {
+      "tests": 26,
+      "failures": 0
+    }
+  },
+  "launch_config_tests_passed": 23,
+  "closed_loop_cases": {
+    "baseline": true,
+    "sigma": true,
+    "sigma_yoshikawa": true,
+    "guard_enabled": true,
+    "guard_trip": true,
+    "integration_guard": true,
+    "six_axes": true,
+    "six_axes_repeat2": true,
+    "six_axes_repeat3": true
+  },
+  "comparison_passed": true,
+  "sim_task_sha256": "04736636314493ed7076f061df4f1529d1a2774737c9910d649da9c19d0c8160",
+  "config_sha256": {
+    "baseline": "69c7ef7b8b7e92bb5f89b4ca74823396bf308f8915131277444184499bc0b204",
+    "sigma": "f3de256aec55b4b024b154852391c96d7e4b14eddb7b2e3fd509fb4a71c5cc05",
+    "sigma_yoshikawa": "9c90a01d45d58342f383324e22005acc26bb6d77536900a6fe2875cfd8693003",
+    "guard_enabled": "04736636314493ed7076f061df4f1529d1a2774737c9910d649da9c19d0c8160",
+    "guard_trip": "caa431ca3b3becc6434c02f3b86b22c023668fff5e3180de7f58eddedbb7b76a",
+    "integration_guard": "04736636314493ed7076f061df4f1529d1a2774737c9910d649da9c19d0c8160",
+    "six_axes": "04736636314493ed7076f061df4f1529d1a2774737c9910d649da9c19d0c8160",
+    "six_axes_repeat2": "04736636314493ed7076f061df4f1529d1a2774737c9910d649da9c19d0c8160",
+    "six_axes_repeat3": "04736636314493ed7076f061df4f1529d1a2774737c9910d649da9c19d0c8160"
+  },
+  "old_interlock_root_cause": "unrecoverable from old logs; new first-cause/feedback-age diagnostics added; thresholds unchanged"
+}

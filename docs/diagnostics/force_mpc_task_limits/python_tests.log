@@ -1,0 +1,7 @@
+..............................................                           [100%]
+=============================== warnings summary ===============================
+src/bringup/test/test_functional_launch.py::test_complete_entries_forward_declared_arguments_and_motion_gate[moveit-sim]
+  Warning: private variables, such as '_ConstructUnits__ConstructUnitsValue', will be normal attributes in 3.11
+
+-- Docs: https://docs.pytest.org/en/stable/warnings.html
+46 passed, 1 warning in 2.13s

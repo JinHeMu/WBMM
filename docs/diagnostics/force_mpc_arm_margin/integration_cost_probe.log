@@ -1,0 +1,4 @@
+Push: TCP dx=0.215909 base=0.156541 arm=0.124303
+Release drift=1.92153e-05
+Reverse TCP dx=-0.217333
+PASS: /home/a/WBMM/docs/diagnostics/force_mpc_arm_margin/integration_cost.json

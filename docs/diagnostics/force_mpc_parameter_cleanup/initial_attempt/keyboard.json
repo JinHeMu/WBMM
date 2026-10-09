@@ -1,0 +1,15 @@
+{
+  "passed": false,
+  "failures": [
+    "{('initial_zero', 'FAULT_TRACKING_ERROR', 'ACTIVE')}",
+    "Not all stages completed"
+  ],
+  "faults": [
+    [
+      "initial_zero",
+      "FAULT_TRACKING_ERROR",
+      "ACTIVE"
+    ]
+  ],
+  "stages": []
+}

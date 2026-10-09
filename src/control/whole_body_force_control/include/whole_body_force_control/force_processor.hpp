@@ -52,9 +52,6 @@ struct ForceProcessorConfig
   Vector6d scale{Vector6d::Ones()};
   bool hard_limit_enabled{true};
   Vector6d hard_wrench_limit{Vector6d::Constant(1000.0)};
-  // Euclidean norm of raw Fx/Fy/Fz [N].  Checked before tare and filtering so
-  // a large step stops immediately.  <=0 disables this particular check.
-  double hard_force_norm_limit{20.0};
 
   LoadCompensationConfig load_compensation{};
   double force_deadband_n{1.0};

@@ -116,7 +116,12 @@ def test_integrated_sim_connects_force_to_execution_mpc(monkeypatch):
     assert mrt['force_gate.state_topic'] == force['topics.states']
     assert mrt['command_output_enabled'] is force['admittance.output'] is True
     assert force['admittance.enable'] is True
-    assert mrt['arm_use_velocity_integrator'] is False
+    assert 'arm_use_velocity_integrator' not in mrt
+    assert 'force_sensor.hard_force_norm_limit' not in sensor
+    assert 'admittance.max_velocity' not in force
+    assert sensor['force_sensor.hard_wrench_limit'] == [30.0] * 3 + [10.0] * 3
+    assert force['end_effector.max_linear_velocity'] == 0.2
+    assert force['end_effector.max_angular_velocity'] == 0.4
     assert force['admittance.stiffness'] == [0.0] * 6
     profile = load_yaml(COMMON_CONFIG / 'force_mpc.yaml')
     dynamics = profile['whole_body_force_control']['ros__parameters']['admittance']
@@ -200,6 +205,52 @@ def test_keyboard_commands_feed_one_virtual_sensor_in_tcp_axes(monkeypatch):
     assert virtual['command_timeout'] > 2.0 / keyboard['rate']
 
 
+@pytest.mark.parametrize('backend', ['sim', 'real'])
+def test_execution_speeds_do_not_override_mpc_planning(monkeypatch, tmp_path, backend):
+    profile = tmp_path / 'force.yaml'
+    profile.write_text(yaml.safe_dump({
+        'wbmm_mrt_node': {'ros__parameters': {'arm_max_command_velocity': 0.31}},
+        'force_sensor_processor': {'ros__parameters': {
+            'force_sensor': {'tcp_frame': 'Link_6'},
+            'topics': {'processed_wrench': '/test/processed_force'},
+        }},
+    }))
+    actions = force_mpc_actions(monkeypatch, backend=backend, force_params_file=str(profile))
+    nodes = {a['name']: a for a in actions if isinstance(a, dict) and 'name' in a}
+    mpc = effective_node_parameters(nodes['wbmm_mpc_node'])
+    mrt = effective_node_parameters(nodes['wbmm_mrt_node'])
+    force = effective_node_parameters(nodes['whole_body_force_control'])
+    assert 'input_velocity_limits' not in mpc
+    assert 'input_velocity_limits' not in mrt
+    assert 'arm_max_command_velocity' not in mpc
+    assert 'base_max_linear_velocity' not in mpc
+    assert 'base_max_angular_velocity' not in mpc
+    assert mrt['arm_max_command_velocity'] == 0.31
+    assert mrt['base_max_linear_velocity'] == 0.1
+    assert mrt['base_max_angular_velocity'] == 0.4
+    assert mpc['ee_frame'] == mrt['ee_frame'] == force['force_sensor.tcp_frame'] == 'Link_6'
+    assert force['admittance.stiffness'] == [0.0] * 6
+    assert force['admittance.mass'] == [20.0] * 3 + [2.0] * 3
+    assert force['end_effector.max_linear_velocity'] == 0.2
+    assert force['topics.wrench'] == '/test/processed_force'
+
+
+@pytest.mark.parametrize('backend, enabled', [('sim', False), ('real', True)])
+def test_auto_admittance_enable_respects_yaml_override(monkeypatch, tmp_path, backend, enabled):
+    profile = tmp_path / 'enable.yaml'
+    profile.write_text(yaml.safe_dump({
+        'whole_body_force_control': {'ros__parameters': {'admittance': {'enable': enabled}}},
+    }))
+    actions = force_mpc_actions(monkeypatch, backend=backend, force_params_file=str(profile))
+    nodes = {a['name']: a for a in actions if isinstance(a, dict) and 'name' in a}
+    force = effective_node_parameters(nodes['whole_body_force_control'])
+    assert force['admittance.enable'] is enabled
+    actions = force_mpc_actions(monkeypatch, backend=backend, force_params_file=str(profile),
+                                **{'admittance.enable': str(not enabled).lower()})
+    nodes = {a['name']: a for a in actions if isinstance(a, dict) and 'name' in a}
+    assert effective_node_parameters(nodes['whole_body_force_control'])['admittance.enable'] is not enabled
+
+
 def test_force_entry_forwards_sim_servo_configuration(monkeypatch):
     actions = force_mpc_actions(monkeypatch, backend='sim', fake_wrench='true',
                                 arm_servo_config='/tmp/custom_arm.yaml',
@@ -272,7 +323,7 @@ def test_sim_profiles_use_admittance_limits(
         True, False, False, False, False, False]
     assert effective['admittance.stiffness'][0] == stiffness_x
     assert effective['admittance.damping'][0] == damping_x
-    assert effective['admittance.max_velocity'][0] == 0.25
+    assert 'admittance.max_velocity' not in effective
     assert 'admittance.max_offset' not in effective
     assert 'whole_body.max_base_delta' not in effective
     assert 'whole_body.max_joint_delta' not in effective
@@ -369,7 +420,7 @@ def test_sensor_z_sim_uses_world_frame_translation_admittance(monkeypatch):
         'force_sensor_processor'))
     assert sensor['force_sensor.sensor_frame'] == 'jk_se_vi_200_link'
     assert sensor['force_sensor.tcp_frame'] == 'tool0'
-    assert sensor['force_sensor.hard_force_norm_limit'] == 20.0
+    assert 'force_sensor.hard_force_norm_limit' not in sensor
     assert sensor['force_sensor.hard_wrench_limit'][:3] == [20.0, 20.0, 20.0]
     assert sensor['topics.processed_wrench'] == force['topics.wrench']
     assert all(node.get('package') != 'tracer_jaka_mujoco' for node in nodes)
@@ -390,6 +441,7 @@ def test_real_config_preserves_closed_gates_and_admittance_limits():
     assert config['admittance.stiffness'] == [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     assert config['end_effector.max_linear_velocity'] == 0.2
     assert config['end_effector.max_angular_velocity'] == 0.5
+    assert 'admittance.max_velocity' not in config
     assert 'whole_body.max_base_delta' not in config
     assert 'whole_body.max_joint_delta' not in config
     assert 'admittance.max_offset' not in config
@@ -401,7 +453,7 @@ def test_real_config_preserves_closed_gates_and_admittance_limits():
     assert sensor['force_sensor.sensor_frame'] == 'jk_se_vi_200_link'
     assert sensor['force_sensor.tcp_frame'] == 'tool0'
     assert sensor['force_sensor.tf_fallback_to_latest'] is False
-    assert sensor['force_sensor.hard_force_norm_limit'] == 50.0
+    assert 'force_sensor.hard_force_norm_limit' not in sensor
     assert sensor['force_sensor.hard_wrench_limit'] == [
         50.0, 50.0, 50.0, 2.0, 2.0, 2.0]
     assert sensor['topics.processed_wrench'] == config['topics.wrench']

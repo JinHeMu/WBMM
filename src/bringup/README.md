@@ -123,7 +123,21 @@ OCS2 控制机械臂，底盘控制输出已隔离。实机执行同样需添加
 ### 力跟随与 OCS2 联合控制
 
 ```bash
-ros2 launch tracer_jaka_bringup force_mpc.launch.py backend:=sim fake_wrench:=true
+ros2 launch tracer_jaka_bringup force_mpc.launch.py backend:=sim fake_wrench:=true keyboard_wrench:=true
+```
+
+实机默认只读反馈、导纳关闭：
+
+```bash
+ros2 launch tracer_jaka_bringup force_mpc.launch.py backend:=real
+```
+
+允许输出的入口为：
+
+```bash
+ros2 launch tracer_jaka_bringup force_mpc.launch.py \
+  backend:=real hardware_write:=true tare:=true
+ros2 service call /whole_body_force_control/enable std_srvs/srv/SetBool '{data: true}'
 ```
 
 默认三轴平移导纳、K=0 持续拖动；`backend:=real` 默认只读并关闭导纳。

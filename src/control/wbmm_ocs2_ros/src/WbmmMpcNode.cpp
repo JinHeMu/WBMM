@@ -30,6 +30,7 @@
 #include <ocs2_ros_interfaces/common/RosMsgConversions.h>
 #include <ocs2_ros_interfaces/mpc/MPC_ROS_Interface.h>
 #include <wbmm_ocs2/WbmmInterface.h>
+#include "ArmMetricsDiagnostics.h"
 #include <wbmm_ocs2_ros/msg/task_phase_state.hpp>
 #include <wbmm_ocs2_ros/srv/set_task_phase.hpp>
 
@@ -94,6 +95,7 @@ int main(int argc, char* argv[])
   nodeHandle->declare_parameter<std::string>("urdfFile", "");
   nodeHandle->declare_parameter<std::string>("esdfFile", "");
   nodeHandle->declare_parameter<std::string>("world_frame", "odom");
+  nodeHandle->declare_parameter<std::string>("ee_frame", "");
   nodeHandle->declare_parameter<std::string>("robot_name", kDefaultRobotName);
   nodeHandle->declare_parameter<std::string>("whole_body_target_topic", "");
   nodeHandle->declare_parameter<std::string>("ee_target_topic", "");
@@ -146,7 +148,8 @@ int main(int argc, char* argv[])
 
   // -- OCS2 problem interface ------------------------------------------------
   wbmm_ocs2::WbmmInterface interface(
-      taskFile, libFolder, urdfFile, esdfFile, worldFrame);
+      taskFile, libFolder, urdfFile, esdfFile, worldFrame,
+      nodeHandle->get_parameter("ee_frame").as_string());
   const bool modeSwitchEnabled = interface.isModeSwitchEnabled();
   const std::size_t wholeBodyStateDim =
       interface.getWbmmModelInfo().stateDim;
@@ -249,6 +252,12 @@ int main(int argc, char* argv[])
   // WbmmReferenceManager. The solver must see the same manager for reset
   // target routing and mode schedule publication.
   mpc.getSolverPtr()->setReferenceManager(interface.getReferenceManagerPtr());
+  if (const auto* evaluator = interface.getArmMetricsEvaluator()) {
+    auto publisher = nodeHandle->create_publisher<std_msgs::msg::Float64MultiArray>(
+        robotName + "_arm_prediction_metrics", rclcpp::QoS(5));
+    mpc.getSolverPtr()->addSynchronizedModule(
+        std::make_shared<wbmm::ArmMetricsDiagnostics>(*evaluator, publisher));
+  }
 
   ocs2::MPC_ROS_Interface mpcNode(mpc, robotName);
 

@@ -22,7 +22,6 @@ force_sensor_processor:
       wrench_scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
       # CURRENT: the same numeric hard limits are checked at the sensor and
       # TCP origins. Both interpretations need independent human review.
-      hard_force_norm_limit: 50.0
       hard_wrench_limit: [50.0, 50.0, 50.0, 2.0, 2.0, 2.0]
       force_deadband_n: 0.0
       torque_deadband_nm: 0.0
@@ -68,7 +67,6 @@ whole_body_force_control:
       mass: [3.0, 3.0, 3.0, 0.3, 0.3, 0.3]
       damping: [45.0, 45.0, 45.0, 4.5, 4.5, 4.5]
       stiffness: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      max_velocity: [0.25, 0.25, 0.25, 0.15, 0.15, 0.15]
 
     end_effector:
       max_linear_velocity: 0.2

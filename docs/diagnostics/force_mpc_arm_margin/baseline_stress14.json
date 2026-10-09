@@ -1,0 +1,62 @@
+{
+  "name": "baseline",
+  "passed": false,
+  "error": "fault/collision: [('0_f', 'FAULT_TRACKING_ERROR', 'ACTIVE')], collision=False",
+  "faults": [
+    [
+      "0_f",
+      "FAULT_TRACKING_ERROR",
+      "ACTIVE"
+    ]
+  ],
+  "unexpected_collision": false,
+  "collision_monitor_seen": true,
+  "stages": [
+    {
+      "name": "initial_zero",
+      "key": null,
+      "duration_s": 3.0,
+      "samples": 126,
+      "min_sigma": 0.11270754495270424,
+      "min_yoshikawa": 0.002202800381342759,
+      "tracking_rms_m": 0.0009587326202573569,
+      "tcp_change_m": [
+        -0.00016571620241742635,
+        0.00011239275913882407,
+        -0.00015257875936680598
+      ],
+      "end_q": [
+        -0.7054721117019653,
+        1.444682002067566,
+        -1.4349809885025024,
+        1.5603514909744263,
+        1.5701972246170044,
+        0.03288622200489044
+      ]
+    }
+  ],
+  "jacobian": {
+    "scope": "arm",
+    "task": "pose",
+    "scaling": "characteristic_length",
+    "ell_m": 0.3
+  },
+  "sequence": "f:14,zero:4,r:6,zero:4",
+  "min_sigma": 1.5855815969718462e-05,
+  "min_yoshikawa": 1.9838819458578684e-07,
+  "tracking_rms_m": 0.039755141438053095,
+  "maximum_tracking_error_m": 0.1001511136525174,
+  "end_state": [
+    -0.3254759907722473,
+    -0.17377032339572906,
+    1.0331557989120483,
+    -0.8133825659751892,
+    1.4913890361785889,
+    0.004728974308818579,
+    0.3782905340194702,
+    1.6073875427246094,
+    0.9982157349586487
+  ],
+  "predicted_horizon_s": 1.999999999,
+  "solve_ms_p95": 7.85796
+}

@@ -176,13 +176,6 @@ void WholeBodyForceControlNode::loadParameters()
     }
   }
 
-  parameters_.max_velocity = vector6Parameter(
-      *this, "admittance.max_velocity",
-      (Vector6d() << 0.035, 0.035, 0.035, 0.15, 0.15, 0.15).finished());
-  if ((parameters_.max_velocity.array() <= 0.0).any()) {
-    throw std::runtime_error("admittance.max_velocity values must be positive");
-  }
-
   parameters_.force_timeout = declare_parameter<double>(
       "force_sensor.force_timeout", 0.25);
   if (!std::isfinite(parameters_.force_timeout) ||

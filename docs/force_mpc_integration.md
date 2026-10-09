@@ -1,8 +1,10 @@
 # 力跟随与 OCS2 联合控制
 
 入口：`ros2 launch tracer_jaka_bringup force_mpc.launch.py`。
+
+机械臂奇异性裕度已接入专用 `config/{sim,real}/task_force_mpc.info`。仿真默认启用奇异值过程／终端代价，操作度可在任务配置中叠加；实机新增代价默认关闭。公式、参数、键盘施力对比和报告见 [机械臂裕度说明](force_mpc_arm_margin.md)。
 处理节点、导纳算法、MRT 联锁和虚拟力源均为 C++；launch 使用 Python，
-新增参数集中在 bringup 的 YAML 中。沿用 WBMM 的处理节点与导纳节点，
+导纳与执行参数集中在 bringup 的 YAML 中，MPC 代价与求解器参数位于专用 task.info。沿用 WBMM 的处理节点与导纳节点，
 参考 jaka_keyboard 已测试的质量、阻尼、速度限制和重力补偿设计。
 
 ## 数据链路
@@ -31,8 +33,9 @@ OCS2 保持既有约定：9D 状态 `[x,y,yaw,q1..q6]`、8D 输入
 
 修改 `src/bringup/config/common/force_mpc.yaml`，或复制后通过
 `force_params_file:=/absolute/path/my_force_mpc.yaml` 加载。
-按顺序覆盖 `common/force_control.yaml`、对应 backend 的 `force_control.yaml`，
-再加载集成配置；既有启动入口的配置保持原样。
+按顺序加载 `common/force_control.yaml`、对应 backend 的 `force_control.yaml`、
+默认 `common/force_mpc.yaml`，再加载用户覆盖文件。用户文件可只包含要修改的字段。力/力矩只检查各轴分量，导纳速度只限制末端平移和旋转
+向量的范数；不再配置力范数或导纳逐轴速度上限。
 
 六轴顺序为 `[x,y,z,rx,ry,rz]`，单位为 m、rad、N、Nm、s：
 
@@ -40,10 +43,11 @@ OCS2 保持既有约定：9D 状态 `[x,y,yaw,q1..q6]`、8D 输入
 | --- | --- | --- |
 | `admittance.selected_axes` | `[true,true,true,false,false,false]` | 三轴平移跟随；可独立开启旋转 |
 | `admittance.mass` | `[20,20,20,2,2,2]` | 各轴虚拟质量/转动惯量 |
-| `admittance.damping` | `[300,300,300,15,15,15]` | 各轴阻尼 |
+| `admittance.damping` | `[200,200,200,15,15,15]` | 各轴阻尼 |
 | `admittance.stiffness` | `[0,0,0,0,0,0]` | K=0 持续拖动，撤力后停止在新位置；K>0 返回启用时位置 |
-| `admittance.max_velocity` | `[.05,.05,.05,.17,.17,.17]` | 各轴积分速度上限 |
-| `end_effector.max_linear_velocity` | `.05` | 平移向量范数上限，限制斜向移动总速度 |
+| `end_effector.max_linear_velocity` | `.2` | 末端导纳平移速度范数上限（m/s） |
+| `end_effector.max_angular_velocity` | `.4` | 末端导纳旋转速度范数上限（rad/s） |
+| `force_sensor.hard_wrench_limit` | `[30,30,30,10,10,10]` | 各轴力/力矩绝对值上限（N/Nm） |
 | `force_sensor.filter_cutoff_hz` | `4.44` | 约等于 125 Hz 时 alpha=.2，随实际采样间隔计算系数 |
 | `force_sensor.force_deadband_n` | `1` | 各轴力死区 |
 | `force_sensor.torque_deadband_nm` | `.5` | 各轴力矩死区 |
@@ -147,7 +151,10 @@ ros2 param set /virtual_force_publisher force '[-5.0, 0.0, 0.0]'
 
 若 backend 已由其他入口启动，可传 `start_backend:=false`；需自行提供相同
 odom、joint_states、TF 和执行接口，且不得同时启动其他末端目标发布器。
-MPC 调参继续使用 backend 的 `task.info`，可用 `task_file:=...` 替换。
+MPC 代价与求解器调参使用 backend 的 `task_force_mpc.info`，可用 `task_file:=...` 替换。
+规划速度在 task 的 jointVelocityLimits 中修改；MRT 指令限幅和硬件保护传参使用
+force_mpc.yaml 中的执行速度，YAML 不覆盖 MPC 规划约束。
+参数加载顺序、共享接口和各环节参数职责见 [参数配置说明](force_mpc_configuration.md)。
 
 ## MuJoCo 关节执行与晃动修复
 
@@ -163,16 +170,21 @@ MPC 调参继续使用 backend 的 `task.info`，可用 `task_file:=...` 替换�
 导纳 EE 参考 → OCS2 MPC → 预测关节位置 → C++ 位置指令限速 → MuJoCo 物理伺服
 ```
 
-`config/sim/force_mpc.yaml` 将仿真 MRT 的 `arm_use_velocity_integrator` 设为
-`false`，避免在物理位置伺服前额外积分受反馈修正的 MPC 速度。它在 common
-力控配置之后加载，只覆盖仿真执行方式；用户配置的导纳 M/D/K、按键力和速度上限保留。
+MRT 统一跟踪 MPC 的预测关节位置，已移除可选的关节速度积分模式及其参数。
+导纳 M/D/K、按键力和末端速度上限由对应配置决定。
 位置指令逐轴同时受 `arm_max_command_velocity × 仿真 dt` 和
 `arm_max_delta_per_step`（相对实际反馈的最大超前量）限制。后者不是 rad/s。
 故障保持/策略过期后清空指令状态，恢复时从反馈重新起步。
 
-保留的速度积分模式现在使用与底盘相同的当前时刻 MPC 输入，未来策略仅用于
-预测位置，避免拿当前测量状态计算未来反馈速度后再积分。实机保持原来的执行模式，
+底盘使用当前时刻 MPC 输入，机械臂使用未来预测关节位置。
 本次没有进行实机运动验证。
+
+2026-10-09 参数精简验证：受影响的三个包编译成功，37 项 C++ 测试及
+42 项配置/启动测试通过。完整 MuJoCo 闭环的六方向拖动/松键共 13 阶段通过，
+静止/松键阶段最大单轴 TCP 峰峰值为 0.394 mm；力源断开、保持和复位恢复通过。
+首轮零力启动出现过关节反馈突跳，连续位置指令未发生同等突跳，随后触发原有跟踪误差停止。
+原因尚未确认，后续两次全新启动未重现；失败记录与通过记录均保留于
+[参数精简验证记录](diagnostics/force_mpc_parameter_cleanup/verification.json)。
 
 导纳在 `use_sim_time=true` 时按 `/clock` 积分，MPC/MRT 使用同一时间基准；
 暂停时导纳目标不继续积累。输入超时与故障心跳仍使用墙钟，时钟回退则锁定

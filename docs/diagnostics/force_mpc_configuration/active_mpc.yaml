@@ -1,0 +1,38 @@
+/wbmm_mpc_node:
+  ros__parameters:
+    ee_frame: tool0
+    ee_target_topic: /mobile_manipulator_ee_target
+    esdfFile: ''
+    initial_task_phase: 2
+    input_velocity_limits:
+    - 0.1
+    - 0.4
+    - 0.2
+    - 0.2
+    - 0.2
+    - 0.2
+    - 0.2
+    - 0.2
+    libFolder: /tmp/wbmm_force_mpc/auto_generated/mpc
+    qos_overrides:
+      /clock:
+        subscription:
+          depth: 1
+          durability: volatile
+          history: keep_last
+          reliability: best_effort
+      /parameter_events:
+        publisher:
+          depth: 1000
+          durability: volatile
+          history: keep_last
+          reliability: reliable
+    robot_name: mobile_manipulator
+    set_task_phase_service: mobile_manipulator_set_task_phase
+    taskFile: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/task_force_mpc.info
+    task_phase_state_topic: mobile_manipulator_task_phase_state
+    urdfFile: /home/a/WBMM/install/tracer_jaka_description/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf
+    use_sim_time: true
+    whole_body_target_topic: mobile_manipulator_whole_body_target
+    world_frame: odom
+

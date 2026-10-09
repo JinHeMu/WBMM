@@ -1,0 +1,67 @@
+{
+  "name": "six_axes",
+  "passed": false,
+  "error": "fault/collision: [('0_w', 'ACTIVE', 'FAULT_INTERLOCK')], collision=False",
+  "faults": [
+    [
+      "0_w",
+      "ACTIVE",
+      "FAULT_INTERLOCK"
+    ]
+  ],
+  "unexpected_collision": false,
+  "collision_monitor_seen": true,
+  "stages": [
+    {
+      "name": "initial_zero",
+      "key": null,
+      "duration_s": 3.0,
+      "samples": 146,
+      "min_sigma": 0.12195478895212403,
+      "min_yoshikawa": 0.002062312154427267,
+      "tracking_rms_m": 0.0001389274350635875,
+      "tcp_change_m": [
+        6.564511864026734e-05,
+        1.0023846979401174e-05,
+        0.00015612738056614006
+      ],
+      "end_q": [
+        -0.5150467753410339,
+        1.569057822227478,
+        -1.5685162544250488,
+        1.5697808265686035,
+        1.5704180002212524,
+        0.2506970763206482
+      ],
+      "mean_force_tcp_n": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "jacobian": {
+    "scope": "arm",
+    "task": "pose",
+    "scaling": "characteristic_length",
+    "ell_m": 0.3
+  },
+  "sequence": "w:3,zero:2,s:3,zero:2,a:3,zero:2,d:3,zero:2,r:3,zero:2,f:3,zero:2",
+  "min_sigma": 0.12194666278205611,
+  "min_yoshikawa": 0.002062312154427267,
+  "tracking_rms_m": 0.00032534102242856973,
+  "maximum_tracking_error_m": 0.002392173294359718,
+  "end_state": [
+    0.0024798994418233633,
+    -4.6128470785333775e-06,
+    -0.003194279968738556,
+    -0.5149948596954346,
+    1.568933129310608,
+    -1.5683766603469849,
+    1.5696864128112793,
+    1.5705201625823975,
+    0.2504170835018158
+  ],
+  "predicted_horizon_s": 1.999999999,
+  "solve_ms_p95": 19.04483159999998
+}

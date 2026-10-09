@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-09",
+  "implementation": "MPC process/terminal arm costs plus read-only diagnostics; no added runtime singularity gates or motion_scale",
+  "scope": "source, build, unit/config tests, MuJoCo closed-loop only",
+  "hardware_motion_tested": false,
+  "cpp_tests": {
+    "wbmm_ocs2": {
+      "tests": 23,
+      "failures": 0
+    },
+    "wbmm_ocs2_ros": {
+      "tests": 10,
+      "failures": 0
+    },
+    "whole_body_force_control": {
+      "tests": 25,
+      "failures": 0
+    }
+  },
+  "launch_config_tests_passed": 23,
+  "closed_loop_cases": {
+    "baseline": true,
+    "sigma": true,
+    "sigma_yoshikawa": true,
+    "six_axes": true,
+    "integration_cost": true
+  },
+  "comparison_passed": true,
+  "sigma_min_improvement_factor": 3.9291952574560174,
+  "original_force_control_and_interlock_unchanged": true,
+  "diagnostics_disabled_in_integration_test": true,
+  "config_sha256": {
+    "baseline": "7e4d573c8e888f32624933f1df312c069a4710cf4c61060ab03e5111d2a1d983",
+    "sigma": "120e0494fddc606f7cab1a316c758adfe3492f0d550019edaa5713a79617a0d6",
+    "sigma_yoshikawa": "769e94cb8dbb3b9a61f9c27e4d63e8ca793f0eb690c05be64498199c1cb50d5d",
+    "six_axes": "120e0494fddc606f7cab1a316c758adfe3492f0d550019edaa5713a79617a0d6",
+    "integration_cost": "f521e3667418d37a754242faa0342b04f92b1cea06e6a26d56933e5811be2877"
+  }
+}

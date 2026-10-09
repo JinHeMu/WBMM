@@ -207,15 +207,11 @@ void ForceSensorProcessorNode::loadParameters() {
     throw std::runtime_error(
         "force_sensor.hard_wrench_limit values must be positive");
   }
-  parameters_.hard_force_norm_limit =
-      declare_parameter<double>("force_sensor.hard_force_norm_limit", 20.0);
   parameters_.force_deadband_n =
       declare_parameter<double>("force_sensor.force_deadband_n", 1.0);
   parameters_.torque_deadband_nm =
       declare_parameter<double>("force_sensor.torque_deadband_nm", 0.1);
-  if (!std::isfinite(parameters_.hard_force_norm_limit) ||
-      parameters_.hard_force_norm_limit < 0.0 ||
-      !std::isfinite(parameters_.force_deadband_n) ||
+  if (!std::isfinite(parameters_.force_deadband_n) ||
       parameters_.force_deadband_n < 0.0 ||
       !std::isfinite(parameters_.torque_deadband_nm) ||
       parameters_.torque_deadband_nm < 0.0) {
@@ -252,7 +248,6 @@ void ForceSensorProcessorNode::configureProcessor() {
   config.scale = parameters_.wrench_scale;
   config.hard_limit_enabled = true;
   config.hard_wrench_limit = parameters_.hard_wrench_limit;
-  config.hard_force_norm_limit = parameters_.hard_force_norm_limit;
   config.force_deadband_n = parameters_.force_deadband_n;
   config.torque_deadband_nm = parameters_.torque_deadband_nm;
   config.load_compensation = parameters_.load_compensation;

@@ -1,0 +1,4 @@
+Push: TCP dx=0.217322 base=0.157622 arm=0.124991
+Release drift=1.40836e-05
+Reverse TCP dx=-0.218525
+PASS: /home/a/WBMM/docs/diagnostics/force_mpc_task_limits/integration.json

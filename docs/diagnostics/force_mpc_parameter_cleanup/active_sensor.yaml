@@ -1,0 +1,83 @@
+/force_sensor_processor:
+  ros__parameters:
+    force_sensor:
+      filter_alpha: 0.25
+      filter_cutoff_hz: 4.44
+      force_deadband_n: 1.0
+      hard_wrench_limit:
+      - 30.0
+      - 30.0
+      - 30.0
+      - 10.0
+      - 10.0
+      - 10.0
+      load_compensation:
+        base_frame: base_footprint
+        center_of_mass_sensor_m:
+        - 0.0
+        - 0.0
+        - 0.0
+        enable: false
+        force_bias_sensor_n:
+        - 0.0
+        - 0.0
+        - 0.0
+        gravity_direction_base:
+        - 0.0
+        - 0.0
+        - -1.0
+        gravity_m_s2: 9.80665
+        mass_kg: 0.0
+        torque_bias_sensor_nm:
+        - 0.0
+        - 0.0
+        - 0.0
+      monitor_rate: 50.0
+      raw_timeout: 0.25
+      require_stamped_wrench: false
+      sensor_frame: jk_se_vi_200_link
+      sensor_to_tcp_rotation:
+      - 1.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      tare_after_compensation: true
+      tare_on_start: true
+      tare_samples: 50
+      tcp_frame: tool0
+      tcp_to_sensor_m: []
+      tf_fallback_to_latest: true
+      tf_lookup_timeout: 0.05
+      torque_deadband_nm: 0.5
+      use_calibrated_transform: false
+      wrench_scale:
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+    qos_overrides:
+      /clock:
+        subscription:
+          depth: 1
+          durability: volatile
+          history: keep_last
+          reliability: best_effort
+      /parameter_events:
+        publisher:
+          depth: 1000
+          durability: volatile
+          history: keep_last
+          reliability: reliable
+    topics:
+      processed_wrench: /whole_body_force_control/processed_wrench
+      raw_wrench: /whole_body_force_control/fake_wrench
+      states: /whole_body_force_control/force_sensor_states
+    use_sim_time: true
+

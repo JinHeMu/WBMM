@@ -1,0 +1,93 @@
+{
+  "name": "guard_trip",
+  "passed": true,
+  "error": null,
+  "faults": [
+    [
+      "0_f",
+      "ACTIVE",
+      "FAULT_SINGULARITY"
+    ],
+    [
+      "fault_hold",
+      "FAULT_SINGULARITY",
+      "FAULT_SINGULARITY"
+    ]
+  ],
+  "unexpected_collision": false,
+  "interlock_fault_reason": "",
+  "reset_service_checks": [
+    {
+      "expected_success": true,
+      "success": true,
+      "message": "Singularity guard reset. Reset force controller and execution interlock next."
+    },
+    {
+      "expected_success": false,
+      "success": false,
+      "message": "Reset requires fresh measured state above armSingularityGuard.resetSigma."
+    }
+  ],
+  "collision_monitor_seen": true,
+  "stages": [
+    {
+      "name": "initial_zero",
+      "key": null,
+      "duration_s": 3.0,
+      "samples": 147,
+      "min_sigma": 0.12195935162226777,
+      "min_yoshikawa": 0.0020623123736689688,
+      "tracking_rms_m": 0.0001484012605595564,
+      "tcp_change_m": [
+        6.89656732168753e-05,
+        2.367057492613789e-05,
+        0.0001635929866448116
+      ],
+      "end_q": [
+        -0.515040934085846,
+        1.5691595077514648,
+        -1.5686146020889282,
+        1.5698331594467163,
+        1.5704265832901,
+        0.2507212460041046
+      ],
+      "mean_force_tcp_n": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "jacobian": {
+    "scope": "arm",
+    "task": "pose",
+    "scaling": "characteristic_length",
+    "ell_m": 0.3
+  },
+  "sequence": "f:8,zero:2",
+  "protection": {
+    "singularity_fault_seen": true,
+    "base_command_max": 0.0,
+    "arm_hold_variation_rad": 0.0,
+    "reference_variation_m": 0.0,
+    "latched_after_release": true
+  },
+  "expected_fault": "fault/collision: [('0_f', 'ACTIVE', 'FAULT_SINGULARITY')], collision=False",
+  "min_sigma": 0.11076808656826642,
+  "min_yoshikawa": 0.001769206788550206,
+  "tracking_rms_m": 0.012297698551949943,
+  "maximum_tracking_error_m": 0.025898428831501216,
+  "end_state": [
+    -0.04390857741236687,
+    -0.0008134664385579526,
+    0.04223472997546196,
+    -0.4955933392047882,
+    1.6180771589279175,
+    -1.249229073524475,
+    1.247700572013855,
+    1.5825756788253784,
+    0.3161867558956146
+  ],
+  "predicted_horizon_s": 1.999999999,
+  "solve_ms_p95": 2.675559
+}

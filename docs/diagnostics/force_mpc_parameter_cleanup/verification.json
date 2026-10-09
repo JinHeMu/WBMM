@@ -1,0 +1,75 @@
+{
+  "date_utc": "2026-10-09T04:21:46.049994+00:00",
+  "scope": "Remove unused force norm limit, per-axis admittance speed limit, and optional MRT velocity integrator. No package dependencies added.",
+  "removed_parameters": [
+    "force_sensor.hard_force_norm_limit",
+    "admittance.max_velocity",
+    "arm_use_velocity_integrator"
+  ],
+  "effective_runtime": {
+    "hard_wrench_limit": [
+      30.0,
+      30.0,
+      30.0,
+      10.0,
+      10.0,
+      10.0
+    ],
+    "max_linear_velocity_m_s": 0.2,
+    "max_angular_velocity_rad_s": 0.4,
+    "arm_command_mode": "predicted_joint_positions"
+  },
+  "build": {
+    "passed": true,
+    "packages": [
+      "whole_body_force_control",
+      "wbmm_ocs2_ros",
+      "tracer_jaka_bringup"
+    ]
+  },
+  "unit_tests": {
+    "force_control": 27,
+    "ocs2_ros": 10,
+    "passed": true
+  },
+  "python_tests": {
+    "passed": 42,
+    "files": [
+      "test_force_control_configs.py",
+      "test_functional_launch.py"
+    ]
+  },
+  "keyboard": {
+    "passed": true,
+    "stages": 13,
+    "faults": [],
+    "failures": [],
+    "max_quiet_or_release_single_axis_tcp_peak_to_peak_m": 0.0003936102774683148
+  },
+  "force_source_loss_and_recovery": {
+    "passed": true,
+    "backend": "MuJoCo",
+    "positive_tcp_dx_m": 0.21833,
+    "base_travel_m": 0.158453,
+    "arm_joint_change_norm_rad": 0.125334,
+    "release_drift_m": 5.79133e-06,
+    "negative_tcp_dx_m": -0.218715,
+    "disconnect_fault": "FAULT_WRENCH_TIMEOUT",
+    "stopped_base_command_max": 0,
+    "hold_command_variation_rad": 0,
+    "recovery_displacement_m": 0.000149958,
+    "unexpected_collision": false
+  },
+  "initial_attempt": {
+    "passed": false,
+    "faults": [
+      [
+        "initial_zero",
+        "FAULT_TRACKING_ERROR",
+        "ACTIVE"
+      ]
+    ],
+    "note": "Zero-force start: measured joints jumped while published position commands remained continuous; existing tracking-error stop triggered. Root cause not established. Retained all logs and traces. Two subsequent fresh launches passed without reproducing this jump."
+  },
+  "hardware_tested": false
+}

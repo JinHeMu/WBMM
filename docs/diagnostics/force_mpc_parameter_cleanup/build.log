@@ -1,0 +1,392 @@
+Starting >>> whole_body_force_control
+Consolidate compiler generated dependencies of target whole_body_force_control_core
+[  4%] Building CXX object CMakeFiles/whole_body_force_control_core.dir/src/controllers.cpp.o
+[  9%] Building CXX object CMakeFiles/whole_body_force_control_core.dir/src/force_processor.cpp.o
+[ 14%] Linking CXX static library libwhole_body_force_control_core.a
+[ 14%] Built target whole_body_force_control_core
+Consolidate compiler generated dependencies of target whole_body_force_control_node
+[ 19%] Building CXX object CMakeFiles/whole_body_force_control_node.dir/src/node.cpp.o
+[ 23%] Building CXX object CMakeFiles/whole_body_force_control_node.dir/src/node_config.cpp.o
+[ 28%] Building CXX object CMakeFiles/whole_body_force_control_node.dir/src/node_ros_io.cpp.o
+[ 33%] Linking CXX executable whole_body_force_control_node
+[Processing: whole_body_force_control]
+[ 33%] Built target whole_body_force_control_node
+Consolidate compiler generated dependencies of target force_sensor_processor_node
+[ 38%] Building CXX object CMakeFiles/force_sensor_processor_node.dir/src/force_sensor_processor_node.cpp.o
+[ 42%] Linking CXX executable force_sensor_processor_node
+[ 42%] Built target force_sensor_processor_node
+[ 52%] Built target virtual_wrench_node
+[ 61%] Built target keyboard_wrench_node
+[ 71%] Built target gtest_main
+[ 80%] Built target gtest
+Consolidate compiler generated dependencies of target test_force_control
+[ 85%] Building CXX object CMakeFiles/test_force_control.dir/test/test_force_control.cpp.o
+[ 90%] Linking CXX executable test_force_control
+[ 90%] Built target test_force_control
+[100%] Built target force_mpc_integration_probe
+-- Install configuration: "Release"
+-- Execute custom install script
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/lib/whole_body_force_control/whole_body_force_control_node
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/lib/whole_body_force_control/force_sensor_processor_node
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/lib/whole_body_force_control/virtual_wrench_node
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/lib/whole_body_force_control/keyboard_wrench_node
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/include/whole_body_force_control/controllers.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/include/whole_body_force_control/force_processor.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/lib/whole_body_force_control/whole_body_force_control_test.py
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/lib/whole_body_force_control/fake_wrench_sequence.py
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/lib/whole_body_force_control/axis_wrench_sequence.py
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/lib/whole_body_force_control/force_mpc_integration_probe
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/environment/library_path.sh
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/environment/library_path.dsv
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/ament_index/resource_index/package_run_dependencies/whole_body_force_control
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/ament_index/resource_index/parent_prefix_path/whole_body_force_control
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/environment/ament_prefix_path.sh
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/environment/ament_prefix_path.dsv
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/environment/path.sh
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/environment/path.dsv
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/local_setup.bash
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/local_setup.sh
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/local_setup.zsh
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/local_setup.dsv
+-- Symlinking: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/package.dsv
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/ament_index/resource_index/packages/whole_body_force_control
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/cmake/ament_cmake_export_targets-extras.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/cmake/ament_cmake_export_include_directories-extras.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/cmake/ament_cmake_export_libraries-extras.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/cmake/ament_cmake_export_dependencies-extras.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/cmake/whole_body_force_controlConfig.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/cmake/whole_body_force_controlConfig-version.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/package.xml
+-- Installing: /home/a/WBMM/install/whole_body_force_control/lib/libwhole_body_force_control_core.a
+-- Up-to-date: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/cmake/export_whole_body_force_controlExport.cmake
+-- Up-to-date: /home/a/WBMM/install/whole_body_force_control/share/whole_body_force_control/cmake/export_whole_body_force_controlExport-release.cmake
+Finished <<< whole_body_force_control [59.3s]
+Starting >>> wbmm_ocs2_ros
+[  1%] Built target wbmm_ocs2_ros__rs
+[  9%] Built target wbmm_ocs2_ros__rosidl_generator_c
+[ 16%] Built target wbmm_ocs2_ros__rosidl_typesupport_fastrtps_c
+[ 23%] Built target wbmm_ocs2_ros__rosidl_typesupport_introspection_c
+[ 30%] Built target wbmm_ocs2_ros__rosidl_typesupport_c
+[ 32%] Built target wbmm_ocs2_ros__cpp
+[ 40%] Built target wbmm_ocs2_ros__rosidl_typesupport_fastrtps_cpp
+[ 47%] Built target wbmm_ocs2_ros__rosidl_typesupport_introspection_cpp
+[ 54%] Built target wbmm_ocs2_ros__rosidl_typesupport_cpp
+[ 54%] Built target wbmm_ocs2_ros
+[ 54%] Built target ament_cmake_python_symlink_wbmm_ocs2_ros
+running egg_info
+writing wbmm_ocs2_ros.egg-info/PKG-INFO
+writing dependency_links to wbmm_ocs2_ros.egg-info/dependency_links.txt
+writing top-level names to wbmm_ocs2_ros.egg-info/top_level.txt
+reading manifest file 'wbmm_ocs2_ros.egg-info/SOURCES.txt'
+writing manifest file 'wbmm_ocs2_ros.egg-info/SOURCES.txt'
+[ 54%] Built target ament_cmake_python_build_wbmm_ocs2_ros_egg
+[ 56%] Built target wbmm_ocs2_ros__py
+[ 61%] Built target wbmm_ocs2_ros__rosidl_generator_py
+[ 65%] Built target wbmm_ocs2_ros__rosidl_typesupport_fastrtps_c__pyext
+[ 69%] Built target wbmm_ocs2_ros__rosidl_typesupport_introspection_c__pyext
+[ 72%] Built target wbmm_ocs2_ros__rosidl_typesupport_c__pyext
+[ 74%] Building CXX object CMakeFiles/wbmm_mpc_node.dir/src/WbmmMpcNode.cpp.o
+[ 76%] Linking CXX executable wbmm_mpc_node
+[ 76%] Built target wbmm_mpc_node
+Consolidate compiler generated dependencies of target wbmm_mrt_node
+[ 78%] Building CXX object CMakeFiles/wbmm_mrt_node.dir/src/WbmmMrtNode.cpp.o
+[ 80%] Building CXX object CMakeFiles/wbmm_mrt_node.dir/src/WbmmVisualization.cpp.o
+[Processing: wbmm_ocs2_ros]
+[ 81%] Linking CXX executable wbmm_mrt_node
+[ 81%] Built target wbmm_mrt_node
+[ 85%] Built target wbmm_target_node
+[ 89%] Built target gtest_main
+[ 92%] Built target gtest
+Consolidate compiler generated dependencies of target test_force_execution_gate
+[ 96%] Built target test_force_execution_gate
+[100%] Built target test_arm_position_command
+-- Install configuration: "Release"
+-- Execute custom install script
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/ament_index/resource_index/rosidl_interfaces/wbmm_ocs2_ros
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/detail/task_phase_state__functions.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/detail/task_phase_state__struct.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/detail/task_phase_state__type_support.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/rosidl_generator_c__visibility_control.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/task_phase_state.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/srv/detail/set_task_phase__functions.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/srv/detail/set_task_phase__struct.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/srv/detail/set_task_phase__type_support.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/srv/set_task_phase.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/environment/library_path.sh
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/environment/library_path.dsv
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/detail/task_phase_state__rosidl_typesupport_fastrtps_c.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/rosidl_typesupport_fastrtps_c__visibility_control.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/srv/detail/set_task_phase__rosidl_typesupport_fastrtps_c.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/detail/task_phase_state__rosidl_typesupport_introspection_c.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/rosidl_typesupport_introspection_c__visibility_control.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/srv/detail/set_task_phase__rosidl_typesupport_introspection_c.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/detail/task_phase_state__builder.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/detail/task_phase_state__struct.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/detail/task_phase_state__traits.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/detail/task_phase_state__type_support.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/rosidl_generator_cpp__visibility_control.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/task_phase_state.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/srv/detail/set_task_phase__builder.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/srv/detail/set_task_phase__struct.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/srv/detail/set_task_phase__traits.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/srv/detail/set_task_phase__type_support.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/srv/set_task_phase.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/detail/task_phase_state__rosidl_typesupport_fastrtps_cpp.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/rosidl_typesupport_fastrtps_cpp__visibility_control.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/srv/detail/set_task_phase__rosidl_typesupport_fastrtps_cpp.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/msg/detail/task_phase_state__rosidl_typesupport_introspection_cpp.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/include/wbmm_ocs2_ros/wbmm_ocs2_ros/srv/detail/set_task_phase__rosidl_typesupport_introspection_cpp.hpp
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/environment/pythonpath.sh
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/environment/pythonpath.dsv
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros-0.1.0-py3.10.egg-info/PKG-INFO
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros-0.1.0-py3.10.egg-info/SOURCES.txt
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros-0.1.0-py3.10.egg-info/dependency_links.txt
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros-0.1.0-py3.10.egg-info/top_level.txt
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/__init__.py
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/_wbmm_ocs2_ros_s.ep.rosidl_typesupport_c.c
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/_wbmm_ocs2_ros_s.ep.rosidl_typesupport_fastrtps_c.c
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/_wbmm_ocs2_ros_s.ep.rosidl_typesupport_introspection_c.c
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/libwbmm_ocs2_ros__rosidl_generator_py.so
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/msg/__init__.py
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/msg/_task_phase_state.py
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/msg/_task_phase_state_s.c
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/srv/__init__.py
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/srv/_set_task_phase.py
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/srv/_set_task_phase_s.c
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/wbmm_ocs2_ros_s__rosidl_typesupport_c.cpython-310-x86_64-linux-gnu.so
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/wbmm_ocs2_ros_s__rosidl_typesupport_fastrtps_c.cpython-310-x86_64-linux-gnu.so
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/wbmm_ocs2_ros_s__rosidl_typesupport_introspection_c.cpython-310-x86_64-linux-gnu.so
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/wbmm_ocs2_ros_s__rosidl_typesupport_fastrtps_c.cpython-310-x86_64-linux-gnu.so
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/wbmm_ocs2_ros_s__rosidl_typesupport_introspection_c.cpython-310-x86_64-linux-gnu.so
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/wbmm_ocs2_ros_s__rosidl_typesupport_c.cpython-310-x86_64-linux-gnu.so
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/ament_index/resource_index/rust_packages/wbmm_ocs2_ros
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/rust/Cargo.toml
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/rust/build.rs
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/rust/src/lib.rs
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/rust/src/msg.rs
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/rust/src/msg/rmw.rs
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/rust/src/srv.rs
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/rust/src/srv/rmw.rs
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/msg/TaskPhaseState.idl
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/srv/SetTaskPhase.idl
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/msg/TaskPhaseState.msg
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/srv/SetTaskPhase.srv
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/srv/SetTaskPhase_Request.msg
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/srv/SetTaskPhase_Response.msg
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/lib/wbmm_ocs2_ros/wbmm_mpc_node
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/lib/wbmm_ocs2_ros/wbmm_mrt_node
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/lib/wbmm_ocs2_ros/wbmm_target_node
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/config/initial_positions.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/rviz/wbmm_esdf_validation.rviz
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/rviz/wbmm_ocs2_ros.rviz
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/scripts/__pycache__/set_task_phase.cpython-310.pyc
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/scripts/send_target.py
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/scripts/set_task_phase.py
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/include/ArmMetricsDiagnostics.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/include/ArmPositionCommand.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/include/ForceExecutionGate.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/include/WbmmVisualization.h
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/lib/wbmm_ocs2_ros/send_target.py
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/lib/wbmm_ocs2_ros/set_task_phase.py
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/ament_index/resource_index/package_run_dependencies/wbmm_ocs2_ros
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/ament_index/resource_index/parent_prefix_path/wbmm_ocs2_ros
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/environment/ament_prefix_path.sh
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/environment/ament_prefix_path.dsv
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/environment/path.sh
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/environment/path.dsv
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/local_setup.bash
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/local_setup.sh
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/local_setup.zsh
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/local_setup.dsv
+-- Symlinking: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/package.dsv
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/ament_index/resource_index/packages/wbmm_ocs2_ros
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/rosidl_cmake-extras.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/ament_cmake_export_dependencies-extras.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/ament_cmake_export_include_directories-extras.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/ament_cmake_export_libraries-extras.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/ament_cmake_export_targets-extras.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/rosidl_cmake_export_typesupport_targets-extras.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/rosidl_cmake_export_typesupport_libraries-extras.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/wbmm_ocs2_rosConfig.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/wbmm_ocs2_rosConfig-version.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/package.xml
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/lib/libwbmm_ocs2_ros__rosidl_generator_c.so
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/lib/libwbmm_ocs2_ros__rosidl_typesupport_fastrtps_c.so
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/lib/libwbmm_ocs2_ros__rosidl_typesupport_introspection_c.so
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/lib/libwbmm_ocs2_ros__rosidl_typesupport_c.so
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/lib/libwbmm_ocs2_ros__rosidl_typesupport_fastrtps_cpp.so
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/lib/libwbmm_ocs2_ros__rosidl_typesupport_introspection_cpp.so
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/lib/libwbmm_ocs2_ros__rosidl_typesupport_cpp.so
+Listing '/home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros'...
+Listing '/home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/msg'...
+Listing '/home/a/WBMM/install/wbmm_ocs2_ros/local/lib/python3.10/dist-packages/wbmm_ocs2_ros/srv'...
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/lib/libwbmm_ocs2_ros__rosidl_generator_py.so
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/export_wbmm_ocs2_ros__rosidl_generator_cExport.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/export_wbmm_ocs2_ros__rosidl_generator_cExport-release.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/export_wbmm_ocs2_ros__rosidl_typesupport_fastrtps_cExport.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/export_wbmm_ocs2_ros__rosidl_typesupport_fastrtps_cExport-release.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/wbmm_ocs2_ros__rosidl_typesupport_introspection_cExport.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/wbmm_ocs2_ros__rosidl_typesupport_introspection_cExport-release.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/wbmm_ocs2_ros__rosidl_typesupport_cExport.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/wbmm_ocs2_ros__rosidl_typesupport_cExport-release.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/export_wbmm_ocs2_ros__rosidl_generator_cppExport.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/export_wbmm_ocs2_ros__rosidl_typesupport_fastrtps_cppExport.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/export_wbmm_ocs2_ros__rosidl_typesupport_fastrtps_cppExport-release.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/wbmm_ocs2_ros__rosidl_typesupport_introspection_cppExport.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/wbmm_ocs2_ros__rosidl_typesupport_introspection_cppExport-release.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/wbmm_ocs2_ros__rosidl_typesupport_cppExport.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/wbmm_ocs2_ros__rosidl_typesupport_cppExport-release.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/export_wbmm_ocs2_ros__rosidl_generator_pyExport.cmake
+-- Up-to-date: /home/a/WBMM/install/wbmm_ocs2_ros/share/wbmm_ocs2_ros/cmake/export_wbmm_ocs2_ros__rosidl_generator_pyExport-release.cmake
+Finished <<< wbmm_ocs2_ros [56.8s]
+Starting >>> tracer_jaka_bringup
+-- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+-- Override CMake install command with custom implementation using symlinks instead of copying resources
+-- Found ament_cmake_pytest: 1.3.14 (/opt/ros/humble/share/ament_cmake_pytest/cmake)
+-- Found ament_lint_auto: 0.12.15 (/opt/ros/humble/share/ament_lint_auto/cmake)
+CMake Warning at /opt/ros/humble/share/ament_cmake_pytest/cmake/ament_add_pytest_test.cmake:79 (message):
+  The Python module 'pytest' was not found, pytests cannot be run.  On Linux,
+  install the 'python3-pytest' package.  On other platforms, install 'pytest'
+  using pip.
+Call Stack (most recent call first):
+  CMakeLists.txt:49 (ament_add_pytest_test)
+
+
+CMake Warning at /opt/ros/humble/share/ament_cmake_pytest/cmake/ament_add_pytest_test.cmake:79 (message):
+  The Python module 'pytest' was not found, pytests cannot be run.  On Linux,
+  install the 'python3-pytest' package.  On other platforms, install 'pytest'
+  using pip.
+Call Stack (most recent call first):
+  CMakeLists.txt:54 (ament_add_pytest_test)
+
+
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/a/WBMM/build/tracer_jaka_bringup
+Built target ament_cmake_python_symlink_wbmm_bringup_launch
+running egg_info
+writing wbmm_bringup_launch.egg-info/PKG-INFO
+writing dependency_links to wbmm_bringup_launch.egg-info/dependency_links.txt
+writing top-level names to wbmm_bringup_launch.egg-info/top_level.txt
+reading manifest file 'wbmm_bringup_launch.egg-info/SOURCES.txt'
+writing manifest file 'wbmm_bringup_launch.egg-info/SOURCES.txt'
+Built target ament_cmake_python_build_wbmm_bringup_launch_egg
+-- Install configuration: "Release"
+-- Execute custom install script
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/environment/pythonpath.sh
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/environment/pythonpath.dsv
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/local/lib/python3.10/dist-packages/wbmm_bringup_launch-0.1.0-py3.10.egg-info/PKG-INFO
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/local/lib/python3.10/dist-packages/wbmm_bringup_launch-0.1.0-py3.10.egg-info/SOURCES.txt
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/local/lib/python3.10/dist-packages/wbmm_bringup_launch-0.1.0-py3.10.egg-info/dependency_links.txt
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/local/lib/python3.10/dist-packages/wbmm_bringup_launch-0.1.0-py3.10.egg-info/top_level.txt
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/local/lib/python3.10/dist-packages/wbmm_bringup_launch/__init__.py
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/local/lib/python3.10/dist-packages/wbmm_bringup_launch/entrypoints.py
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/.gitkeep
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/README.md
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/common/ekf.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/common/force_control.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/common/force_mpc.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/common/interface.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/common/moveit_bringup.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/common/ocs2.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/common/remani.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/common/slam_toolbox.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/real/d455_esdf_record_qos.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/real/ekf.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/real/force_control.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/real/force_mpc_calibration.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/real/planner.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/real/remani.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/real/startup.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/real/task.info
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/real/task_esdf.info
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/real/task_force_mpc.info
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/ekf.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/force_control.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/ocs2.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/planner.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/remani.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/remani_tracking.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/slam_toolbox.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/startup.yaml
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/task.info
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/task_esdf.info
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/task_esdf_tracking.info
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/task_force_mpc.info
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/rviz/.gitkeep
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/rviz/remani_tracking_map1.rviz
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/rviz/slam.rviz
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/rviz/wbmm_tracking_map1.rviz
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/rviz/whole_body_force_control_sim.rviz
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/lib/tracer_jaka_bringup/arm_pose_publisher.py
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/lib/tracer_jaka_bringup/odom_to_map_relay.py
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/lib/tracer_jaka_bringup/readiness_check.py
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/lib/tracer_jaka_bringup/remani_phase_bridge.py
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/ament_index/resource_index/package_run_dependencies/tracer_jaka_bringup
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/ament_index/resource_index/parent_prefix_path/tracer_jaka_bringup
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/environment/ament_prefix_path.sh
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/environment/ament_prefix_path.dsv
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/environment/path.sh
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/environment/path.dsv
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/local_setup.bash
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/local_setup.sh
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/local_setup.zsh
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/local_setup.dsv
+-- Symlinking: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/package.dsv
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/ament_index/resource_index/packages/tracer_jaka_bringup
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/cmake/tracer_jaka_bringupConfig.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/cmake/tracer_jaka_bringupConfig-version.cmake
+-- Up-to-date symlink: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/package.xml
+Listing '/home/a/WBMM/install/tracer_jaka_bringup/local/lib/python3.10/dist-packages/wbmm_bringup_launch'...
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch
+-- Installing: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/force_mpc.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/robot_hardware.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/moveit.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/remani_mpc_localized.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/wbmm.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/wbmm_hardware_interface.launch.py
+-- Installing: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/whole_body_force_control_profiles.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/force_control_infinite_follow_test.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/force_control_20s_follow_test.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/wbmm_planning.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/wbmm_tracking.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/remani_mpc.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/record_d455_esdf_bag.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/whole_body_force_control.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/real_ocs2_ee_hold.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/localization.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/mujoco_ocs2_ee_hold.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/force_control_mujoco_test.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/end_effector_tracking.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/remani_tracking.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/ocs2.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/navigation.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/d455_camera.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/robot_localization.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/arm_moveit.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/mujoco_hardware_interface.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/ocs2_esdf_validation.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/mapping.launch.py
+-- Up-to-date: /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/launch/d435_camera.launch.py
+--- stderr: tracer_jaka_bringup
+CMake Warning at /opt/ros/humble/share/ament_cmake_pytest/cmake/ament_add_pytest_test.cmake:79 (message):
+  The Python module 'pytest' was not found, pytests cannot be run.  On Linux,
+  install the 'python3-pytest' package.  On other platforms, install 'pytest'
+  using pip.
+Call Stack (most recent call first):
+  CMakeLists.txt:49 (ament_add_pytest_test)
+
+
+CMake Warning at /opt/ros/humble/share/ament_cmake_pytest/cmake/ament_add_pytest_test.cmake:79 (message):
+  The Python module 'pytest' was not found, pytests cannot be run.  On Linux,
+  install the 'python3-pytest' package.  On other platforms, install 'pytest'
+  using pip.
+Call Stack (most recent call first):
+  CMakeLists.txt:54 (ament_add_pytest_test)
+
+
+---
+Finished <<< tracer_jaka_bringup [2.51s]
+
+Summary: 3 packages finished [1min 59s]
+  1 package had stderr output: tracer_jaka_bringup

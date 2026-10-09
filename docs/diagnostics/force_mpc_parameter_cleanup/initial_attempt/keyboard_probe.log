@@ -1,0 +1,2 @@
+START initial_zero
+ERROR {('initial_zero', 'FAULT_TRACKING_ERROR', 'ACTIVE')}

@@ -53,12 +53,10 @@ Vector6d transformWrench(
 AdmittanceController::AdmittanceController(
   double mass,
   double damping,
-  double stiffness,
-  double max_velocity)
+  double stiffness)
 : mass_(std::max(1.0e-6, mass)),
   damping_(std::max(0.0, damping)),
-  stiffness_(std::max(0.0, stiffness)),
-  max_velocity_(std::abs(max_velocity))
+  stiffness_(std::max(0.0, stiffness))
 {}
 
 double AdmittanceController::update(double measured_force, double dt)
@@ -71,8 +69,7 @@ double AdmittanceController::update(double measured_force, double dt)
 
   const double acceleration =
     (measured_force_ - damping_ * velocity_ - stiffness_ * offset_) / mass_;
-  velocity_ = std::clamp(
-    velocity_ + dt * acceleration, -max_velocity_, max_velocity_);
+  velocity_ += dt * acceleration;
   const double previous_offset = offset_;
   offset_ += dt * velocity_;
   if (dt <= 0.0) {
@@ -119,13 +116,12 @@ CartesianComplianceController::CartesianComplianceController(
   const AxisMask6d & admittance_axes,
   const Vector6d & mass,
   const Vector6d & damping,
-  const Vector6d & stiffness,
-  const Vector6d & max_velocity)
+  const Vector6d & stiffness)
 : admittance_axes_(admittance_axes)
 {
   for (std::size_t i = 0; i < 6; ++i) {
     admittance_[i] = std::make_unique<AdmittanceController>(
-      mass[i], damping[i], stiffness[i], max_velocity[i]);
+      mass[i], damping[i], stiffness[i]);
   }
 }
 

@@ -1,0 +1,914 @@
+[INFO] [launch]: All log files can be found below /tmp/wbmm_force_params_sim_ros/2026-10-09-12-18-52-510080-a-42718
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [mujoco_bridge-1]: process started with pid [42730]
+[INFO] [robot_state_publisher-2]: process started with pid [42732]
+[INFO] [wbmm_mpc_node-3]: process started with pid [42734]
+[INFO] [wbmm_mrt_node-4]: process started with pid [42736]
+[INFO] [force_sensor_processor_node-5]: process started with pid [42738]
+[INFO] [whole_body_force_control_node-6]: process started with pid [42740]
+[INFO] [virtual_wrench_node-7]: process started with pid [42742]
+[INFO] [keyboard_wrench_node-8]: process started with pid [42744]
+[keyboard_wrench_node-8] [INFO] [1791519532.612346377] [keyboard_force_publisher]: Keyboard force window: w/s (+X/-X), a/d (+Y/-Y), r/f (+Z/-Z); frame=tool0 topic=/whole_body_force_control/virtual_wrench_command
+[virtual_wrench_node-7] [INFO] [1791519532.612640470] [virtual_force_publisher]: Virtual sensor publishing /whole_body_force_control/fake_wrench in jk_se_vi_200_link; keyboard command=/whole_body_force_control/virtual_wrench_command (tool0), timeout=0.150 s
+[force_sensor_processor_node-5] [INFO] [1791519532.613341604] [force_sensor_processor]: Ready: raw=/whole_body_force_control/fake_wrench processed=/whole_body_force_control/processed_wrench frame=jk_se_vi_200_link->tool0
+[wbmm_mpc_node-3] [INFO] [1791519532.613373044] [wbmm_mpc_node]: Task file : /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/task_force_mpc.info
+[wbmm_mpc_node-3] [INFO] [1791519532.613445485] [wbmm_mpc_node]: Lib folder: /tmp/wbmm_force_mpc/auto_generated/mpc
+[wbmm_mpc_node-3] [INFO] [1791519532.613457699] [wbmm_mpc_node]: URDF file : /home/a/WBMM/install/tracer_jaka_description/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf
+[wbmm_mpc_node-3] [INFO] [1791519532.613465594] [wbmm_mpc_node]: World frame: odom
+[wbmm_mpc_node-3] [INFO] [1791519532.613472972] [wbmm_mpc_node]: ESDF file override: <task file>
+[wbmm_mpc_node-3] [WbmmInterface] Loading task file: "/home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/task_force_mpc.info"
+[wbmm_mpc_node-3] [WbmmInterface] Loading Pinocchio model from: "/home/a/WBMM/install/tracer_jaka_description/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf"
+[wbmm_mpc_node-3] [WbmmInterface] Generated library path: "/tmp/wbmm_force_mpc/auto_generated/mpc"
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### Model Information:
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### model: wheelBasedMobileManipulator (fixed by wbmm_ocs2)
+[wbmm_mpc_node-3]  #### model_information.removeJoints: "left_wheel" "right_wheel" 
+[wbmm_mpc_node-3]  #### Note: All mimic joints will be automatically detected and removed
+[wbmm_mpc_node-3]  #### model_information.baseFrame: "base_footprint"
+[wbmm_mpc_node-3]  #### model_information.eeFrame: "tool0"
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mrt_node-4] [WbmmInterface] Loading task file: "/home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/task_force_mpc.info"
+[wbmm_mrt_node-4] [WbmmInterface] Loading Pinocchio model from: "/home/a/WBMM/install/tracer_jaka_description/share/tracer_jaka_description/urdf/tracer_jaka_zu5.urdf"
+[wbmm_mrt_node-4] [WbmmInterface] Generated library path: "/tmp/wbmm_force_mpc/auto_generated/mrt"
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### Model Information:
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### model: wheelBasedMobileManipulator (fixed by wbmm_ocs2)
+[wbmm_mrt_node-4]  #### model_information.removeJoints: "left_wheel" "right_wheel" 
+[wbmm_mrt_node-4]  #### Note: All mimic joints will be automatically detected and removed
+[wbmm_mrt_node-4]  #### model_information.baseFrame: "base_footprint"
+[wbmm_mrt_node-4]  #### model_information.eeFrame: "tool0"
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mpc_node-3] model.nv = 9
+[wbmm_mpc_node-3] model.nq = 9
+[wbmm_mpc_node-3] model.njoints = 8
+[wbmm_mpc_node-3] model.nbodies = 7
+[wbmm_mpc_node-3] model.nframes = 69
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3] Joints:
+[wbmm_mpc_node-3]             universe:   ID = 0
+[wbmm_mpc_node-3]           root_joint:   ID = 1
+[wbmm_mpc_node-3]              joint_1:   ID = 2
+[wbmm_mpc_node-3]              joint_2:   ID = 3
+[wbmm_mpc_node-3]              joint_3:   ID = 4
+[wbmm_mpc_node-3]              joint_4:   ID = 5
+[wbmm_mpc_node-3]              joint_5:   ID = 6
+[wbmm_mpc_node-3]              joint_6:   ID = 7
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3] Frames:
+[wbmm_mpc_node-3]             universe:   ID = 0, parent = 0, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]           root_joint:   ID = 1, parent = 1, type = "JOINT "
+[wbmm_mpc_node-3]       base_footprint:   ID = 2, parent = 1, type = "BODY "
+[wbmm_mpc_node-3] base_footprint_to_base_link:   ID = 3, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]            base_link:   ID = 4, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]         base_to_d455:   ID = 5, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]            d455_link:   ID = 6, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]          base_to_imu:   ID = 7, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]             imu_link:   ID = 8, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]         base_to_jaka:   ID = 9, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]       jaka_base_link:   ID = 10, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]                fixed:   ID = 11, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]               Link_0:   ID = 12, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]              joint_1:   ID = 13, parent = 2, type = "JOINT "
+[wbmm_mpc_node-3]               Link_1:   ID = 14, parent = 2, type = "BODY "
+[wbmm_mpc_node-3]              joint_2:   ID = 15, parent = 3, type = "JOINT "
+[wbmm_mpc_node-3]               Link_2:   ID = 16, parent = 3, type = "BODY "
+[wbmm_mpc_node-3]              joint_3:   ID = 17, parent = 4, type = "JOINT "
+[wbmm_mpc_node-3]               Link_3:   ID = 18, parent = 4, type = "BODY "
+[wbmm_mpc_node-3]              joint_4:   ID = 19, parent = 5, type = "JOINT "
+[wbmm_mpc_node-3]               Link_4:   ID = 20, parent = 5, type = "BODY "
+[wbmm_mpc_node-3]              joint_5:   ID = 21, parent = 6, type = "JOINT "
+[wbmm_mpc_node-3]               Link_5:   ID = 22, parent = 6, type = "BODY "
+[wbmm_mpc_node-3]              joint_6:   ID = 23, parent = 7, type = "JOINT "
+[wbmm_mpc_node-3]               Link_6:   ID = 24, parent = 7, type = "BODY "
+[wbmm_mpc_node-3]              fixed_2:   ID = 25, parent = 7, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]            Link_6_45:   ID = 26, parent = 7, type = "BODY "
+[wbmm_mpc_node-3]   jk_se_vi_200_joint:   ID = 27, parent = 7, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]    jk_se_vi_200_link:   ID = 28, parent = 7, type = "BODY "
+[wbmm_mpc_node-3] tool0_and_camera_link_joint:   ID = 29, parent = 7, type = "FIXED_JOINT "
+[wbmm_mpc_node-3] tool0_and_camera_link:   ID = 30, parent = 7, type = "BODY "
+[wbmm_mpc_node-3]          d435i_joint:   ID = 31, parent = 7, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]           d435i_link:   ID = 32, parent = 7, type = "BODY "
+[wbmm_mpc_node-3]          tool0_joint:   ID = 33, parent = 7, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]                tool0:   ID = 34, parent = 7, type = "BODY "
+[wbmm_mpc_node-3]        base_to_laser:   ID = 35, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]           laser_link:   ID = 36, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]      fl_castor_wheel:   ID = 37, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]       fl_castor_link:   ID = 38, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]             fl_wheel:   ID = 39, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]        fl_wheel_link:   ID = 40, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]      fr_castor_wheel:   ID = 41, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]       fr_castor_link:   ID = 42, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]             fr_wheel:   ID = 43, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]        fr_wheel_link:   ID = 44, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]       inertial_joint:   ID = 45, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]        inertial_link:   ID = 46, parent = 1, type = "BODY "
+[wbmm_mpc_node-3] joint_aluminium_2_base_link:   ID = 47, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3] aluminium_2_base_link:   ID = 48, parent = 1, type = "BODY "
+[wbmm_mpc_node-3] joint_aluminium_3_base_link:   ID = 49, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3] aluminium_3_base_link:   ID = 50, parent = 1, type = "BODY "
+[wbmm_mpc_node-3] joint_aluminium_4_base_link:   ID = 51, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3] aluminium_4_base_link:   ID = 52, parent = 1, type = "BODY "
+[wbmm_mpc_node-3] joint_aluminium_base_link:   ID = 53, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]  aluminium_base_link:   ID = 54, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]           left_wheel:   ID = 55, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]      left_wheel_link:   ID = 56, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]          right_wheel:   ID = 57, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]     right_wheel_link:   ID = 58, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]      rl_castor_wheel:   ID = 59, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]       rl_castor_link:   ID = 60, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]             rl_wheel:   ID = 61, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]        rl_wheel_link:   ID = 62, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]      rr_castor_wheel:   ID = 63, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]       rr_castor_link:   ID = 64, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]             rr_wheel:   ID = 65, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]        rr_wheel_link:   ID = 66, parent = 1, type = "BODY "
+[wbmm_mpc_node-3]          tracer_base:   ID = 67, parent = 1, type = "FIXED_JOINT "
+[wbmm_mpc_node-3]     urbase_base_link:   ID = 68, parent = 1, type = "BODY "
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### Model Settings:
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### 'usePreComputation'......................................................1
+[wbmm_mpc_node-3]  #### 'recompileLibraries'.....................................................1
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] Initial State:          0        0        0        0   1.5707        0   1.5707  3.14159 0.785398
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### DDP Settings: 
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### 'algorithm'............................................................SLQ
+[wbmm_mpc_node-3]  #### 'nThreads'...............................................................3
+[wbmm_mpc_node-3]  #### 'threadPriority'........................................................50
+[wbmm_mpc_node-3]  #### 'maxNumIterations'.......................................................1
+[wbmm_mpc_node-3]  #### 'minRelCost'...........................................................0.1
+[wbmm_mpc_node-3]  #### 'constraintTolerance'................................................0.001
+[wbmm_mpc_node-3]  #### 'displayInfo'............................................................0
+[wbmm_mpc_node-3]  #### 'displayShortSummary'....................................................0
+[wbmm_mpc_node-3]  #### 'checkNumericalStability'................................................0
+[wbmm_mpc_node-3]  #### 'debugPrintRollout'......................................................0
+[wbmm_mpc_node-3]  #### 'AbsTolODE'..........................................................1e-05
+[wbmm_mpc_node-3]  #### 'RelTolODE'..........................................................0.001
+[wbmm_mpc_node-3]  #### 'maxNumStepsPerSecond'..............................................100000
+[wbmm_mpc_node-3]  #### 'timeStep'...........................................................0.001
+[wbmm_mpc_node-3]  #### 'backwardPassIntegratorType'.........................................ODE45
+[wbmm_mpc_node-3]  #### 'constraintPenaltyInitialValue'.........................................20
+[wbmm_mpc_node-3]  #### 'constraintPenaltyIncreaseRate'..........................................2
+[wbmm_mpc_node-3]  #### 'preComputeRiccatiTerms'.................................................1
+[wbmm_mpc_node-3]  #### 'useFeedbackPolicy'......................................................1
+[wbmm_mpc_node-3]  #### 'riskSensitiveCoeff'.....................................................0 (default)
+[wbmm_mpc_node-3]  #### 'strategy'.....................................................LINE_SEARCH
+[wbmm_mpc_node-3]  #### LINE_SEARCH Settings: {
+[wbmm_mpc_node-3]  #### 'minStepLength'.......................................................0.01
+[wbmm_mpc_node-3]  #### 'maxStepLength'..........................................................1
+[wbmm_mpc_node-3]  #### 'contractionRate'......................................................0.5 (default)
+[wbmm_mpc_node-3]  #### 'armijoCoefficient'.................................................0.0001 (default)
+[wbmm_mpc_node-3]  #### 'hessianCorrectionStrategy'.................................DIAGONAL_SHIFT
+[wbmm_mpc_node-3]  #### 'hessianCorrectionMultiple'..........................................0.001
+[wbmm_mpc_node-3]  #### }
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### MPC Settings:
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### 'timeHorizon'............................................................2
+[wbmm_mpc_node-3]  #### 'solutionTimeWindow'...................................................0.2
+[wbmm_mpc_node-3]  #### 'coldStart'..............................................................0
+[wbmm_mpc_node-3]  #### 'debugPrint'.............................................................0
+[wbmm_mpc_node-3]  #### 'mpcDesiredFrequency'..................................................100
+[wbmm_mpc_node-3]  #### 'mrtDesiredFrequency'..................................................400
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### Multiple-Shooting SQP Settings:
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### 'sqpIteration'..........................................................10 (default)
+[wbmm_mpc_node-3]  #### 'deltaTol'...........................................................1e-06 (default)
+[wbmm_mpc_node-3]  #### 'alpha_decay'..........................................................0.5 (default)
+[wbmm_mpc_node-3]  #### 'alpha_min'.........................................................0.0001 (default)
+[wbmm_mpc_node-3]  #### 'gamma_c'............................................................1e-06 (default)
+[wbmm_mpc_node-3]  #### 'g_max'..............................................................1e+06 (default)
+[wbmm_mpc_node-3]  #### 'g_min'..............................................................1e-06 (default)
+[wbmm_mpc_node-3]  #### 'armijoFactor'......................................................0.0001 (default)
+[wbmm_mpc_node-3]  #### 'costTol'...........................................................0.0001 (default)
+[wbmm_mpc_node-3]  #### 'dt'..................................................................0.01 (default)
+[wbmm_mpc_node-3]  #### 'useFeedbackPolicy'......................................................1 (default)
+[wbmm_mpc_node-3]  #### 'createValueFunction'....................................................0 (default)
+[wbmm_mpc_node-3]  #### 'integratorType'.......................................................RK2 (default)
+[wbmm_mpc_node-3]  #### 'inequalityConstraintMu'.................................................0 (default)
+[wbmm_mpc_node-3]  #### 'inequalityConstraintDelta'..........................................1e-06 (default)
+[wbmm_mpc_node-3]  #### 'projectStateInputEqualityConstraints'...................................1 (default)
+[wbmm_mpc_node-3]  #### 'extractProjectionMultiplier'............................................0 (default)
+[wbmm_mpc_node-3]  #### 'printSolverStatus'......................................................0 (default)
+[wbmm_mpc_node-3]  #### 'printSolverStatistics'..................................................0 (default)
+[wbmm_mpc_node-3]  #### 'printLinesearch'........................................................0 (default)
+[wbmm_mpc_node-3]  #### 'enableLogging'..........................................................1 (default)
+[wbmm_mpc_node-3]  #### 'logSize'.............................................................1000 (default)
+[wbmm_mpc_node-3]  #### 'logFilePath'.........................................../tmp/ocs2/sqp_log/ (default)
+[wbmm_mpc_node-3]  #### 'nThreads'...............................................................4 (default)
+[wbmm_mpc_node-3]  #### 'threadPriority'........................................................50 (default)
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### HPIPM Settings:
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### 'mode'...................................................................1 (default)
+[wbmm_mpc_node-3]  #### 'iter_max'..............................................................30 (default)
+[wbmm_mpc_node-3]  #### 'alpha_min'..........................................................1e-12 (default)
+[wbmm_mpc_node-3]  #### 'mu0'...................................................................10 (default)
+[wbmm_mpc_node-3]  #### 'tol_stat'...........................................................1e-06 (default)
+[wbmm_mpc_node-3]  #### 'tol_eq'.............................................................1e-08 (default)
+[wbmm_mpc_node-3]  #### 'tol_ineq'...........................................................1e-08 (default)
+[wbmm_mpc_node-3]  #### 'tol_comp'...........................................................1e-08 (default)
+[wbmm_mpc_node-3]  #### 'reg_prim'...........................................................1e-12 (default)
+[wbmm_mpc_node-3]  #### 'warm_start'.............................................................0 (default)
+[wbmm_mpc_node-3]  #### 'pred_corr'..............................................................1 (default)
+[wbmm_mpc_node-3]  #### 'ric_alg'................................................................0 (default)
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] WARNING: Loaded at least one default value in matrix: "inputCost.R.base.wheelBasedMobileManipulator"
+[wbmm_mpc_node-3] WARNING: Loaded at least one default value in matrix: "inputCost.R.arm"
+[wbmm_mrt_node-4] model.nv = 9
+[wbmm_mrt_node-4] model.nq = 9
+[wbmm_mrt_node-4] model.njoints = 8
+[wbmm_mrt_node-4] model.nbodies = 7
+[wbmm_mrt_node-4] model.nframes = 69
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4] Joints:
+[wbmm_mrt_node-4]             universe:   ID = 0
+[wbmm_mrt_node-4]           root_joint:   ID = 1
+[wbmm_mrt_node-4]              joint_1:   ID = 2
+[wbmm_mrt_node-4]              joint_2:   ID = 3
+[wbmm_mrt_node-4]              joint_3:   ID = 4
+[wbmm_mrt_node-4]              joint_4:   ID = 5
+[wbmm_mrt_node-4]              joint_5:   ID = 6
+[wbmm_mrt_node-4]              joint_6:   ID = 7
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4] Frames:
+[wbmm_mrt_node-4]             universe:   ID = 0, parent = 0, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]           root_joint:   ID = 1, parent = 1, type = "JOINT "
+[wbmm_mrt_node-4]       base_footprint:   ID = 2, parent = 1, type = "BODY "
+[wbmm_mrt_node-4] base_footprint_to_base_link:   ID = 3, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]            base_link:   ID = 4, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]         base_to_d455:   ID = 5, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]            d455_link:   ID = 6, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]          base_to_imu:   ID = 7, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]             imu_link:   ID = 8, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]         base_to_jaka:   ID = 9, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]       jaka_base_link:   ID = 10, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]                fixed:   ID = 11, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]               Link_0:   ID = 12, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]              joint_1:   ID = 13, parent = 2, type = "JOINT "
+[wbmm_mrt_node-4]               Link_1:   ID = 14, parent = 2, type = "BODY "
+[wbmm_mrt_node-4]              joint_2:   ID = 15, parent = 3, type = "JOINT "
+[wbmm_mrt_node-4]               Link_2:   ID = 16, parent = 3, type = "BODY "
+[wbmm_mrt_node-4]              joint_3:   ID = 17, parent = 4, type = "JOINT "
+[wbmm_mrt_node-4]               Link_3:   ID = 18, parent = 4, type = "BODY "
+[wbmm_mrt_node-4]              joint_4:   ID = 19, parent = 5, type = "JOINT "
+[wbmm_mrt_node-4]               Link_4:   ID = 20, parent = 5, type = "BODY "
+[wbmm_mrt_node-4]              joint_5:   ID = 21, parent = 6, type = "JOINT "
+[wbmm_mrt_node-4]               Link_5:   ID = 22, parent = 6, type = "BODY "
+[wbmm_mrt_node-4]              joint_6:   ID = 23, parent = 7, type = "JOINT "
+[wbmm_mrt_node-4]               Link_6:   ID = 24, parent = 7, type = "BODY "
+[wbmm_mrt_node-4]              fixed_2:   ID = 25, parent = 7, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]            Link_6_45:   ID = 26, parent = 7, type = "BODY "
+[wbmm_mrt_node-4]   jk_se_vi_200_joint:   ID = 27, parent = 7, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]    jk_se_vi_200_link:   ID = 28, parent = 7, type = "BODY "
+[wbmm_mrt_node-4] tool0_and_camera_link_joint:   ID = 29, parent = 7, type = "FIXED_JOINT "
+[wbmm_mrt_node-4] tool0_and_camera_link:   ID = 30, parent = 7, type = "BODY "
+[wbmm_mrt_node-4]          d435i_joint:   ID = 31, parent = 7, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]           d435i_link:   ID = 32, parent = 7, type = "BODY "
+[wbmm_mrt_node-4]          tool0_joint:   ID = 33, parent = 7, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]                tool0:   ID = 34, parent = 7, type = "BODY "
+[wbmm_mrt_node-4]        base_to_laser:   ID = 35, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]           laser_link:   ID = 36, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]      fl_castor_wheel:   ID = 37, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]       fl_castor_link:   ID = 38, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]             fl_wheel:   ID = 39, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]        fl_wheel_link:   ID = 40, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]      fr_castor_wheel:   ID = 41, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]       fr_castor_link:   ID = 42, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]             fr_wheel:   ID = 43, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]        fr_wheel_link:   ID = 44, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]       inertial_joint:   ID = 45, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]        inertial_link:   ID = 46, parent = 1, type = "BODY "
+[wbmm_mrt_node-4] joint_aluminium_2_base_link:   ID = 47, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4] aluminium_2_base_link:   ID = 48, parent = 1, type = "BODY "
+[wbmm_mrt_node-4] joint_aluminium_3_base_link:   ID = 49, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4] aluminium_3_base_link:   ID = 50, parent = 1, type = "BODY "
+[wbmm_mrt_node-4] joint_aluminium_4_base_link:   ID = 51, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4] aluminium_4_base_link:   ID = 52, parent = 1, type = "BODY "
+[wbmm_mrt_node-4] joint_aluminium_base_link:   ID = 53, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]  aluminium_base_link:   ID = 54, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]           left_wheel:   ID = 55, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]      left_wheel_link:   ID = 56, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]          right_wheel:   ID = 57, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]     right_wheel_link:   ID = 58, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]      rl_castor_wheel:   ID = 59, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]       rl_castor_link:   ID = 60, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]             rl_wheel:   ID = 61, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]        rl_wheel_link:   ID = 62, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]      rr_castor_wheel:   ID = 63, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]       rr_castor_link:   ID = 64, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]             rr_wheel:   ID = 65, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]        rr_wheel_link:   ID = 66, parent = 1, type = "BODY "
+[wbmm_mrt_node-4]          tracer_base:   ID = 67, parent = 1, type = "FIXED_JOINT "
+[wbmm_mrt_node-4]     urbase_base_link:   ID = 68, parent = 1, type = "BODY "
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### Model Settings:
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### 'usePreComputation'......................................................1
+[wbmm_mrt_node-4]  #### 'recompileLibraries'.....................................................1
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] Initial State:          0        0        0        0   1.5707        0   1.5707  3.14159 0.785398
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### DDP Settings: 
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### 'algorithm'............................................................SLQ
+[wbmm_mrt_node-4]  #### 'nThreads'...............................................................3
+[wbmm_mrt_node-4]  #### 'threadPriority'........................................................50
+[wbmm_mrt_node-4]  #### 'maxNumIterations'.......................................................1
+[wbmm_mrt_node-4]  #### 'minRelCost'...........................................................0.1
+[wbmm_mrt_node-4]  #### 'constraintTolerance'................................................0.001
+[wbmm_mrt_node-4]  #### 'displayInfo'............................................................0
+[wbmm_mrt_node-4]  #### 'displayShortSummary'....................................................0
+[wbmm_mrt_node-4]  #### 'checkNumericalStability'................................................0
+[wbmm_mrt_node-4]  #### 'debugPrintRollout'......................................................0
+[wbmm_mrt_node-4]  #### 'AbsTolODE'..........................................................1e-05
+[wbmm_mrt_node-4]  #### 'RelTolODE'..........................................................0.001
+[wbmm_mrt_node-4]  #### 'maxNumStepsPerSecond'..............................................100000
+[wbmm_mrt_node-4]  #### 'timeStep'...........................................................0.001
+[wbmm_mrt_node-4]  #### 'backwardPassIntegratorType'.........................................ODE45
+[wbmm_mrt_node-4]  #### 'constraintPenaltyInitialValue'.........................................20
+[wbmm_mrt_node-4]  #### 'constraintPenaltyIncreaseRate'..........................................2
+[wbmm_mrt_node-4]  #### 'preComputeRiccatiTerms'.................................................1
+[wbmm_mrt_node-4]  #### 'useFeedbackPolicy'......................................................1
+[wbmm_mrt_node-4]  #### 'riskSensitiveCoeff'.....................................................0 (default)
+[wbmm_mrt_node-4]  #### 'strategy'.....................................................LINE_SEARCH
+[wbmm_mrt_node-4]  #### LINE_SEARCH Settings: {
+[wbmm_mrt_node-4]  #### 'minStepLength'.......................................................0.01
+[wbmm_mrt_node-4]  #### 'maxStepLength'..........................................................1
+[wbmm_mrt_node-4]  #### 'contractionRate'......................................................0.5 (default)
+[wbmm_mrt_node-4]  #### 'armijoCoefficient'.................................................0.0001 (default)
+[wbmm_mrt_node-4]  #### 'hessianCorrectionStrategy'.................................DIAGONAL_SHIFT
+[wbmm_mrt_node-4]  #### 'hessianCorrectionMultiple'..........................................0.001
+[wbmm_mrt_node-4]  #### }
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### MPC Settings:
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### 'timeHorizon'............................................................2
+[wbmm_mrt_node-4]  #### 'solutionTimeWindow'...................................................0.2
+[wbmm_mrt_node-4]  #### 'coldStart'..............................................................0
+[wbmm_mrt_node-4]  #### 'debugPrint'.............................................................0
+[wbmm_mrt_node-4]  #### 'mpcDesiredFrequency'..................................................100
+[wbmm_mrt_node-4]  #### 'mrtDesiredFrequency'..................................................400
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### Multiple-Shooting SQP Settings:
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### 'sqpIteration'..........................................................10 (default)
+[wbmm_mrt_node-4]  #### 'deltaTol'...........................................................1e-06 (default)
+[wbmm_mrt_node-4]  #### 'alpha_decay'..........................................................0.5 (default)
+[wbmm_mrt_node-4]  #### 'alpha_min'.........................................................0.0001 (default)
+[wbmm_mrt_node-4]  #### 'gamma_c'............................................................1e-06 (default)
+[wbmm_mrt_node-4]  #### 'g_max'..............................................................1e+06 (default)
+[wbmm_mrt_node-4]  #### 'g_min'..............................................................1e-06 (default)
+[wbmm_mrt_node-4]  #### 'armijoFactor'......................................................0.0001 (default)
+[wbmm_mrt_node-4]  #### 'costTol'...........................................................0.0001 (default)
+[wbmm_mrt_node-4]  #### 'dt'..................................................................0.01 (default)
+[wbmm_mrt_node-4]  #### 'useFeedbackPolicy'......................................................1 (default)
+[wbmm_mrt_node-4]  #### 'createValueFunction'....................................................0 (default)
+[wbmm_mrt_node-4]  #### 'integratorType'.......................................................RK2 (default)
+[wbmm_mrt_node-4]  #### 'inequalityConstraintMu'.................................................0 (default)
+[wbmm_mrt_node-4]  #### 'inequalityConstraintDelta'..........................................1e-06 (default)
+[wbmm_mrt_node-4]  #### 'projectStateInputEqualityConstraints'...................................1 (default)
+[wbmm_mrt_node-4]  #### 'extractProjectionMultiplier'............................................0 (default)
+[wbmm_mrt_node-4]  #### 'printSolverStatus'......................................................0 (default)
+[wbmm_mrt_node-4]  #### 'printSolverStatistics'..................................................0 (default)
+[wbmm_mrt_node-4]  #### 'printLinesearch'........................................................0 (default)
+[wbmm_mrt_node-4]  #### 'enableLogging'..........................................................1 (default)
+[wbmm_mrt_node-4]  #### 'logSize'.............................................................1000 (default)
+[wbmm_mrt_node-4]  #### 'logFilePath'.........................................../tmp/ocs2/sqp_log/ (default)
+[wbmm_mrt_node-4]  #### 'nThreads'...............................................................4 (default)
+[wbmm_mrt_node-4]  #### 'threadPriority'........................................................50 (default)
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### HPIPM Settings:
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### 'mode'...................................................................1 (default)
+[wbmm_mrt_node-4]  #### 'iter_max'..............................................................30 (default)
+[wbmm_mrt_node-4]  #### 'alpha_min'..........................................................1e-12 (default)
+[wbmm_mrt_node-4]  #### 'mu0'...................................................................10 (default)
+[wbmm_mrt_node-4]  #### 'tol_stat'...........................................................1e-06 (default)
+[wbmm_mrt_node-4]  #### 'tol_eq'.............................................................1e-08 (default)
+[wbmm_mrt_node-4]  #### 'tol_ineq'...........................................................1e-08 (default)
+[wbmm_mrt_node-4]  #### 'tol_comp'...........................................................1e-08 (default)
+[wbmm_mrt_node-4]  #### 'reg_prim'...........................................................1e-12 (default)
+[wbmm_mrt_node-4]  #### 'warm_start'.............................................................0 (default)
+[wbmm_mrt_node-4]  #### 'pred_corr'..............................................................1 (default)
+[wbmm_mrt_node-4]  #### 'ric_alg'................................................................0 (default)
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### Input Cost Settings: 
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] inputCost.R:  
+[wbmm_mpc_node-3] 0.25    0    0    0    0    0    0    0
+[wbmm_mpc_node-3]    0    1    0    0    0    0    0    0
+[wbmm_mpc_node-3]    0    0 0.01    0    0    0    0    0
+[wbmm_mpc_node-3]    0    0    0 0.01    0    0    0    0
+[wbmm_mpc_node-3]    0    0    0    0 0.01    0    0    0
+[wbmm_mpc_node-3]    0    0    0    0    0 0.01    0    0
+[wbmm_mpc_node-3]    0    0    0    0    0    0 0.01    0
+[wbmm_mpc_node-3]    0    0    0    0    0    0    0 0.01
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mrt_node-4] WARNING: Loaded at least one default value in matrix: "inputCost.R.base.wheelBasedMobileManipulator"
+[wbmm_mrt_node-4] WARNING: Loaded at least one default value in matrix: "inputCost.R.arm"
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### Input Cost Settings: 
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] inputCost.R:  
+[wbmm_mrt_node-4] 0.25    0    0    0    0    0    0    0
+[wbmm_mrt_node-4]    0    1    0    0    0    0    0    0
+[wbmm_mrt_node-4]    0    0 0.01    0    0    0    0    0
+[wbmm_mrt_node-4]    0    0    0 0.01    0    0    0    0
+[wbmm_mrt_node-4]    0    0    0    0 0.01    0    0    0
+[wbmm_mrt_node-4]    0    0    0    0    0 0.01    0    0
+[wbmm_mrt_node-4]    0    0    0    0    0    0 0.01    0
+[wbmm_mrt_node-4]    0    0    0    0    0    0    0 0.01
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### 'activate'...............................................................1
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### JointPositionLimits Settings: 
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### lowerBound: -6.28 -1.48 -3.05 -1.48 -6.28 -6.28
+[wbmm_mrt_node-4]  #### upperBound: 6.28 4.62 3.05 4.62 6.28 6.28
+[wbmm_mrt_node-4]  #### 'mu'..................................................................0.01
+[wbmm_mrt_node-4]  #### 'delta'..............................................................0.001
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### JointVelocityLimits Settings: 
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### 'lowerBound':  -0.1 -0.4 -0.2 -0.2 -0.2 -0.2 -0.2 -0.2
+[wbmm_mrt_node-4]  #### 'upperBound':  0.1 0.4 0.2 0.2 0.2 0.2 0.2 0.2
+[wbmm_mrt_node-4]  #### 'mu'..................................................................0.01
+[wbmm_mrt_node-4]  #### 'delta'..............................................................0.001
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### Dual-reference phase switching is ENABLED.
+[wbmm_mrt_node-4]  #### wholeBodyTracking and endEffectorTracking are both registered and weighted by task phase.
+[wbmm_mrt_node-4] WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+[wbmm_mrt_node-4] WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### wholeBodyTracking (intermediate) Settings: 
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### stateDim : 9  (base 3 + arm 6)
+[wbmm_mrt_node-4]  #### yawIndex : 2
+[wbmm_mrt_node-4]  #### Q:
+[wbmm_mrt_node-4] 5 0 0 0 0 0 0 0 0
+[wbmm_mrt_node-4] 0 5 0 0 0 0 0 0 0
+[wbmm_mrt_node-4] 0 0 2 0 0 0 0 0 0
+[wbmm_mrt_node-4] 0 0 0 2 0 0 0 0 0
+[wbmm_mrt_node-4] 0 0 0 0 2 0 0 0 0
+[wbmm_mrt_node-4] 0 0 0 0 0 2 0 0 0
+[wbmm_mrt_node-4] 0 0 0 0 0 0 2 0 0
+[wbmm_mrt_node-4] 0 0 0 0 0 0 0 2 0
+[wbmm_mrt_node-4] 0 0 0 0 0 0 0 0 2
+[wbmm_mrt_node-4]  #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] WARNING: Loaded at least one default value in matrix: "endEffectorTracking.Q.position"
+[wbmm_mpc_node-3]  #### 'activate'...............................................................1
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### JointPositionLimits Settings: 
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### lowerBound: -6.28 -1.48 -3.05 -1.48 -6.28 -6.28
+[wbmm_mpc_node-3]  #### upperBound: 6.28 4.62 3.05 4.62 6.28 6.28
+[wbmm_mpc_node-3]  #### 'mu'..................................................................0.01
+[wbmm_mpc_node-3]  #### 'delta'..............................................................0.001
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### JointVelocityLimits Settings: 
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### 'lowerBound':  -0.1 -0.4 -0.2 -0.2 -0.2 -0.2 -0.2 -0.2
+[wbmm_mpc_node-3]  #### 'upperBound':  0.1 0.4 0.2 0.2 0.2 0.2 0.2 0.2
+[wbmm_mpc_node-3]  #### 'mu'..................................................................0.01
+[wbmm_mpc_node-3]  #### 'delta'..............................................................0.001
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### Dual-reference phase switching is ENABLED.
+[wbmm_mpc_node-3]  #### wholeBodyTracking and endEffectorTracking are both registered and weighted by task phase.
+[wbmm_mpc_node-3] WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+[whole_body_force_control_node-6] [INFO] [1791519532.621877571] [whole_body_force_control]: Ready: frame=odom axes=[fx,fy,fz] admittance_enable=true output=true
+[wbmm_mrt_node-4] WARNING: Loaded at least one default value in matrix: "endEffectorTracking.Q.orientation"
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### endEffectorTracking Settings: 
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### Q.position:
+[wbmm_mrt_node-4] 100   0   0
+[wbmm_mrt_node-4]   0 100   0
+[wbmm_mrt_node-4]   0   0 100
+[wbmm_mrt_node-4]  #### Q.orientation:
+[wbmm_mrt_node-4] 25  0  0
+[wbmm_mrt_node-4]  0 25  0
+[wbmm_mrt_node-4]  0  0 25
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+[wbmm_mrt_node-4] WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### wholeBodyTracking (final) Settings: 
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### stateDim : 9  (base 3 + arm 6)
+[wbmm_mrt_node-4]  #### yawIndex : 2
+[wbmm_mrt_node-4]  #### Q:
+[wbmm_mrt_node-4] 5 0 0 0 0 0 0 0 0
+[wbmm_mrt_node-4] 0 5 0 0 0 0 0 0 0
+[wbmm_mrt_node-4] 0 0 2 0 0 0 0 0 0
+[wbmm_mrt_node-4] 0 0 0 2 0 0 0 0 0
+[wbmm_mrt_node-4] 0 0 0 0 2 0 0 0 0
+[wbmm_mrt_node-4] 0 0 0 0 0 2 0 0 0
+[wbmm_mrt_node-4] 0 0 0 0 0 0 2 0 0
+[wbmm_mrt_node-4] 0 0 0 0 0 0 0 2 0
+[wbmm_mrt_node-4] 0 0 0 0 0 0 0 0 2
+[wbmm_mrt_node-4]  #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] WARNING: Loaded at least one default value in matrix: "endEffectorTracking.Q.position"
+[wbmm_mrt_node-4] WARNING: Loaded at least one default value in matrix: "endEffectorTracking.Q.orientation"
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### endEffectorTracking Settings: 
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### Q.position:
+[wbmm_mrt_node-4] 100   0   0
+[wbmm_mrt_node-4]   0 100   0
+[wbmm_mrt_node-4]   0   0 100
+[wbmm_mrt_node-4]  #### Q.orientation:
+[wbmm_mrt_node-4] 25  0  0
+[wbmm_mrt_node-4]  0 25  0
+[wbmm_mrt_node-4]  0  0 25
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### Arm Manipulability Settings:
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### frameName: tool0
+[wbmm_mrt_node-4]  #### stateFrame: odom
+[wbmm_mrt_node-4]  #### metrics.scope/task/scaling: arm / pose / characteristic_length
+[wbmm_mrt_node-4]  #### term: process/evaluator, normalized: 1, weightScale: 1, sigma: 1 ref=0.12 weight=0.5, Yoshikawa: 0 ref=0.0015 weight=0.005
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### Arm Manipulability Settings:
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### frameName: tool0
+[wbmm_mrt_node-4]  #### stateFrame: odom
+[wbmm_mrt_node-4]  #### metrics.scope/task/scaling: arm / pose / characteristic_length
+[wbmm_mrt_node-4]  #### term: terminal, normalized: 1, weightScale: 1, sigma: 1 ref=0.12 weight=0.5, Yoshikawa: 0 ref=0.0015 weight=0.005
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### Arm Manipulability Settings:
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### frameName: tool0
+[wbmm_mrt_node-4]  #### stateFrame: odom
+[wbmm_mrt_node-4]  #### metrics.scope/task/scaling: arm / pose / characteristic_length
+[wbmm_mrt_node-4]  #### term: process/evaluator, normalized: 1, weightScale: 1, sigma: 1 ref=0.12 weight=0.5, Yoshikawa: 0 ref=0.0015 weight=0.005
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### 'activate'...............................................................1
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### SelfCollision Settings: 
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### 'mu'..................................................................0.01
+[wbmm_mrt_node-4]  #### 'delta'..............................................................0.001
+[wbmm_mrt_node-4]  #### 'minimumDistance'.....................................................0.02
+[wbmm_mrt_node-4]  #### 'selfCollision.collisionObjectPairs': { }
+[wbmm_mrt_node-4]  #### 'selfCollision.collisionLinkPairs': {[base_link, Link_2], [base_link, Link_3], [base_link, Link_4], [base_link, Link_5], [base_link, Link_6], [base_link, tool0_and_camera_link], [base_link, d435i_link], [Link_0, Link_2], [Link_0, Link_3], [Link_1, Link_3], [Link_1, Link_4], [Link_2, Link_4], [Link_2, Link_5], [Link_3, Link_5], [Link_3, Link_6], [Link_4, Link_6], [Link_0, tool0_and_camera_link], [Link_1, tool0_and_camera_link], [Link_2, tool0_and_camera_link], [Link_3, tool0_and_camera_link], [Link_4, tool0_and_camera_link], [Link_5, tool0_and_camera_link], [Link_0, d435i_link], [Link_1, d435i_link], [Link_2, d435i_link], [Link_3, d435i_link], [Link_4, d435i_link], [Link_5, d435i_link], }
+[wbmm_mrt_node-4]  #### minimumDistance: 0.02 (minimum allowed distance)
+[wbmm_mrt_node-4]  #### activationDistance: 0.05 (penalty only active when distance < this value)
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] SelfCollision: Testing for 139 collision pairs
+[wbmm_mrt_node-4] [CppAdInterface] Compiling Shared Library: /tmp/wbmm_force_mpc/auto_generated/mrt/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp-83242736.so
+[wbmm_mpc_node-3] WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### wholeBodyTracking (intermediate) Settings: 
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### stateDim : 9  (base 3 + arm 6)
+[wbmm_mpc_node-3]  #### yawIndex : 2
+[wbmm_mpc_node-3]  #### Q:
+[wbmm_mpc_node-3] 5 0 0 0 0 0 0 0 0
+[wbmm_mpc_node-3] 0 5 0 0 0 0 0 0 0
+[wbmm_mpc_node-3] 0 0 2 0 0 0 0 0 0
+[wbmm_mpc_node-3] 0 0 0 2 0 0 0 0 0
+[wbmm_mpc_node-3] 0 0 0 0 2 0 0 0 0
+[wbmm_mpc_node-3] 0 0 0 0 0 2 0 0 0
+[wbmm_mpc_node-3] 0 0 0 0 0 0 2 0 0
+[wbmm_mpc_node-3] 0 0 0 0 0 0 0 2 0
+[wbmm_mpc_node-3] 0 0 0 0 0 0 0 0 2
+[wbmm_mpc_node-3]  #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] WARNING: Loaded at least one default value in matrix: "endEffectorTracking.Q.position"
+[wbmm_mpc_node-3] WARNING: Loaded at least one default value in matrix: "endEffectorTracking.Q.orientation"
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### endEffectorTracking Settings: 
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### Q.position:
+[wbmm_mpc_node-3] 100   0   0
+[wbmm_mpc_node-3]   0 100   0
+[wbmm_mpc_node-3]   0   0 100
+[wbmm_mpc_node-3]  #### Q.orientation:
+[wbmm_mpc_node-3] 25  0  0
+[wbmm_mpc_node-3]  0 25  0
+[wbmm_mpc_node-3]  0  0 25
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.base"
+[wbmm_mpc_node-3] WARNING: Loaded at least one default value in matrix: "wholeBodyTracking.Q.arm"
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### wholeBodyTracking (final) Settings: 
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### stateDim : 9  (base 3 + arm 6)
+[wbmm_mpc_node-3]  #### yawIndex : 2
+[wbmm_mpc_node-3]  #### Q:
+[wbmm_mpc_node-3] 5 0 0 0 0 0 0 0 0
+[wbmm_mpc_node-3] 0 5 0 0 0 0 0 0 0
+[wbmm_mpc_node-3] 0 0 2 0 0 0 0 0 0
+[wbmm_mpc_node-3] 0 0 0 2 0 0 0 0 0
+[wbmm_mpc_node-3] 0 0 0 0 2 0 0 0 0
+[wbmm_mpc_node-3] 0 0 0 0 0 2 0 0 0
+[wbmm_mpc_node-3] 0 0 0 0 0 0 2 0 0
+[wbmm_mpc_node-3] 0 0 0 0 0 0 0 2 0
+[wbmm_mpc_node-3] 0 0 0 0 0 0 0 0 2
+[wbmm_mpc_node-3]  #### 参考轨迹来源: ROS topic <robot>_mpc_target (TargetTrajectories, 9 维 state)
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] WARNING: Loaded at least one default value in matrix: "endEffectorTracking.Q.position"
+[wbmm_mpc_node-3] WARNING: Loaded at least one default value in matrix: "endEffectorTracking.Q.orientation"
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### endEffectorTracking Settings: 
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### Q.position:
+[wbmm_mpc_node-3] 100   0   0
+[wbmm_mpc_node-3]   0 100   0
+[wbmm_mpc_node-3]   0   0 100
+[wbmm_mpc_node-3]  #### Q.orientation:
+[wbmm_mpc_node-3] 25  0  0
+[wbmm_mpc_node-3]  0 25  0
+[wbmm_mpc_node-3]  0  0 25
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### Arm Manipulability Settings:
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### frameName: tool0
+[wbmm_mpc_node-3]  #### stateFrame: odom
+[wbmm_mpc_node-3]  #### metrics.scope/task/scaling: arm / pose / characteristic_length
+[wbmm_mpc_node-3]  #### term: process/evaluator, normalized: 1, weightScale: 1, sigma: 1 ref=0.12 weight=0.5, Yoshikawa: 0 ref=0.0015 weight=0.005
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### Arm Manipulability Settings:
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### frameName: tool0
+[wbmm_mpc_node-3]  #### stateFrame: odom
+[wbmm_mpc_node-3]  #### metrics.scope/task/scaling: arm / pose / characteristic_length
+[wbmm_mpc_node-3]  #### term: terminal, normalized: 1, weightScale: 1, sigma: 1 ref=0.12 weight=0.5, Yoshikawa: 0 ref=0.0015 weight=0.005
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### Arm Manipulability Settings:
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### frameName: tool0
+[wbmm_mpc_node-3]  #### stateFrame: odom
+[wbmm_mpc_node-3]  #### metrics.scope/task/scaling: arm / pose / characteristic_length
+[wbmm_mpc_node-3]  #### term: process/evaluator, normalized: 1, weightScale: 1, sigma: 1 ref=0.12 weight=0.5, Yoshikawa: 0 ref=0.0015 weight=0.005
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### 'activate'...............................................................1
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### SelfCollision Settings: 
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### 'mu'..................................................................0.01
+[wbmm_mpc_node-3]  #### 'delta'..............................................................0.001
+[wbmm_mpc_node-3]  #### 'minimumDistance'.....................................................0.02
+[wbmm_mpc_node-3]  #### 'selfCollision.collisionObjectPairs': { }
+[wbmm_mpc_node-3]  #### 'selfCollision.collisionLinkPairs': {[base_link, Link_2], [base_link, Link_3], [base_link, Link_4], [base_link, Link_5], [base_link, Link_6], [base_link, tool0_and_camera_link], [base_link, d435i_link], [Link_0, Link_2], [Link_0, Link_3], [Link_1, Link_3], [Link_1, Link_4], [Link_2, Link_4], [Link_2, Link_5], [Link_3, Link_5], [Link_3, Link_6], [Link_4, Link_6], [Link_0, tool0_and_camera_link], [Link_1, tool0_and_camera_link], [Link_2, tool0_and_camera_link], [Link_3, tool0_and_camera_link], [Link_4, tool0_and_camera_link], [Link_5, tool0_and_camera_link], [Link_0, d435i_link], [Link_1, d435i_link], [Link_2, d435i_link], [Link_3, d435i_link], [Link_4, d435i_link], [Link_5, d435i_link], }
+[wbmm_mpc_node-3]  #### minimumDistance: 0.02 (minimum allowed distance)
+[wbmm_mpc_node-3]  #### activationDistance: 0.05 (penalty only active when distance < this value)
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3] SelfCollision: Testing for 139 collision pairs
+[wbmm_mpc_node-3] [CppAdInterface] Compiling Shared Library: /tmp/wbmm_force_mpc/auto_generated/mpc/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp-17742734.so
+[virtual_wrench_node-7] [WARN] [1791519532.633186034] [virtual_force_publisher]: Virtual command TF not ready: "jk_se_vi_200_link" passed to lookupTransform argument target_frame does not exist. 
+[robot_state_publisher-2] [INFO] [1791519532.645148894] [robot_state_publisher]: got segment Link_0
+[robot_state_publisher-2] [INFO] [1791519532.645222105] [robot_state_publisher]: got segment Link_1
+[robot_state_publisher-2] [INFO] [1791519532.645228392] [robot_state_publisher]: got segment Link_2
+[robot_state_publisher-2] [INFO] [1791519532.645232268] [robot_state_publisher]: got segment Link_3
+[robot_state_publisher-2] [INFO] [1791519532.645235933] [robot_state_publisher]: got segment Link_4
+[robot_state_publisher-2] [INFO] [1791519532.645239438] [robot_state_publisher]: got segment Link_5
+[robot_state_publisher-2] [INFO] [1791519532.645243013] [robot_state_publisher]: got segment Link_6
+[robot_state_publisher-2] [INFO] [1791519532.645246582] [robot_state_publisher]: got segment Link_6_45
+[robot_state_publisher-2] [INFO] [1791519532.645250329] [robot_state_publisher]: got segment aluminium_2_base_link
+[robot_state_publisher-2] [INFO] [1791519532.645254200] [robot_state_publisher]: got segment aluminium_3_base_link
+[robot_state_publisher-2] [INFO] [1791519532.645257904] [robot_state_publisher]: got segment aluminium_4_base_link
+[robot_state_publisher-2] [INFO] [1791519532.645261657] [robot_state_publisher]: got segment aluminium_base_link
+[robot_state_publisher-2] [INFO] [1791519532.645265494] [robot_state_publisher]: got segment base_footprint
+[robot_state_publisher-2] [INFO] [1791519532.645269194] [robot_state_publisher]: got segment base_link
+[robot_state_publisher-2] [INFO] [1791519532.645272827] [robot_state_publisher]: got segment d435i_link
+[robot_state_publisher-2] [INFO] [1791519532.645276460] [robot_state_publisher]: got segment d455_link
+[robot_state_publisher-2] [INFO] [1791519532.645280217] [robot_state_publisher]: got segment fl_castor_link
+[robot_state_publisher-2] [INFO] [1791519532.645283951] [robot_state_publisher]: got segment fl_wheel_link
+[robot_state_publisher-2] [INFO] [1791519532.645287603] [robot_state_publisher]: got segment fr_castor_link
+[robot_state_publisher-2] [INFO] [1791519532.645291211] [robot_state_publisher]: got segment fr_wheel_link
+[robot_state_publisher-2] [INFO] [1791519532.645294928] [robot_state_publisher]: got segment imu_link
+[robot_state_publisher-2] [INFO] [1791519532.645298614] [robot_state_publisher]: got segment inertial_link
+[robot_state_publisher-2] [INFO] [1791519532.645302909] [robot_state_publisher]: got segment jaka_base_link
+[robot_state_publisher-2] [INFO] [1791519532.645308896] [robot_state_publisher]: got segment jk_se_vi_200_link
+[robot_state_publisher-2] [INFO] [1791519532.645314276] [robot_state_publisher]: got segment laser_link
+[robot_state_publisher-2] [INFO] [1791519532.645319731] [robot_state_publisher]: got segment left_wheel_link
+[robot_state_publisher-2] [INFO] [1791519532.645325030] [robot_state_publisher]: got segment right_wheel_link
+[robot_state_publisher-2] [INFO] [1791519532.645330994] [robot_state_publisher]: got segment rl_castor_link
+[robot_state_publisher-2] [INFO] [1791519532.645336127] [robot_state_publisher]: got segment rl_wheel_link
+[robot_state_publisher-2] [INFO] [1791519532.645339880] [robot_state_publisher]: got segment rr_castor_link
+[robot_state_publisher-2] [INFO] [1791519532.645343362] [robot_state_publisher]: got segment rr_wheel_link
+[robot_state_publisher-2] [INFO] [1791519532.645346832] [robot_state_publisher]: got segment tool0
+[robot_state_publisher-2] [INFO] [1791519532.645350457] [robot_state_publisher]: got segment tool0_and_camera_link
+[robot_state_publisher-2] [INFO] [1791519532.645354617] [robot_state_publisher]: got segment urbase_base_link
+[wbmm_mrt_node-4] [CppAdInterface] Renaming /tmp/wbmm_force_mpc/auto_generated/mrt/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp-83242736.so to /tmp/wbmm_force_mpc/auto_generated/mrt/dynamics_flow_map/cppad_generated/dynamics_flow_map_lib.so
+[wbmm_mrt_node-4] [CppAdInterface] Compiling Shared Library: /tmp/wbmm_force_mpc/auto_generated/mrt/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp-78142736.so
+[wbmm_mpc_node-3] [CppAdInterface] Renaming /tmp/wbmm_force_mpc/auto_generated/mpc/dynamics_flow_map/cppad_generated/dynamics_flow_map_libcppadcg_tmp-17742734.so to /tmp/wbmm_force_mpc/auto_generated/mpc/dynamics_flow_map/cppad_generated/dynamics_flow_map_lib.so
+[wbmm_mpc_node-3] [CppAdInterface] Compiling Shared Library: /tmp/wbmm_force_mpc/auto_generated/mpc/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp-48042734.so
+[wbmm_mpc_node-3] [CppAdInterface] Renaming /tmp/wbmm_force_mpc/auto_generated/mpc/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp-48042734.so to /tmp/wbmm_force_mpc/auto_generated/mpc/dynamics_jump_map/cppad_generated/dynamics_jump_map_lib.so
+[wbmm_mpc_node-3] [CppAdInterface] Compiling Shared Library: /tmp/wbmm_force_mpc/auto_generated/mpc/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp-67842734.so
+[wbmm_mrt_node-4] [CppAdInterface] Renaming /tmp/wbmm_force_mpc/auto_generated/mrt/dynamics_jump_map/cppad_generated/dynamics_jump_map_libcppadcg_tmp-78142736.so to /tmp/wbmm_force_mpc/auto_generated/mrt/dynamics_jump_map/cppad_generated/dynamics_jump_map_lib.so
+[wbmm_mrt_node-4] [CppAdInterface] Compiling Shared Library: /tmp/wbmm_force_mpc/auto_generated/mrt/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp-63742736.so
+[wbmm_mpc_node-3] [CppAdInterface] Renaming /tmp/wbmm_force_mpc/auto_generated/mpc/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp-67842734.so to /tmp/wbmm_force_mpc/auto_generated/mpc/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_lib.so
+[wbmm_mrt_node-4] [CppAdInterface] Renaming /tmp/wbmm_force_mpc/auto_generated/mrt/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_libcppadcg_tmp-63742736.so to /tmp/wbmm_force_mpc/auto_generated/mrt/dynamics_guard_surfaces/cppad_generated/dynamics_guard_surfaces_lib.so
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3]  #### Rollout Settings: 
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mpc_node-3]  #### 'AbsTolODE'..........................................................1e-05
+[wbmm_mpc_node-3]  #### 'RelTolODE'..........................................................0.001
+[wbmm_mpc_node-3]  #### 'maxNumStepsPerSecond'..............................................100000
+[wbmm_mpc_node-3]  #### 'timeStep'............................................................0.01
+[wbmm_mpc_node-3]  #### 'integratorType'.....................................................ODE45
+[wbmm_mpc_node-3]  #### 'checkNumericalStability'................................................0
+[wbmm_mpc_node-3]  #### 'reconstructInputTrajectory'.............................................1 (default)
+[wbmm_mpc_node-3]  #### 'rootFindingAlgorithm'...................................................0 (default)
+[wbmm_mpc_node-3]  #### 'maxSingleEventIterations'..............................................10 (default)
+[wbmm_mpc_node-3]  #### 'useTrajectorySpreadingController'.......................................0 (default)
+[wbmm_mpc_node-3]  #### =============================================================================
+[wbmm_mrt_node-4] 
+[wbmm_mrt_node-4]  #### Rollout Settings: 
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4]  #### 'AbsTolODE'..........................................................1e-05
+[wbmm_mrt_node-4]  #### 'RelTolODE'..........................................................0.001
+[wbmm_mrt_node-4]  #### 'maxNumStepsPerSecond'..............................................100000
+[wbmm_mrt_node-4]  #### 'timeStep'............................................................0.01
+[wbmm_mrt_node-4]  #### 'integratorType'.....................................................ODE45
+[wbmm_mrt_node-4]  #### 'checkNumericalStability'................................................0
+[wbmm_mrt_node-4]  #### 'reconstructInputTrajectory'.............................................1 (default)
+[wbmm_mrt_node-4]  #### 'rootFindingAlgorithm'...................................................0 (default)
+[wbmm_mrt_node-4]  #### 'maxSingleEventIterations'..............................................10 (default)
+[wbmm_mrt_node-4]  #### 'useTrajectorySpreadingController'.......................................0 (default)
+[wbmm_mrt_node-4]  #### =============================================================================
+[wbmm_mrt_node-4] [INFO] [1791519533.296357742] [wbmm_mrt_node]: OCS2 model dims: state=9 input=8 arm=6
+[wbmm_mrt_node-4] [INFO] [1791519533.296546438] [wbmm_mrt_node]: Task phase mode: ENABLED, initial phase=2
+[wbmm_mpc_node-3] WARNING: Failed to set threads priority (one possible reason could be that the user and the group permissions are not set properly.)
+[wbmm_mpc_node-3] WARNING: Failed to set threads priority (one possible reason could be that the user and the group permissions are not set properly.)
+[wbmm_mpc_node-3] [INFO] [1791519533.302320701] [wbmm_mpc_node]: Task phase service : mobile_manipulator_set_task_phase
+[wbmm_mpc_node-3] [INFO] [1791519533.302368555] [wbmm_mpc_node]: Task phase state   : mobile_manipulator_task_phase_state (latched)
+[wbmm_mpc_node-3] [INFO] [1791519533.302381670] [wbmm_mpc_node]: Whole-body target: mobile_manipulator_whole_body_target
+[wbmm_mpc_node-3] [INFO] [1791519533.302390648] [wbmm_mpc_node]: EE target       : /mobile_manipulator_ee_target
+[wbmm_mpc_node-3] [INFO] [1791519533.302399654] [MPC_ROS_Interface]: MPC node is setting up ...
+[wbmm_mpc_node-3] [INFO] [1791519533.303816246] [MPC_ROS_Interface]: Publishing SLQ-MPC messages on a separate thread.
+[wbmm_mpc_node-3] [INFO] [1791519533.303837421] [MPC_ROS_Interface]: MPC node is ready.
+[wbmm_mpc_node-3] [INFO] [1791519533.303842365] [MPC_ROS_Interface]: Start spinning now ...
+[wbmm_mrt_node-4] [INFO] [1791519533.304804189] [wbmm_mrt_node]: Publishing base commands as Twist on /base_controller/cmd_vel
+[wbmm_mrt_node-4] [INFO] [1791519533.305212917] [wbmm_mrt_node]: Publishing arm position commands on /arm_controller/commands
+[wbmm_mrt_node-4] [INFO] [1791519533.308226231] [wbmm_mrt_node]: Subscribing task phase state on mobile_manipulator_task_phase_state
+[wbmm_mrt_node-4] [INFO] [1791519533.308267727] [wbmm_mrt_node]: Forward controller joint command order: [joint_1, joint_2, joint_3, joint_4, joint_5, joint_6]
+[wbmm_mrt_node-4] [INFO] [1791519533.312396763] [MRT_ROS_Interface]: MRT node is setting up ...
+[wbmm_mrt_node-4] [INFO] [1791519533.314005457] [MRT_ROS_Interface]: Publishing MRT messages on a separate thread.
+[wbmm_mrt_node-4] [INFO] [1791519533.314023819] [MRT_ROS_Interface]: MRT node is ready.
+[wbmm_mrt_node-4]  #### 'activate'...............................................................1
+[wbmm_mrt_node-4]  #### 'selfCollision.collisionObjectPairs': { }
+[wbmm_mrt_node-4]  #### 'selfCollision.collisionLinkPairs': {[base_link, Link_2], [base_link, Link_3], [base_link, Link_4], [base_link, Link_5], [base_link, Link_6], [base_link, tool0_and_camera_link], [base_link, d435i_link], [Link_0, Link_2], [Link_0, Link_3], [Link_1, Link_3], [Link_1, Link_4], [Link_2, Link_4], [Link_2, Link_5], [Link_3, Link_5], [Link_3, Link_6], [Link_4, Link_6], [Link_0, tool0_and_camera_link], [Link_1, tool0_and_camera_link], [Link_2, tool0_and_camera_link], [Link_3, tool0_and_camera_link], [Link_4, tool0_and_camera_link], [Link_5, tool0_and_camera_link], [Link_0, d435i_link], [Link_1, d435i_link], [Link_2, d435i_link], [Link_3, d435i_link], [Link_4, d435i_link], [Link_5, d435i_link], }
+[wbmm_mrt_node-4] [WARN] [1791519533.322837977] [rcl.logging_rosout]: Publisher already registered for provided node name. If this is due to multiple nodes with the same name then all logs for that logger name will go out over the existing publisher. As soon as any node with that name is destructed it will unregister the publisher, preventing any further logs for that name from being published on the rosout topic.
+[wbmm_mrt_node-4] [INFO] [1791519533.327261646] [wbmm_mrt_node]: [WbmmVisualization] 自碰撞距离可视化已启用 (activationDistance=0.050)。
+[wbmm_mrt_node-4] [INFO] [1791519533.327645428] [wbmm_mrt_node]: [WbmmVisualization] environmentCollision.activate=false, 无障碍物可视化。
+[wbmm_mrt_node-4] [INFO] [1791519533.327690077] [wbmm_mrt_node]: [WbmmVisualization] up. frame=odom, stateDim=9, eeFrame=tool0
+[wbmm_mrt_node-4] [INFO] [1791519533.327701986] [wbmm_mrt_node]: Visualization enabled: every 6 cycles (approximately 20.8 Hz)
+[wbmm_mrt_node-4] [INFO] [1791519533.327789835] [wbmm_mrt_node]: Waiting for odom and complete joint_states...
+[wbmm_mrt_node-4] [INFO] [1791519533.327908145] [wbmm_mrt_node]: Received initial task phase: 2 (active=0)
+[mujoco_bridge-1] [INFO] [1791519533.608697922] [mujoco_bridge]: Arm physical position servos: kp=[1000.0, 2500.0, 2000.0, 300.0, 300.0, 50.0] kv=[200.0, 250.0, 250.0, 15.0, 15.0, 1.0] integrator=3
+[mujoco_bridge-1] [INFO] [1791519533.609454881] [mujoco_bridge]: Arm position servos: gravity/Coriolis feedforward enabled
+[mujoco_bridge-1] [INFO] [1791519533.636979292] [mujoco_bridge]: Loaded /home/a/WBMM/install/tracer_jaka_mujoco/share/tracer_jaka_mujoco/models/scene_force_follow_infinite.xml  dt=0.0020  exact_base=True
+[wbmm_mrt_node-4] [INFO] [1791519534.348106716] [wbmm_mrt_node]: Initial EE target: pos=(-0.138, -0.476, 0.510), quat=(1.000, 0.009, -0.000, -0.000)
+[wbmm_mrt_node-4] [INFO] [1791519534.348278897] [MRT_ROS_Interface]: MPC node has been reset.
+[wbmm_mrt_node-4] [INFO] [1791519534.348286734] [wbmm_mrt_node]: Waiting for first MPC policy...
+[wbmm_mpc_node-3] 
+[wbmm_mpc_node-3] #####################################################
+[wbmm_mpc_node-3] #####################################################
+[wbmm_mpc_node-3] #################  MPC is reset.  ###################
+[wbmm_mpc_node-3] #####################################################
+[wbmm_mpc_node-3] #####################################################
+[whole_body_force_control_node-6] [INFO] [1791519534.350152712] [whole_body_force_control]: Captured nominal TCP axes in odom
+[wbmm_mrt_node-4] [INFO] [1791519534.498967371] [wbmm_mrt_node]: Got first MPC policy. Entering MRT loop at 125.0 Hz
+[wbmm_mrt_node-4] [INFO] [1791519534.499414450] [wbmm_mrt_node]: MPC policy window: 0.258 s (planEnd - mpcInitObservation.time).
+[wbmm_mrt_node-4] [INFO] [1791519536.499453544] [wbmm_mrt_node]: [timing] ctrl_loop=125.5 Hz (target 125.0) | work avg=1.05 ms max=6.45 ms | MPC_policy_seen=77.0 Hz | plan_age avg=21.3 ms max=36.0 ms | sim/wall=0.898
+[wbmm_mrt_node-4] [INFO] [1791519538.499626598] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.10 ms max=9.27 ms | MPC_policy_seen=73.0 Hz | plan_age avg=22.6 ms max=44.0 ms | sim/wall=0.890
+[wbmm_mrt_node-4] [INFO] [1791519540.499662170] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.09 ms max=5.93 ms | MPC_policy_seen=80.5 Hz | plan_age avg=20.6 ms max=36.0 ms | sim/wall=0.898
+[wbmm_mrt_node-4] [INFO] [1791519542.510462635] [wbmm_mrt_node]: [timing] ctrl_loop=124.8 Hz (target 125.0) | work avg=0.98 ms max=5.80 ms | MPC_policy_seen=78.6 Hz | plan_age avg=21.0 ms max=36.0 ms | sim/wall=0.901
+[wbmm_mrt_node-4] [INFO] [1791519544.515604850] [wbmm_mrt_node]: [timing] ctrl_loop=125.2 Hz (target 125.0) | work avg=0.99 ms max=6.56 ms | MPC_policy_seen=82.3 Hz | plan_age avg=20.4 ms max=36.0 ms | sim/wall=0.898
+[wbmm_mrt_node-4] [INFO] [1791519546.523450189] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.02 ms max=5.84 ms | MPC_policy_seen=80.7 Hz | plan_age avg=20.6 ms max=36.0 ms | sim/wall=0.894
+[wbmm_mrt_node-4] [INFO] [1791519548.523549804] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.05 ms max=6.01 ms | MPC_policy_seen=81.5 Hz | plan_age avg=20.0 ms max=36.0 ms | sim/wall=0.902
+[wbmm_mrt_node-4] [INFO] [1791519550.526479178] [wbmm_mrt_node]: [timing] ctrl_loop=124.8 Hz (target 125.0) | work avg=1.02 ms max=6.77 ms | MPC_policy_seen=76.4 Hz | plan_age avg=21.2 ms max=36.0 ms | sim/wall=0.897
+[wbmm_mrt_node-4] [INFO] [1791519552.531537678] [wbmm_mrt_node]: [timing] ctrl_loop=125.2 Hz (target 125.0) | work avg=1.07 ms max=6.51 ms | MPC_policy_seen=76.8 Hz | plan_age avg=21.3 ms max=36.0 ms | sim/wall=0.896
+[wbmm_mrt_node-4] [INFO] [1791519554.531546505] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.06 ms max=6.22 ms | MPC_policy_seen=71.5 Hz | plan_age avg=23.1 ms max=44.0 ms | sim/wall=0.896
+[wbmm_mrt_node-4] [INFO] [1791519556.531568135] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.03 ms max=6.13 ms | MPC_policy_seen=75.5 Hz | plan_age avg=21.9 ms max=40.0 ms | sim/wall=0.892
+[wbmm_mrt_node-4] [INFO] [1791519558.542604375] [wbmm_mrt_node]: [timing] ctrl_loop=124.8 Hz (target 125.0) | work avg=1.05 ms max=6.02 ms | MPC_policy_seen=75.1 Hz | plan_age avg=21.9 ms max=44.0 ms | sim/wall=0.899
+[wbmm_mrt_node-4] [INFO] [1791519560.547472638] [wbmm_mrt_node]: [timing] ctrl_loop=125.2 Hz (target 125.0) | work avg=0.99 ms max=6.25 ms | MPC_policy_seen=79.8 Hz | plan_age avg=20.4 ms max=32.0 ms | sim/wall=0.894
+[wbmm_mrt_node-4] [INFO] [1791519562.555547410] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.07 ms max=6.10 ms | MPC_policy_seen=77.7 Hz | plan_age avg=21.2 ms max=40.0 ms | sim/wall=0.898
+[wbmm_mrt_node-4] [INFO] [1791519564.563488799] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=0.99 ms max=5.22 ms | MPC_policy_seen=81.2 Hz | plan_age avg=20.7 ms max=36.0 ms | sim/wall=0.900
+[wbmm_mrt_node-4] [INFO] [1791519566.563597477] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.09 ms max=5.95 ms | MPC_policy_seen=81.5 Hz | plan_age avg=20.4 ms max=36.0 ms | sim/wall=0.896
+[wbmm_mrt_node-4] [INFO] [1791519568.576906687] [wbmm_mrt_node]: [timing] ctrl_loop=124.7 Hz (target 125.0) | work avg=1.04 ms max=6.64 ms | MPC_policy_seen=74.5 Hz | plan_age avg=22.2 ms max=44.0 ms | sim/wall=0.896
+[mujoco_bridge-1] [INFO] [1791519570.213636518] [mujoco_bridge]: [arm-command] error=[ 0.005 -0.008  0.01   0.002  0.001  0.006] actuator=[ 0.4 23.8 20.4  3.5  0.4  0.2] constraint=[-0.5  0.5 -0.5 -0.3 -0.2 -0.2] nonfloor_contacts=none
+[wbmm_mrt_node-4] [INFO] [1791519570.579439974] [wbmm_mrt_node]: [timing] ctrl_loop=125.3 Hz (target 125.0) | work avg=1.11 ms max=6.68 ms | MPC_policy_seen=46.9 Hz | plan_age avg=34.8 ms max=64.0 ms | sim/wall=0.895
+[mujoco_bridge-1] [INFO] [1791519571.328852485] [mujoco_bridge]: [arm-command] error=[ 0.007 -0.008  0.013 -0.     0.     0.007] actuator=[ 1.3 27.3 20.6  3.1  0.2  0.3] constraint=[-0.5  0.5 -0.5  0.  -0.  -0.2] nonfloor_contacts=none
+[wbmm_mrt_node-4] [INFO] [1791519572.579581836] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.09 ms max=6.61 ms | MPC_policy_seen=37.0 Hz | plan_age avg=40.0 ms max=64.0 ms | sim/wall=0.890
+[wbmm_mrt_node-4] [INFO] [1791519574.584091482] [wbmm_mrt_node]: [timing] ctrl_loop=122.7 Hz (target 125.0) | work avg=1.38 ms max=17.82 ms | MPC_policy_seen=32.4 Hz | plan_age avg=44.2 ms max=76.0 ms | sim/wall=0.860
+[wbmm_mrt_node-4] [INFO] [1791519576.586043858] [wbmm_mrt_node]: [timing] ctrl_loop=122.4 Hz (target 125.0) | work avg=1.39 ms max=24.43 ms | MPC_policy_seen=31.0 Hz | plan_age avg=45.8 ms max=84.0 ms | sim/wall=0.847
+[wbmm_mrt_node-4] [INFO] [1791519578.589661048] [wbmm_mrt_node]: [timing] ctrl_loop=124.8 Hz (target 125.0) | work avg=1.29 ms max=13.58 ms | MPC_policy_seen=31.9 Hz | plan_age avg=44.8 ms max=72.0 ms | sim/wall=0.860
+[wbmm_mrt_node-4] [INFO] [1791519580.593922406] [wbmm_mrt_node]: [timing] ctrl_loop=125.2 Hz (target 125.0) | work avg=1.06 ms max=5.90 ms | MPC_policy_seen=33.4 Hz | plan_age avg=44.1 ms max=68.0 ms | sim/wall=0.888
+[mujoco_bridge-1] [INFO] [1791519581.691726849] [mujoco_bridge]: [arm-command] error=[-0.004  0.01  -0.013 -0.001 -0.001 -0.004] actuator=[-0.2 24.  20.2  3.  -0.1 -0.1] constraint=[ 0.5 -0.5  0.5  0.3  0.2  0.1] nonfloor_contacts=none
+[wbmm_mrt_node-4] [INFO] [1791519582.593996278] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.09 ms max=6.90 ms | MPC_policy_seen=48.5 Hz | plan_age avg=34.0 ms max=60.0 ms | sim/wall=0.890
+[mujoco_bridge-1] [INFO] [1791519582.807337044] [mujoco_bridge]: [arm-command] error=[-0.004  0.01  -0.012  0.001  0.    -0.004] actuator=[-0.1 21.3 19.2  3.3  0.1 -0.2] constraint=[ 0.5 -0.5  0.5 -0.2 -0.   0.1] nonfloor_contacts=none
+[wbmm_mrt_node-4] [INFO] [1791519584.601924078] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.09 ms max=6.52 ms | MPC_policy_seen=74.7 Hz | plan_age avg=22.1 ms max=44.0 ms | sim/wall=0.892
+[wbmm_mrt_node-4] [INFO] [1791519586.605066091] [wbmm_mrt_node]: [timing] ctrl_loop=124.8 Hz (target 125.0) | work avg=1.01 ms max=6.91 ms | MPC_policy_seen=78.9 Hz | plan_age avg=21.0 ms max=44.0 ms | sim/wall=0.897
+[wbmm_mrt_node-4] [INFO] [1791519588.610084732] [wbmm_mrt_node]: [timing] ctrl_loop=125.2 Hz (target 125.0) | work avg=0.99 ms max=5.24 ms | MPC_policy_seen=78.3 Hz | plan_age avg=21.4 ms max=40.0 ms | sim/wall=0.900
+[wbmm_mrt_node-4] [INFO] [1791519590.617919664] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.08 ms max=6.30 ms | MPC_policy_seen=74.7 Hz | plan_age avg=21.6 ms max=44.0 ms | sim/wall=0.893
+[mujoco_bridge-1] [INFO] [1791519591.747717107] [mujoco_bridge]: [arm-command] error=[-0.001 -0.004 -0.01   0.006 -0.    -0.001] actuator=[-6.2e-01  1.8e+01  2.0e+01  3.5e+00 -2.0e-02 -3.4e-02] constraint=[ 0.5  0.5  0.5 -0.3  0.1  0. ] nonfloor_contacts=none
+[wbmm_mrt_node-4] [INFO] [1791519592.618017147] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.27 ms max=9.17 ms | MPC_policy_seen=73.0 Hz | plan_age avg=22.2 ms max=40.0 ms | sim/wall=0.876
+[mujoco_bridge-1] [INFO] [1791519592.909262356] [mujoco_bridge]: [arm-command] error=[-0.002 -0.004 -0.012  0.007 -0.    -0.002] actuator=[-5.9e-01  1.9e+01  1.9e+01  3.5e+00 -1.1e-02 -6.5e-02] constraint=[ 0.5  0.5  0.5 -0.3  0.1  0.1] nonfloor_contacts=none
+[mujoco_bridge-1] [INFO] [1791519594.069755474] [mujoco_bridge]: [arm-command] error=[-2.226e-03  1.063e-03 -1.066e-02  5.993e-03 -6.135e-05 -1.708e-03] actuator=[-0.8 21.3 19.1  3.5  0.1 -0.1] constraint=[ 0.5 -0.5  0.5 -0.3 -0.   0.1] nonfloor_contacts=none
+[wbmm_mrt_node-4] [INFO] [1791519594.623003636] [wbmm_mrt_node]: [timing] ctrl_loop=124.7 Hz (target 125.0) | work avg=1.32 ms max=7.47 ms | MPC_policy_seen=66.3 Hz | plan_age avg=23.5 ms max=48.0 ms | sim/wall=0.866
+[wbmm_mrt_node-4] [INFO] [1791519596.626063647] [wbmm_mrt_node]: [timing] ctrl_loop=125.3 Hz (target 125.0) | work avg=1.19 ms max=6.59 ms | MPC_policy_seen=67.4 Hz | plan_age avg=23.3 ms max=40.0 ms | sim/wall=0.869
+[wbmm_mrt_node-4] [INFO] [1791519598.626078482] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.12 ms max=6.12 ms | MPC_policy_seen=74.0 Hz | plan_age avg=21.5 ms max=36.0 ms | sim/wall=0.866
+[wbmm_mrt_node-4] [INFO] [1791519600.633932791] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.16 ms max=7.18 ms | MPC_policy_seen=70.7 Hz | plan_age avg=22.2 ms max=40.0 ms | sim/wall=0.871
+[wbmm_mrt_node-4] [INFO] [1791519602.637813410] [wbmm_mrt_node]: [timing] ctrl_loop=124.8 Hz (target 125.0) | work avg=1.10 ms max=6.65 ms | MPC_policy_seen=74.4 Hz | plan_age avg=21.6 ms max=36.0 ms | sim/wall=0.878
+[mujoco_bridge-1] [INFO] [1791519603.260724716] [mujoco_bridge]: [arm-command] error=[ 0.001  0.005  0.011 -0.007  0.     0.   ] actuator=[6.8e-01 1.7e+01 2.0e+01 3.0e+00 1.9e-01 1.6e-02] constraint=[-0.5 -0.5 -0.5  0.3 -0.1 -0. ] nonfloor_contacts=none
+[mujoco_bridge-1] [INFO] [1791519604.420234592] [mujoco_bridge]: [arm-command] error=[ 0.001  0.004  0.013 -0.007  0.001  0.001] actuator=[ 0.8 17.7 20.3  2.9  0.2  0. ] constraint=[-0.5 -0.5 -0.5  0.3 -0.1 -0. ] nonfloor_contacts=none
+[wbmm_mrt_node-4] [INFO] [1791519604.641941828] [wbmm_mrt_node]: [timing] ctrl_loop=125.2 Hz (target 125.0) | work avg=1.15 ms max=7.22 ms | MPC_policy_seen=71.4 Hz | plan_age avg=21.9 ms max=36.0 ms | sim/wall=0.864
+[wbmm_mrt_node-4] [INFO] [1791519606.642165369] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.29 ms max=6.77 ms | MPC_policy_seen=63.5 Hz | plan_age avg=24.6 ms max=48.0 ms | sim/wall=0.862
+[wbmm_mrt_node-4] [INFO] [1791519608.650166508] [wbmm_mrt_node]: [timing] ctrl_loop=125.0 Hz (target 125.0) | work avg=1.27 ms max=6.85 ms | MPC_policy_seen=65.2 Hz | plan_age avg=23.8 ms max=44.0 ms | sim/wall=0.865
+[wbmm_mrt_node-4] [INFO] [1791519610.654294270] [wbmm_mrt_node]: [timing] ctrl_loop=124.7 Hz (target 125.0) | work avg=1.18 ms max=6.85 ms | MPC_policy_seen=67.4 Hz | plan_age avg=23.2 ms max=40.0 ms | sim/wall=0.874
+[wbmm_mrt_node-4] [INFO] [1791519612.658177396] [wbmm_mrt_node]: [timing] ctrl_loop=125.3 Hz (target 125.0) | work avg=1.21 ms max=6.91 ms | MPC_policy_seen=67.9 Hz | plan_age avg=23.2 ms max=44.0 ms | sim/wall=0.868
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+[INFO] [keyboard_wrench_node-8]: sending signal 'SIGINT' to process[keyboard_wrench_node-8]
+[INFO] [virtual_wrench_node-7]: sending signal 'SIGINT' to process[virtual_wrench_node-7]
+[INFO] [whole_body_force_control_node-6]: sending signal 'SIGINT' to process[whole_body_force_control_node-6]
+[INFO] [force_sensor_processor_node-5]: sending signal 'SIGINT' to process[force_sensor_processor_node-5]
+[INFO] [wbmm_mrt_node-4]: sending signal 'SIGINT' to process[wbmm_mrt_node-4]
+[INFO] [wbmm_mpc_node-3]: sending signal 'SIGINT' to process[wbmm_mpc_node-3]
+[INFO] [robot_state_publisher-2]: sending signal 'SIGINT' to process[robot_state_publisher-2]
+[INFO] [mujoco_bridge-1]: sending signal 'SIGINT' to process[mujoco_bridge-1]
+[virtual_wrench_node-7] [INFO] [1791519613.283146336] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[wbmm_mrt_node-4] [INFO] [1791519613.283188430] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[robot_state_publisher-2] [INFO] [1791519613.283246396] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[force_sensor_processor_node-5] [INFO] [1791519613.283436442] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[keyboard_wrench_node-8] [INFO] [1791519613.283534720] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[whole_body_force_control_node-6] [INFO] [1791519613.283710178] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[wbmm_mpc_node-3] [INFO] [1791519613.283879088] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[wbmm_mpc_node-3] [INFO] [1791519613.287890690] [MPC_ROS_Interface]: Shutting down workers ...
+[wbmm_mpc_node-3] [INFO] [1791519613.287934910] [MPC_ROS_Interface]: All workers are shut down.
+[mujoco_bridge-1] Exception in thread Thread-1 (spin):
+[mujoco_bridge-1] Traceback (most recent call last):
+[mujoco_bridge-1]   File "/usr/lib/python3.10/threading.py", line 1016, in _bootstrap_inner
+[mujoco_bridge-1]     self.run()
+[mujoco_bridge-1]   File "/usr/lib/python3.10/threading.py", line 953, in run
+[mujoco_bridge-1]     self._target(*self._args, **self._kwargs)
+[mujoco_bridge-1]   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 323, in spin
+[mujoco_bridge-1]     self.spin_once()
+[mujoco_bridge-1]   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 863, in spin_once
+[mujoco_bridge-1]     self._spin_once_impl(timeout_sec)
+[mujoco_bridge-1]   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 844, in _spin_once_impl
+[mujoco_bridge-1]     handler, entity, node = self.wait_for_ready_callbacks(
+[mujoco_bridge-1]   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 780, in wait_for_ready_callbacks
+[mujoco_bridge-1]     return next(self._cb_iter)
+[mujoco_bridge-1]   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 653, in _wait_for_ready_callbacks
+[mujoco_bridge-1]     wait_set = _rclpy.WaitSet(
+[mujoco_bridge-1] rclpy._rclpy_pybind11.RCLError: failed to initialize wait set: the given context is not valid, either rcl_init() was not called or rcl_shutdown() was called., at ./src/rcl/wait.c:130
+[keyboard_wrench_node-8] [INFO] [1791519613.289551305] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[virtual_wrench_node-7] [INFO] [1791519613.290388984] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[whole_body_force_control_node-6] [INFO] [1791519613.290988767] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[ERROR] [wbmm_mpc_node-3]: process has died [pid 42734, exit code -2, cmd '/home/a/WBMM/install/wbmm_ocs2_ros/lib/wbmm_ocs2_ros/wbmm_mpc_node --ros-args -r __node:=wbmm_mpc_node --params-file /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/common/ocs2.yaml --params-file /home/a/WBMM/install/tracer_jaka_bringup/share/tracer_jaka_bringup/config/sim/ocs2.yaml --params-file /tmp/launch_params_p5g7_gjy'].
+[force_sensor_processor_node-5] [INFO] [1791519613.291673718] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[wbmm_mrt_node-4] [INFO] [1791519613.292294291] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[robot_state_publisher-2] [INFO] [1791519613.293470354] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[wbmm_mrt_node-4] [INFO] [1791519613.301201073] [MRT_ROS_Interface]: Shutting down workers ...
+[wbmm_mrt_node-4] [INFO] [1791519613.301238886] [MRT_ROS_Interface]: All workers are shut down.
+[mujoco_bridge-1] Traceback (most recent call last):
+[mujoco_bridge-1]   File "/home/a/WBMM/install/tracer_jaka_mujoco/lib/tracer_jaka_mujoco/mujoco_bridge", line 33, in <module>
+[mujoco_bridge-1]     sys.exit(load_entry_point('tracer-jaka-mujoco', 'console_scripts', 'mujoco_bridge')())
+[mujoco_bridge-1]   File "/home/a/WBMM/build/tracer_jaka_mujoco/tracer_jaka_mujoco/mujoco_bridge_node.py", line 766, in main
+[mujoco_bridge-1]     node.destroy_node()
+[mujoco_bridge-1]   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/node.py", line 1685, in destroy_node
+[mujoco_bridge-1]     self.destroy_publisher(self._publishers[0])
+[mujoco_bridge-1]   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/node.py", line 1565, in destroy_publisher
+[mujoco_bridge-1]     publisher.destroy()
+[mujoco_bridge-1]   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/publisher.py", line 99, in destroy
+[mujoco_bridge-1]     self.__publisher.destroy_when_not_in_use()
+[mujoco_bridge-1] KeyboardInterrupt
+[mujoco_bridge-1] Xlib:  extension "NV-GLX" missing on display ":0".
+[INFO] [keyboard_wrench_node-8]: process has finished cleanly [pid 42744]
+[INFO] [virtual_wrench_node-7]: process has finished cleanly [pid 42742]
+[INFO] [force_sensor_processor_node-5]: process has finished cleanly [pid 42738]
+[INFO] [robot_state_publisher-2]: process has finished cleanly [pid 42732]
+[ERROR] [mujoco_bridge-1]: process has died [pid 42730, exit code -2, cmd '/home/a/WBMM/install/tracer_jaka_mujoco/lib/tracer_jaka_mujoco/mujoco_bridge --ros-args -r __node:=mujoco_bridge --params-file /home/a/WBMM/install/tracer_jaka_mujoco/share/tracer_jaka_mujoco/config/sensors.yaml --params-file /home/a/WBMM/install/tracer_jaka_mujoco/share/tracer_jaka_mujoco/config/arm_servo.yaml --params-file /tmp/launch_params_w2ynop87'].
+[INFO] [wbmm_mrt_node-4]: process has finished cleanly [pid 42736]
+[INFO] [whole_body_force_control_node-6]: process has finished cleanly [pid 42740]

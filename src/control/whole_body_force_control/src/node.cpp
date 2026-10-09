@@ -36,7 +36,7 @@ WholeBodyForceControlNode::WholeBodyForceControlNode()
         config));
   cartesian_controller_ = std::make_unique<CartesianComplianceController>(
       parameters_.admittance_axes, parameters_.mass, parameters_.damping,
-      parameters_.stiffness, parameters_.max_velocity);
+      parameters_.stiffness);
 
   createRosInterfaces();
 

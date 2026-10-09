@@ -1,0 +1,23 @@
+Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+[==========] Running 7 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 7 tests from RobotMetrics
+[ RUN      ] RobotMetrics.JointLimitMarginsUseMidpointBoundaryConvention
+[       OK ] RobotMetrics.JointLimitMarginsUseMidpointBoundaryConvention (0 ms)
+[ RUN      ] RobotMetrics.ArmMetricsMatchesKnownJacobian
+[       OK ] RobotMetrics.ArmMetricsMatchesKnownJacobian (0 ms)
+[ RUN      ] RobotMetrics.ProviderNeutralEntryPointUsesSuppliedJacobian
+[       OK ] RobotMetrics.ProviderNeutralEntryPointUsesSuppliedJacobian (0 ms)
+[ RUN      ] RobotMetrics.SupportsWholeBodyScopeAndTaskDirection
+[       OK ] RobotMetrics.SupportsWholeBodyScopeAndTaskDirection (0 ms)
+[ RUN      ] RobotMetrics.CharacteristicLengthScalesAngularRows
+[       OK ] RobotMetrics.CharacteristicLengthScalesAngularRows (0 ms)
+[ RUN      ] RobotMetrics.CharacteristicLengthDoesNotScaleTranslationTask
+[       OK ] RobotMetrics.CharacteristicLengthDoesNotScaleTranslationTask (0 ms)
+[ RUN      ] RobotMetrics.RejectsInvalidInputsWithoutInventingValues
+[       OK ] RobotMetrics.RejectsInvalidInputsWithoutInventingValues (0 ms)
+[----------] 7 tests from RobotMetrics (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 7 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 7 tests.

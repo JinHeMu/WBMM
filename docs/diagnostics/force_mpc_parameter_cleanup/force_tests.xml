@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="27" failures="0" disabled="0" errors="0" time="0.004" timestamp="2026-10-09T12:17:43" name="AllTests">
+  <testsuite name="AdmittanceController" tests="4" failures="0" disabled="0" errors="0" time="0" timestamp="2026-10-09T12:17:43">
+    <testcase name="PassiveAdmittanceIsBoundedAndReturnsToZero" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="AdmittanceController" />
+    <testcase name="ZeroStiffnessFollowsWhileForceIsPresent" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="AdmittanceController" />
+    <testcase name="LimitOffsetStopsIntegratorWindup" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="AdmittanceController" />
+    <testcase name="VelocityFollowsDynamicsWithoutAxisSaturation" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="AdmittanceController" />
+  </testsuite>
+  <testsuite name="CartesianComplianceController" tests="2" failures="0" disabled="0" errors="0" time="0" timestamp="2026-10-09T12:17:43">
+    <testcase name="SelectsIndependentSixAxisAdmittance" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="CartesianComplianceController" />
+    <testcase name="TransformsForceAndLeverArmTorque" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="CartesianComplianceController" />
+  </testsuite>
+  <testsuite name="EndEffectorPoseTarget" tests="1" failures="0" disabled="0" errors="0" time="0" timestamp="2026-10-09T12:17:43">
+    <testcase name="AppliesLocalCorrectionInNominalFrame" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="EndEffectorPoseTarget" />
+  </testsuite>
+  <testsuite name="PinocchioRobotModel" tests="5" failures="0" disabled="0" errors="0" time="0.004" timestamp="2026-10-09T12:17:43">
+    <testcase name="MatchesCoreDimensionAndJointContract" status="run" result="completed" time="0.003" timestamp="2026-10-09T12:17:43" classname="PinocchioRobotModel" />
+    <testcase name="RejectsJointOutsideLimits" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="PinocchioRobotModel" />
+    <testcase name="ForwardKinematicsMapsJointsByName" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="PinocchioRobotModel" />
+    <testcase name="ValidationMapsJointVelocitiesByName" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="PinocchioRobotModel" />
+    <testcase name="JacobianMatchesExactFiniteDifference" status="run" result="completed" time="0.001" timestamp="2026-10-09T12:17:43" classname="PinocchioRobotModel" />
+  </testsuite>
+  <testsuite name="ForceProcessor" tests="13" failures="0" disabled="0" errors="0" time="0" timestamp="2026-10-09T12:17:43">
+    <testcase name="AutoTareAndProcessedOutput" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="ForceProcessor" />
+    <testcase name="LowPassFilterUsesConfiguredAlpha" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="ForceProcessor" />
+    <testcase name="DeadbandDoesNotEraseTcpFilterMemory" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="ForceProcessor" />
+    <testcase name="TransformIncludesLeverArmTorque" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="ForceProcessor" />
+    <testcase name="HardLimitIsReported" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="ForceProcessor" />
+    <testcase name="PerAxisForceLimitStopsDuringTare" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="ForceProcessor" />
+    <testcase name="DiagonalForceUsesAxisLimitsBeforeAndAfterCompensation" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="ForceProcessor" />
+    <testcase name="LoadCompensationSkipsTareAndRemovesGravity" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="ForceProcessor" />
+    <testcase name="DeadbandZerosSmallForceAndTorque" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="ForceProcessor" />
+    <testcase name="ResidualTareAfterGravityDoesNotRemovePoseDependentGravityTwice" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="ForceProcessor" />
+    <testcase name="CutoffFilterHasTheSameResponseAcrossSensorRates" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="ForceProcessor" />
+    <testcase name="ResidualTareCannotAbsorbExcessiveExternalForce" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="ForceProcessor" />
+    <testcase name="UnfilteredMomentArmSpikeCannotBeHiddenByFiltering" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="ForceProcessor" />
+  </testsuite>
+  <testsuite name="CartesianReference" tests="2" failures="0" disabled="0" errors="0" time="0" timestamp="2026-10-09T12:17:43">
+    <testcase name="InitialAndDiagonalStepsRespectVectorNormLimits" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="CartesianReference" />
+    <testcase name="RotatingToolDoesNotRotateAConstantWorldForceDirection" status="run" result="completed" time="0" timestamp="2026-10-09T12:17:43" classname="CartesianReference" />
+  </testsuite>
+</testsuites>

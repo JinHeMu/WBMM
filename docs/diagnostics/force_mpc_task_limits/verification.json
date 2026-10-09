@@ -1,0 +1,71 @@
+{
+  "date_utc": "2026-10-09T04:50:25.917711+00:00",
+  "planning_velocity_source": "task_force_mpc.info jointVelocityLimits.lowerBound/upperBound; YAML override path removed",
+  "position_limits": "jointPositionLimits.activate/mu/delta remain active; arm position bounds loaded from URDF",
+  "simulation_planning_upper_bound": [
+    0.1,
+    0.4,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2
+  ],
+  "real_planning_upper_bound": [
+    0.1,
+    0.4,
+    0.5,
+    0.5,
+    0.5,
+    0.5,
+    0.5,
+    0.5
+  ],
+  "execution_yaml_caps": {
+    "arm_rad_s": 0.2,
+    "base_linear_m_s": 0.1,
+    "base_angular_rad_s": 0.4
+  },
+  "existing_jaka_hardware_feedback_velocity_trip_rad_s": 0.4,
+  "hardware_limit_forwarding": "existing 2x arm command-speed forwarding retained; not connected to MPC planning bounds",
+  "build": {
+    "passed": true,
+    "packages": [
+      "wbmm_ocs2",
+      "wbmm_ocs2_ros",
+      "tracer_jaka_bringup"
+    ]
+  },
+  "tests": {
+    "core_cpp_passed": 25,
+    "ros_cpp_passed": 10,
+    "python_config_launch_passed": 46,
+    "position_toggle_test": "position penalty switches off with activate=false; task velocity penalty remains active",
+    "launch_test": "changing YAML execution speed does not inject or override MPC planning-speed parameters"
+  },
+  "keyboard": {
+    "passed": true,
+    "stages": 13,
+    "faults": [],
+    "failures": [],
+    "max_quiet_release_single_axis_tcp_peak_to_peak_m": 0.00036689329089789613
+  },
+  "integration": {
+    "passed": true,
+    "backend": "MuJoCo",
+    "positive_tcp_dx_m": 0.217322,
+    "base_travel_m": 0.157622,
+    "arm_joint_change_norm_rad": 0.124991,
+    "release_drift_m": 1.40836e-05,
+    "negative_tcp_dx_m": -0.218525,
+    "disconnect_fault": "FAULT_WRENCH_TIMEOUT",
+    "stopped_base_command_max": 0,
+    "hold_command_variation_rad": 0,
+    "recovery_displacement_m": 0.000151247,
+    "unexpected_collision": false
+  },
+  "hardware_tested": false,
+  "new_package_dependencies": false,
+  "new_runtime_protection": false
+}

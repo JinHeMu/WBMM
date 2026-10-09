@@ -46,8 +46,7 @@ def _make_nodes(context):
     sim = backend == "sim"
     hardware_write = _bool(_value(context, "hardware_write"))
     output_enabled = sim or hardware_write
-    enable = _value(context, "admittance.enable")
-    enable = sim if enable == "auto" else _bool(enable)
+    enable_argument = _value(context, "admittance.enable")
     fake_wrench = _bool(_value(context, "fake_wrench"))
     keyboard_wrench = _bool(_value(context, "keyboard_wrench"))
     if keyboard_wrench and (not sim or not fake_wrench):
@@ -62,17 +61,21 @@ def _make_nodes(context):
     if sim and calibration:
         raise RuntimeError("Real payload calibration must not be applied to simulation")
 
+    integrated_profile = os.path.join(bringup, "config", "common", "force_mpc.yaml")
+    profile_layers = [integrated_profile]
+    if os.path.abspath(force_profile) != os.path.abspath(integrated_profile):
+        profile_layers.append(force_profile)
     force_layers = [
         os.path.join(bringup, "config", "common", "force_control.yaml"),
         os.path.join(bringup, "config", backend, "force_control.yaml"),
-        force_profile,
+        *profile_layers,
     ]
     for path in [*force_layers, *([calibration] if calibration else [])]:
         if not os.path.isfile(path):
             raise RuntimeError(f"Force parameter file does not exist: {path!r}")
 
-    # Read only interface names; numerical control configuration is consumed
-    # directly by the C++ nodes using the same ordered parameter-file layers.
+    # Bringup resolves peer-package connections and execution limits.
+    # MPC planning bounds remain in task.info and are never overridden here.
     control = {}
     sensor = {}
     for path in force_layers:
@@ -80,25 +83,40 @@ def _make_nodes(context):
             values = yaml.safe_load(stream) or {}
         _merge(control, values.get("whole_body_force_control", {}).get("ros__parameters", {}))
         _merge(sensor, values.get("force_sensor_processor", {}).get("ros__parameters", {}))
+    enable = (bool(control.get("admittance", {}).get("enable", sim))
+              if enable_argument == "auto" else _bool(enable_argument))
+    if calibration:
+        with open(calibration, encoding="utf-8") as stream:
+            values = yaml.safe_load(stream) or {}
+        _merge(sensor, values.get("force_sensor_processor", {}).get("ros__parameters", {}))
     state_frame = control.get("state_frame", "odom")
     if state_frame != "odom":
         raise RuntimeError("force_mpc uses wheel odometry; state_frame must be odom")
-    tcp_frame = control.get("force_sensor", {}).get("tcp_frame", "tool0")
+    tcp_frame = sensor.get("force_sensor", {}).get("tcp_frame", "tool0")
     state_topic = control.get("topics", {}).get("states", "/whole_body_force_control/states")
     robot_name = control.get("robot_name", "mobile_manipulator")
     urdf = os.path.join(description, "urdf", "tracer_jaka_zu5.urdf")
-    task = _value(context, "task_file") or os.path.join(bringup, "config", backend, "task.info")
+    task = _value(context, "task_file") or os.path.join(bringup, "config", backend, "task_force_mpc.info")
     if not os.path.isfile(task):
         raise RuntimeError(f"OCS2 task file does not exist: {task!r}")
     ocs2_layers = [os.path.join(bringup, "config", "common", "ocs2.yaml")]
     if sim:
         ocs2_layers.append(os.path.join(bringup, "config", "sim", "ocs2.yaml"))
+    mrt_parameters = {}
+    for path in [*ocs2_layers, *profile_layers]:
+        with open(path, encoding="utf-8") as stream:
+            values = yaml.safe_load(stream) or {}
+        _merge(mrt_parameters, values.get("wbmm_mrt_node", {}).get("ros__parameters", {}))
+    speed_limit = float(mrt_parameters["arm_max_command_velocity"])
+    linear_limit = float(mrt_parameters["base_max_linear_velocity"])
+    angular_limit = float(mrt_parameters["base_max_angular_velocity"])
+    if any(not math.isfinite(v) or v <= 0 for v in [speed_limit, linear_limit, angular_limit]):
+        raise RuntimeError("Force MPC velocity limits must be finite and positive")
     common = {"taskFile": task, "urdfFile": urdf, "use_sim_time": sim,
-              "world_frame": state_frame, "initial_task_phase": 2, "robot_name": robot_name}
+              "world_frame": state_frame, "ee_frame": tcp_frame,
+              "initial_task_phase": 2, "robot_name": robot_name}
     library_root = _value(context, "lib_folder")
-    mrt_force_layers = [force_profile]
-    if sim:
-        mrt_force_layers.append(os.path.join(bringup, "config", "sim", "force_mpc.yaml"))
+    mrt_force_layers = profile_layers
     sensor_overrides = {
         "use_sim_time": sim,
         "force_sensor.tcp_frame": tcp_frame,
@@ -135,13 +153,15 @@ def _make_nodes(context):
              name="whole_body_force_control", output="screen",
              parameters=[*force_layers, {
                  "urdf_file": urdf, "use_sim_time": sim,
+                 "force_sensor.tcp_frame": tcp_frame,
+                 "topics.wrench": sensor.get("topics", {}).get("processed_wrench", "/whole_body_force_control/processed_wrench"),
                  "admittance.enable": enable, "admittance.output": output_enabled,
              }]),
     ]
     if fake_wrench:
         nodes.append(Node(package="whole_body_force_control", executable="virtual_wrench_node",
                           name="virtual_force_publisher", output="screen",
-                          parameters=[force_profile, {
+                          parameters=[*profile_layers, {
                               "frame_id": sensor.get("force_sensor", {}).get("sensor_frame", "jk_se_vi_200_link"),
                               "topic": sensor_overrides["topics.raw_wrench"],
                               "command_frame": tcp_frame,
@@ -149,7 +169,7 @@ def _make_nodes(context):
     if keyboard_wrench:
         nodes.append(Node(package="whole_body_force_control", executable="keyboard_wrench_node",
                           name="keyboard_force_publisher", output="screen",
-                          parameters=[force_profile, {"frame_id": tcp_frame}]))
+                          parameters=[*profile_layers, {"frame_id": tcp_frame}]))
     actions = []
     if _bool(_value(context, "start_backend")):
         if sim:
@@ -164,12 +184,6 @@ def _make_nodes(context):
             # alignment in the tracking guard, and 2x commanded speed in the
             # measured-speed guard. These are independent execution trips,
             # not a replacement for the robot's own collision protection.
-            mrt_parameters = {}
-            for path in [*ocs2_layers, *mrt_force_layers]:
-                with open(path, encoding="utf-8") as stream:
-                    values = yaml.safe_load(stream) or {}
-                _merge(mrt_parameters, values.get("wbmm_mrt_node", {}).get("ros__parameters", {}))
-            speed_limit = float(mrt_parameters.get("arm_max_command_velocity", 0.5))
             lead_limit = float(mrt_parameters.get("arm_max_delta_per_step", 0.5))
             loop_rate = float(mrt_parameters.get("mrt_loop_rate", 100.0))
             if any(not math.isfinite(v) or v <= 0 for v in [speed_limit, lead_limit, loop_rate]):

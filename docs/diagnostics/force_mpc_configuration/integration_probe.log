@@ -1,0 +1,4 @@
+Push: TCP dx=0.21788 base=0.158067 arm=0.125174
+Release drift=3.7041e-06
+Reverse TCP dx=-0.217913
+PASS: /home/a/WBMM/docs/diagnostics/force_mpc_configuration/integration.json

@@ -41,6 +41,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <wbmm_ocs2/FactoryFunctions.h>
 #include <wbmm_ocs2/WbmmReferenceManager.h>
+#include <wbmm_ocs2/cost/ArmManipulabilityCost.h>
 #include <wbmm_ocs2/collision/EnvironmentGeometryInterface.h>
 #include <wbmm_ocs2/collision/EsdfEnvironmentInterface.h>
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
@@ -78,7 +79,11 @@ namespace wbmm_ocs2
         WbmmInterface(const std::string& taskFile, const std::string& libraryFolder,
                                    const std::string& urdfFile,
                                    const std::string& esdfFileOverride = "",
-                                   const std::string& worldFrame = "odom");
+                                   const std::string& worldFrame = "odom",
+                                   const std::string& eeFrameOverride = "");
+
+        const ocs2::vector_t& getInputVelocityLowerBound() const { return inputVelocityLowerBound_; }
+        const ocs2::vector_t& getInputVelocityUpperBound() const { return inputVelocityUpperBound_; }
 
         const ocs2::vector_t& getInitialState() { return initialState_; }
 
@@ -106,6 +111,10 @@ namespace wbmm_ocs2
         {
             return armManipulabilityEnabled_;
         }
+
+        bool isFinalArmManipulabilityEnabled() const { return finalArmManipulabilityEnabled_; }
+        // Separate instance: diagnostics never mutate the solver cost's data.
+        const ArmManipulabilityCost* getArmMetricsEvaluator() const { return armMetricsEvaluator_.get(); }
 
         void setTaskPhase(TaskPhase phase)
         {
@@ -196,6 +205,8 @@ namespace wbmm_ocs2
         }
 
     private:
+        ocs2::vector_t inputVelocityLowerBound_;
+        ocs2::vector_t inputVelocityUpperBound_;
         std::unique_ptr<ocs2::StateInputCost> getQuadraticInputCost(const std::string& taskFile);
         std::unique_ptr<ocs2::StateCost> getEndEffectorTrackingCost(
             const ocs2::PinocchioInterface& pinocchioInterface,
@@ -204,10 +215,10 @@ namespace wbmm_ocs2
             bool usePreComputation,
             const std::string& libraryFolder,
             bool recompileLibraries);
-        std::unique_ptr<ocs2::StateCost> getArmManipulabilityCost(
+        std::unique_ptr<ArmManipulabilityCost> getArmManipulabilityCost(
             const ocs2::PinocchioInterface& pinocchioInterface,
             const std::string& taskFile,
-            const std::string& prefix);
+            const std::string& prefix, bool terminal = false);
         std::unique_ptr<ocs2::StateCost> getSelfCollisionConstraint(const ocs2::PinocchioInterface& pinocchioInterface,
                                                               const std::string& taskFile,
                                                               const std::string& urdfFile,
@@ -283,5 +294,7 @@ namespace wbmm_ocs2
         bool wholeBodyTrackingEnabled_{false};
         bool modeSwitchEnabled_{false};
         bool armManipulabilityEnabled_{false};
+        bool finalArmManipulabilityEnabled_{false};
+        std::unique_ptr<ArmManipulabilityCost> armMetricsEvaluator_;
     };
 }

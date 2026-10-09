@@ -114,7 +114,6 @@ force_sensor:
   tare_samples: 50
   filter_alpha: 0.25
   wrench_scale: [1, 1, 1, 1, 1, 1]
-  hard_force_norm_limit: 20.0
   hard_wrench_limit: [20, 20, 20, 4, 4, 4]
   force_timeout: 0.50
   force_deadband_n: 0.0
@@ -137,7 +136,6 @@ force_sensor:
 - `tare_samples`：启动后自动 tare 采样帧数。
 - `filter_alpha`：一阶低通系数，范围 0~1；`filter_cutoff_hz > 0` 时改用按采样间隔计算的系数。
 - `wrench_scale`：sensor frame 下的六轴缩放。
-- `hard_force_norm_limit`：原始 `Fx/Fy/Fz` 范数硬限幅；0 表示关闭该检查。
 - `hard_wrench_limit`：六轴分量硬限幅。
 - `force_timeout`：力数据超时。
 - `force_deadband_n`：滤波后各轴力分量死区，绝对值小于该值置 0。
@@ -174,7 +172,6 @@ admittance:
   mass: [3, 3, 3, 0.3, 0.3, 0.3]
   damping: [45, 45, 45, 4.5, 4.5, 4.5]
   stiffness: [0, 0, 0, 0, 0, 0]
-  max_velocity: [0.25, 0.25, 0.10, 0.15, 0.15, 0.15]
 ```
 
 - `enable`：是否进入导纳控制。
@@ -187,9 +184,7 @@ admittance:
 D = 2 * zeta * sqrt(M * K)
 ```
 
-- `max_velocity`：六轴修正速度上限。
-
-不设置 `admittance.max_offset`。  
+不设置 `admittance.max_offset`。
 修正量不设固定最大位移；目标变化速度受 `end_effector` 参数限制。
 机械臂限位、可达性与碰撞约束由 OCS2/MPC 处理。
 

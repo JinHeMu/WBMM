@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 project(wbmm_robot_metrics)
 
+# Match the controller's default; Eigen decompositions are on the MPC path.
+# An explicit Debug/RelWithDebInfo selection still takes precedence.
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(wbmm_core REQUIRED)

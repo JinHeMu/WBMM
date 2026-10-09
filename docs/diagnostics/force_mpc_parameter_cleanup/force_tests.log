@@ -1,0 +1,78 @@
+Running main() from /opt/ros/humble/src/gtest_vendor/src/gtest_main.cc
+[==========] Running 27 tests from 6 test suites.
+[----------] Global test environment set-up.
+[----------] 4 tests from AdmittanceController
+[ RUN      ] AdmittanceController.PassiveAdmittanceIsBoundedAndReturnsToZero
+[       OK ] AdmittanceController.PassiveAdmittanceIsBoundedAndReturnsToZero (0 ms)
+[ RUN      ] AdmittanceController.ZeroStiffnessFollowsWhileForceIsPresent
+[       OK ] AdmittanceController.ZeroStiffnessFollowsWhileForceIsPresent (0 ms)
+[ RUN      ] AdmittanceController.LimitOffsetStopsIntegratorWindup
+[       OK ] AdmittanceController.LimitOffsetStopsIntegratorWindup (0 ms)
+[ RUN      ] AdmittanceController.VelocityFollowsDynamicsWithoutAxisSaturation
+[       OK ] AdmittanceController.VelocityFollowsDynamicsWithoutAxisSaturation (0 ms)
+[----------] 4 tests from AdmittanceController (0 ms total)
+
+[----------] 2 tests from CartesianComplianceController
+[ RUN      ] CartesianComplianceController.SelectsIndependentSixAxisAdmittance
+[       OK ] CartesianComplianceController.SelectsIndependentSixAxisAdmittance (0 ms)
+[ RUN      ] CartesianComplianceController.TransformsForceAndLeverArmTorque
+[       OK ] CartesianComplianceController.TransformsForceAndLeverArmTorque (0 ms)
+[----------] 2 tests from CartesianComplianceController (0 ms total)
+
+[----------] 1 test from EndEffectorPoseTarget
+[ RUN      ] EndEffectorPoseTarget.AppliesLocalCorrectionInNominalFrame
+[       OK ] EndEffectorPoseTarget.AppliesLocalCorrectionInNominalFrame (0 ms)
+[----------] 1 test from EndEffectorPoseTarget (0 ms total)
+
+[----------] 5 tests from PinocchioRobotModel
+[ RUN      ] PinocchioRobotModel.MatchesCoreDimensionAndJointContract
+[       OK ] PinocchioRobotModel.MatchesCoreDimensionAndJointContract (3 ms)
+[ RUN      ] PinocchioRobotModel.RejectsJointOutsideLimits
+[       OK ] PinocchioRobotModel.RejectsJointOutsideLimits (0 ms)
+[ RUN      ] PinocchioRobotModel.ForwardKinematicsMapsJointsByName
+[       OK ] PinocchioRobotModel.ForwardKinematicsMapsJointsByName (0 ms)
+[ RUN      ] PinocchioRobotModel.ValidationMapsJointVelocitiesByName
+[       OK ] PinocchioRobotModel.ValidationMapsJointVelocitiesByName (0 ms)
+[ RUN      ] PinocchioRobotModel.JacobianMatchesExactFiniteDifference
+[       OK ] PinocchioRobotModel.JacobianMatchesExactFiniteDifference (1 ms)
+[----------] 5 tests from PinocchioRobotModel (4 ms total)
+
+[----------] 13 tests from ForceProcessor
+[ RUN      ] ForceProcessor.AutoTareAndProcessedOutput
+[       OK ] ForceProcessor.AutoTareAndProcessedOutput (0 ms)
+[ RUN      ] ForceProcessor.LowPassFilterUsesConfiguredAlpha
+[       OK ] ForceProcessor.LowPassFilterUsesConfiguredAlpha (0 ms)
+[ RUN      ] ForceProcessor.DeadbandDoesNotEraseTcpFilterMemory
+[       OK ] ForceProcessor.DeadbandDoesNotEraseTcpFilterMemory (0 ms)
+[ RUN      ] ForceProcessor.TransformIncludesLeverArmTorque
+[       OK ] ForceProcessor.TransformIncludesLeverArmTorque (0 ms)
+[ RUN      ] ForceProcessor.HardLimitIsReported
+[       OK ] ForceProcessor.HardLimitIsReported (0 ms)
+[ RUN      ] ForceProcessor.PerAxisForceLimitStopsDuringTare
+[       OK ] ForceProcessor.PerAxisForceLimitStopsDuringTare (0 ms)
+[ RUN      ] ForceProcessor.DiagonalForceUsesAxisLimitsBeforeAndAfterCompensation
+[       OK ] ForceProcessor.DiagonalForceUsesAxisLimitsBeforeAndAfterCompensation (0 ms)
+[ RUN      ] ForceProcessor.LoadCompensationSkipsTareAndRemovesGravity
+[       OK ] ForceProcessor.LoadCompensationSkipsTareAndRemovesGravity (0 ms)
+[ RUN      ] ForceProcessor.DeadbandZerosSmallForceAndTorque
+[       OK ] ForceProcessor.DeadbandZerosSmallForceAndTorque (0 ms)
+[ RUN      ] ForceProcessor.ResidualTareAfterGravityDoesNotRemovePoseDependentGravityTwice
+[       OK ] ForceProcessor.ResidualTareAfterGravityDoesNotRemovePoseDependentGravityTwice (0 ms)
+[ RUN      ] ForceProcessor.CutoffFilterHasTheSameResponseAcrossSensorRates
+[       OK ] ForceProcessor.CutoffFilterHasTheSameResponseAcrossSensorRates (0 ms)
+[ RUN      ] ForceProcessor.ResidualTareCannotAbsorbExcessiveExternalForce
+[       OK ] ForceProcessor.ResidualTareCannotAbsorbExcessiveExternalForce (0 ms)
+[ RUN      ] ForceProcessor.UnfilteredMomentArmSpikeCannotBeHiddenByFiltering
+[       OK ] ForceProcessor.UnfilteredMomentArmSpikeCannotBeHiddenByFiltering (0 ms)
+[----------] 13 tests from ForceProcessor (0 ms total)
+
+[----------] 2 tests from CartesianReference
+[ RUN      ] CartesianReference.InitialAndDiagonalStepsRespectVectorNormLimits
+[       OK ] CartesianReference.InitialAndDiagonalStepsRespectVectorNormLimits (0 ms)
+[ RUN      ] CartesianReference.RotatingToolDoesNotRotateAConstantWorldForceDirection
+[       OK ] CartesianReference.RotatingToolDoesNotRotateAConstantWorldForceDirection (0 ms)
+[----------] 2 tests from CartesianReference (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 27 tests from 6 test suites ran. (4 ms total)
+[  PASSED  ] 27 tests.

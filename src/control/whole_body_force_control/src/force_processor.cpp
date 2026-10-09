@@ -18,7 +18,6 @@ void ForceProcessor::setConfig(const ForceProcessorConfig & config)
 {
   if (!config.filter_alpha.allFinite() || !config.scale.allFinite() ||
     !config.hard_wrench_limit.allFinite() ||
-    !std::isfinite(config.hard_force_norm_limit) ||
     !std::isfinite(config.force_deadband_n) ||
     !std::isfinite(config.torque_deadband_nm) ||
     !std::isfinite(config.filter_cutoff_hz) || config.filter_cutoff_hz < 0.0)
@@ -27,8 +26,6 @@ void ForceProcessor::setConfig(const ForceProcessorConfig & config)
   }
   config_ = config;
   config_.tare_samples = std::max<std::size_t>(1, config_.tare_samples);
-  config_.hard_force_norm_limit =
-    std::max(0.0, config_.hard_force_norm_limit);
   config_.force_deadband_n = std::max(0.0, config_.force_deadband_n);
   config_.torque_deadband_nm = std::max(0.0, config_.torque_deadband_nm);
   for (Eigen::Index i = 0; i < 6; ++i) {
@@ -182,12 +179,6 @@ ForceProcessorResult ForceProcessor::process(
     if (!raw_for_limit.allFinite()) {
       return result;
     }
-    if (config_.hard_force_norm_limit > 0.0 &&
-      raw_for_limit.head<3>().norm() > config_.hard_force_norm_limit)
-    {
-      result.hard_limit_exceeded = true;
-      return result;
-    }
     if ((raw_for_limit.cwiseAbs().array() >
       config_.hard_wrench_limit.array()).any())
     {
@@ -200,9 +191,7 @@ ForceProcessorResult ForceProcessor::process(
   // compensated, unfiltered sample before collecting any tare samples.
   if (config_.hard_limit_enabled && compensation_enabled) {
     const Vector6d compensated_for_limit = compensated_raw.cwiseProduct(config_.scale);
-    if ((config_.hard_force_norm_limit > 0.0 &&
-         compensated_for_limit.head<3>().norm() > config_.hard_force_norm_limit) ||
-        (compensated_for_limit.cwiseAbs().array() >
+    if ((compensated_for_limit.cwiseAbs().array() >
          config_.hard_wrench_limit.array()).any()) {
       result.hard_limit_exceeded = true;
       return result;
@@ -235,12 +224,6 @@ ForceProcessorResult ForceProcessor::process(
   }
 
   if (config_.hard_limit_enabled && compensation_enabled) {
-    if (config_.hard_force_norm_limit > 0.0 &&
-      source.head<3>().norm() > config_.hard_force_norm_limit)
-    {
-      result.hard_limit_exceeded = true;
-      return result;
-    }
     if ((source.cwiseAbs().array() >
       config_.hard_wrench_limit.array()).any())
     {
@@ -298,10 +281,8 @@ ForceProcessorResult ForceProcessor::process(
   }
 
   if (config_.hard_limit_enabled &&
-    ((config_.hard_force_norm_limit > 0.0 &&
-    output.head<3>().norm() > config_.hard_force_norm_limit) ||
     (output.cwiseAbs().array() >
-    config_.hard_wrench_limit.array()).any()))
+    config_.hard_wrench_limit.array()).any())
   {
     result.hard_limit_exceeded = true;
     return result;

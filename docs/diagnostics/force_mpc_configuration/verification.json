@@ -1,0 +1,55 @@
+{
+  "date_utc": "2026-10-09T04:36:38.569651+00:00",
+  "scope": "force_mpc.launch.py configuration integration; no peer-package dependencies added",
+  "robot_velocity_source": "common/force_mpc.yaml -> wbmm_mrt_node.ros__parameters (then optional force_params_file overrides)",
+  "mpc_and_mrt_input_velocity_limits": [
+    0.1,
+    0.4,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2
+  ],
+  "tcp_frame_source": "force_sensor_processor.force_sensor.tcp_frame",
+  "yaml_enable_semantics": "auto reads merged YAML; explicit launch true/false overrides it; tested through launch construction",
+  "partial_override_files_supported": true,
+  "build": {
+    "passed": true,
+    "packages": [
+      "wbmm_ocs2",
+      "wbmm_ocs2_ros",
+      "tracer_jaka_bringup"
+    ]
+  },
+  "tests": {
+    "core_cpp_passed": 25,
+    "ros_cpp_passed": 10,
+    "python_config_launch_passed": 46
+  },
+  "keyboard": {
+    "passed": true,
+    "stages": 13,
+    "failures": [],
+    "faults": [],
+    "max_quiet_release_single_axis_tcp_peak_to_peak_m": 0.0003512938912894059
+  },
+  "integration": {
+    "passed": true,
+    "backend": "MuJoCo",
+    "positive_tcp_dx_m": 0.21788,
+    "base_travel_m": 0.158067,
+    "arm_joint_change_norm_rad": 0.125174,
+    "release_drift_m": 3.7041e-06,
+    "negative_tcp_dx_m": -0.217913,
+    "disconnect_fault": "FAULT_WRENCH_TIMEOUT",
+    "stopped_base_command_max": 0,
+    "hold_command_variation_rad": 0,
+    "recovery_displacement_m": 0.000148076,
+    "unexpected_collision": false
+  },
+  "real_planning_limit_change": "arm input limits now use shared 0.2 rad/s rather than former task_force_mpc.info 0.5 rad/s; command cap remains 0.2 rad/s",
+  "hardware_tested": false,
+  "other_launches": "Retain their original task/YAML speed sources; this change integrates force_mpc only."
+}

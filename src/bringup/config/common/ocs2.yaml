@@ -19,7 +19,6 @@ wbmm_mrt_node:
 
     mrt_loop_rate: 125.0
     traj_horizon: 0.10
-    arm_use_velocity_integrator: false
     arm_max_command_velocity: 0.15
     arm_max_delta_per_step: 0.05
 

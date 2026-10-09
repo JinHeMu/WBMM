@@ -153,7 +153,6 @@ private:
     declare_parameter<bool>("use_whole_body_target", true);
 
     declare_parameter<double>("arm_max_delta_per_step", 0.50);
-    declare_parameter<bool>("arm_use_velocity_integrator", false);
     declare_parameter<double>("arm_max_command_velocity", 0.50);
 
     // Hard saturation of the published base command. The OCS2 joint-velocity
@@ -200,7 +199,6 @@ private:
     robotStateTimeout_ = get_parameter("force_gate.robot_state_timeout").as_double();
 
     armMaxDeltaPerStep_ = get_parameter("arm_max_delta_per_step").as_double();
-    armUseVelocityIntegrator_ = get_parameter("arm_use_velocity_integrator").as_bool();
     armMaxCommandVelocity_ = get_parameter("arm_max_command_velocity").as_double();
 
     baseMaxLinearVelocity_ = get_parameter("base_max_linear_velocity").as_double();
@@ -273,7 +271,7 @@ private:
   void setupRobotModel()
   {
     interface_ = std::make_unique<wbmm_ocs2::WbmmInterface>(
-        taskFile_, libFolder_, urdfFile_, esdfFile_, worldFrame_);
+        taskFile_, libFolder_, urdfFile_, esdfFile_, worldFrame_, eeFrame_);
 
     const auto &info = interface_->getWbmmModelInfo();
     stateDim_ = info.stateDim;
@@ -318,6 +316,10 @@ private:
 
   void setupRosInterfaces()
   {
+    if (interface_->getArmMetricsEvaluator()) {
+      armMetricsPub_ = create_publisher<std_msgs::msg::Float64MultiArray>(
+          robotName_ + "_arm_kinematic_metrics", rclcpp::QoS(1).reliable());
+    }
     tfBuffer_ = std::make_unique<tf2_ros::Buffer>(get_clock());
     tfListener_ = std::make_unique<tf2_ros::TransformListener>(*tfBuffer_);
     setupPublishers();
@@ -582,7 +584,7 @@ private:
       // before the fresh nominal force reference was captured.
       minimumForcePolicyTime_ = observation.time;
       forceWasAllowed_ = true;
-      integratedArmCommand_ = lastPublishedArmCommand_;
+      previousArmPositionCommand_ = lastPublishedArmCommand_;
       lastArmCommandTime_ = lastPublishedArmCommandTime_;
     }
     const auto &policy = mrt_->getPolicy();
@@ -606,6 +608,7 @@ private:
 
   void executePolicy(const ocs2::SystemObservation &observation, int &expiredCount)
   {
+    publishArmMetrics(observation);
     if (!forceExecutionAllowed(observation)) { return; }
     double planEnd = std::numeric_limits<double>::quiet_NaN();
     if (!readPlanEnd(observation.time, planEnd))
@@ -641,7 +644,7 @@ private:
     }
 
     std::vector<double> armCommand;
-    if (!computeSafeArmCommand(observation.time, observation.state, policyInput, armCommand))
+    if (!computeSafeArmCommand(observation.time, observation.state, armCommand))
     {
       RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
                             "[SAFETY] Predicted arm command is unsafe. Stopping base and holding arm.");
@@ -652,6 +655,22 @@ private:
     publishBaseCommand(policyInput);
     forceHoldArm_.clear();
     publishArmPositions(armCommand, observation.time);
+  }
+
+  // Observability only: these metrics never modify references or execution.
+  void publishArmMetrics(const ocs2::SystemObservation& observation)
+  {
+    if (!armMetricsPub_) { return; }
+    const auto metrics = interface_->getArmMetricsEvaluator()->computeMetrics(observation.state);
+    std_msgs::msg::Float64MultiArray msg;
+    msg.layout.dim.resize(1);
+    msg.layout.dim[0].label = interface_->getArmMetricsEvaluator()->metricContract() +
+        "time,sigma_min,yoshikawa,condition_number,joint_margin,valid";
+    msg.layout.dim[0].size = msg.layout.dim[0].stride = 6;
+    msg.data = {observation.time, metrics.sigma_min, metrics.manipulability,
+                metrics.condition_number, metrics.joint_limits.min_normalized_margin,
+                metrics.status == wbmm::metrics::MetricsStatus::kSuccess ? 1.0 : 0.0};
+    armMetricsPub_->publish(msg);
   }
 
   // The plan-expiry gate above compares the MRT clock against
@@ -918,7 +937,7 @@ private:
   }
 
   bool computeSafeArmCommand(double time, const ocs2::vector_t &currentState,
-                             const ocs2::vector_t &currentInput, std::vector<double> &command)
+                             std::vector<double> &command)
   {
     command.clear();
     try
@@ -933,13 +952,6 @@ private:
         return false;
       }
 
-      if (armUseVelocityIntegrator_)
-      {
-        // The velocity input belongs to the same current-time policy as the
-        // base command. Future feedback evaluated against current measured
-        // state must not be integrated as if it were today's velocity.
-        return integrateArmCommand(time, measured, currentInput, command);
-      }
       ocs2::vector_t predictedState;
       ocs2::vector_t predictedInput;
       if (!evaluateFuturePolicy(time, currentState, predictedState, predictedInput))
@@ -988,42 +1000,6 @@ private:
     return true;
   }
 
-  bool integrateArmCommand(double time, const std::vector<double> &measured, const ocs2::vector_t &predictedInput,
-                           std::vector<double> &command)
-  {
-    if (predictedInput.size() < static_cast<Eigen::Index>(2 + armDim_))
-    {
-      RCLCPP_ERROR(get_logger(), "[SAFETY] Predicted input dimension is %ld, expected >= %zu",
-                   static_cast<long>(predictedInput.size()), 2 + armDim_);
-      return false;
-    }
-
-    if (integratedArmCommand_.size() != armDim_)
-    {
-      integratedArmCommand_ = measured;
-      lastArmCommandTime_ = time;
-    }
-    const double dt = std::clamp(time - lastArmCommandTime_, 0.0, kMaxCommandDt);
-    lastArmCommandTime_ = time;
-
-    command.resize(armDim_);
-    for (size_t i = 0; i < armDim_; ++i)
-    {
-      const double velocity =
-          std::clamp(predictedInput(static_cast<Eigen::Index>(2 + i)), -armMaxCommandVelocity_, armMaxCommandVelocity_);
-      const double next = std::clamp(integratedArmCommand_[i] + dt * velocity, measured[i] - armMaxDeltaPerStep_,
-                                     measured[i] + armMaxDeltaPerStep_);
-      if (!std::isfinite(next))
-      {
-        command.clear();
-        return false;
-      }
-      command[i] = next;
-    }
-    integratedArmCommand_ = command;
-    return true;
-  }
-
   bool makePositionArmCommand(double time, const std::vector<double> &measured, const ocs2::vector_t &predictedState,
                               std::vector<double> &command)
   {
@@ -1032,17 +1008,17 @@ private:
     {
       target[i] = predictedState(static_cast<Eigen::Index>(3 + i));
     }
-    if (integratedArmCommand_.size() != armDim_) {
-      integratedArmCommand_ = measured;
+    if (previousArmPositionCommand_.size() != armDim_) {
+      previousArmPositionCommand_ = measured;
       lastArmCommandTime_ = time;
     }
     const double dt = std::clamp(time - lastArmCommandTime_, 0.0, kMaxCommandDt);
     lastArmCommandTime_ = time;
-    if (!wbmm::boundedArmPositionCommand(measured, target, integratedArmCommand_,
+    if (!wbmm::boundedArmPositionCommand(measured, target, previousArmPositionCommand_,
                                         dt, armMaxCommandVelocity_, armMaxDeltaPerStep_, command)) {
       return false;
     }
-    integratedArmCommand_ = command;
+    previousArmPositionCommand_ = command;
     return true;
   }
 
@@ -1153,8 +1129,8 @@ private:
     }
     publishArmPositions(hold, time);
     // Recovery must start from the command actually published during hold,
-    // not from feedback or a pre-fault MPC integral.
-    integratedArmCommand_ = hold;
+    // not from feedback or a pre-fault position command.
+    previousArmPositionCommand_ = hold;
     lastArmCommandTime_ = time;
   }
 
@@ -1199,7 +1175,6 @@ private:
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr forceResetService_;
 
   double armMaxDeltaPerStep_{0.50};
-  bool armUseVelocityIntegrator_{false};
   double armMaxCommandVelocity_{0.50};
   double baseMaxLinearVelocity_{0.5};
   double baseMaxAngularVelocity_{1.0};
@@ -1225,6 +1200,7 @@ private:
   double planAgeMaxMs_{0.0};
 
   std::unique_ptr<wbmm_ocs2::WbmmInterface> interface_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr armMetricsPub_;
   rclcpp::Node::SharedPtr ocs2Node_;
   std::unique_ptr<ocs2::MRT_ROS_Interface> mrt_;
   std::unique_ptr<wbmm::WbmmVisualization> viz_;
@@ -1250,7 +1226,7 @@ private:
   double baseY_{0.0};
   double baseYaw_{0.0};
   std::vector<double> armQ_;
-  std::vector<double> integratedArmCommand_;
+  std::vector<double> previousArmPositionCommand_;
 };
 
 int main(int argc, char **argv)

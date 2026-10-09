@@ -46,14 +46,15 @@ Vector6d rateLimitCorrection(
 //
 // K = 0 is the force-following limit: with a constant measured force the
 // velocity converges to F / D and the computed displacement keeps advancing.
+// End-effector reference generation applies translation/rotation norm limits
+// after combining these dynamics; there is no per-axis velocity saturation.
 class AdmittanceController
 {
 public:
   AdmittanceController(
     double mass,
     double damping,
-    double stiffness,
-    double max_velocity);
+    double stiffness);
 
   double update(double measured_force, double dt);
   void reset(double measured_force = 0.0);
@@ -84,7 +85,6 @@ private:
   double mass_;
   double damping_;
   double stiffness_;
-  double max_velocity_;
   double measured_force_{0.0};
   double offset_{0.0};
   double velocity_{0.0};
@@ -99,8 +99,7 @@ public:
     const AxisMask6d & admittance_axes,
     const Vector6d & mass,
     const Vector6d & damping,
-    const Vector6d & stiffness,
-    const Vector6d & max_velocity);
+    const Vector6d & stiffness);
 
   Vector6d update(const Vector6d & measured_wrench, double dt);
   void reset(const Vector6d & measured_wrench = Vector6d::Zero());

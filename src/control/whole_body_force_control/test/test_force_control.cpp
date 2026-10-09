@@ -117,7 +117,7 @@ Eigen::Matrix3d rotationOf(const wbmm::core::Pose & pose)
 TEST(AdmittanceController, PassiveAdmittanceIsBoundedAndReturnsToZero)
 {
   whole_body_force_control::AdmittanceController controller(
-    3.0, 45.0, 150.0, 0.035);
+    3.0, 45.0, 150.0);
   for (int i = 0; i < 1000; ++i) {
     controller.update(12.0, 0.01);
   }
@@ -131,7 +131,7 @@ TEST(AdmittanceController, PassiveAdmittanceIsBoundedAndReturnsToZero)
 TEST(AdmittanceController, ZeroStiffnessFollowsWhileForceIsPresent)
 {
   whole_body_force_control::AdmittanceController controller(
-    1.0, 10.0, 0.0, 0.5);
+    1.0, 10.0, 0.0);
   for (int i = 0; i < 200; ++i) {
     controller.update(5.0, 0.01);
   }
@@ -149,7 +149,7 @@ TEST(AdmittanceController, ZeroStiffnessFollowsWhileForceIsPresent)
 TEST(AdmittanceController, LimitOffsetStopsIntegratorWindup)
 {
   whole_body_force_control::AdmittanceController controller(
-    1.0, 10.0, 0.0, 0.5);
+    1.0, 10.0, 0.0);
   for (int i = 0; i < 200; ++i) {
     controller.update(5.0, 0.01);
   }
@@ -167,6 +167,15 @@ TEST(AdmittanceController, LimitOffsetStopsIntegratorWindup)
   EXPECT_LT(controller.velocity(), 0.0);
 }
 
+TEST(AdmittanceController, VelocityFollowsDynamicsWithoutAxisSaturation)
+{
+  whole_body_force_control::AdmittanceController controller(1.0, 10.0, 0.0);
+  for (int i = 0; i < 200; ++i) {
+    controller.update(20.0, 0.01);
+  }
+  EXPECT_NEAR(controller.velocity(), 2.0, 1.0e-8);
+}
+
 
 TEST(CartesianComplianceController, SelectsIndependentSixAxisAdmittance)
 {
@@ -176,9 +185,8 @@ TEST(CartesianComplianceController, SelectsIndependentSixAxisAdmittance)
   const Vector6d mass = Vector6d::Constant(1.0);
   const Vector6d damping = Vector6d::Constant(20.0);
   const Vector6d stiffness = Vector6d::Constant(100.0);
-  const Vector6d max_velocity = Vector6d::Constant(0.5);
   whole_body_force_control::CartesianComplianceController controller(
-    admittance, mass, damping, stiffness, max_velocity);
+    admittance, mass, damping, stiffness);
 
   Vector6d wrench;
   wrench << 2.0, 100.0, 5.0, 100.0, -3.0, 100.0;
@@ -471,7 +479,6 @@ TEST(ForceProcessor, DeadbandDoesNotEraseTcpFilterMemory)
   ForceProcessorConfig config;
   config.filter_alpha = Vector6d::Constant(0.5);
   config.hard_wrench_limit = Vector6d::Constant(100.0);
-  config.hard_force_norm_limit = 100.0;
   config.force_deadband_n = 1.0;
   ForceProcessor processor(config);
 
@@ -540,7 +547,7 @@ TEST(ForceProcessor, HardLimitIsReported)
 
 }
 
-TEST(ForceProcessor, RawForceNormLimitStopsDuringTare)
+TEST(ForceProcessor, PerAxisForceLimitStopsDuringTare)
 {
   using whole_body_force_control::ForceProcessor;
   using whole_body_force_control::ForceProcessorConfig;
@@ -549,14 +556,13 @@ TEST(ForceProcessor, RawForceNormLimitStopsDuringTare)
   ForceProcessorConfig config;
   config.filter_alpha = Vector6d::Ones();
   config.scale = Vector6d::Ones();
-  config.hard_wrench_limit = Vector6d::Constant(100.0);
-  config.hard_force_norm_limit = 5.0;
+  config.hard_wrench_limit = Vector6d::Constant(5.0);
   config.tare_samples = 50;
   ForceProcessor processor(config);
   processor.startTare();
 
   wbmm::core::Wrench raw;
-  raw.force.x = 3.0;
+  raw.force.x = 4.0;
   raw.force.y = 4.0;
   const Eigen::Matrix3d rotation = Eigen::Matrix3d::Identity();
   const Eigen::Vector3d translation = Eigen::Vector3d::Zero();
@@ -565,12 +571,36 @@ TEST(ForceProcessor, RawForceNormLimitStopsDuringTare)
   ASSERT_TRUE(result.taring);
   EXPECT_FALSE(result.hard_limit_exceeded);
 
-  raw.force.x = 3.1;
+  raw.force.x = 5.1;
   raw.force.y = 4.1;
   result = processor.process(raw, "tool0", rotation, translation);
   EXPECT_FALSE(result.ok);
   EXPECT_TRUE(result.hard_limit_exceeded);
   EXPECT_FALSE(result.taring);
+}
+
+TEST(ForceProcessor, DiagonalForceUsesAxisLimitsBeforeAndAfterCompensation)
+{
+  using namespace whole_body_force_control;
+  for (const bool compensate : {false, true}) {
+    ForceProcessorConfig config;
+    config.hard_wrench_limit << 30., 30., 30., 10., 10., 10.;
+    config.load_compensation.enable = compensate;
+    config.force_deadband_n = config.torque_deadband_nm = 0.0;
+    ForceProcessor processor(config);
+    wbmm::core::Wrench raw;
+    raw.force.x = raw.force.y = raw.force.z = 25.0;
+    const auto R = Eigen::Matrix3d::Identity();
+    const auto p = Eigen::Vector3d::Zero();
+    const auto diagonal = processor.process(raw, "tool0", R, p);
+    ASSERT_TRUE(diagonal.ok);
+    EXPECT_FALSE(diagonal.hard_limit_exceeded);
+    EXPECT_DOUBLE_EQ(diagonal.wrench.force.x, 25.0);
+    raw.force.x = 31.0;
+    const auto excessive = processor.process(raw, "tool0", R, p);
+    EXPECT_FALSE(excessive.ok);
+    EXPECT_TRUE(excessive.hard_limit_exceeded);
+  }
 }
 
 TEST(ForceProcessor, LoadCompensationSkipsTareAndRemovesGravity)
@@ -583,7 +613,6 @@ TEST(ForceProcessor, LoadCompensationSkipsTareAndRemovesGravity)
   config.filter_alpha = Vector6d::Ones();
   config.scale = Vector6d::Ones();
   config.hard_wrench_limit = Vector6d::Constant(100.0);
-  config.hard_force_norm_limit = 100.0;
   config.load_compensation.enable = true;
   config.load_compensation.gravity_m_s2 = 10.0;
   config.load_compensation.mass_kg = 1.0;
@@ -619,7 +648,6 @@ TEST(ForceProcessor, DeadbandZerosSmallForceAndTorque)
   config.filter_alpha = Vector6d::Ones();
   config.scale = Vector6d::Ones();
   config.hard_wrench_limit = Vector6d::Constant(100.0);
-  config.hard_force_norm_limit = 100.0;
   config.load_compensation.enable = true;
   config.load_compensation.mass_kg = 0.0;
   config.force_deadband_n = 1.0;
@@ -705,7 +733,7 @@ TEST(ForceProcessor, ResidualTareCannotAbsorbExcessiveExternalForce)
   config.load_compensation.mass_kg = 1.0;
   config.load_compensation.gravity_m_s2 = 10.0;
   config.tare_after_compensation = true;
-  config.hard_force_norm_limit = 15.0;
+  config.hard_wrench_limit << 15., 15., 15., 5., 5., 5.;
   ForceProcessor processor(config);
   processor.startTare();
   wbmm::core::Wrench raw;

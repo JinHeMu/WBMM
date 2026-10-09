@@ -60,7 +60,6 @@ private:
     Vector6d mass{Vector6d::Zero()};
     Vector6d damping{Vector6d::Zero()};
     Vector6d stiffness{Vector6d::Zero()};
-    Vector6d max_velocity{Vector6d::Zero()};
 
     double loop_rate{50.0};
     double force_timeout{0.25};

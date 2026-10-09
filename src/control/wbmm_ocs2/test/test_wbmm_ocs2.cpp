@@ -26,11 +26,13 @@
 #include <wbmm_environment/esdf_grid.hpp>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#include <boost/property_tree/info_parser.hpp>
 #include <gtest/gtest.h>
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 #include <Eigen/SVD>
+#include <Eigen/Eigenvalues>
 
 #include <pinocchio/fwd.hpp>
 #include <pinocchio/algorithm/frames.hpp>
@@ -39,6 +41,7 @@
 
 #include <cmath>
 #include <fstream>
+#include <future>
 #include <string>
 
 namespace
@@ -498,6 +501,316 @@ TEST(ArmManipulabilityCost, InvalidStateUsesConfiguredPenalty)
     settings.hessianRegularization *
       ocs2::matrix_t::Identity(invalidState.size(), invalidState.size()),
     1.0e-12));
+}
+
+TEST(ArmManipulabilityCost, AnalyticApproximationMatchesIndependentMetricDifferences)
+{
+  Fixture fixture;
+  const ocs2::TargetTrajectories targets;
+  const ocs2::PreComputation pre;
+  // Cover rectangular/arm Jacobians, TCP offsets, world direction, scaling,
+  // condition-floor saturation, and all five metric derivatives together.
+  for (bool wholeBody : {false, true}) {
+    for (bool translation : {false, true}) {
+      for (bool scaled : {false, true}) {
+        wbmm_ocs2::ArmManipulabilitySettings settings;
+        settings.frameName = scaled ? fixture.info.eeFrame : "jk_se_vi_200_link";
+        settings.metricsOptions.scope = wholeBody ?
+            wbmm::metrics::JacobianScope::kWholeBodyInput : wbmm::metrics::JacobianScope::kArmColumns;
+        settings.metricsOptions.task = translation ?
+            wbmm::metrics::JacobianTask::kTranslation : wbmm::metrics::JacobianTask::kPose;
+        settings.metricsOptions.scaling = scaled ?
+            wbmm::metrics::JacobianScaling::kCharacteristicLength : wbmm::metrics::JacobianScaling::kRaw;
+        settings.metricsOptions.characteristic_length = 0.3;
+        settings.metricsOptions.use_task_direction = true;
+        settings.metricsOptions.task_direction = ocs2::vector_t::LinSpaced(translation ? 3 : 6, 1.0, 2.0);
+        settings.useYoshikawa = settings.useInverseManipulability = settings.useConditionNumber = true;
+        settings.minSingularRef = settings.yoshikawaRef = settings.taskDirectionRef = 2.0;
+        settings.conditionMax = 1.0;
+        settings.conditionWeight = 1e-4;
+        settings.inverseManipulabilityWeight = 1e-6;
+        settings.weightScale = 0.7;
+        settings.normalizeMargins = true;
+        settings.metricsOptions.singular_value_floor = scaled ? 0.5 : 1e-9;
+        wbmm_ocs2::ArmManipulabilityCost cost(fixture.interface, fixture.info, settings);
+        for (int sample = 0; sample < 5; ++sample) {
+          auto state = sampleState();
+          state.tail(6).array() += 0.13 * sample;
+          state(2) -= 0.21 * sample;
+          const auto approx = cost.getQuadraticApproximation(0, state, targets, pre);
+          EXPECT_TRUE(approx.dfdx.allFinite());
+          Eigen::SelfAdjointEigenSolver<ocs2::matrix_t> eigen(approx.dfdxx);
+          EXPECT_GE(eigen.eigenvalues().minCoeff(), -1e-9);
+          // Independent oracle retains full public metrics and joint-state evaluation.
+          auto metricCost = [&](const ocs2::vector_t& x) {
+            const auto m = cost.computeMetrics(x);
+            EXPECT_EQ(m.status, wbmm::metrics::MetricsStatus::kSuccess);
+            auto hinge = [](double metric, double ref, double weight) {
+              return 0.5 * weight * std::pow(std::max(0.0, 1.0 - metric / ref), 2);
+            };
+            return settings.weightScale * (
+                hinge(m.sigma_min, settings.minSingularRef, settings.minSingularWeight) +
+                hinge(m.manipulability, settings.yoshikawaRef, settings.yoshikawaWeight) +
+                hinge(m.task_direction_manipulability, settings.taskDirectionRef, settings.taskDirectionWeight) +
+                settings.inverseManipulabilityWeight * m.inverse_manipulability +
+                0.5 * settings.conditionWeight * std::pow(std::max(0.0, m.condition_number - settings.conditionMax), 2));
+          };
+          EXPECT_NEAR(approx.f, metricCost(state), 1e-8);
+          EXPECT_NEAR(cost.getValue(0, state, targets, pre), approx.f, 1e-12);
+          ocs2::matrix_t expectedHessian = settings.hessianRegularization *
+              ocs2::matrix_t::Identity(9, 9);
+          ocs2::matrix_t metricGradient = ocs2::matrix_t::Zero(5, 9);
+          for (int index = 0; index < 9; ++index) {
+            auto plus = state, minus = state;
+            constexpr double step = 1e-6;
+            plus(index) += step; minus(index) -= step;
+            const double gradient = (metricCost(plus) - metricCost(minus)) / (2 * step);
+            EXPECT_NEAR(approx.dfdx(index), gradient, 1e-5 * std::max(1.0, std::abs(gradient)))
+                << "whole=" << wholeBody << " translation=" << translation << " scaled=" << scaled
+                << " sample=" << sample << " index=" << index;
+            const auto p = cost.computeMetrics(plus), m = cost.computeMetrics(minus);
+            metricGradient.col(index) << p.sigma_min - m.sigma_min, p.manipulability - m.manipulability,
+                p.task_direction_manipulability - m.task_direction_manipulability,
+                p.inverse_manipulability - m.inverse_manipulability, p.condition_number - m.condition_number;
+            metricGradient.col(index) /= 2 * step;
+          }
+          const auto current = cost.computeMetrics(state);
+          const double weights[] = {settings.minSingularWeight / std::pow(settings.minSingularRef, 2),
+              settings.yoshikawaWeight / std::pow(settings.yoshikawaRef, 2),
+              settings.taskDirectionWeight / std::pow(settings.taskDirectionRef, 2), 0.0, settings.conditionWeight};
+          const bool active[] = {current.sigma_min < settings.minSingularRef,
+              current.manipulability < settings.yoshikawaRef,
+              current.task_direction_manipulability < settings.taskDirectionRef, false,
+              current.condition_number > settings.conditionMax};
+          for (int row = 0; row < 5; ++row) {
+            if (active[row]) {
+              expectedHessian += weights[row] * metricGradient.row(row).transpose() * metricGradient.row(row);
+            }
+          }
+          EXPECT_TRUE(approx.dfdxx.isApprox(settings.weightScale * expectedHessian, 2e-5));
+        }
+      }
+    }
+  }
+}
+
+TEST(ArmManipulabilityCost, RankDeficientStatesRemainFiniteAndSymmetric)
+{
+  Fixture fixture;
+  wbmm_ocs2::ArmManipulabilitySettings settings;
+  settings.minSingularRef = 1.0;
+  settings.useYoshikawa = true;
+  settings.yoshikawaRef = 1.0;
+  settings.metricsOptions.scaling = wbmm::metrics::JacobianScaling::kCharacteristicLength;
+  settings.metricsOptions.characteristic_length = 0.3;
+  wbmm_ocs2::ArmManipulabilityCost cost(fixture.interface, fixture.info, settings);
+  const ocs2::TargetTrajectories targets;
+  const ocs2::PreComputation pre;
+  for (const double offset : {0.0, 1e-10, 1e-7}) {
+    const ocs2::vector_t state = ocs2::vector_t::Constant(9, offset);
+    const auto approx = cost.getQuadraticApproximation(0, state, targets, pre);
+    EXPECT_TRUE(approx.dfdx.allFinite());
+    EXPECT_TRUE(approx.dfdxx.allFinite());
+    EXPECT_TRUE(approx.dfdxx.isApprox(approx.dfdxx.transpose(), 1e-12));
+    for (int index = 0; index < 9; ++index) {
+      auto plus = state, minus = state;
+      plus(index) += settings.finiteDiffStep; minus(index) -= settings.finiteDiffStep;
+      EXPECT_NEAR(approx.dfdx(index),
+          (cost.getValue(0, plus, targets, pre) - cost.getValue(0, minus, targets, pre)) /
+              (2 * settings.finiteDiffStep), 1e-5);
+    }
+  }
+}
+
+TEST(ArmManipulabilityCost, NormalizedSigmaAndYoshikawaScaleValuesAndDerivatives)
+{
+  Fixture fixture;
+  wbmm_ocs2::ArmManipulabilitySettings settings;
+  settings.metricsOptions.scaling = wbmm::metrics::JacobianScaling::kCharacteristicLength;
+  settings.metricsOptions.characteristic_length = 0.3;
+  settings.normalizeMargins = true;
+  settings.weightScale = 2.5;
+  settings.minSingularRef = 0.5;
+  settings.minSingularWeight = 0.3;
+  settings.useYoshikawa = true;
+  settings.yoshikawaRef = 0.1;
+  settings.yoshikawaWeight = 0.2;
+  wbmm_ocs2::ArmManipulabilityCost cost(fixture.interface, fixture.info, settings);
+  const auto state = sampleState();
+  const auto metrics = cost.computeMetrics(state);
+  const ocs2::TargetTrajectories targets;
+  const ocs2::PreComputation pre;
+  const double expected = settings.weightScale * 0.5 *
+      (settings.minSingularWeight * std::pow(std::max(0.0, 1.0 - metrics.sigma_min / settings.minSingularRef), 2) +
+       settings.yoshikawaWeight * std::pow(std::max(0.0, 1.0 - metrics.manipulability / settings.yoshikawaRef), 2));
+  EXPECT_NEAR(cost.getValue(0.0, state, targets, pre), expected, 1e-12);
+  const auto approximation = cost.getQuadraticApproximation(0.0, state, targets, pre);
+  EXPECT_NEAR(approximation.f, expected, 1e-12);
+  for (Eigen::Index i = 0; i < state.size(); ++i) {
+    auto plus = state, minus = state;
+    plus(i) += 1e-5; minus(i) -= 1e-5;
+    EXPECT_NEAR(approximation.dfdx(i),
+        (cost.getValue(0, plus, targets, pre) - cost.getValue(0, minus, targets, pre)) / 2e-5, 1e-5);
+  }
+  // Changing base placement cannot improve an arm-only singular-value metric.
+  auto moved = state; moved.head(3) << -3.0, 5.0, -1.2;
+  EXPECT_NEAR(cost.computeMetrics(moved).sigma_min, metrics.sigma_min, 1e-12);
+  EXPECT_TRUE(approximation.dfdx.head(3).isZero(1e-12));
+  Eigen::SelfAdjointEigenSolver<ocs2::matrix_t> eigen(approximation.dfdxx);
+  EXPECT_GE(eigen.eigenvalues().minCoeff(), -1e-12);
+  auto healthySettings = settings;
+  healthySettings.minSingularRef = metrics.sigma_min * 0.5;
+  healthySettings.yoshikawaRef = metrics.manipulability * 0.5;
+  wbmm_ocs2::ArmManipulabilityCost healthy(fixture.interface, fixture.info, healthySettings);
+  const auto healthyApprox = healthy.getQuadraticApproximation(0, state, targets, pre);
+  EXPECT_DOUBLE_EQ(healthyApprox.f, 0.0);
+  EXPECT_TRUE(healthyApprox.dfdx.isZero());
+}
+
+TEST(ArmManipulabilityCost, ReusedWorkspaceAndConcurrentClonesPreserveMetrics)
+{
+  Fixture fixture;
+  wbmm_ocs2::ArmManipulabilitySettings settings;
+  settings.metricsOptions.scaling = wbmm::metrics::JacobianScaling::kCharacteristicLength;
+  settings.metricsOptions.characteristic_length = 0.3;
+  wbmm_ocs2::ArmManipulabilityCost cost(fixture.interface, fixture.info, settings);
+  std::vector<ocs2::vector_t> states;
+  std::vector<wbmm_ocs2::ArmManipulabilityCost::Metrics> expected;
+  std::vector<ocs2::ScalarFunctionQuadraticApproximation> expectedApprox;
+  const ocs2::TargetTrajectories targets;
+  const ocs2::PreComputation pre;
+  for (int i = 0; i < 4; ++i) {
+    auto state = sampleState();
+    state.tail(6).array() += i * 0.2;
+    states.push_back(state);
+    expected.push_back(cost.computeMetrics(state));
+    expectedApprox.push_back(cost.getQuadraticApproximation(0, state, targets, pre));
+    ASSERT_EQ(expected.back().status, wbmm::metrics::MetricsStatus::kSuccess);
+  }
+  std::vector<std::future<bool>> workers;
+  for (int worker = 0; worker < 4; ++worker) {
+    workers.push_back(std::async(std::launch::async, [&, worker] {
+      for (int iteration = 0; iteration < 30; ++iteration) {
+        const auto index = (iteration + worker) % states.size();
+        const auto result = cost.computeMetrics(states[index]);
+        const auto approx = cost.getQuadraticApproximation(0, states[index], targets, pre);
+        std::unique_ptr<wbmm_ocs2::ArmManipulabilityCost> clone(cost.clone());
+        const auto copied = clone->computeMetrics(states[(index + 1) % states.size()]);
+        const auto copiedApprox = clone->getQuadraticApproximation(0, states[index], targets, pre);
+        if (result.status != wbmm::metrics::MetricsStatus::kSuccess ||
+            copied.status != wbmm::metrics::MetricsStatus::kSuccess ||
+            !result.singular_values.isApprox(expected[index].singular_values, 1e-12) ||
+            !copied.singular_values.isApprox(expected[(index + 1) % states.size()].singular_values, 1e-12) ||
+            !approx.dfdx.isApprox(expectedApprox[index].dfdx, 1e-12) ||
+            !approx.dfdxx.isApprox(expectedApprox[index].dfdxx, 1e-12) ||
+            !copiedApprox.dfdx.isApprox(expectedApprox[index].dfdx, 1e-12)) {
+          return false;
+        }
+      }
+      return true;
+    }));
+  }
+  for (auto& worker : workers) { EXPECT_TRUE(worker.get()); }
+}
+
+TEST(ArmManipulabilityCost, NormalizedReferencesRejectZero)
+{
+  Fixture fixture;
+  wbmm_ocs2::ArmManipulabilitySettings settings;
+  settings.normalizeMargins = true;
+  settings.minSingularRef = 0.0;
+  EXPECT_THROW(wbmm_ocs2::ArmManipulabilityCost(fixture.interface, fixture.info, settings), std::runtime_error);
+  settings.minSingularRef = 0.1;
+  settings.useYoshikawa = true;
+  settings.yoshikawaRef = 0.0;
+  EXPECT_THROW(wbmm_ocs2::ArmManipulabilityCost(fixture.interface, fixture.info, settings), std::runtime_error);
+  settings.useYoshikawa = false;
+  settings.minSingularRef = 1e-200;
+  EXPECT_THROW(wbmm_ocs2::ArmManipulabilityCost(fixture.interface, fixture.info, settings), std::runtime_error);
+}
+
+TEST(WbmmInterface, PositionLimitToggleKeepsTaskVelocityConstraints)
+{
+  boost::property_tree::ptree pt;
+  boost::property_tree::read_info(WBMM_OCS2_TEST_TASK_FILE, pt);
+  pt.put("jointPositionLimits.activate", false);
+  const std::string path = "/tmp/wbmm_position_limits_disabled.info";
+  boost::property_tree::write_info(path, pt);
+  wbmm_ocs2::WbmmInterface enabled(WBMM_OCS2_TEST_TASK_FILE, "/tmp/wbmm_position_limits_on", testRobotUrdfPath());
+  wbmm_ocs2::WbmmInterface disabled(path, "/tmp/wbmm_position_limits_off", testRobotUrdfPath());
+  const auto state = enabled.getInitialState();
+  ocs2::vector_t outside = state;
+  outside[3] = enabled.getPinocchioInterface().getModel().upperPositionLimit.tail(6)[0] + 0.5;
+  ocs2::vector_t input = ocs2::vector_t::Zero(8);
+  ocs2::TargetTrajectories targets;
+  ocs2::PreComputation pre;
+  auto &on = enabled.getOptimalControlProblem().softConstraintPtr->get("jointLimits");
+  auto &off = disabled.getOptimalControlProblem().softConstraintPtr->get("jointLimits");
+  EXPECT_GT(on.getValue(0.0, outside, input, targets, pre) - on.getValue(0.0, state, input, targets, pre), 1.0);
+  EXPECT_NEAR(off.getValue(0.0, outside, input, targets, pre), off.getValue(0.0, state, input, targets, pre), 1e-9);
+  const double stationary = off.getValue(0.0, state, input, targets, pre);
+  input[0] = 0.6;  // task.info base upper bound is 0.5 m/s.
+  EXPECT_GT(off.getValue(0.0, state, input, targets, pre) - stationary, 1.0);
+}
+
+TEST(WbmmInterface, TcpOverridePreservesTaskVelocityBounds)
+{
+  boost::property_tree::ptree pt;
+  boost::property_tree::read_info(WBMM_OCS2_TEST_TASK_FILE, pt);
+  pt.get_child("model_information").erase("eeFrame");
+  const std::string path = "/tmp/wbmm_integrated_config_test.info";
+  boost::property_tree::write_info(path, pt);
+  wbmm_ocs2::WbmmInterface integrated(path, "/tmp/wbmm_integrated_config_test_lib",
+                                     testRobotUrdfPath(), "", "odom", "Link_6");
+  EXPECT_EQ(integrated.getWbmmModelInfo().eeFrame, "Link_6");
+  EXPECT_DOUBLE_EQ(integrated.getInputVelocityUpperBound()[0], 0.5);
+  EXPECT_DOUBLE_EQ(integrated.getInputVelocityUpperBound()[1], 1.0);
+  EXPECT_DOUBLE_EQ(integrated.getInputVelocityUpperBound()[2], 2.0);
+}
+
+TEST(WbmmInterface, ArmTerminalRegistrationIsIndependentAndOverridesReferences)
+{
+  // Start with the cost-off baseline. A terminal-only arm term is allowed.
+  std::ifstream input(WBMM_OCS2_TEST_TASK_FILE);
+  const std::string original((std::istreambuf_iterator<char>(input)), {});
+  const std::string path = "/tmp/wbmm_arm_terminal_registration.info";
+  {
+    std::ofstream output(path);
+    output << original << R"(
+armManipulability
+{
+  activate false
+  normalizeMargins true
+  minSingularRef 0.2
+  useYoshikawa false
+  terminal
+  {
+    activate true
+    weightScale 3.0
+    minSingularRef 0.4
+    useYoshikawa true
+    yoshikawaRef 0.02
+    yoshikawaWeight 0.3
+  }
+  diagnostics { activate true }
+}
+)";
+  }
+  wbmm_ocs2::WbmmInterface interface(path, "/tmp/wbmm_arm_terminal_test_lib", testRobotUrdfPath());
+  const auto& problem = interface.getOptimalControlProblem();
+  std::size_t index = 0;
+  EXPECT_FALSE(interface.isArmManipulabilityEnabled());
+  EXPECT_FALSE(problem.stateCostPtr->getTermIndex("armManipulability", index));
+  EXPECT_TRUE(interface.isFinalArmManipulabilityEnabled());
+  ASSERT_TRUE(problem.finalCostPtr->getTermIndex("finalArmManipulability", index));
+  const auto& cost = problem.finalCostPtr->get<wbmm_ocs2::ArmManipulabilityCost>("finalArmManipulability");
+  EXPECT_DOUBLE_EQ(cost.settings().weightScale, 3.0);
+  EXPECT_DOUBLE_EQ(cost.settings().minSingularRef, 0.4);
+  EXPECT_TRUE(cost.settings().useYoshikawa);
+  ASSERT_NE(interface.getArmMetricsEvaluator(), nullptr);
+  EXPECT_FALSE(interface.getArmMetricsEvaluator()->settings().useYoshikawa);
+  EXPECT_DOUBLE_EQ(interface.getArmMetricsEvaluator()->settings().minSingularRef, 0.2);
+  std::remove(path.c_str());
 }
 
 TEST(WbmmReferenceManager, LatchesPhaseAndKeepsTargetsSeparate)

@@ -67,6 +67,9 @@ if(BUILD_TESTING)
   find_package(ament_index_cpp REQUIRED)
 
   ament_add_gtest(test_wbmm_ocs2 test/test_wbmm_ocs2.cpp)
+  # Manual timing tool: never a timing-dependent CTest assertion.
+  add_executable(benchmark_arm_manipulability test/benchmark_arm_manipulability.cpp)
+  target_link_libraries(benchmark_arm_manipulability ${PROJECT_NAME})
   target_link_libraries(test_wbmm_ocs2 ${PROJECT_NAME})
   ament_target_dependencies(test_wbmm_ocs2 ament_index_cpp)
   target_compile_definitions(test_wbmm_ocs2 PRIVATE

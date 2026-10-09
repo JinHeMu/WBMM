@@ -8,7 +8,6 @@ force_sensor_processor:
     force_sensor:
       tf_fallback_to_latest: true
       filter_alpha: 0.25
-      hard_force_norm_limit: 20.0
       hard_wrench_limit: [20.0, 20.0, 20.0, 4.0, 4.0, 4.0]
       raw_timeout: 0.50
 

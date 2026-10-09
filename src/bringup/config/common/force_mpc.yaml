@@ -1,7 +1,7 @@
 # Integrated force following. Units: m, rad, N, Nm, seconds.
 # Dynamics mirror the tested jaka_keyboard profile; K=0 enables dragging.
-# These override the common and backend force_control.yaml layers only for
-# force_mpc.launch.py. Existing launches retain their tuning.
+# Layer order: common/force_control -> backend/force_control -> this file
+# -> optional force_params_file. The latter can contain only changed fields.
 force_sensor_processor:
   ros__parameters:
     force_sensor:
@@ -10,7 +10,7 @@ force_sensor_processor:
       filter_cutoff_hz: 4.44
       force_deadband_n: 1.0
       torque_deadband_nm: 0.5
-      hard_force_norm_limit: 30.0
+      # Per-axis absolute limits: Fx, Fy, Fz [N], Tx, Ty, Tz [Nm].
       hard_wrench_limit: [30.0, 30.0, 30.0, 10.0, 10.0, 10.0]
       raw_timeout: 0.25
       tare_samples: 50
@@ -26,7 +26,6 @@ whole_body_force_control:
       mass: [20.0, 20.0, 20.0, 2.0, 2.0, 2.0]
       damping: [200.0, 200.0, 200.0, 15.0, 15.0, 15.0]
       stiffness: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      max_velocity: [0.3, 0.3, 0.3, 0.4, 0.4, 0.4]
     force_sensor:
       force_timeout: 0.25
     end_effector:
@@ -48,10 +47,12 @@ wbmm_mrt_node:
     force_gate:
       timeout: 0.25
       robot_state_timeout: 0.25
-    # Bound actual commands as well as the admittance reference speed.
-    arm_use_velocity_integrator: false
+    # Execution limits only (rad/s, m/s, rad/s). MPC planning bounds belong
+    # to task_force_mpc.info -> jointVelocityLimits, independently of these.
+    # Real JAKA feedback-speed protection receives 2 * arm_max_command_velocity
+    # through the hardware interface; these values do not override MPC bounds.
     arm_max_command_velocity: 0.2
-    base_max_linear_velocity: 0.1
+    base_max_linear_velocity: 0.2
     base_max_angular_velocity: 0.4
 
 virtual_force_publisher:
@@ -63,7 +64,6 @@ virtual_force_publisher:
 keyboard_force_publisher:
   ros__parameters:
     command_topic: /whole_body_force_control/virtual_wrench_command
-    frame_id: tool0
     rate: 50.0
     # Order: +X, -X, +Y, -Y, +Z, -Z. Hold to apply, release to zero.
     keys: [w, s, a, d, r, f]

@@ -51,7 +51,6 @@ private:
     Vector6d filter_alpha{Vector6d::Constant(0.25)};
     Vector6d wrench_scale{Vector6d::Ones()};
     Vector6d hard_wrench_limit{Vector6d::Constant(20.0)};
-    double hard_force_norm_limit{20.0};
     double force_deadband_n{1.0};
     double torque_deadband_nm{0.1};
     LoadCompensationConfig load_compensation{};

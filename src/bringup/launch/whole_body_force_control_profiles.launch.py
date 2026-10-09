@@ -34,8 +34,6 @@ _PROFILES = {
                 [45.0, 45.0, 45.0, 4.5, 4.5, 4.5],
             "admittance.stiffness":
                 [150.0, 150.0, 150.0, 0.0, 0.0, 0.0],
-            "admittance.max_velocity":
-                [0.035, 0.035, 0.035, 0.15, 0.15, 0.15],
         },
     },
     # Example 2: three-axis translational force following, K = 0.
@@ -51,12 +49,11 @@ _PROFILES = {
                 [50.0, 50.0, 50.0, 4.5, 4.5, 4.5],
             "admittance.stiffness":
                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            "admittance.max_velocity":
-                [0.25, 0.25, 0.10, 0.15, 0.15, 0.15],
         },
     },
     # K = 0 force-following limit: F = M*a + D*v.  D is tuned so the steady
-    # velocity of a 7 N push stays near max_velocity without an elastic stop.
+    # unconstrained steady velocity of a 7 N push is 0.25 m/s; the
+    # end_effector parameters limit the reference velocity norm.
     "infinite": {
         "mujoco_model": "scene_force_follow_infinite.xml",
         "force_overrides": {
@@ -68,8 +65,6 @@ _PROFILES = {
                 [28.0, 45.0, 45.0, 4.5, 4.5, 4.5],
             "admittance.stiffness":
                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            "admittance.max_velocity":
-                [0.25, 0.035, 0.035, 0.15, 0.15, 0.15],
         },
     },
     # Six-axis sequence: the axis_wrench_sequence.py script cycles through
@@ -86,8 +81,6 @@ _PROFILES = {
                 [45.0, 45.0, 45.0, 4.5, 4.5, 4.5],
             "admittance.stiffness":
                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            "admittance.max_velocity":
-                [0.10, 0.10, 0.10, 0.15, 0.15, 0.15],
         },
     },
     "20s": {
@@ -102,8 +95,6 @@ _PROFILES = {
                 [2.0, 45.0, 45.0, 4.5, 4.5, 4.5],
             "admittance.stiffness":
                 [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            "admittance.max_velocity":
-                [0.25, 0.035, 0.035, 0.15, 0.15, 0.15],
         },
     },
 }

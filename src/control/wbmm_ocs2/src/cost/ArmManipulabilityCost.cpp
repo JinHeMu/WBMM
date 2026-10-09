@@ -34,6 +34,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/jacobian.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/algorithm/kinematics-derivatives.hpp>
+#include <Eigen/SVD>
+#include <limits>
 #include <pinocchio/multibody/model.hpp>
 
 #include <algorithm>
@@ -51,6 +54,33 @@ namespace wbmm_ocs2
 
     namespace
     {
+        enum MetricRow { Sigma, Yoshikawa, Direction, Inverse, Condition, MetricCount };
+
+        // The hot path needs kinematic metrics, not joint-limit diagnostics.
+        // The spectral inverse equals trace((J J^T + regularization I)^-1).
+        ArmManipulabilityCost::Metrics spectralMetrics(
+            const matrix_t& jacobian, const vector_t& singular,
+            const ArmManipulabilitySettings& settings)
+        {
+            ArmManipulabilityCost::Metrics metrics;
+            const auto& options = settings.metricsOptions;
+            metrics.status = wbmm::metrics::MetricsStatus::kSuccess;
+            metrics.sigma_min = singular.tail(1)(0);
+            metrics.sigma_max = singular(0);
+            metrics.manipulability = singular.prod();
+            metrics.condition_number = metrics.sigma_max /
+                std::max(metrics.sigma_min, options.singular_value_floor);
+            if (settings.useInverseManipulability) {
+                metrics.inverse_manipulability =
+                    (singular.array().square() + options.regularization).inverse().sum() +
+                    (jacobian.rows() - singular.size()) / options.regularization;
+            }
+            if (options.use_task_direction) {
+                metrics.task_direction_manipulability =
+                    (jacobian.transpose() * options.task_direction).norm();
+            }
+            return metrics;
+        }
 
         void validateWeight(scalar_t weight, const char *name)
         {
@@ -112,6 +142,8 @@ namespace wbmm_ocs2
                 "' is not in the Pinocchio model.");
         }
         endEffectorFrameId_ = model.getFrameId(settings_.frameName);
+        kinematicHessian_.resize(6, model.nv, model.nv);
+        kinematicHessian_.setZero();
 
         limits_.joint_min.reserve(modelInfo_.armDim);
         limits_.joint_max.reserve(modelInfo_.armDim);
@@ -166,7 +198,12 @@ namespace wbmm_ocs2
                 metricsOptionsMessage);
         }
 
+        if (settings_.metricsOptions.use_task_direction) {
+            settings_.metricsOptions.task_direction.normalize();
+        }
+
         validateWeight(settings_.minSingularWeight, "minSingularWeight");
+        validateWeight(settings_.weightScale, "weightScale");
         validateWeight(settings_.yoshikawaWeight, "yoshikawaWeight");
         validateWeight(settings_.taskDirectionWeight, "taskDirectionWeight");
         validateWeight(
@@ -186,11 +223,48 @@ namespace wbmm_ocs2
                 "[ArmManipulabilityCost] metric references must be finite and "
                 "non-negative; conditionMax must be positive.");
         }
+        if (settings_.normalizeMargins &&
+            ((settings_.useMinSingularValue && !(settings_.minSingularRef > 0.0)) ||
+             (settings_.useYoshikawa && !(settings_.yoshikawaRef > 0.0)) ||
+             (settings_.metricsOptions.use_task_direction && !(settings_.taskDirectionRef > 0.0))))
+        {
+            throw std::runtime_error(
+                "[ArmManipulabilityCost] normalized enabled margins require positive references.");
+        }
+        if (settings_.normalizeMargins)
+        {
+            const auto validateNormalizedWeight = [this](bool enabled, scalar_t weight, scalar_t reference)
+            {
+                if (enabled && !std::isfinite(settings_.weightScale * marginWeight(weight, reference)))
+                {
+                    throw std::runtime_error("[ArmManipulabilityCost] normalized margin weight overflows; check reference and weightScale.");
+                }
+            };
+            validateNormalizedWeight(settings_.useMinSingularValue, settings_.minSingularWeight, settings_.minSingularRef);
+            validateNormalizedWeight(settings_.useYoshikawa, settings_.yoshikawaWeight, settings_.yoshikawaRef);
+            validateNormalizedWeight(settings_.metricsOptions.use_task_direction, settings_.taskDirectionWeight, settings_.taskDirectionRef);
+        }
+    }
+
+    ArmManipulabilityCost::ArmManipulabilityCost(const ArmManipulabilityCost &other)
+        : ArmManipulabilityCost(other.pinocchioInterface_, other.modelInfo_, other.settings_)
+    {
     }
 
     ArmManipulabilityCost *ArmManipulabilityCost::clone() const
     {
+        std::lock_guard<std::mutex> lock(workspaceMutex_);
         return new ArmManipulabilityCost(*this);
+    }
+
+    std::string ArmManipulabilityCost::metricContract() const
+    {
+        const auto &options = settings_.metricsOptions;
+        return "frame=" + settings_.stateFrame + ";point=" + settings_.frameName +
+            ";scope=" + (options.scope == wbmm::metrics::JacobianScope::kArmColumns ? "arm" : "whole_body") +
+            ";task=" + (options.task == wbmm::metrics::JacobianTask::kPose ? "pose" : "translation") +
+            ";scaling=" + (options.scaling == wbmm::metrics::JacobianScaling::kCharacteristicLength
+                ? "characteristic_length;ell_m=" + std::to_string(options.characteristic_length) : "raw") + ";";
     }
 
     wbmm::core::JointState ArmManipulabilityCost::toJointState(
@@ -227,15 +301,16 @@ namespace wbmm_ocs2
         }
         try
         {
+            std::lock_guard<std::mutex> lock(workspaceMutex_);
             const auto &model = pinocchioInterface_.getModel();
-            auto data = pinocchioInterface_.getData();
+            auto &data = pinocchioInterface_.getData();
             const WbmmPinocchioMapping mapping(modelInfo_);
             const vector_t configuration =
                 mapping.getPinocchioJointPosition(state);
 
-            pinocchio::forwardKinematics(model, data, configuration);
-            pinocchio::updateFramePlacements(model, data);
+            // computeJointJacobians(q) already updates joint placements.
             pinocchio::computeJointJacobians(model, data, configuration);
+            pinocchio::updateFramePlacement(model, data, endEffectorFrameId_);
 
             matrix_t pinocchioJacobian = matrix_t::Zero(6, model.nv);
             pinocchio::getFrameJacobian(
@@ -267,13 +342,177 @@ namespace wbmm_ocs2
         }
     }
 
+    matrix_t ArmManipulabilityCost::taskJacobian(
+        const matrix_t& frameJacobian, const vector_t& state) const
+    {
+        const auto& options = settings_.metricsOptions;
+        const Eigen::Index rows = options.task == wbmm::metrics::JacobianTask::kTranslation ? 3 : 6;
+        matrix_t result;
+        if (options.scope == wbmm::metrics::JacobianScope::kArmColumns) {
+            result = frameJacobian.topRows(rows).rightCols(modelInfo_.armDim);
+        } else {
+            // Same input map as WbmmPinocchioMapping: qdot=[cos(yaw)*v,sin(yaw)*v,omega,qdot_arm].
+            result.resize(rows, modelInfo_.inputDim);
+            result.col(0) = std::cos(state(2)) * frameJacobian.topRows(rows).col(0) +
+                            std::sin(state(2)) * frameJacobian.topRows(rows).col(1);
+            result.col(1) = frameJacobian.topRows(rows).col(2);
+            result.rightCols(modelInfo_.armDim) = frameJacobian.topRows(rows).rightCols(modelInfo_.armDim);
+        }
+        if (rows == 6 && options.scaling == wbmm::metrics::JacobianScaling::kCharacteristicLength) {
+            result.bottomRows(3) *= options.characteristic_length;
+        }
+        return result;
+    }
+
+    bool ArmManipulabilityCost::hasActiveTerms(const Metrics& current) const
+    {
+        return settings_.weightScale > 0.0 &&
+            ((settings_.useMinSingularValue && settings_.minSingularWeight > 0.0 && current.sigma_min < settings_.minSingularRef) ||
+             (settings_.useYoshikawa && settings_.yoshikawaWeight > 0.0 && current.manipulability < settings_.yoshikawaRef) ||
+             (settings_.metricsOptions.use_task_direction && settings_.taskDirectionWeight > 0.0 && current.task_direction_manipulability < settings_.taskDirectionRef) ||
+             (settings_.useConditionNumber && settings_.conditionWeight > 0.0 && current.condition_number > settings_.conditionMax) ||
+             (settings_.useInverseManipulability && settings_.inverseManipulabilityWeight > 0.0));
+    }
+
+    ArmManipulabilityCost::Metrics ArmManipulabilityCost::evaluateCostMetrics(
+        const vector_t& state, matrix_t* gradients) const
+    {
+        Metrics current;
+        if (state.size() != static_cast<Eigen::Index>(modelInfo_.stateDim) || !state.allFinite()) {
+            current.status = wbmm::metrics::MetricsStatus::kInvalidInput;
+            return current;
+        }
+        std::lock_guard<std::mutex> lock(workspaceMutex_);
+        const auto& model = pinocchioInterface_.getModel();
+        auto& data = pinocchioInterface_.getData();
+        pinocchio::computeJointJacobians(model, data, state);
+        pinocchio::updateFramePlacement(model, data, endEffectorFrameId_);
+        matrix_t frameJacobian = matrix_t::Zero(6, model.nv);
+        pinocchio::getFrameJacobian(model, data, endEffectorFrameId_,
+            pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, frameJacobian);
+        const matrix_t jacobian = taskJacobian(frameJacobian, state);
+        const auto& options = settings_.metricsOptions;
+        if (!jacobian.allFinite()) {
+            current.status = wbmm::metrics::MetricsStatus::kModelError;
+            return current;
+        }
+        Eigen::JacobiSVD<matrix_t> svd(jacobian,
+            gradients ? Eigen::ComputeThinU | Eigen::ComputeThinV : 0);
+        const vector_t singular = svd.singularValues();
+        if (!singular.allFinite()) {
+            current.status = wbmm::metrics::MetricsStatus::kModelError;
+            return current;
+        }
+        current = spectralMetrics(jacobian, singular, settings_);
+        if (!gradients || !hasActiveTerms(current)) { return current; }
+
+        // Native WORLD Hessian uses tensor(row, Jacobian column, differentiation coordinate).
+        // WORLD linear velocity is at the world origin. Shift BOTH J and dJ to the TCP.
+        pinocchio::computeJointKinematicHessians(model, data);
+        kinematicHessian_.setZero();
+        pinocchio::getJointKinematicHessian(model, data,
+            model.frames[endEffectorFrameId_].parentJoint, pinocchio::WORLD, kinematicHessian_);
+        const Eigen::Vector3d point = data.oMf[endEffectorFrameId_].translation();
+        const scalar_t tolerance = std::sqrt(std::numeric_limits<scalar_t>::epsilon()) *
+            std::max<scalar_t>(1.0, singular(0));
+        bool spectralDifference = singular.tail(1)(0) <= tolerance;
+        for (Eigen::Index i = 1; i < singular.size(); ++i) {
+            spectralDifference = spectralDifference || singular(i - 1) - singular(i) <= tolerance;
+        }
+        if (settings_.useConditionNumber) {
+            spectralDifference = spectralDifference ||
+                std::abs(current.sigma_min - options.singular_value_floor) <= tolerance;
+        }
+        matrix_t derivative(6, model.nv);
+        for (const int index : activeStateIndices()) {
+            derivative = Eigen::Map<const matrix_t>(
+                kinematicHessian_.data() + index * 6 * model.nv, 6, model.nv);
+            const Eigen::Vector3d pointDerivative = frameJacobian.col(index).head<3>();
+            for (Eigen::Index column = 0; column < model.nv; ++column) {
+                derivative.col(column).head<3>() +=
+                    derivative.col(column).tail<3>().cross(point) +
+                    frameJacobian.col(column).tail<3>().cross(pointDerivative);
+            }
+            // WBMM root is composite [PX,PY,RZ]. PX/PY are world coordinates:
+            // their LWA Jacobian columns are constant world axes. Pinocchio's
+            // geometric Hessian includes intra-composite Lie brackets, which
+            // must not become coordinate derivatives of these two columns.
+            derivative.leftCols(2).setZero();
+            matrix_t dJ = taskJacobian(derivative, state);
+            if (index == 2 && options.scope == wbmm::metrics::JacobianScope::kWholeBodyInput) {
+                vector_t mapDerivative = -std::sin(state(2)) * frameJacobian.col(0) +
+                                         std::cos(state(2)) * frameJacobian.col(1);
+                if (options.task == wbmm::metrics::JacobianTask::kPose &&
+                    options.scaling == wbmm::metrics::JacobianScaling::kCharacteristicLength) {
+                    mapDerivative.tail(3) *= options.characteristic_length;
+                }
+                dJ.col(0) += mapDerivative.head(jacobian.rows());
+            }
+            if (spectralDifference) {
+                // Repeated/zero singular values have no unique SVD-vector derivative.
+                // Central differences on the linearized matrix keep the symmetric convention
+                // of the old implementation, without another kinematics call.
+                const scalar_t step = settings_.finiteDiffStep;
+                const matrix_t plusJ = jacobian + step * dJ, minusJ = jacobian - step * dJ;
+                const Eigen::JacobiSVD<matrix_t> plusSvd(plusJ), minusSvd(minusJ);
+                const auto plus = spectralMetrics(plusJ, plusSvd.singularValues(), settings_);
+                const auto minus = spectralMetrics(minusJ, minusSvd.singularValues(), settings_);
+                (*gradients)(Sigma, index) = (plus.sigma_min - minus.sigma_min) / (2 * step);
+                (*gradients)(Yoshikawa, index) = (plus.manipulability - minus.manipulability) / (2 * step);
+                (*gradients)(Condition, index) = (plus.condition_number - minus.condition_number) / (2 * step);
+                if (settings_.useInverseManipulability) {
+                    (*gradients)(Inverse, index) = (plus.inverse_manipulability - minus.inverse_manipulability) / (2 * step);
+                }
+            } else {
+                vector_t dSigma(singular.size());
+                for (Eigen::Index i = 0; i < singular.size(); ++i) {
+                    dSigma(i) = svd.matrixU().col(i).dot(dJ * svd.matrixV().col(i));
+                }
+                (*gradients)(Sigma, index) = dSigma.tail(1)(0);
+                if (settings_.useYoshikawa) {
+                    scalar_t dw = 0.0;
+                    for (Eigen::Index i = 0; i < singular.size(); ++i) {
+                        scalar_t product = 1.0;
+                        for (Eigen::Index j = 0; j < singular.size(); ++j) {
+                            if (j != i) { product *= singular(j); }
+                        }
+                        dw += product * dSigma(i);
+                    }
+                    (*gradients)(Yoshikawa, index) = dw;
+                }
+                if (settings_.useInverseManipulability) {
+                    (*gradients)(Inverse, index) =
+                        (-2 * singular.array() * dSigma.array() /
+                         (singular.array().square() + options.regularization).square()).sum();
+                }
+                if (settings_.useConditionNumber) {
+                    const scalar_t denominator = std::max(current.sigma_min, options.singular_value_floor);
+                    (*gradients)(Condition, index) = dSigma(0) / denominator -
+                        (current.sigma_min > options.singular_value_floor ?
+                         current.sigma_max * dSigma.tail(1)(0) / (denominator * denominator) : 0.0);
+                }
+            }
+            if (options.use_task_direction && current.task_direction_manipulability > 0.0) {
+                (*gradients)(Direction, index) =
+                    (jacobian.transpose() * options.task_direction).dot(dJ.transpose() * options.task_direction) /
+                    current.task_direction_manipulability;
+            }
+        }
+        return current;
+    }
+
+    scalar_t ArmManipulabilityCost::marginWeight(scalar_t weight, scalar_t reference) const
+    {
+        return settings_.normalizeMargins ? weight / (reference * reference) : weight;
+    }
+
     scalar_t ArmManipulabilityCost::costFromMetrics(const Metrics &metrics) const
     {
         if (metrics.status != wbmm::metrics::MetricsStatus::kSuccess ||
             !std::isfinite(metrics.sigma_min) ||
             !std::isfinite(metrics.manipulability) ||
-            !std::isfinite(metrics.inverse_manipulability) ||
-            !std::isfinite(metrics.condition_number) ||
+            (settings_.useInverseManipulability && !std::isfinite(metrics.inverse_manipulability)) ||
+            (settings_.useConditionNumber && !std::isfinite(metrics.condition_number)) ||
             (settings_.metricsOptions.use_task_direction &&
              !std::isfinite(metrics.task_direction_manipulability)))
         {
@@ -286,14 +525,14 @@ namespace wbmm_ocs2
         {
             const scalar_t deficit =
                 std::max<scalar_t>(0.0, settings_.minSingularRef - metrics.sigma_min);
-            cost += 0.5 * settings_.minSingularWeight * deficit * deficit;
+            cost += 0.5 * marginWeight(settings_.minSingularWeight, settings_.minSingularRef) * deficit * deficit;
         }
 
         if (settings_.useYoshikawa)
         {
             const scalar_t deficit = std::max<scalar_t>(
                 0.0, settings_.yoshikawaRef - metrics.manipulability);
-            cost += 0.5 * settings_.yoshikawaWeight * deficit * deficit;
+            cost += 0.5 * marginWeight(settings_.yoshikawaWeight, settings_.yoshikawaRef) * deficit * deficit;
         }
 
         if (settings_.metricsOptions.use_task_direction)
@@ -301,7 +540,7 @@ namespace wbmm_ocs2
             const scalar_t deficit = std::max<scalar_t>(
                 0.0, settings_.taskDirectionRef -
                          metrics.task_direction_manipulability);
-            cost += 0.5 * settings_.taskDirectionWeight * deficit * deficit;
+            cost += 0.5 * marginWeight(settings_.taskDirectionWeight, settings_.taskDirectionRef) * deficit * deficit;
         }
 
         if (settings_.useInverseManipulability)
@@ -317,7 +556,7 @@ namespace wbmm_ocs2
             cost += 0.5 * settings_.conditionWeight * excess * excess;
         }
 
-        return cost;
+        return settings_.weightScale * cost;
     }
 
     std::vector<int> ArmManipulabilityCost::activeStateIndices() const
@@ -359,7 +598,7 @@ namespace wbmm_ocs2
         const TargetTrajectories & /*targetTrajectories*/,
         const PreComputation & /*preComputation*/) const
     {
-        return costFromMetrics(computeMetrics(state));
+        return costFromMetrics(evaluateCostMetrics(state));
     }
 
     ScalarFunctionQuadraticApproximation
@@ -373,7 +612,8 @@ namespace wbmm_ocs2
         cost.dfdx = vector_t::Zero(state.rows());
         cost.dfdxx = matrix_t::Zero(state.rows(), state.rows());
 
-        const Metrics current = computeMetrics(state);
+        matrix_t metricGradients = matrix_t::Zero(MetricCount, state.rows());
+        const Metrics current = evaluateCostMetrics(state, &metricGradients);
         if (current.status != wbmm::metrics::MetricsStatus::kSuccess)
         {
             cost.f = settings_.invalidMetricsPenalty;
@@ -384,53 +624,21 @@ namespace wbmm_ocs2
 
         cost.f = costFromMetrics(current);
 
-        const auto indices = activeStateIndices();
-        const scalar_t step = settings_.finiteDiffStep;
-
-        vector_t gradSigmaMin = vector_t::Zero(state.rows());
-        vector_t gradYoshikawa = vector_t::Zero(state.rows());
-        vector_t gradTaskDirection = vector_t::Zero(state.rows());
-        vector_t gradInverseManipulability = vector_t::Zero(state.rows());
-        vector_t gradCondition = vector_t::Zero(state.rows());
-
-        for (const int index : indices)
+        // Above all hinge thresholds there is no metric derivative to compute.
+        // The analytic metric path skips derivative assembly in the healthy zone.
+        const bool active = hasActiveTerms(current);
+        if (!active)
         {
-            vector_t statePlus = state;
-            vector_t stateMinus = state;
-            statePlus(index) += step;
-            stateMinus(index) -= step;
-
-            const Metrics plus = computeMetrics(statePlus);
-            const Metrics minus = computeMetrics(stateMinus);
-            if (plus.status != wbmm::metrics::MetricsStatus::kSuccess ||
-                minus.status != wbmm::metrics::MetricsStatus::kSuccess)
-            {
-                cost.dfdx.setZero();
-                cost.dfdxx =
-                    settings_.hessianRegularization *
-                    matrix_t::Identity(state.rows(), state.rows());
-                return cost;
-            }
-
-            const scalar_t denominator = 2.0 * step;
-            gradSigmaMin(index) =
-                (plus.sigma_min - minus.sigma_min) / denominator;
-            gradYoshikawa(index) =
-                (plus.manipulability - minus.manipulability) / denominator;
-            if (settings_.metricsOptions.use_task_direction)
-            {
-                gradTaskDirection(index) =
-                    (plus.task_direction_manipulability -
-                     minus.task_direction_manipulability) /
-                    denominator;
-            }
-            gradInverseManipulability(index) =
-                (plus.inverse_manipulability -
-                 minus.inverse_manipulability) /
-                denominator;
-            gradCondition(index) =
-                (plus.condition_number - minus.condition_number) / denominator;
+            cost.dfdxx = settings_.weightScale * settings_.hessianRegularization *
+                         matrix_t::Identity(state.rows(), state.rows());
+            return cost;
         }
+
+        const vector_t gradSigmaMin = metricGradients.row(Sigma).transpose();
+        const vector_t gradYoshikawa = metricGradients.row(Yoshikawa).transpose();
+        const vector_t gradTaskDirection = metricGradients.row(Direction).transpose();
+        const vector_t gradInverseManipulability = metricGradients.row(Inverse).transpose();
+        const vector_t gradCondition = metricGradients.row(Condition).transpose();
 
         vector_t gradient = vector_t::Zero(state.rows());
         matrix_t hessian =
@@ -456,19 +664,19 @@ namespace wbmm_ocs2
         {
             addHinge(
                 gradSigmaMin, current.sigma_min,
-                settings_.minSingularRef, settings_.minSingularWeight);
+                settings_.minSingularRef, marginWeight(settings_.minSingularWeight, settings_.minSingularRef));
         }
         if (settings_.useYoshikawa)
         {
             addHinge(
                 gradYoshikawa, current.manipulability,
-                settings_.yoshikawaRef, settings_.yoshikawaWeight);
+                settings_.yoshikawaRef, marginWeight(settings_.yoshikawaWeight, settings_.yoshikawaRef));
         }
         if (settings_.metricsOptions.use_task_direction)
         {
             addHinge(
                 gradTaskDirection, current.task_direction_manipulability,
-                settings_.taskDirectionRef, settings_.taskDirectionWeight);
+                settings_.taskDirectionRef, marginWeight(settings_.taskDirectionWeight, settings_.taskDirectionRef));
         }
         if (settings_.useConditionNumber &&
             current.condition_number > settings_.conditionMax)
@@ -488,8 +696,8 @@ namespace wbmm_ocs2
             // regularization added above.
         }
 
-        cost.dfdx = gradient;
-        cost.dfdxx = hessian;
+        cost.dfdx = settings_.weightScale * gradient;
+        cost.dfdxx = settings_.weightScale * hessian;
         return cost;
     }
 

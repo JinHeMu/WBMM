@@ -1,0 +1,4 @@
+{"case":"sigma","callback":"value","median_us":4.69919,"p95_us":5.01648,"checksum":1874.48}
+{"case":"sigma","callback":"quadratic","median_us":8.03907,"p95_us":8.47128,"checksum":5030.18}
+{"case":"sigma_yoshikawa","callback":"value","median_us":4.65582,"p95_us":4.98135,"checksum":6913.18}
+{"case":"sigma_yoshikawa","callback":"quadratic","median_us":8.44257,"p95_us":8.79493,"checksum":10204.9}
